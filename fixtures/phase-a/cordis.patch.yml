@@ -1,0 +1,3 @@
+- insert:
+    - id: dshx-phase-a
+      name: "@dshx/phase-a-fixture"

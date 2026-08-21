@@ -1,0 +1,6 @@
+export { buildClient, buildHost } from './compiler/index.js'
+export type { BuildClientOptions, BuildHostOptions, ClientBuildResult, HostBuildResult } from './compiler/index.js'
+export { resolveCompatibility, RC8_COMPATIBILITY } from './compat/index.js'
+export type { DshCompatibility } from './compat/index.js'
+export { DshxError } from './diagnostics.js'
+export type { DshxDiagnostic, DshxDiagnosticSeverity } from './diagnostics.js'

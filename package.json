@@ -1,0 +1,22 @@
+{
+  "name": "dshx-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.24.0",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "build": "pnpm --filter dshx build",
+    "check": "pnpm run typecheck && pnpm run test && pnpm run build",
+    "phase-a:build": "pnpm run build && pnpm --filter @dshx/phase-a-fixture build",
+    "test": "pnpm --filter dshx test",
+    "typecheck": "pnpm --filter dshx typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.20",
+    "typescript": "5.9.3",
+    "vitest": "4.1.8"
+  }
+}

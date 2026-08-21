@@ -1,0 +1,7 @@
+packages:
+  - packages/*
+  - fixtures/*
+
+allowBuilds:
+  esbuild: true
+  lightningcss: true
