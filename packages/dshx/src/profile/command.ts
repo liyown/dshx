@@ -34,6 +34,15 @@ export const runProjectDsh: DshCommandRunner = async (args, options) => {
   if (options.executable !== 'global' && localBin.some(existsSync)) {
     const local = await execute('pnpm', ['exec', 'dsh', ...args], options)
     localStderr = local.stderr
+    if (local.failureCode === 'ENOENT') {
+      const localPath = localBin.find(existsSync)
+      if (localPath !== undefined) {
+        const direct = await execute(localPath, args, options)
+        if (direct.exitCode === 0 || direct.exitCode !== undefined || direct.failureCode !== 'ENOENT') {
+          return { ...direct, executable: 'local' }
+        }
+      }
+    }
     if (local.exitCode === 0 || (!NOT_FOUND.test(local.stderr) && !NOT_FOUND.test(local.stdout) && local.failureCode !== 'ENOENT')) return local
   }
   const global = await execute('dsh', args, options)

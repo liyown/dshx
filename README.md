@@ -9,6 +9,16 @@ pnpm install
 pnpm check
 ```
 
+The public packages are `dshx` (the compiler, runtime helpers, and CLI) and `create-dshx` (the project initializer). Start a new Full plugin with the project-book workflow:
+
+```bash
+pnpm create dshx demo
+cd demo
+pnpm dev
+```
+
+The initializer refuses to overwrite an existing directory, generates a Host Tool and a Client Slot, and asks before installing dependencies in an interactive terminal. For scripts and CI, pass the project name plus `--yes`; `--install` and `--no-install` explicitly control dependency installation, and `--package-manager pnpm|yarn|npm` overrides detection. It detects pnpm, yarn, or npm from an existing lockfile, `packageManager`, and finally the available PATH commands. The generated project pins DSH to `0.1.0-rc.8` and uses the matching published `dshx` version.
+
 The package exposes three user commands. `dshx build` validates the manifest and builds enabled Host/Client faces without touching DSH or project metadata. `dshx check` performs the same read-only manifest checks plus DSH version and Profile-link inspection; use `--json` for automation. DSHX prefers the project-local `pnpm exec dsh`, then falls back to the official `dsh` on PATH, so plugin developers can debug against an existing user installation without adding DSH to every plugin manifest. `dshx dev` ensures the project is linked through the selected DSH CLI, starts the coordinated watchers, and launches DSH only after the enabled faces build successfully. Web sessions pass `--no-open` by default; use `dshx dev --open` to opt in to browser handoff. In an interactive terminal, `r` restarts DSH and `q` closes the session.
 
 Projects can import `defineConfig` and `resolveDshxConfig` from `dshx/config`. Resolution finds the nearest `package.json`, loads only a root `dshx.config.ts`, and applies explicit fields before the `src/host.ts` / `src/client.tsx` conventions and defaults. The package ID always remains `package.json.name`; an optional config `name` is a separate logical Host name.
@@ -42,3 +52,5 @@ Client definitions may now include `slots: [defineSlot(...)]`. `defineSlot()` us
 Existing native Host modules with named `name`, `inject`, `Config`, and `apply` exports remain supported. The Host stage does not add Tool shortcuts, Tool View helpers, a custom Tool schema DSL, infer service dependencies from `setup(ctx)`, or add Host config-schema shortcuts.
 
 The real DSH browser/HMR smoke test remains a release gate. Unit or simulated loader tests do not count as that verification.
+
+The repository's generated-package smoke tests use local build artifacts until `dshx` and `create-dshx` are published to npm. A registry install of a generated project therefore requires the corresponding public `dshx` version to have been released first.

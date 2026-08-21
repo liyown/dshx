@@ -8,8 +8,8 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
-    "build": "pnpm --filter dshx build",
-    "check": "pnpm run typecheck && pnpm run test && pnpm run build",
+    "build": "pnpm --filter dshx build && pnpm --filter create-dshx build",
+    "check": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm --filter create-dshx typecheck && pnpm --filter create-dshx test && pnpm --filter create-dshx build",
     "phase-a:build": "pnpm run build && pnpm --filter @dshx/phase-a-fixture build",
     "test": "pnpm --filter dshx test",
     "typecheck": "pnpm --filter dshx typecheck"

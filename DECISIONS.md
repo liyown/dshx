@@ -69,6 +69,18 @@ Session shutdown first closes enabled watchers, then sends SIGTERM to DSH and es
 
 This remains a process-control API rather than a user command. It does not own stdin, TTY/raw mode, `r`/`q` keys, automatic restart backoff, unlink, Node engine checks, or artifact inspection; those responsibilities stay with later CLI and check stages.
 
+## 2026-08-21: create-dshx generates the first runnable Full project
+
+`create-dshx` is a separate public package so `pnpm create dshx <name>` follows pnpm's standard create-package resolution. `dshx` is also publishable and keeps the compiler, runtime helpers, and `dshx build/check/dev` bin. The two packages use the same release version; generated manifests never contain `workspace:*` and receive the matching `dshx` version.
+
+The first initializer only emits a Full Host + Client project. It uses a small, checked template containing `defineHost`/official `defineTool`, `defineClient`/`defineSlot`, the sidebar provider declaration import, the required exports, DSH metadata, and a minimal bundle patch. Project names are non-scoped npm names and are used as both the target directory and package ID. Existing target directories are never overwritten.
+
+Dependency installation is optional in generation-only mode and defaults to yes in the interactive wizard. Package-manager discovery follows target lockfile, `packageManager`, then PATH (`pnpm`, `yarn`, `npm`). Installation uses an argument-array command runner with the generated project as cwd; failures leave the generated files in place and report `DSHX6004`. Generation conflicts and invalid names use `DSHX6001`/`DSHX6002`, while write and discovery failures use `DSHX6003`/`DSHX6005`.
+
+The initializer also has a deterministic non-interactive contract: a project name is required, `--yes` disables prompts, `--install`/`--no-install` explicitly choose installation, and `--package-manager` can override discovery. Missing names and invalid option combinations return usage code `2` without reading stdin.
+
+The initializer does not implement Host-only/Client-only templates, `inspect`, `add`, `check --fix`, unlink, Slot catalog/scaffold, or Tool View. Registry smoke tests require the public `dshx` version to be released; local tarball tests cover the generated project before publication.
+
 ## 2026-08-21: defineHost is an identity API over the official Host model
 
 `dshx/host` exposes an identity-preserving `defineHost()` whose `setup` receives the official Cordis `Context` and whose `tools` accept the rc.8 `ToolDefinition` directly. DSHX does not introduce parallel Context, Tool, registry, or disposer types. The official Cordis and tools packages are peer dependencies used for public typing; re-exporting the official `defineTool` remains a separate next-stage decision.
