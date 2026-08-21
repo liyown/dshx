@@ -1,4 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis'
+import type { ToolRuntime } from '@deepseek-ai/dsh-tools'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    tools: ToolRuntime
+  }
+}
 import { DshxError } from '../diagnostics.js'
 import type { HostDefinition } from './types.js'
 

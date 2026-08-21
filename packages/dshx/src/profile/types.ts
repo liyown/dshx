@@ -12,6 +12,8 @@ export interface DshCommandResult {
   readonly stderr: string
   readonly failureCode?: string
   readonly cause?: unknown
+  /** Which executable resolved the command. The default runner uses project-local first. */
+  readonly executable?: 'local' | 'global'
 }
 
 /** Execution context supplied to an injectable DSH command runner. */
@@ -19,6 +21,7 @@ export interface DshCommandRunOptions {
   readonly cwd: string
   readonly env: NodeJS.ProcessEnv
   readonly timeoutMs: number
+  readonly executable?: 'local' | 'global'
 }
 
 /** Testable command seam whose arguments begin after the DSH executable. */
@@ -31,11 +34,13 @@ export type DshCommandRunner = (
 export interface ProfileOrchestratorOptions {
   readonly env?: Readonly<NodeJS.ProcessEnv>
   readonly runner?: DshCommandRunner
+  readonly executable?: 'local' | 'global'
 }
 
 /** Installed DSH version and the adapter DSHX will use for it. */
 export interface ResolvedDshInstallation {
   readonly version: string
+  readonly executable?: 'local' | 'global'
   readonly support: DshSupportStatus
   readonly compatibility: DshCompatibility
   readonly diagnostics: readonly DshxDiagnostic[]

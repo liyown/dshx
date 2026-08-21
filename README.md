@@ -9,18 +9,36 @@ pnpm install
 pnpm check
 ```
 
+The package exposes three user commands. `dshx build` validates the manifest and builds enabled Host/Client faces without touching DSH or project metadata. `dshx check` performs the same read-only manifest checks plus DSH version and Profile-link inspection; use `--json` for automation. DSHX prefers the project-local `pnpm exec dsh`, then falls back to the official `dsh` on PATH, so plugin developers can debug against an existing user installation without adding DSH to every plugin manifest. `dshx dev` ensures the project is linked through the selected DSH CLI, starts the coordinated watchers, and launches DSH only after the enabled faces build successfully. Web sessions pass `--no-open` by default; use `dshx dev --open` to opt in to browser handoff. In an interactive terminal, `r` restarts DSH and `q` closes the session.
+
 Projects can import `defineConfig` and `resolveDshxConfig` from `dshx/config`. Resolution finds the nearest `package.json`, loads only a root `dshx.config.ts`, and applies explicit fields before the `src/host.ts` / `src/client.tsx` conventions and defaults. The package ID always remains `package.json.name`; an optional config `name` is a separate logical Host name.
+
+Plugin projects should declare the DSH host as a development dependency so `pnpm exec dshx dev` is immediately reproducible:
+
+```json
+{
+  "devDependencies": {
+    "@deepseek-ai/dsh": "0.1.0-rc.8"
+  }
+}
+```
+
+`@deepseek-ai/dsh` stays out of the published runtime dependency graph. DSHX also accepts an official `dsh` already available on PATH when the plugin does not carry a local host dependency.
 
 Manifest checking reports all errors and publishing warnings without rewriting `package.json`, `dshx.config.ts`, or `cordis.patch.yml`. Enabled source faces require their rc.8 exports and DSH metadata. Host-only projects omit Client metadata; Client-only projects retain the root Host export for the generated no-op Host artifact.
 
-Profile orchestration requires a project-local `@deepseek-ai/dsh` installation and resolves it with `pnpm exec dsh`; global fallback is intentionally disabled. It inspects and changes Profile state only through `dsh plugin`, skips an existing link to the same real project path, and rejects package-name or path conflicts before installation. Unsupported DSH versions fail by default; `compatibility.allowUnsupported` continues with the rc.8 adapter and a persistent warning.
+Profile orchestration resolves `dsh` from the project first and falls back to the official PATH command when no project-local CLI exists. It inspects and changes Profile state only through `dsh plugin`, skips an existing link to the same real project path, and rejects package-name or path conflicts before installation. Unsupported DSH versions fail by default; `compatibility.allowUnsupported` continues with the rc.8 adapter and a persistent warning.
 
-The internal development session keeps Host and Client watchers alive when their first build fails. DSH starts only after every enabled source face has built successfully at least once, using the project root, resolved Profile, and `pnpm exec dsh`; Web sessions add `--no-open` by default. Client rebuilds rely on rc.8 native HMR. Host rebuilds either mark `hostRestartRequired` for the default manual policy or serialize an automatic DSH restart when `dev.hostRestart` is `auto`.
+The internal development session keeps Host and Client watchers alive when their first build fails. DSH starts only after every enabled source face has built successfully at least once, using the project root, resolved Profile, and the executable selected during version detection; Web sessions add `--no-open` by default. Client rebuilds rely on rc.8 native HMR. Host rebuilds either mark `hostRestartRequired` for the default manual policy or serialize an automatic DSH restart when `dev.hostRestart` is `auto`.
 
-An unexpected DSH exit is reported as failed and is not put into an automatic restart loop. `restart()` performs one explicit stop/start without changing the Profile link. `close()` is idempotent, closes both watchers first, then sends SIGTERM to DSH and escalates to SIGKILL after a bounded timeout. Terminal input, raw mode, `r`/`q` mappings, and user command parsing remain deferred to the CLI stage.
+An unexpected DSH exit is reported as failed and is not put into an automatic restart loop. `restart()` performs one explicit stop/start without changing the Profile link. `close()` is idempotent, closes both watchers first, then sends SIGTERM to DSH and escalates to SIGKILL after a bounded timeout. The CLI maps TTY `r` to `restart()` and `q`/Ctrl-C to `close()`; non-TTY sessions respond only to process signals.
 
-Host projects can import `defineHost` from `dshx/host` and default-export a definition with `inject`, official DSH `ToolDefinition` values, and direct `setup(ctx)` access to the official Cordis Context. `defineHost()` preserves the original object; the Host compiler supplies the resolved logical name, merges the `tools` dependency when needed, registers tools through `ctx.tools.register()`, and runs setup afterward. The helper and its thin adapter are inlined into `dist/index.js`, so built Hosts do not import a DSHX runtime.
+Host projects can import `defineHost` and the official rc.8 `defineTool` from `dshx/host` and default-export a definition with `inject`, tools, and direct `setup(ctx)` access to the official Cordis Context. `defineTool` is the exact official function, not a DSHX wrapper; schemas, execution validation, output rendering, and tool lifecycle remain owned by DSH. `defineHost()` preserves the original object; the Host compiler supplies the resolved logical name, merges the `tools` dependency when needed, registers tools through `ctx.tools.register()`, and runs setup afterward. The Host helper and thin adapter are inlined into `dist/index.js`, while `@deepseek-ai/dsh-tools` remains a bare external resolved by DSH.
 
-Existing native Host modules with named `name`, `inject`, `Config`, and `apply` exports remain supported. This stage does not re-export the official `defineTool`, infer service dependencies from `setup(ctx)`, or add Host config-schema shortcuts.
+Client projects can import `defineClient` from `dshx/client` and default-export a definition with an optional logical `name`, ordered service `inject`, and `setup(ctx)`. The setup receives the official Cordis Context; DSHX only deduplicates the declared dependencies and adapts the definition to rc.8's native `{ name, inject, apply, Config }` module shape. Existing native named Client exports remain supported. The Client helper and adapter are inlined into `dist/client.js`, so the built lazy-CJS module has no `dshx/client` runtime import.
+
+Client definitions may now include `slots: [defineSlot(...)]`. `defineSlot()` uses the official rc.8 `SlotMap` declaration merging and registration types, while the adapter calls `ctx.slots.inject()` and `ctx.slots.register()` in declaration order. A non-empty Slot list adds the Cordis `slots` dependency automatically; registration disposal remains owned by the official Fiber. Add a type-only import from the Slot provider's `/client` export when its SlotMap augmentation is needed. Slot inspect, catalog generation, and scaffold commands remain future CLI work.
+
+Existing native Host modules with named `name`, `inject`, `Config`, and `apply` exports remain supported. The Host stage does not add Tool shortcuts, Tool View helpers, a custom Tool schema DSL, infer service dependencies from `setup(ctx)`, or add Host config-schema shortcuts.
 
 The real DSH browser/HMR smoke test remains a release gate. Unit or simulated loader tests do not count as that verification.

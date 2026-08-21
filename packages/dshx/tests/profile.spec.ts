@@ -99,7 +99,7 @@ describe('DSH installation resolution', () => {
     expect(calls[0]?.options.timeoutMs).toBeGreaterThan(0)
   })
 
-  it('reports a missing project-local DSH CLI', async () => {
+  it('reports a missing DSH CLI when neither local nor PATH resolution works', async () => {
     const project = await temporaryProject()
     const runner = queuedRunner([{
       exitCode: 254,
@@ -292,7 +292,7 @@ describe('profile linking', () => {
   })
 })
 
-describe('project-local pnpm resolution', () => {
+describe('local-first DSH resolution', () => {
   it('uses a locally declared and installed DSH binary', async () => {
     const project = await temporaryProject()
     const manifest = {
@@ -323,11 +323,28 @@ describe('project-local pnpm resolution', () => {
     const localProject: ResolvedDshxConfig = { ...project, manifest }
     await expect(resolveDshInstallation(localProject)).resolves.toMatchObject({
       version: '0.1.0-rc.8',
+      executable: 'local',
       support: 'verified',
     })
   })
 
-  it('does not consult PATH when the project does not declare DSH', async () => {
+  it('falls back to an official dsh on PATH when pnpm has no local command', async () => {
+    const project = await temporaryProject()
+    const originalPath = process.env.PATH
+    const binDir = await mkdtemp(resolve(tmpdir(), 'dshx-bin-'))
+    temporaryDirectories.push(binDir)
+    await writeFile(resolve(binDir, 'dsh'), '#!/usr/bin/env node\nconsole.log("0.1.0-rc.8")\n')
+    await chmod(resolve(binDir, 'dsh'), 0o755)
+    process.env.PATH = `${binDir}:${originalPath ?? ''}`
+    try {
+      await expect(resolveDshInstallation(project)).resolves.toMatchObject({ executable: 'global', version: '0.1.0-rc.8' })
+    } finally {
+      if (originalPath === undefined) delete process.env.PATH
+      else process.env.PATH = originalPath
+    }
+  })
+
+  it('reports no CLI when the project has no local DSH and PATH has none', async () => {
     const project = await temporaryProject()
     await expect(resolveDshInstallation(project)).rejects.toMatchObject({
       code: 'DSHX5001',

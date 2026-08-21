@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { defineTool as officialDefineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { defineHost } from '../src/host/index.js'
+import { defineHost, defineTool } from '../src/host/index.js'
 import { createHostModule, createHostPlugin } from '../src/host/runtime.js'
 
 function tool(name: string): ToolDefinition {
@@ -13,6 +13,31 @@ function context(register: (tool: ToolDefinition) => () => void): Context {
 }
 
 describe('defineHost', () => {
+  it('re-exports the official defineTool without wrapping it', () => {
+    expect(defineTool).toBe(officialDefineTool)
+  })
+
+  it('preserves official defineTool inference and registry-ready output', () => {
+    const status = defineTool({
+      name: 'status',
+      description: 'Return status.',
+      parameters: {
+        prefix: { type: 'string', required: true },
+      },
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: value }],
+      },
+      async execute(args, _exec) {
+        expectTypeOf(args.prefix).toBeString()
+        return `${args.prefix}:ok`
+      },
+    })
+    expectTypeOf(status.execute).toBeFunction()
+    const official: ToolDefinition = status
+    expect(official).toBe(status)
+  })
+
   it('preserves object identity and literal inference', () => {
     const definition = {
       name: 'literal-host' as const,

@@ -53,6 +53,7 @@ export interface DevSessionOptions {
   readonly env?: Readonly<NodeJS.ProcessEnv>
   readonly dshArgs?: readonly string[]
   readonly profile?: ProfileOrchestratorOptions
+  readonly preparedProfile?: PreparedProjectProfile
   readonly ensureProfile?: (
     project: ResolvedDshxConfig,
     options: ProfileOrchestratorOptions,

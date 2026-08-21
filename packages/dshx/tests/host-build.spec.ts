@@ -62,6 +62,45 @@ describe('host compiler', () => {
     expect(calls).toEqual(['tool:first', 'tool:second', 'setup'])
   })
 
+  it('keeps official defineTool external while adapting the Host entry', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/host.ts'), [
+      "import { defineHost, defineTool } from 'dshx/host'",
+      "const tool = defineTool({",
+      "  name: 'status',",
+      "  description: 'Return status.',",
+      '  parameters: {},',
+      '  output: {',
+      "    schema: { type: 'string' },",
+      "    render: (_args, value) => [{ type: 'text', text: value }],",
+      '  },',
+      "  async execute() { return 'ok' },",
+      '})',
+      'export default defineHost({ tools: [tool] })',
+      '',
+    ].join('\n'))
+
+    await buildHost({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/host.ts',
+      outDir: 'dist',
+    })
+
+    const code = await readFile(resolve(root, 'dist/index.js'), 'utf8')
+    expect(code).not.toMatch(/from ['"](?:dshx\/host|dshx\/internal-host-runtime)['"]/)
+    expect(code).toMatch(/from ['"]@deepseek-ai\/dsh-tools['"]/)
+    expect(code.match(/from ['"]@deepseek-ai\/dsh-tools['"]/g)).toHaveLength(1)
+    const plugin = await import(`${pathToFileURL(resolve(root, 'dist/index.js')).href}?test=${Date.now()}`) as {
+      inject: readonly string[]
+      apply(ctx: unknown): unknown
+    }
+    const registered: unknown[] = []
+    plugin.apply({ tools: { register(tool: unknown) { registered.push(tool) } } })
+    expect(plugin.inject).toEqual(['tools'])
+    expect(registered).toHaveLength(1)
+  })
+
   it('emits a Node ESM entry with a sourcemap and preserves package imports', async () => {
     const root = await temporaryProject()
     await writeFile(resolve(root, 'src/host.ts'), [

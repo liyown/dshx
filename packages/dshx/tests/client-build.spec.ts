@@ -67,11 +67,76 @@ describe('client compiler', () => {
     expect(styles[0]?.dataset.plugin).toBe('@dshx/phase-a-fixture')
     expect(styles[0]?.dataset.pluginCss).toContain('src/Status.module.css')
     expect(styles[0]?.textContent).toContain('color:#087f5b')
-    expect(plugin?.inject).toEqual(['slots'])
-
-    const element = (plugin?.StatusButton as () => { props: { className: string; children: string } })()
+    const registered: unknown[] = []
+    const clientPlugin = plugin as unknown as { name: string; inject: readonly string[]; apply(ctx: unknown): unknown }
+    expect(clientPlugin.name).toBe('@dshx/phase-a-fixture')
+    expect(clientPlugin.inject).toEqual(['slots'])
+    clientPlugin.apply({ slots: {
+      inject: (_name: string, register: () => unknown) => register(),
+      register: (options: unknown, component: unknown) => {
+        registered.push({ options, component })
+        return component
+      },
+    } })
+    expect(registered).toHaveLength(1)
+    const component = (registered[0] as { component: () => { props: { className: string; children: string } } }).component
+    const element = component()
     expect(element.props.children).toBe('DSHX Phase A')
     expect(element.props.className).toMatch(/_status$/)
+  })
+
+  it('adapts a defineClient default export and keeps the logical name in the bundle', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/client.tsx'), [
+      "import { defineClient } from 'dshx/client'",
+      'export default defineClient({',
+      "  name: 'explicit-client',",
+      "  inject: ['remote', 'remote'],",
+      '  setup() {},',
+      '})',
+      '',
+    ].join('\n'))
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      logicalName: 'logical-client',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
+    const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
+    expect(code).not.toMatch(/(?:from|require)\(["']dshx\/client/)
+    const registration: { factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } = {} as never
+    vm.runInNewContext(code, {
+      window: { __ModuleLoader__: { load: (value: typeof registration) => Object.assign(registration, value) } },
+    })
+    const plugin = registration.factory(() => ({})) as { name: string; inject: string[] }
+    expect(plugin.name).toBe('explicit-client')
+    expect(plugin.inject).toEqual(['remote'])
+  })
+
+  it('preserves native named Client exports and Config', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/client.tsx'), [
+      "export const name = 'native-client'",
+      "export const inject = ['slots']",
+      "export const Config = { marker: true }",
+      'export function apply(ctx, config) { ctx.received = config }',
+      '',
+    ].join('\n'))
+    await buildClient({ packageId: '@dshx/phase-a-fixture', logicalName: 'logical-client', root, entry: 'src/client.tsx', outDir: 'dist' })
+    const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
+    const registration: { factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } = {} as never
+    vm.runInNewContext(code, {
+      window: { __ModuleLoader__: { load: (value: typeof registration) => Object.assign(registration, value) } },
+    })
+    const plugin = registration.factory(() => ({})) as { name: string; inject: string[]; Config: unknown; apply: (ctx: { received?: unknown }, config: unknown) => void }
+    const context: { received?: unknown } = {}
+    const config = { enabled: true }
+    plugin.apply(context, config)
+    expect(plugin.name).toBe('native-client')
+    expect(plugin.inject).toEqual(['slots'])
+    expect(plugin.Config).toEqual({ marker: true })
+    expect(context.received).toBe(config)
   })
 
   it('rejects a Node builtin in the client graph', async () => {

@@ -49,19 +49,21 @@ String exports and one-level conditional exports with a string `default` match t
 
 This stage does not inspect an installed DSH version, repair manifests, validate built artifact contents, query online Slots, or infer hard dependencies from source. Those behaviors remain assigned to the profile orchestrator, future `dshx check --fix`, build/check, and inspect stages respectively.
 
-## 2026-08-21: Profile orchestration uses the project-local official CLI
+## 2026-08-21: Profile orchestration prefers local DSH and supports PATH fallback
 
-DSHX resolves DSH from the project through `pnpm exec dsh` and requires `@deepseek-ai/dsh` to be both declared and locally resolvable. It does not fall back to a global executable, so the version checked by DSHX is the version the project installs. Exact rc.8 is verified; an unsupported version fails with `DSHX5101` unless `compatibility.allowUnsupported` is enabled, in which case DSHX keeps the rc.8 adapter and returns the same code as a warning.
+DSHX resolves DSH through the project-local `pnpm exec dsh` first. If the local command is genuinely absent, it falls back to the official `dsh` found on PATH. The selected executable is retained from version detection through Profile commands and the Dev child process, so a plugin can debug against an existing user installation without declaring DSH or mutating a global package installation. Exact rc.8 is verified; an unsupported version fails with `DSHX5101` unless `compatibility.allowUnsupported` is enabled, in which case DSHX keeps the rc.8 adapter and returns the same code as a warning.
+
+The recommended plugin template declares `@deepseek-ai/dsh` in `devDependencies`. This gives each plugin a reproducible host for local debugging without adding DSH to published runtime dependencies or changing the user's global installation. PATH fallback remains a compatibility convenience for existing installations.
 
 Profile state comes from `dsh plugin --profile <name> list --depth 0 --json`. DSHX compares both package ID and real package path, skips an exact existing link, and rejects name/path conflicts before any add. An absent project is installed only through `dsh plugin --profile <name> add <absolute-root>` and must appear in a second official inspection before orchestration succeeds. DSHX never reads or writes the profile manifest directly and does not remove links when a dev process exits.
 
-This layer remains internal until the user-facing CLI is implemented. It does not start DSH, manage watchers, validate the Node engine, restart Host code, or expose unlink behavior; the next process-orchestrator and CLI stages own those concerns.
+The Profile API remains internal; the user-facing CLI consumes it without exposing direct Profile mutation methods. It does not validate the Node engine or expose unlink behavior.
 
 ## 2026-08-21: Dev sessions gate DSH on successful watch builds
 
-`startDevSession()` composes the resolved project, Profile Orchestrator, Host/Client watcher factories, and one project-local DSH child. Watch mode starts without requiring a successful one-shot build, so an initial compiler error leaves the watcher active and the face in `error`; a later valid source change can recover it to `ok`. DSH starts only after every enabled face has produced a successful bundle at least once. A failed or unexpectedly exited DSH process is not started again by later build events and requires an explicit `restart()`.
+`startDevSession()` composes the resolved project, Profile Orchestrator, Host/Client watcher factories, and one DSH child using the executable selected during version detection. Watch mode starts without requiring a successful one-shot build, so an initial compiler error leaves the watcher active and the face in `error`; a later valid source change can recover it to `ok`. DSH starts only after every enabled face has produced a successful bundle at least once. A failed or unexpectedly exited DSH process is not started again by later build events and requires an explicit `restart()`.
 
-Client rebuilds leave DSH running and rely exclusively on rc.8 HMR. A Host rebuild under the default `manual` policy sets `hostRestartRequired`; `auto` serializes stop/start operations so only one DSH child is active. Web processes receive `--no-open` unless the caller supplies an open policy. The process inherits the environment, uses the project root as cwd, and always runs through `pnpm exec dsh --profile <profile>`.
+Client rebuilds leave DSH running and rely exclusively on rc.8 HMR. A Host rebuild under the default `manual` policy sets `hostRestartRequired`; `auto` serializes stop/start operations so only one DSH child is active. Web processes receive `--no-open` unless the caller supplies an open policy. The process inherits the environment, uses the project root as cwd, and runs through the selected local or PATH DSH executable with `--profile <profile>`.
 
 Session shutdown first closes enabled watchers, then sends SIGTERM to DSH and escalates to SIGKILL after a bounded timeout. Shutdown is idempotent, waits for an in-flight restart, ignores late watcher/child events, and never removes the Profile link. `DSHX4401` through `DSHX4406` cover spawn, exit, signal, restart, watcher lifecycle, and build failures while retaining the original compiler error or inherited DSH stderr for diagnosis.
 
@@ -75,4 +77,30 @@ The Host compiler now builds through a virtual entry. A default export is normal
 
 User inject entries keep first-occurrence order. A non-empty `tools` list appends the `tools` service only when it is absent, then `apply()` registers every Tool in declaration order before calling `setup(ctx)`. Tool definitions and duplicate names are passed unchanged to the official registry, and returned disposers are not captured because Cordis already binds registration effects to the calling Fiber.
 
-The public identity helper and internal adapter are bundled into `dist/index.js`; only user and platform bare imports remain external. This keeps DSHX a build-time dependency while allowing stable `DSHX2001`/`DSHX2002` runtime diagnostics for malformed JavaScript definitions. Config schemas, prompt/command shortcuts, service-access inference, Client helpers, and user-facing CLI commands remain out of scope for this stage.
+The public identity helper and internal adapter are bundled into `dist/index.js`; only user and platform bare imports remain external. This keeps DSHX a build-time dependency while allowing stable `DSHX2001`/`DSHX2002` runtime diagnostics for malformed JavaScript definitions. Config schemas, prompt/command shortcuts, service-access inference, Client helpers, Tool View helpers, custom Tool schema DSLs, and user-facing CLI commands remain out of scope for this stage.
+
+## 2026-08-21: defineTool is the official rc.8 helper
+
+`dshx/host` re-exports the exact `@deepseek-ai/dsh-tools` `defineTool` function. DSHX does not copy `ToolDefinition`, `DefineToolOptions`, schema inference, validation, output rendering, timeout policy, presentation, or registry lifecycle. A Host definition registers those official values through `ctx.tools.register()` in declaration order; Cordis owns registration disposal.
+
+The Host virtual module exposes an inlined identity `defineHost` and forwards `defineTool` to the bare `@deepseek-ai/dsh-tools` external. Built Host artifacts therefore contain no `dshx/host` or DSHX runtime import and use the DSH-provided official Tool module at load time. Tool View, custom Tool shortcuts, and the user-facing CLI remain later stages.
+
+## 2026-08-21: defineClient is a thin official Client adapter
+
+`dshx/client` exposes an identity-preserving `defineClient()` with `name`, ordered `inject`, `slots`, and `setup(ctx)`. The `Context` type is imported directly from official Cordis; DSHX does not create a private Client context, service container, slot registry, or disposer list. Slot contributions are created by the official-type-driven `defineSlot()` helper and use one authoritative registration path through the rc.8 Slot service.
+
+The Client compiler uses a virtual entry just like the Host compiler. A default export is validated and normalized to `{ name, inject, apply }`; a module without a default export keeps native `name`, `inject`, `Config`, and `apply` exports. Definition name overrides the resolved logical project name, then the package ID. Inject entries keep first-occurrence order and are deduplicated. Malformed default definitions use `DSHX2101`/`DSHX2102` with the source file and a repair hint.
+
+The identity helper and adapter are bundled into the lazy-CJS Client artifact. Built output must not import `dshx/client` or DSHX internal runtime code; official Cordis/DSH modules remain governed by the existing Client external policy. Client setup lifecycle remains owned by the official Cordis runtime, and native Client compatibility is retained while the public helper is adopted.
+
+## 2026-08-21: defineSlot delegates to the official Slot registry
+
+`defineSlot()` is a thin identity-style contribution helper over `@deepseek-ai/dsh-client-ui-slots`. Its `SlotMap`, `PropsRuntime`, component, kind, inject, store, and declaration types are the rc.8 source of truth; DSHX does not reproduce a Slot map or registry. Provider packages must be brought into the TypeScript graph with an explicit type-only `/client` import so their declaration merging narrows the Slot key and props types.
+
+`defineClient({ slots })` appends the `slots` Cordis dependency when the list is non-empty, preserves first-occurrence order, and registers each contribution through `ctx.slots.inject(name, () => ctx.slots.register(options, component))` before `setup(ctx)`. DSHX keeps no disposer list: official Slot service and Cordis Fiber own registration lifetime and duplicate/undeclared-slot failures. Invalid contribution shapes use `DSHX2201`/`DSHX2202`; runtime registry semantics are not wrapped or silently changed.
+
+## 2026-08-21: the user CLI is a thin orchestration layer
+
+`dshx build`, `dshx check`, and `dshx dev` consume the existing resolved-project, compiler, Profile, and Dev Session APIs instead of introducing a second project model. `build` is local and read-only; it validates the manifest then builds enabled faces in parallel. `check` is read-only, inspects the local DSH version and Profile link, and reports an absent link as `DSHX4305` without adding it. Only `dev` calls `ensureProjectProfile()`.
+
+The CLI keeps the command grammar intentionally small (`--cwd`, `--verbose`, `check --json`, and `dev --open`). Interactive input is limited to `r` for `restart()` and `q`/Ctrl-C for `close()`; non-TTY execution never enables raw mode. Session shutdown always restores terminal state and closes watchers and DSH. CLI diagnostics preserve stable codes, file paths, hints, and original causes for verbose output. Scaffold, `check --fix`, unlink, Slot inspect, and Tool View remain out of scope.

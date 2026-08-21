@@ -56,7 +56,11 @@ function hostEntryPlugin(
     },
     load(id) {
       if (id === VIRTUAL_HOST_PUBLIC) {
-        return 'export function defineHost(definition) { return definition }\n'
+        return [
+          'export function defineHost(definition) { return definition }',
+          "export { defineTool } from '@deepseek-ai/dsh-tools'",
+          '',
+        ].join('\n')
       }
       if (id !== VIRTUAL_HOST_ENTRY) return null
       if (paths.entry === undefined) {

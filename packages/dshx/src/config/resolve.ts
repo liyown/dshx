@@ -27,7 +27,7 @@ async function findProjectRoot(cwd: string): Promise<string> {
       throw new DshxError(
         'DSHX4001',
         `No package.json was found from ${JSON.stringify(cwd)} upward.`,
-        { hint: 'Run DSHX inside a plugin package.' },
+        { file: resolve(cwd), hint: 'Run DSHX inside a plugin package.' },
       )
     }
     current = parent

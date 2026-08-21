@@ -1,5 +1,4 @@
 import { realpath } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import { isAbsolute } from 'node:path'
 import { RC8_COMPATIBILITY } from '../compat/rc8.js'
 import { resolveCompatibility } from '../compat/index.js'
@@ -20,7 +19,7 @@ const VERSION_TIMEOUT_MS = 15_000
 const INSPECT_TIMEOUT_MS = 30_000
 const ADD_TIMEOUT_MS = 120_000
 const VERSION_PATTERN = /^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/
-const DSH_NOT_FOUND_PATTERN = /(?:command ["']?dsh["']? not found|dsh: not found|not recognized as an internal or external command)/i
+const DSH_NOT_FOUND_PATTERN = /(?:command ["']?dsh["']? not found|dsh: (?:command )?not found|not recognized as an internal or external command)/i
 
 interface InstalledDependency {
   packageId: string
@@ -42,6 +41,7 @@ function commandDetail(result: DshCommandResult): string {
 
 function isDshMissing(result: DshCommandResult): boolean {
   return result.failureCode === 'ENOENT'
+    || (result.exitCode === undefined && result.stdout.trim() === '' && result.stderr.trim() === '')
     || DSH_NOT_FOUND_PATTERN.test(result.stderr)
     || DSH_NOT_FOUND_PATTERN.test(result.stdout)
 }
@@ -56,32 +56,6 @@ function validateProfileName(project: ProfileProject): void {
   }
 }
 
-function declaresLocalDsh(project: ProfileProject): boolean {
-  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
-    const dependencies = project.manifest[field]
-    if (isObject(dependencies) && Object.hasOwn(dependencies, '@deepseek-ai/dsh')) return true
-  }
-  return false
-}
-
-function requireLocalDsh(project: ProfileProject, options: ProfileOrchestratorOptions): void {
-  if (options.runner !== undefined) return
-  let installed = false
-  if (declaresLocalDsh(project)) {
-    try {
-      createRequire(project.packageFile).resolve('@deepseek-ai/dsh/package.json')
-      installed = true
-    } catch {
-      installed = false
-    }
-  }
-  if (installed) return
-  throw new DshxError('DSHX5001', 'No project-local DSH CLI is available.', {
-    file: project.packageFile,
-    hint: 'Install @deepseek-ai/dsh in this project, then run DSHX through pnpm again.',
-  })
-}
-
 async function runDsh(
   project: ProfileProject,
   args: readonly string[],
@@ -93,6 +67,7 @@ async function runDsh(
       cwd: project.root,
       env: environmentOf(options),
       timeoutMs,
+      ...(options.executable === undefined ? {} : { executable: options.executable }),
     })
   } catch (cause) {
     return { stdout: '', stderr: '', cause }
@@ -104,33 +79,33 @@ export async function resolveDshInstallation(
   project: ProfileProject,
   options: ProfileOrchestratorOptions = {},
 ): Promise<ResolvedDshInstallation> {
-  requireLocalDsh(project, options)
   const result = await runDsh(project, ['--version'], VERSION_TIMEOUT_MS, options)
   if (result.exitCode !== 0) {
     if (isDshMissing(result)) {
-      throw new DshxError('DSHX5001', 'No project-local DSH CLI is available.', {
+      throw new DshxError('DSHX5001', 'No usable DSH CLI is available in the project or on PATH.', {
         cause: result.cause,
         file: project.packageFile,
-        hint: 'Install @deepseek-ai/dsh in this project, then run DSHX through pnpm again.',
+        hint: 'Install @deepseek-ai/dsh as a project devDependency or make the official dsh command available on PATH.',
       })
     }
     throw new DshxError('DSHX5002', `Failed to read the installed DSH version: ${commandDetail(result)}`, {
       cause: result.cause,
       file: project.packageFile,
-      hint: 'Run "pnpm exec dsh --version" in the project and fix the reported failure.',
+      hint: 'Run the project-local or PATH-resolved "dsh --version" command and fix the reported failure.',
     })
   }
   const match = VERSION_PATTERN.exec(result.stdout.trim())
   if (match?.[1] === undefined) {
     throw new DshxError('DSHX5002', `DSH returned an invalid version string: ${JSON.stringify(result.stdout.trim())}.`, {
       file: project.packageFile,
-      hint: 'Ensure pnpm exec dsh resolves the official DSH CLI and prints one semantic version.',
+      hint: 'Ensure the resolved official dsh CLI prints one semantic version.',
     })
   }
   const version = match[1]
   if (version === RC8_COMPATIBILITY.version) {
     return {
       version,
+      executable: result.executable ?? 'local',
       support: 'verified',
       compatibility: resolveCompatibility(version),
       diagnostics: [],
@@ -151,6 +126,7 @@ export async function resolveDshInstallation(
   }
   return {
     version,
+    executable: result.executable ?? 'local',
     support: 'unsupported',
     compatibility: RC8_COMPATIBILITY,
     diagnostics: [diagnostic],
@@ -213,7 +189,6 @@ export async function inspectProjectProfile(
   options: ProfileOrchestratorOptions = {},
 ): Promise<ProjectProfileLink> {
   validateProfileName(project)
-  requireLocalDsh(project, options)
   const args = ['plugin', '--profile', project.profile, 'list', '--depth', '0', '--json'] as const
   const result = await runDsh(project, args, INSPECT_TIMEOUT_MS, options)
   if (result.exitCode !== 0) {
@@ -262,7 +237,10 @@ export async function ensureProjectProfile(
 ): Promise<PreparedProjectProfile> {
   validateProfileName(project)
   const dsh = await resolveDshInstallation(project, options)
-  const existing = await inspectProjectProfile(project, options)
+  const existing = await inspectProjectProfile(project, {
+    ...options,
+    ...(dsh.executable === undefined ? {} : { executable: dsh.executable }),
+  })
   if (existing.state === 'linked') {
     return {
       profile: project.profile,
@@ -286,7 +264,10 @@ export async function ensureProjectProfile(
       hint: `Run "pnpm exec dsh plugin --profile ${project.profile} add ${project.root}" and fix the reported failure.`,
     })
   }
-  const installed = await inspectProjectProfile(project, options)
+  const installed = await inspectProjectProfile(project, {
+    ...options,
+    ...(dsh.executable === undefined ? {} : { executable: dsh.executable }),
+  })
   if (installed.state !== 'linked') {
     throw new DshxError('DSHX4304', 'DSH reported a successful plugin add, but the project is still absent from the profile.', {
       file: project.packageFile,

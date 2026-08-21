@@ -42,8 +42,15 @@ function clientExternals(project: ResolvedDshxConfig): readonly string[] {
   return Array.isArray(external) && external.every(value => typeof value === 'string') ? external : []
 }
 
-function childFromExeca(project: ResolvedDshxConfig, args: readonly string[], env: NodeJS.ProcessEnv): Promise<DevChildProcess> {
-  const subprocess = execa('pnpm', ['exec', 'dsh', ...args], {
+function childFromExeca(
+  project: ResolvedDshxConfig,
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+  executable: 'local' | 'global',
+): Promise<DevChildProcess> {
+  const command = executable === 'global' ? 'dsh' : 'pnpm'
+  const commandArgs = executable === 'global' ? [...args] : ['exec', 'dsh', ...args]
+  const subprocess = execa(command, commandArgs, {
     cwd: project.root,
     env,
     stdio: 'inherit',
@@ -51,9 +58,9 @@ function childFromExeca(project: ResolvedDshxConfig, args: readonly string[], en
   })
   const child = subprocess.nodeChildProcess
   if (child === undefined) {
-    return Promise.reject(new DshxError('DSHX4401', 'Failed to start the project-local DSH process.', {
+    return Promise.reject(new DshxError('DSHX4401', 'Failed to start the DSH process.', {
       file: project.packageFile,
-      hint: 'Run "pnpm exec dsh" in the project and fix the reported startup error.',
+      hint: 'Install @deepseek-ai/dsh in the project or make the official dsh command available on PATH, then retry.',
     }))
   }
   void subprocess.catch(() => undefined)
@@ -79,6 +86,7 @@ function buildOptions(project: ResolvedDshxConfig): {
     ...(project.clientEntry === undefined ? {} : {
       client: {
         packageId: project.packageId,
+        logicalName: project.name,
         root: project.root,
         entry: project.clientEntry,
         outDir: project.outDir,
@@ -90,14 +98,15 @@ function buildOptions(project: ResolvedDshxConfig): {
   }
 }
 
-/** Start a coordinated Host/Client watch build and project-local DSH process. */
+/** Start a coordinated Host/Client watch build and selected DSH process. */
 export async function startDevSession(
   project: ResolvedDshxConfig,
   options: DevSessionOptions = {},
 ): Promise<DevSession> {
   const environment = { ...process.env, ...options.profile?.env, ...options.env }
   const profileOptions = { ...options.profile, env: environment }
-  const profile = await (options.ensureProfile ?? ensureProjectProfile)(project, profileOptions)
+  const profile = options.preparedProfile
+    ?? await (options.ensureProfile ?? ensureProjectProfile)(project, profileOptions)
   const buildPaths = buildOptions(project)
   const listeners = new Set<(event: DevEvent) => void>()
   const diagnostics: DshxDiagnostic[] = [...profile.diagnostics]
@@ -156,7 +165,13 @@ export async function startDevSession(
       ...(options.dshArgs ?? []),
     ]
     try {
-      const started = await (options.child ?? childFromExeca)(project, args, environment)
+      const childFactory = options.child ?? ((childProject, childArgs, childEnv) => childFromExeca(
+        childProject,
+        childArgs,
+        childEnv,
+        profile.dsh.executable ?? 'local',
+      ))
+      const started = await childFactory(project, args, environment)
       if (closed) {
         await stopChild(started)
         return
@@ -166,7 +181,7 @@ export async function startDevSession(
         if (ignoredExit.has(started as object) || observedExit.has(started as object)) return
         ignoredExit.add(started as object)
         if (child === started) child = undefined
-        const item = diagnostic(restarting ? 'DSHX4404' : 'DSHX4401', `DSH process failed to start: ${errorMessage(error)}`, project.packageFile, 'Run "pnpm exec dsh" in the project and fix the reported startup error.')
+        const item = diagnostic(restarting ? 'DSHX4404' : 'DSHX4401', `DSH process failed to start: ${errorMessage(error)}`, project.packageFile, 'Install DSH locally or make the official dsh command available on PATH, then retry.')
         setState({ dshProcess: 'failed' })
         emitDiagnostic(item)
       })
@@ -190,7 +205,7 @@ export async function startDevSession(
       })
       setState({ dshProcess: 'running' })
     } catch (error) {
-      const item = diagnostic(restarting ? 'DSHX4404' : 'DSHX4401', `Failed to start DSH process: ${errorMessage(error)}`, project.packageFile, 'Run "pnpm exec dsh" in the project and fix the reported startup error.')
+      const item = diagnostic(restarting ? 'DSHX4404' : 'DSHX4401', `Failed to start DSH process: ${errorMessage(error)}`, project.packageFile, 'Install DSH locally or make the official dsh command available on PATH, then retry.')
       setState({ dshProcess: 'failed' })
       emitDiagnostic(item)
     }
