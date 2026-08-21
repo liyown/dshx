@@ -73,6 +73,14 @@ describe('CLI argument parser', () => {
     expect(() => parseCliArgs(['build', '--json'])).toThrow('--json')
     expect(() => parseCliArgs(['dev', '--cwd'])).toThrow('requires a value')
     expect(() => parseCliArgs(['wat'])).toThrow('Unknown argument')
+    expect(() => parseCliArgs(['inspect'])).toThrow('requires a target')
+    expect(() => parseCliArgs(['inspect', 'services'])).toThrow('Unknown argument')
+    expect(() => parseCliArgs(['build', 'slots'])).toThrow('only valid with the inspect command')
+  })
+
+  it('parses inspect targets and JSON mode', () => {
+    expect(parseCliArgs(['inspect', 'slots', '--json'])).toMatchObject({ command: 'inspect', inspectTarget: 'slots', json: true })
+    expect(parseCliArgs(['inspect', 'tools', '--verbose', '--cwd', '/tmp/project'])).toMatchObject({ command: 'inspect', inspectTarget: 'tools', verbose: true, cwd: '/tmp/project' })
   })
 })
 
@@ -160,5 +168,46 @@ describe('CLI commands', () => {
     })
     expect(code).toBe(1)
     expect(received).toBe(prepared)
+  })
+
+  it('inspects runtime slots as clean JSON without linking the Profile', async () => {
+    const streams = io()
+    const value = project()
+    const ensure = vi.fn()
+    const code = await runCli(['inspect', 'slots', '--json'], {
+      io: streams,
+      runtime: {
+        resolveConfig: async () => value,
+        inspectComposition: async (_project, target) => ({
+          profile: 'web', target, source: 'runtime',
+          items: [{ name: 'sidebar.footer.action', provider: '@provider/sidebar', kind: 'action', scope: 'global', metadata: { order: 10 } }],
+          diagnostics: [],
+        }),
+        ensureProfile: ensure,
+      },
+    })
+    expect(code).toBe(0)
+    expect(ensure).not.toHaveBeenCalled()
+    streams.out.end(); streams.err.end()
+    const output = JSON.parse(await text(streams.out)) as Record<string, unknown>
+    expect(output).toMatchObject({ target: 'slots', source: 'runtime', project: { packageId: value.packageId } })
+    expect(output.items).toEqual([{ name: 'sidebar.footer.action', provider: '@provider/sidebar', kind: 'action', scope: 'global', metadata: { order: 10 } }])
+    expect(await text(streams.err)).toBe('')
+  })
+
+  it('reports an unavailable runtime provider with a non-zero inspect result', async () => {
+    const streams = io()
+    const value = project()
+    const code = await runCli(['inspect', 'tools'], {
+      io: streams,
+      runtime: {
+        resolveConfig: async () => value,
+        inspectComposition: async (_project, target) => ({ profile: 'web', target, source: 'runtime', items: [], diagnostics: [{ code: 'DSHX3201', severity: 'error', message: 'No provider', file: value.packageFile, hint: 'Start DSH.' }] }),
+      },
+    })
+    expect(code).toBe(1)
+    streams.out.end(); streams.err.end()
+    expect(await text(streams.out)).toContain('Inspect tools')
+    expect(await text(streams.err)).toContain('DSHX3201')
   })
 })

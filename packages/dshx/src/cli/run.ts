@@ -9,6 +9,8 @@ import { ensureProjectProfile, inspectProjectProfile, resolveDshInstallation } f
 import type { PreparedProjectProfile, ProjectProfileLink, ResolvedDshInstallation } from '../profile/types.js'
 import { checkProjectManifest } from '../project/index.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
+import { inspectProjectComposition } from '../inspect/index.js'
+import type { InspectResult, InspectTarget } from '../inspect/index.js'
 import { CliUsageError, parseCliArgs, type CliArgs } from './args.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 
@@ -27,6 +29,7 @@ export interface CliRuntime {
   readonly buildHost?: typeof buildHost
   readonly buildClient?: typeof buildClient
   readonly startDev?: typeof startDevSession
+  readonly inspectComposition?: typeof inspectProjectComposition
 }
 
 export interface CliRunOptions {
@@ -197,6 +200,50 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
   return hasErrors(result.diagnostics) ? 1 : 0
 }
 
+function inspectSummary(project: ResolvedDshxConfig, result: InspectResult): Record<string, unknown> {
+  return {
+    project: {
+      root: project.root,
+      packageId: project.packageId,
+      profile: project.profile,
+    },
+    target: result.target,
+    source: result.source,
+    items: result.items,
+    diagnostics: result.diagnostics,
+  }
+}
+
+async function runInspect(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
+  const io = options.io ?? defaultIO()
+  const runtime = options.runtime ?? {}
+  const target = args.inspectTarget as InspectTarget | undefined
+  // The parser guarantees this in normal CLI use; retaining the guard keeps the
+  // injected runtime API safe for callers that construct CliArgs themselves.
+  if (target === undefined) throw new CliUsageError('Inspect requires a target: slots or tools.')
+  const result = await (runtime.inspectComposition ?? inspectProjectComposition)(project, target)
+  if (args.json) {
+    write(io.stdout, `${JSON.stringify(inspectSummary(project, result), null, 2)}\n`)
+  } else {
+    for (const item of result.diagnostics) printDiagnostic(io, item)
+    write(io.stdout, `Inspect ${target} (${result.source}) for ${project.packageId}\n`)
+    for (const item of result.items) {
+      if (target === 'slots') {
+        const slot = item as { readonly name: string; readonly provider?: string; readonly kind?: string; readonly scope?: string }
+        const details = [slot.provider, slot.kind, slot.scope].filter((value): value is string => value !== undefined).join(' / ')
+        write(io.stdout, `  ${slot.name}${details === '' ? '' : ` (${details})`}\n`)
+      } else {
+        const tool = item as { readonly name: string; readonly provider?: string; readonly description?: string }
+        const details = [tool.provider, tool.description].filter((value): value is string => value !== undefined).join(' - ')
+        write(io.stdout, `  ${tool.name}${details === '' ? '' : `: ${details}`}\n`)
+      }
+    }
+    if (args.verbose && result.cause !== undefined) printVerboseCause(io, result.cause)
+  }
+  if (args.json && args.verbose && result.cause !== undefined) printVerboseCause(io, result.cause)
+  return hasErrors(result.diagnostics) ? 1 : 0
+}
+
 function eventLine(event: DevEvent): string | undefined {
   if (event.type === 'build-success') return `${event.face} build succeeded${event.initial ? ' (initial)' : ''}`
   if (event.type === 'client-rebuilt') return 'client rebuilt'
@@ -279,7 +326,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     return 2
   }
   if (args.help) {
-    write(io.stdout, 'Usage: dshx <build|check|dev> [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck: --json\ndev: --open\n')
+    write(io.stdout, 'Usage: dshx <build|check|dev|inspect> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect: --json\ndev: --open\ninspect targets: slots, tools\n')
     return 0
   }
   if (args.version) {
@@ -293,11 +340,14 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
       : { cwd: args.cwd })
     if (args.command === 'build') return await runBuild(args, options, project)
     if (args.command === 'check') return await runCheck(args, options, project)
+    if (args.command === 'inspect') return await runInspect(args, options, project)
     return await runDev(args, options, project)
   } catch (error) {
     const item = diagnosticFromError(error)
-    if (args.command === 'check' && args.json) {
-      write(io.stdout, `${JSON.stringify({ project: null, diagnostics: [item], dsh: null, profile: null }, null, 2)}\n`)
+    if ((args.command === 'check' || args.command === 'inspect') && args.json) {
+      write(io.stdout, `${JSON.stringify(args.command === 'inspect'
+        ? { project: null, target: args.inspectTarget ?? null, source: 'runtime', items: [], diagnostics: [item] }
+        : { project: null, diagnostics: [item], dsh: null, profile: null }, null, 2)}\n`)
     } else {
       printDiagnostic(io, item)
       if (args.verbose) printVerboseCause(io, error)
