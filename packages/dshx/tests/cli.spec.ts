@@ -91,6 +91,15 @@ describe('CLI argument parser', () => {
     expect(parseCliArgs(['inspect', 'slots', '--json'])).toMatchObject({ command: 'inspect', inspectTarget: 'slots', json: true })
     expect(parseCliArgs(['inspect', 'tools', '--verbose', '--cwd', '/tmp/project'])).toMatchObject({ command: 'inspect', inspectTarget: 'tools', verbose: true, cwd: '/tmp/project' })
   })
+
+  it('parses add ui options and rejects non-ui add targets', () => {
+    expect(parseCliArgs(['add', 'ui', '--slot', 'sidebar.footer.action', '--provider', '@provider/sidebar', '--order', '2', '--dry-run', '--json'])).toMatchObject({
+      command: 'add', addTarget: 'ui', slot: 'sidebar.footer.action', provider: '@provider/sidebar', order: 2, dryRun: true, json: true,
+    })
+    expect(() => parseCliArgs(['add'])).toThrow('requires a target')
+    expect(() => parseCliArgs(['add', 'tool'])).toThrow('Unknown argument')
+    expect(() => parseCliArgs(['add', 'ui', '--order', 'nope'])).toThrow('integer')
+  })
 })
 
 describe('CLI commands', () => {
@@ -218,5 +227,19 @@ describe('CLI commands', () => {
     streams.out.end(); streams.err.end()
     expect(await text(streams.out)).toContain('Inspect tools')
     expect(await text(streams.err)).toContain('DSHX3201')
+  })
+
+  it('requires a Slot in non-TTY add ui mode without invoking the generator', async () => {
+    const streams = io()
+    const value = project()
+    const addUi = vi.fn()
+    const code = await runCli(['add', 'ui'], {
+      io: streams,
+      runtime: { resolveConfig: async () => value, addUi },
+    })
+    expect(code).toBe(2)
+    expect(addUi).not.toHaveBeenCalled()
+    streams.out.end(); streams.err.end()
+    expect(await text(streams.err)).toContain('DSHX6101')
   })
 })

@@ -1,4 +1,5 @@
 import type { Readable, Writable } from 'node:stream'
+import { createInterface } from 'node:readline'
 import { resolve as resolvePath } from 'node:path'
 import { buildClient, buildHost } from '../compiler/index.js'
 import { resolveDshxConfig } from '../config/index.js'
@@ -11,6 +12,8 @@ import { checkProjectManifest } from '../project/index.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import { inspectProjectComposition } from '../inspect/index.js'
 import type { InspectResult, InspectTarget } from '../inspect/index.js'
+import { createUiScaffold } from '../scaffold/index.js'
+import type { AddUiOptions, AddUiResult } from '../scaffold/index.js'
 import { DEFAULT_COMPATIBILITY, detectInstalledDshVersion, resolveDeclaredCompatibility, classifyCompatibility } from '../compat/index.js'
 import { CliUsageError, parseCliArgs, type CliArgs } from './args.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
@@ -31,6 +34,7 @@ export interface CliRuntime {
   readonly buildClient?: typeof buildClient
   readonly startDev?: typeof startDevSession
   readonly inspectComposition?: typeof inspectProjectComposition
+  readonly addUi?: (options: AddUiOptions) => Promise<AddUiResult>
 }
 
 export interface CliRunOptions {
@@ -292,6 +296,79 @@ async function runInspect(args: CliArgs, options: CliRunOptions, project: Resolv
   return hasErrors(result.diagnostics) ? 1 : 0
 }
 
+async function selectSlotInteractively(io: CliIO, items: readonly { readonly name: string }[]): Promise<string | undefined> {
+  if (items.length === 0) return undefined
+  write(io.stdout, 'Available Slots:\n')
+  items.forEach((item, index) => write(io.stdout, `  ${index + 1}. ${item.name}\n`))
+  const prompt = createInterface({ input: io.stdin, output: io.stdout })
+  try {
+    const answer = await new Promise<string>(resolve => prompt.question('Select a Slot number: ', resolve))
+    const index = Number(answer.trim())
+    return Number.isInteger(index) && index >= 1 && index <= items.length ? items[index - 1]?.name : undefined
+  } finally {
+    prompt.close()
+  }
+}
+
+function addSummary(project: ResolvedDshxConfig, result: AddUiResult): Record<string, unknown> {
+  return {
+    project: projectSummary(project),
+    slot: result.slot,
+    provider: result.provider,
+    changedFiles: result.changedFiles,
+    generatedFiles: result.generatedFiles,
+    manifestChanged: result.manifestChanged,
+    diagnostics: result.diagnostics,
+    ...(result.diff === undefined ? {} : { diff: result.diff }),
+  }
+}
+
+async function runAddUi(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
+  const io = options.io ?? defaultIO()
+  const runtime = options.runtime ?? {}
+  if (args.slot === undefined && (args.json || !io.stdin.isTTY)) {
+    const item = { code: 'DSHX6101', severity: 'error' as const, message: 'A Slot name is required in non-interactive mode.', file: project.packageFile, hint: 'Pass --slot <slot-name>, or run in a TTY to choose a Slot interactively.' }
+    if (args.json) write(io.stdout, `${JSON.stringify({ project: projectSummary(project), diagnostics: [item] }, null, 2)}\n`)
+    else printDiagnostic(io, item)
+    return 2
+  }
+  const addOptions: AddUiOptions = {
+    project,
+    ...(args.slot === undefined ? {} : { slot: args.slot }),
+    ...(args.provider === undefined ? {} : { provider: args.provider }),
+    ...(args.file === undefined ? {} : { file: args.file }),
+    ...(args.id === undefined ? {} : { id: args.id }),
+    ...(args.order === undefined ? {} : { order: args.order }),
+    dryRun: args.dryRun,
+  }
+  const add = runtime.addUi ?? (async (value: AddUiOptions) => createUiScaffold(value, {
+    ...(runtime.inspectComposition === undefined ? {} : { inspectComposition: runtime.inspectComposition }),
+    ...(runtime.checkManifest === undefined ? {} : { checkManifest: runtime.checkManifest }),
+    ...(args.slot === undefined ? { selectSlot: (items: readonly { readonly name: string }[]) => selectSlotInteractively(io, items) } : {}),
+  }))
+  let result: AddUiResult
+  try {
+    result = await add(addOptions)
+  } catch (error) {
+    const item = diagnosticFromError(error, project.packageFile)
+    if (args.json) write(io.stdout, `${JSON.stringify({ project: projectSummary(project), diagnostics: [item] }, null, 2)}\n`)
+    else {
+      printDiagnostic(io, item)
+    }
+    if (args.verbose) printVerboseCause(io, error)
+    return 1
+  }
+  if (args.json) write(io.stdout, `${JSON.stringify(addSummary(project, result), null, 2)}\n`)
+  else {
+    for (const item of result.diagnostics) printDiagnostic(io, item)
+    if (result.diagnostics.some(item => item.severity === 'error')) return 1
+    write(io.stdout, `${args.dryRun ? 'Planned' : 'Generated'} UI Slot ${result.slot.name} using ${result.provider}\n`)
+    for (const file of result.changedFiles) write(io.stdout, `  ${file}\n`)
+    if (result.diff !== undefined) write(io.stdout, result.diff)
+  }
+  return result.diagnostics.some(item => item.severity === 'error') ? 1 : 0
+}
+
 function eventLine(event: DevEvent): string | undefined {
   if (event.type === 'build-success') return `${event.face} build succeeded${event.initial ? ' (initial)' : ''}`
   if (event.type === 'client-rebuilt') return 'client rebuilt'
@@ -378,7 +455,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     return 2
   }
   if (args.help) {
-    write(io.stdout, 'Usage: dshx <build|check|dev|inspect> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect: --json\ndev: --open\ninspect targets: slots, tools\n')
+    write(io.stdout, 'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ndev: --open\ninspect targets: slots, tools\nadd targets: ui\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\n')
     return 0
   }
   if (args.version) {
@@ -393,13 +470,17 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     if (args.command === 'build') return await runBuild(args, options, project)
     if (args.command === 'check') return await runCheck(args, options, project)
     if (args.command === 'inspect') return await runInspect(args, options, project)
+    if (args.command === 'add') return await runAddUi(args, options, project)
     return await runDev(args, options, project)
   } catch (error) {
     const item = diagnosticFromError(error)
-    if ((args.command === 'check' || args.command === 'inspect') && args.json) {
+    if ((args.command === 'check' || args.command === 'inspect' || args.command === 'add') && args.json) {
       write(io.stdout, `${JSON.stringify(args.command === 'inspect'
         ? { project: null, target: args.inspectTarget ?? null, source: 'runtime', items: [], diagnostics: [item] }
-        : { project: null, diagnostics: [item], dsh: null, profile: null }, null, 2)}\n`)
+        : args.command === 'add'
+          ? { project: null, slot: null, provider: null, changedFiles: [], generatedFiles: [], manifestChanged: false, diagnostics: [item] }
+          : { project: null, diagnostics: [item], dsh: null, profile: null }, null, 2)}\n`)
+      if (args.verbose) printVerboseCause(io, error)
     } else {
       printDiagnostic(io, item)
       if (args.verbose) printVerboseCause(io, error)

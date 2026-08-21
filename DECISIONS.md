@@ -79,7 +79,7 @@ Dependency installation is optional in generation-only mode and defaults to yes 
 
 The initializer also has a deterministic non-interactive contract: a project name is required, `--yes` disables prompts, `--install`/`--no-install` explicitly choose installation, and `--package-manager` can override discovery. Missing names and invalid option combinations return usage code `2` without reading stdin.
 
-The initializer does not implement Host-only/Client-only templates, `inspect`, `add`, `check --fix`, unlink, Slot catalog/scaffold, or Tool View. Registry smoke tests require the public `dshx` version to be released; local tarball tests cover the generated project before publication.
+The initializer does not implement Host-only/Client-only templates, `check --fix`, unlink, Slot catalog/cache, or Tool View. Runtime `inspect` and `add ui` are separate commands in `dshx`; registry smoke tests require the public `dshx` version to be released, while local tarball tests cover the generated project before publication.
 
 ## 2026-08-21: defineHost is an identity API over the official Host model
 
@@ -130,3 +130,11 @@ DSHX follows the standard plugin-tooling model of peer dependency ranges plus co
 The project-local `@deepseek-ai/dsh` installation is the build and development source of truth. `dshx build` reads its package version without starting DSH, then falls back to the declared dependency range or the default adapter when no local package is available. `dshx dev`, `check`, and `inspect` use the version actually returned by the selected DSH executable. The selected adapter is carried through Manifest, Client compiler, Profile, Dev Session, and Inspect operations.
 
 Adapter ranges must not overlap. A new DSH patch/minor that preserves Profile, Manifest, Host loader, Client loader, Tool/Slot, and Inspect contracts extends an existing range and adds a smoke case. A breaking seam creates a new adapter, matching official peer dependency ranges, fixture, and compatibility release notes. `compatibility.allowUnsupported` remains a temporary debugging override, not the normal upgrade path.
+
+## 2026-08-22: `add ui` is an explicit, transactional Slot scaffold
+
+`dshx add ui` consumes the runtime Slot summaries returned by the selected Inspect Provider. It never starts DSH, changes Profile links, installs dependencies, or fabricates an offline Catalog. In a TTY it lets the user choose an inspected Slot; automation must pass `--slot`. The provider package must already resolve from the project root, and the generated contribution adds a type-only `${provider}/client` import so official SlotMap declaration merging remains the TypeScript source of truth.
+
+The generator writes a new `src/slots/<slot>.tsx` component and minimally edits a DSHX `defineClient({ slots })` default export. Host-only packages receive a standard Client entry, `./client` export, and adapter-selected `dsh.client` metadata. Native named Client modules are intentionally not rewritten. All edits are preflighted, applied through temporary files, and rolled back if writing or post-generation Manifest checking fails; existing files are never overwritten. `--dry-run` returns the planned diff, and a repeated Slot contribution produces a warning without duplicate registration.
+
+This stage uses TypeScript AST positions for safe edits but does not introduce a DSHX Slot DSL, duplicate official Slot types, Catalog caching, `add tool`, `add hook`, or `check --fix`. The stable generator diagnostics occupy `DSHX6101` through `DSHX6109`.
