@@ -25,6 +25,7 @@ describe('create-dshx', () => {
     expect(result.files).toHaveLength(9)
     const manifest = JSON.parse(await defaultFileSystem.readFile(resolve(result.root, 'package.json'))) as { devDependencies: Record<string, string> }
     expect(manifest.devDependencies.dshx).toBe('0.1.0')
+    expect(manifest.devDependencies['@deepseek-ai/dsh']).toBe('>=0.1.0-rc.8 <0.2.0')
     expect(Object.values(manifest.devDependencies).some(value => value.startsWith('workspace:'))).toBe(false)
     await rm(root, { recursive: true, force: true })
   })

@@ -1,9 +1,8 @@
-import type { DshCompatibility } from '../compat/types.js'
+import type { DshCompatibility, DshSupportStatus } from '../compat/types.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 
-/** Compatibility confidence for one installed DSH CLI. */
-export type DshSupportStatus = 'verified' | 'compatible-range' | 'unsupported'
+export type { DshSupportStatus } from '../compat/types.js'
 
 /** Captured result of one finite official DSH CLI command. */
 export interface DshCommandResult {
@@ -35,6 +34,7 @@ export interface ProfileOrchestratorOptions {
   readonly env?: Readonly<NodeJS.ProcessEnv>
   readonly runner?: DshCommandRunner
   readonly executable?: 'local' | 'global'
+  readonly compatibility?: DshCompatibility
 }
 
 /** Installed DSH version and the adapter DSHX will use for it. */
@@ -42,6 +42,9 @@ export interface ResolvedDshInstallation {
   readonly version: string
   readonly executable?: 'local' | 'global'
   readonly support: DshSupportStatus
+  readonly adapterId: string
+  readonly protocolGeneration: string
+  readonly supportedRange: string
   readonly compatibility: DshCompatibility
   readonly diagnostics: readonly DshxDiagnostic[]
 }

@@ -76,11 +76,11 @@ export default defineConfig({
     scripts: { dev: 'dshx dev', build: 'dshx build', check: 'dshx check' },
     devDependencies: {
       dshx: context.dshxVersion, '@deepseek-ai/dsh': context.dshVersion,
-      '@deepseek-ai/cordis': '^4.0.1', '@deepseek-ai/dsh-tools': '0.1.0-rc.8',
-      '@deepseek-ai/dsh-client-ui-slots': '0.1.0-rc.8', '@deepseek-ai/dsh-client-ui-sidebar': '0.1.0-rc.8',
+      '@deepseek-ai/cordis': '^4.0.1', '@deepseek-ai/dsh-tools': '>=0.1.0-rc.8 <0.2.0',
+      '@deepseek-ai/dsh-client-ui-slots': '>=0.1.0-rc.8 <0.2.0', '@deepseek-ai/dsh-client-ui-sidebar': '>=0.1.0-rc.8 <0.2.0',
       '@types/node': '^22.19.0', '@types/react': '~18.3.31', react: '^18.3.1', typescript: '^5.9.3',
     },
-    peerDependencies: { '@deepseek-ai/dsh-tools': '0.1.0-rc.8' },
+    peerDependencies: { '@deepseek-ai/dsh-tools': '>=0.1.0-rc.8 <0.2.0' },
   }, null, 2)}
 `
   if (path === 'tsconfig.json') return `${JSON.stringify({ compilerOptions: { target: 'ES2024', module: 'NodeNext', moduleResolution: 'NodeNext', jsx: 'react-jsx', strict: true, noEmit: true, skipLibCheck: true }, include: ['src/**/*.ts', 'src/**/*.tsx'] }, null, 2)}

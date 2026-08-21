@@ -2,7 +2,8 @@ import { realpath } from 'node:fs/promises'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build, type InlineConfig, type Plugin } from 'vite'
-import { RC8_COMPATIBILITY } from '../../compat/rc8.js'
+import { DEFAULT_COMPATIBILITY } from '../../compat/index.js'
+import type { DshCompatibility } from '../../compat/types.js'
 import { DshxError } from '../../diagnostics.js'
 import { clientCssPlugin } from './css.js'
 import { clientGuardPlugin, singleClientChunkPlugin } from './guards.js'
@@ -12,7 +13,7 @@ const VIRTUAL_CLIENT_PUBLIC = '\0virtual:dshx-client-public'
 const DSHX_CLIENT_PUBLIC = 'dshx/client'
 const CLIENT_RUNTIME_PATH = fileURLToPath(new URL('../../client/runtime.js', import.meta.url))
 
-/** Options for producing one rc.8 lazy-CJS client bundle. */
+/** Options for producing one DSH-compatible lazy-CJS client bundle. */
 export interface BuildClientOptions {
   readonly packageId: string
   readonly logicalName?: string
@@ -22,6 +23,7 @@ export interface BuildClientOptions {
   readonly sourcemap?: boolean
   readonly watch?: boolean
   readonly external?: readonly string[]
+  readonly compatibility?: DshCompatibility
 }
 
 /** Vite result for a one-shot build or an active watch build. */
@@ -110,9 +112,10 @@ async function resolveOptions(options: BuildClientOptions) {
 }
 
 function clientConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildClientOptions): InlineConfig {
+  const compatibility = options.compatibility ?? DEFAULT_COMPATIBILITY
   const externals = new Set([
-    ...RC8_COMPATIBILITY.client.platformModules,
-    ...RC8_COMPATIBILITY.client.preloadedExternals,
+    ...compatibility.client.platformModules,
+    ...compatibility.client.preloadedExternals,
     ...(options.external ?? []),
   ])
   return {
@@ -185,7 +188,7 @@ export async function startClientWatcher(options: BuildClientOptions): Promise<D
   }))
 }
 
-/** Build a DSH 0.1.0-rc.8 client factory with Vite/Rolldown. */
+/** Build a DSH-compatible client factory with Vite/Rolldown. */
 export async function buildClient(options: BuildClientOptions): Promise<ClientBuildResult> {
   const paths = await resolveOptions(options)
   const config = clientConfig(paths, options)

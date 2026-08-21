@@ -67,7 +67,7 @@ function childFromExeca(
   return Promise.resolve(child as unknown as DevChildProcess)
 }
 
-function buildOptions(project: ResolvedDshxConfig): {
+function buildOptions(project: ResolvedDshxConfig, compatibility: import('../compat/types.js').DshCompatibility): {
   host?: BuildHostOptions
   client?: BuildClientOptions
 } {
@@ -81,6 +81,7 @@ function buildOptions(project: ResolvedDshxConfig): {
         outDir: project.outDir,
         sourcemap: project.build.sourcemap,
         watch: true,
+        compatibility,
       },
     }),
     ...(project.clientEntry === undefined ? {} : {
@@ -93,6 +94,7 @@ function buildOptions(project: ResolvedDshxConfig): {
         sourcemap: project.build.sourcemap,
         watch: true,
         external: clientExternals(project),
+        compatibility,
       },
     }),
   }
@@ -107,7 +109,7 @@ export async function startDevSession(
   const profileOptions = { ...options.profile, env: environment }
   const profile = options.preparedProfile
     ?? await (options.ensureProfile ?? ensureProjectProfile)(project, profileOptions)
-  const buildPaths = buildOptions(project)
+  const buildPaths = buildOptions(project, profile.dsh.compatibility)
   const listeners = new Set<(event: DevEvent) => void>()
   const diagnostics: DshxDiagnostic[] = [...profile.diagnostics]
   const watchers: { host?: DevWatcher; client?: DevWatcher } = {}

@@ -60,6 +60,9 @@ importers:
       lightningcss:
         specifier: 1.32.0
         version: 1.32.0
+      semver:
+        specifier: 7.8.5
+        version: 7.8.5
       vite:
         specifier: 8.0.13
         version: 8.0.13(@types/node@22.19.20)(yaml@2.8.1)
@@ -71,14 +74,17 @@ importers:
         specifier: ^4.0.1
         version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-client-ui-slots':
-        specifier: 0.1.0-rc.8
+        specifier: '>=0.1.0-rc.8 <0.2.0'
         version: 0.1.0-rc.8(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.8(@deepseek-ai/cordis@4.0.1))
       '@deepseek-ai/dsh-tools':
-        specifier: 0.1.0-rc.8
+        specifier: '>=0.1.0-rc.8 <0.2.0'
         version: 0.1.0-rc.8(ac9081d1e007de8a90a707560a8ae1c3)
       '@types/react':
         specifier: ~18.3.31
         version: 18.3.31
+      '@types/semver':
+        specifier: ^7.7.1
+        version: 7.8.0
 
 packages:
 
@@ -2738,6 +2744,9 @@ packages:
 
   '@types/retry@0.12.0':
     resolution: {integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==}
+
+  '@types/semver@7.8.0':
+    resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
 
   '@vitest/expect@4.1.8':
     resolution: {integrity: sha512-h3nDO677RDLEGlBxyQ5CW8RlMThSKSRLUePLOx09gNIWRL40edgA1GCZSZgf1W55MFAG6/Sw14KeaAnqv0NKdQ==}
@@ -6961,6 +6970,8 @@ snapshots:
       csstype: 3.2.3
 
   '@types/retry@0.12.0': {}
+
+  '@types/semver@7.8.0': {}
 
   '@vitest/expect@4.1.8':
     dependencies:

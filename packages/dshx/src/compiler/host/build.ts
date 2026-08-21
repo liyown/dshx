@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { build, type InlineConfig, type Plugin } from 'vite'
 import { DshxError } from '../../diagnostics.js'
+import type { DshCompatibility } from '../../compat/types.js'
 import { isHostExternal, singleHostChunkPlugin } from './guards.js'
 
 const VIRTUAL_HOST_ENTRY = '\0virtual:dshx-host-entry'
@@ -19,6 +20,7 @@ export interface BuildHostOptions {
   readonly root?: string
   readonly sourcemap?: boolean
   readonly watch?: boolean
+  readonly compatibility?: DshCompatibility
 }
 
 /** Vite result for a one-shot Host build or an active watch build. */
@@ -162,7 +164,7 @@ export async function startHostWatcher(options: BuildHostOptions): Promise<DshxB
   }))
 }
 
-/** Build a DSH 0.1.0-rc.8 Host entry as one Node ESM file. */
+/** Build a DSH-compatible Host entry as one Node ESM file. */
 export async function buildHost(options: BuildHostOptions): Promise<HostBuildResult> {
   const paths = await resolveOptions(options)
   const config = hostConfig(paths, options)

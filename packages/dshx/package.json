@@ -48,18 +48,20 @@
   "dependencies": {
     "execa": "10.0.0",
     "lightningcss": "1.32.0",
+    "semver": "7.8.5",
     "vite": "8.0.13",
     "yaml": "2.8.1"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.8",
-    "@deepseek-ai/dsh-tools": "0.1.0-rc.8",
-    "@types/react": "~18.3.31"
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.8 <0.2.0",
+    "@types/react": "~18.3.31",
+    "@types/semver": "^7.7.1"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-tools": "0.1.0-rc.8",
-    "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.8"
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.8 <0.2.0"
   }
 }

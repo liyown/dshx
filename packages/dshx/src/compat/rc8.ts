@@ -2,8 +2,14 @@ import type { DshCompatibility } from './types.js'
 
 /** Client build protocol verified against DeepSeek Harness 0.1.0-rc.8. */
 export const RC8_COMPATIBILITY: DshCompatibility = {
+  id: 'dsh-0.1',
+  protocolGeneration: '0.1',
   version: '0.1.0-rc.8',
+  dshRange: '>=0.1.0-rc.8 <0.2.0',
+  verifiedVersions: ['0.1.0-rc.8'],
   nodeRange: '^22.19.0 || >=24.0.0',
+  profile: { listCommand: 'plugin-list-json', addCommand: 'plugin-add' },
+  inspect: { targets: ['slots', 'tools'], provider: 'unavailable' },
   client: {
     platformModules: [
       'react',

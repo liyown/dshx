@@ -23,7 +23,7 @@ export function clientGuardPlugin(externals: ReadonlySet<string>, packageId: str
       if (INLINE_SAFE.test(source) || VENDORED_LIBRARY.test(source) || GENERATED_REMOTE.test(source)) return null
       throw new DshxError(
         'DSHX1202',
-        `Client import ${JSON.stringify(source)} is neither an rc.8 baseline module nor a declared module request.`,
+        `Client import ${JSON.stringify(source)} is neither a DSH baseline module nor a declared module request.`,
         {
           ...(importer === undefined ? {} : { file: importer }),
           hint: `Declare the exact specifier in ${packageId}'s dsh.client.external or use a Cordis service.`,
@@ -33,7 +33,7 @@ export function clientGuardPlugin(externals: ReadonlySet<string>, packageId: str
   }
 }
 
-/** Fail when a build violates the one-file rc.8 client bundle protocol. */
+/** Fail when a build violates the selected DSH client bundle protocol. */
 export function singleClientChunkPlugin(): Plugin {
   return {
     name: 'dshx-single-client-chunk',

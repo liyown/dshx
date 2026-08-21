@@ -72,7 +72,7 @@ export async function createProject(options: CreateProjectOptions, dependencies:
   const context = {
     packageId: options.name,
     dshxVersion: dependencies.dshxVersion ?? options.dshxVersion ?? packageVersion(),
-    dshVersion: dependencies.dshVersion ?? options.dshVersion ?? '0.1.0-rc.8',
+    dshVersion: dependencies.dshVersion ?? options.dshVersion ?? '>=0.1.0-rc.8 <0.2.0',
   }
   const files: string[] = []
   try {

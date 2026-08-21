@@ -50,10 +50,19 @@ function profile(projectValue: ResolvedDshxConfig): PreparedProjectProfile {
     diagnostics: [],
     dsh: {
       version: '0.1.0-rc.8',
+      adapterId: 'dsh-0.1',
+      protocolGeneration: '0.1',
+      supportedRange: '>=0.1.0-rc.8 <0.2.0',
       support: 'verified',
       diagnostics: [],
       compatibility: {
+        id: 'dsh-0.1',
+        protocolGeneration: '0.1',
         version: '0.1.0-rc.8',
+        dshRange: '>=0.1.0-rc.8 <0.2.0',
+        verifiedVersions: ['0.1.0-rc.8'],
+        profile: { listCommand: 'plugin-list-json', addCommand: 'plugin-add' },
+        inspect: { targets: ['slots', 'tools'], provider: 'unavailable' },
         nodeRange: '^22.19.0 || >=24.0.0',
         client: { platformModules: [], preloadedExternals: [], manifest: { platform: 'web', moduleRequestsField: 'external', packageEdgesField: 'inject' } },
       },
@@ -123,7 +132,7 @@ describe('CLI commands', () => {
     expect(ensure).not.toHaveBeenCalled()
     streams.out.end(); streams.err.end()
     const output = await text(streams.out)
-    expect(JSON.parse(output)).toMatchObject({ diagnostics: [{ code: 'DSHX4305', severity: 'error' }] })
+    expect(JSON.parse(output)).toMatchObject({ diagnostics: [{ code: 'DSHX4305', severity: 'error' }], dsh: { adapterId: 'dsh-0.1', protocolGeneration: '0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0' } })
   })
 
   it('blocks dev before profile linking when manifest has errors', async () => {

@@ -125,20 +125,27 @@ describe('DSH installation resolution', () => {
     })
   })
 
-  it('blocks unsupported DSH by default', async () => {
+  it('continues with a warning for an unverified version inside the supported range', async () => {
+    const project = await temporaryProject()
+    const installation = await resolveDshInstallation(project, { runner: queuedRunner([success('0.1.0-rc.9')]) })
+    expect(installation).toMatchObject({ support: 'compatible-range', adapterId: 'dsh-0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0' })
+    expect(installation.diagnostics).toEqual([expect.objectContaining({ code: 'DSHX5101', severity: 'warning', file: project.packageFile })])
+  })
+
+  it('blocks a new protocol generation by default', async () => {
     const project = await temporaryProject()
     await expect(resolveDshInstallation(project, {
-      runner: queuedRunner([success('0.1.0-rc.9')]),
+      runner: queuedRunner([success('0.2.0')]),
     })).rejects.toMatchObject({ code: 'DSHX5101', file: project.packageFile })
   })
 
   it('continues with the rc.8 adapter and a warning when explicitly allowed', async () => {
     const project = await temporaryProject({ allowUnsupported: true })
     const installation = await resolveDshInstallation(project, {
-      runner: queuedRunner([success('0.1.0-rc.9')]),
+      runner: queuedRunner([success('0.2.0')]),
     })
     expect(installation).toMatchObject({
-      version: '0.1.0-rc.9',
+      version: '0.2.0',
       support: 'unsupported',
       compatibility: { version: '0.1.0-rc.8' },
     })

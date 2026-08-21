@@ -1,7 +1,6 @@
 import { realpath } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
-import { RC8_COMPATIBILITY } from '../compat/rc8.js'
-import { resolveCompatibility } from '../compat/index.js'
+import { DEFAULT_COMPATIBILITY, classifyCompatibility } from '../compat/index.js'
 import { DshxError } from '../diagnostics.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 import { runProjectDsh } from './command.js'
@@ -102,33 +101,59 @@ export async function resolveDshInstallation(
     })
   }
   const version = match[1]
-  if (version === RC8_COMPATIBILITY.version) {
+  const resolution = classifyCompatibility(version)
+  if (resolution?.support === 'verified') {
     return {
       version,
       executable: result.executable ?? 'local',
       support: 'verified',
-      compatibility: resolveCompatibility(version),
+      adapterId: resolution.compatibility.id,
+      protocolGeneration: resolution.compatibility.protocolGeneration,
+      supportedRange: resolution.compatibility.dshRange,
+      compatibility: resolution.compatibility,
       diagnostics: [],
+    }
+  }
+  if (resolution?.support === 'compatible-range') {
+    const diagnostic: DshxDiagnostic = {
+      code: 'DSHX5101',
+      severity: 'warning',
+      message: `DSH ${version} is within the ${resolution.compatibility.protocolGeneration} compatibility range but has not been verified by DSHX; continuing with the ${resolution.compatibility.id} adapter.`,
+      file: project.packageFile,
+      hint: `Run the DSHX compatibility smoke tests for ${version}; use ${resolution.compatibility.verifiedVersions.join(', ')} for verified behavior.`,
+    }
+    return {
+      version,
+      executable: result.executable ?? 'local',
+      support: 'compatible-range',
+      adapterId: resolution.compatibility.id,
+      protocolGeneration: resolution.compatibility.protocolGeneration,
+      supportedRange: resolution.compatibility.dshRange,
+      compatibility: resolution.compatibility,
+      diagnostics: [diagnostic],
     }
   }
   if (!project.compatibility.allowUnsupported) {
     throw new DshxError('DSHX5101', `Unsupported DSH version ${JSON.stringify(version)}.`, {
       file: project.packageFile,
-      hint: `Install DSH ${RC8_COMPATIBILITY.version}, or set compatibility.allowUnsupported to true to continue at your own risk.`,
+      hint: `Install a DSH version in ${DEFAULT_COMPATIBILITY.dshRange}, or set compatibility.allowUnsupported to true to continue at your own risk.`,
     })
   }
   const diagnostic: DshxDiagnostic = {
     code: 'DSHX5101',
     severity: 'warning',
-    message: `DSH ${version} is unsupported; DSHX is continuing with the ${RC8_COMPATIBILITY.version} adapter.`,
+    message: `DSH ${version} is outside the supported range ${DEFAULT_COMPATIBILITY.dshRange}; DSHX is continuing with the ${DEFAULT_COMPATIBILITY.id} adapter.`,
     file: project.packageFile,
-    hint: `Use DSH ${RC8_COMPATIBILITY.version} for verified behavior.`,
+    hint: `Use a DSH version in ${DEFAULT_COMPATIBILITY.dshRange} for verified behavior.`,
   }
   return {
     version,
     executable: result.executable ?? 'local',
     support: 'unsupported',
-    compatibility: RC8_COMPATIBILITY,
+    adapterId: DEFAULT_COMPATIBILITY.id,
+    protocolGeneration: DEFAULT_COMPATIBILITY.protocolGeneration,
+    supportedRange: DEFAULT_COMPATIBILITY.dshRange,
+    compatibility: DEFAULT_COMPATIBILITY,
     diagnostics: [diagnostic],
   }
 }
@@ -189,6 +214,13 @@ export async function inspectProjectProfile(
   options: ProfileOrchestratorOptions = {},
 ): Promise<ProjectProfileLink> {
   validateProfileName(project)
+  const compatibility = options.compatibility ?? DEFAULT_COMPATIBILITY
+  if (compatibility.profile.listCommand !== 'plugin-list-json') {
+    throw new DshxError('DSHX4302', `The selected DSH adapter cannot inspect Profile ${JSON.stringify(project.profile)}.`, {
+      file: project.packageFile,
+      hint: 'Use a DSHX adapter that supports the official JSON Profile list command.',
+    })
+  }
   const args = ['plugin', '--profile', project.profile, 'list', '--depth', '0', '--json'] as const
   const result = await runDsh(project, args, INSPECT_TIMEOUT_MS, options)
   if (result.exitCode !== 0) {
@@ -239,6 +271,7 @@ export async function ensureProjectProfile(
   const dsh = await resolveDshInstallation(project, options)
   const existing = await inspectProjectProfile(project, {
     ...options,
+    compatibility: dsh.compatibility,
     ...(dsh.executable === undefined ? {} : { executable: dsh.executable }),
   })
   if (existing.state === 'linked') {
@@ -266,6 +299,7 @@ export async function ensureProjectProfile(
   }
   const installed = await inspectProjectProfile(project, {
     ...options,
+    compatibility: dsh.compatibility,
     ...(dsh.executable === undefined ? {} : { executable: dsh.executable }),
   })
   if (installed.state !== 'linked') {

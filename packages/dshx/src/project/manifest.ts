@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { parse } from 'yaml'
-import { RC8_COMPATIBILITY } from '../compat/rc8.js'
+import { DEFAULT_COMPATIBILITY } from '../compat/index.js'
+import type { DshCompatibility } from '../compat/types.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import type { DshxDiagnostic, DshxDiagnosticSeverity } from '../diagnostics.js'
 
@@ -164,6 +165,7 @@ function checkClient(
   diagnostics: DshxDiagnostic[],
   config: ResolvedDshxConfig,
   manifest: Record<string, unknown>,
+  compatibility: DshCompatibility,
 ): void {
   const file = config.packageFile
   const dsh = isObject(manifest.dsh) ? manifest.dsh : undefined
@@ -192,13 +194,13 @@ function checkClient(
     ))
     return
   }
-  if (declaration.platform !== RC8_COMPATIBILITY.client.manifest.platform) {
+  if (declaration.platform !== compatibility.client.manifest.platform) {
     diagnostics.push(issue(
       'DSHX4211',
       'error',
-      `dsh.client.platform must be ${JSON.stringify(RC8_COMPATIBILITY.client.manifest.platform)}.`,
+      `dsh.client.platform must be ${JSON.stringify(compatibility.client.manifest.platform)}.`,
       file,
-      `Set dsh.client.platform to ${JSON.stringify(RC8_COMPATIBILITY.client.manifest.platform)}.`,
+      `Set dsh.client.platform to ${JSON.stringify(compatibility.client.manifest.platform)}.`,
     ))
   }
   checkStringArray(diagnostics, declaration.inject, 'dsh.client.inject', 'DSHX4212', file)
@@ -215,8 +217,8 @@ function checkClient(
   if (external === undefined) return
 
   const baseline = new Set([
-    ...RC8_COMPATIBILITY.client.platformModules,
-    ...RC8_COMPATIBILITY.client.preloadedExternals,
+    ...compatibility.client.platformModules,
+    ...compatibility.client.preloadedExternals,
   ])
   for (const request of external) {
     if (request === config.packageId || request.startsWith(`${config.packageId}/`)) {
@@ -231,7 +233,7 @@ function checkClient(
       diagnostics.push(issue(
         'DSHX4215',
         'error',
-        `dsh.client.external must not repeat the rc.8 baseline module ${JSON.stringify(request)}.`,
+        `dsh.client.external must not repeat the ${compatibility.id} baseline module ${JSON.stringify(request)}.`,
         file,
         'Remove baseline modules; DSH provides them implicitly.',
       ))
@@ -240,7 +242,7 @@ function checkClient(
 }
 
 /** Collect current package and bundle metadata issues without changing project files. */
-export async function checkProjectManifest(config: ResolvedDshxConfig): Promise<DshxDiagnostic[]> {
+export async function checkProjectManifest(config: ResolvedDshxConfig, options: { readonly compatibility?: DshCompatibility } = {}): Promise<DshxDiagnostic[]> {
   const diagnostics: DshxDiagnostic[] = []
   let source: string
   try {
@@ -318,7 +320,7 @@ export async function checkProjectManifest(config: ResolvedDshxConfig): Promise<
     ))
   }
   await checkPatch(diagnostics, config.root, config.packageFile)
-  checkClient(diagnostics, config, manifest)
+  checkClient(diagnostics, config, manifest, options.compatibility ?? DEFAULT_COMPATIBILITY)
   checkPublishingHints(diagnostics, manifest, config.packageFile)
   return diagnostics
 }

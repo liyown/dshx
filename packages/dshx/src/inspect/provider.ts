@@ -23,7 +23,7 @@ function absentProfile(project: ResolvedDshxConfig) {
 }
 
 function unsupportedTarget(file: string, target: InspectTarget) {
-  return { code: 'DSHX3204', severity: 'error' as const, message: `The active DSH Inspect Provider does not support target ${JSON.stringify(target)}.`, file, hint: 'Use one of the targets supported by the active rc.8 provider: slots or tools.' }
+  return { code: 'DSHX3204', severity: 'error' as const, message: `The active DSH Inspect Provider does not support target ${JSON.stringify(target)}.`, file, hint: 'Use one of the targets supported by the selected DSH compatibility adapter.' }
 }
 
 function invalidProviderDto(file: string, error: unknown) {
@@ -107,11 +107,15 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
     diagnostics.push(...dsh.diagnostics)
     profileLink = await (options.inspectProfile ?? inspectProjectProfile)(project, {
       ...profileOptions(options),
+      compatibility: dsh.compatibility,
       ...(dsh.executable === undefined ? {} : { executable: dsh.executable }),
     })
     if (profileLink.state === 'absent') return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [absentProfile(project), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), profileLink }
   } catch (error) {
     return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [diagnosticFromError(error, project.packageFile)], cause: error, ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
+  }
+  if (dsh?.compatibility.inspect !== undefined && !dsh.compatibility.inspect.targets.includes(target)) {
+    return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unsupportedTarget(project.packageFile, target), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
   }
   if (options.provider === undefined) return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unavailableProvider(project.packageFile), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
   try {
