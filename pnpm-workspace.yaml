@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - fixtures/*
+  - apps/*
 
 allowBuilds:
   esbuild: true

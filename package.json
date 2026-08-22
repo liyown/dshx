@@ -11,6 +11,8 @@
     "build": "pnpm --filter @becomeopc/dshx build && pnpm --filter create-dshx build",
     "check": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm --filter create-dshx typecheck && pnpm --filter create-dshx test && pnpm --filter create-dshx build",
     "phase-a:build": "pnpm run build && pnpm --filter @dshx/phase-a-fixture build",
+    "framework-hub:dev": "pnpm --filter @becomeopc/dshx-framework-hub dev",
+    "framework-hub:build": "pnpm --filter @becomeopc/dshx-framework-hub build",
     "test": "pnpm --filter @becomeopc/dshx test",
     "typecheck": "pnpm --filter @becomeopc/dshx typecheck",
     "smoke:rc2": "pnpm run build && node scripts/smoke-rc2.mjs"
