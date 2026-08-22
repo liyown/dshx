@@ -160,11 +160,15 @@ export async function startDevSession(
   const startChildNow = async (restarting = false): Promise<void> => {
     if (closed || child !== undefined || state.dshProcess === 'starting' || !hostBuilt || !clientBuilt) return
     setState({ dshProcess: 'starting', hostRestartRequired: false })
+    // `--open` is a DSHX-only policy flag. rc.2 opens the browser when no
+    // `--no-open` flag is present, but rejects an explicit `--open` argument.
+    const requestedDshArgs = options.dshArgs ?? []
+    const forwardedDshArgs = requestedDshArgs.filter(arg => arg !== '--open')
     const args = [
       '--profile',
       profile.profile,
-      ...(profile.profile === 'web' && !(options.dshArgs ?? []).some(arg => arg === '--no-open' || arg === '--open') ? ['--no-open'] : []),
-      ...(options.dshArgs ?? []),
+      ...(profile.profile === 'web' && !requestedDshArgs.includes('--open') && !forwardedDshArgs.includes('--no-open') ? ['--no-open'] : []),
+      ...forwardedDshArgs,
     ]
     const childEnvironment = options.inspectBridge === true
       ? { ...environment, DSHX_INSPECT_BRIDGE: '1' }

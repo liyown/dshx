@@ -271,6 +271,15 @@ interface CheckResult {
   readonly profile?: ProjectProfileLink
   readonly runtimePlugins: RuntimePluginReport
   readonly bridge: InspectBridgeStatus
+  readonly connection: ConnectionReport
+}
+
+interface ConnectionReport {
+  readonly provider: 'runtime' | 'unavailable'
+  readonly package: string
+  readonly hostApi: boolean
+  readonly clientApi: boolean
+  readonly status: 'available' | 'unavailable'
 }
 
 interface CheckFixResult {
@@ -303,11 +312,15 @@ async function collectCheck(options: CliRunOptions, project: ResolvedDshxConfig)
     diagnostics.push(diagnosticFromError(error, project.packageFile))
   }
   const compatibility = dsh?.compatibility ?? resolveDeclaredCompatibility(project.manifest)?.compatibility ?? DEFAULT_COMPATIBILITY
+  const connectionSpec = compatibility.connection
+  const connection: ConnectionReport = connectionSpec === undefined
+    ? { provider: 'unavailable', package: '@deepseek-ai/dsh-client-connection', hostApi: false, clientApi: false, status: 'unavailable' }
+    : { provider: 'runtime', package: connectionSpec.packageName, hostApi: connectionSpec.hostRpc, clientApi: connectionSpec.clientRpc, status: 'available' }
   runtimePlugins = await (runtime.inspectRuntimePlugins ?? inspectRuntimePlugins)(project, compatibility)
   bridge = await (runtime.inspectBridgeStatus ?? inspectBridgeStatus)(project)
   runtimePlugins = mergeRuntimePluginStatus(runtimePlugins, bridge)
   diagnostics = [...await (runtime.checkManifest ?? checkProjectManifest)(project, { compatibility }), ...runtimePlugins.diagnostics, ...bridge.diagnostics, ...diagnostics]
-  const result: CheckResult = { project, diagnostics, ...(dsh === undefined ? {} : { dsh }), ...(profile === undefined ? {} : { profile }), runtimePlugins, bridge }
+  const result: CheckResult = { project, diagnostics, ...(dsh === undefined ? {} : { dsh }), ...(profile === undefined ? {} : { profile }), runtimePlugins, bridge, connection }
   return result
 }
 
@@ -395,7 +408,7 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
   }
   const diagnostics = [...result.diagnostics, ...fix.diagnostics]
   if (args.json) {
-    write(io.stdout, `${JSON.stringify({ project: projectSummary(result.project), diagnostics, dsh: installationSummary(result.dsh), profile: result.profile ?? null, runtimePlugins: result.runtimePlugins.plugins, bridge: { state: result.bridge.state, metadata: result.bridge.metadata ?? null }, fix: fixSummary(fix) }, null, 2)}\n`)
+    write(io.stdout, `${JSON.stringify({ project: projectSummary(result.project), diagnostics, dsh: installationSummary(result.dsh), profile: result.profile ?? null, runtimePlugins: result.runtimePlugins.plugins, bridge: { state: result.bridge.state, metadata: result.bridge.metadata ?? null }, connection: result.connection, fix: fixSummary(fix) }, null, 2)}\n`)
   } else {
     for (const item of diagnostics) printDiagnostic(io, item)
     if (args.fix && fix.diff !== '') {
