@@ -137,6 +137,9 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
   try {
     dsh = await (options.resolveDsh ?? resolveDshInstallation)(project, profileOptions(options))
     diagnostics.push(...dsh.diagnostics)
+    if (dsh.compatibility.inspect !== undefined && !dsh.compatibility.inspect.targets.includes(target)) {
+      return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unsupportedTarget(project.packageFile, target), ...diagnostics], dsh }
+    }
     profileLink = await (options.inspectProfile ?? inspectProjectProfile)(project, {
       ...profileOptions(options),
       compatibility: dsh.compatibility,
@@ -145,9 +148,6 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
     if (profileLink.state === 'absent') return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [absentProfile(project), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), profileLink }
   } catch (error) {
     return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [diagnosticFromError(error, project.packageFile)], cause: error, ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
-  }
-  if (dsh?.compatibility.inspect !== undefined && !dsh.compatibility.inspect.targets.includes(target)) {
-    return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unsupportedTarget(project.packageFile, target), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
   }
   if (options.provider === undefined) return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unavailableProvider(project.packageFile), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
   try {
