@@ -4,6 +4,7 @@ import type { DshxDiagnostic } from '../diagnostics.js'
 import { inspectProjectProfile, resolveDshInstallation } from '../profile/orchestrator.js'
 import type { DshCommandResult, DshCommandRunner, ProfileOrchestratorOptions, ProjectProfileLink, ResolvedDshInstallation } from '../profile/types.js'
 import type { EventSummary, InspectOptions, InspectProvider, InspectResult, InspectTarget, ServiceSummary, SlotSummary, ToolSummary } from './types.js'
+import { DshInspectBridgeProvider } from './bridge.js'
 
 const INSPECT_TIMEOUT_MS = 30_000
 
@@ -149,23 +150,30 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
   } catch (error) {
     return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [diagnosticFromError(error, project.packageFile)], cause: error, ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
   }
-  if (options.provider === undefined) return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unavailableProvider(project.packageFile), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
+  const capability = dsh?.compatibility.inspect?.providerByTarget?.[target]
+    ?? dsh?.compatibility.inspect?.provider
+  if (capability === 'unavailable' && options.provider === undefined) {
+    return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unavailableProvider(project.packageFile), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
+  }
+  const provider = options.provider
+    ?? (dsh === undefined ? undefined : new DshInspectBridgeProvider(project, dsh, profileOptions(options)))
+  if (provider === undefined) return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unavailableProvider(project.packageFile), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
   try {
     const method = target === 'slots'
-      ? options.provider.listSlots
+      ? provider.listSlots
       : target === 'tools'
-        ? options.provider.listTools
+        ? provider.listTools
         : target === 'services'
-          ? options.provider.listServices
-          : options.provider.listEvents
-    if (typeof method !== 'function') return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unsupportedTarget(project.packageFile, target), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
+          ? provider.listServices
+          : provider.listEvents
+    if (typeof method !== 'function') return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [options.provider === undefined ? unavailableProvider(project.packageFile) : unsupportedTarget(project.packageFile, target), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
     let raw: unknown
     try {
-      raw = await method.call(options.provider)
+      raw = await method.call(provider)
     } catch (error) {
       return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [diagnosticFromError(error, project.packageFile), ...diagnostics], cause: error, ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
     }
-    let items: readonly SlotSummary[] | readonly ToolSummary[]
+    let items: readonly SlotSummary[] | readonly ToolSummary[] | readonly ServiceSummary[] | readonly EventSummary[]
     try {
       items = target === 'slots'
         ? normalizeSlots(raw)
