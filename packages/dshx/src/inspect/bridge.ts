@@ -43,7 +43,7 @@ function bridgeName(packageId: string): string {
 }
 
 function endpointPaths(packageId: string, env: Readonly<NodeJS.ProcessEnv>): { metadataPath: string; socketPath: string } {
-  const dshHome = env.DSH_HOME?.trim() || join(homedir(), '.dsh')
+  const dshHome = env.DSH_HOME?.trim() ? resolve(env.DSH_HOME.trim()) : join(homedir(), '.dsh')
   const directory = join(dshHome, 'runtime', 'dshx', 'inspect')
   const name = bridgeName(packageId)
   const regularSocket = join(directory, `${name}.sock`)

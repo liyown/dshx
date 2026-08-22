@@ -3,7 +3,7 @@ import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { homedir, tmpdir } from 'node:os'
 import process from 'node:process'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 
 const PROTOCOL_VERSION = 1
@@ -73,7 +73,7 @@ function errorMessage(error: unknown): string {
 
 function runtimeHome(): string {
   const configured = runtimeProcess()?.env.DSH_HOME
-  return configured === undefined || configured.trim() === '' ? join(homedir(), '.dsh') : configured
+  return configured === undefined || configured.trim() === '' ? join(homedir(), '.dsh') : resolve(configured)
 }
 
 function bridgeName(packageId: string): string {
