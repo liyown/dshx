@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
+import process from 'node:process'
 import type { ToolRuntime } from '@deepseek-ai/dsh-tools'
 
 declare module '@deepseek-ai/cordis' {
@@ -8,6 +9,9 @@ declare module '@deepseek-ai/cordis' {
 }
 import { DshxError } from '../diagnostics.js'
 import type { HostDefinition } from './types.js'
+import type { DshCompatibility } from '../compat/types.js'
+import { loadRuntimePlugins } from './runtime-plugins.js'
+import { inspectBridgeEnabled, ownHostInspectBridge, startHostInspectBridge } from './inspect-bridge.js'
 
 const HOST_DEFINITION_KEYS = new Set(['name', 'inject', 'tools', 'setup'])
 
@@ -16,6 +20,8 @@ export interface HostPluginMetadata {
   readonly packageId: string
   readonly logicalName?: string
   readonly sourceFile?: string
+  readonly root?: string
+  readonly compatibility?: DshCompatibility
 }
 
 /** Normalized Host module surface consumed by the virtual entry. */
@@ -40,6 +46,35 @@ function fail(
 
 function fallbackName(metadata: HostPluginMetadata): string {
   return metadata.logicalName ?? metadata.packageId
+}
+
+async function startHostRuntime(ctx: Context, metadata: HostPluginMetadata): Promise<void> {
+  if (!inspectBridgeEnabled()) return
+  await loadRuntimePlugins(ctx, metadata.compatibility)
+  const bridge = await startHostInspectBridge(ctx, {
+    packageId: metadata.packageId,
+    root: metadata.root ?? process.cwd(),
+    ...(metadata.logicalName === undefined ? {} : { logicalName: metadata.logicalName }),
+  })
+  ownHostInspectBridge(ctx, bridge)
+}
+
+function withRuntime(
+  ctx: Context,
+  result: unknown,
+  metadata: HostPluginMetadata,
+): unknown {
+  if (!inspectBridgeEnabled()) return result
+  return Promise.resolve(result).then(async value => {
+    try {
+      await startHostRuntime(ctx, metadata)
+    } catch (error) {
+      // Inspect is an optional development capability. A missing provider or
+      // bridge must not make a user's Host fail to load.
+      console.warn(`DSHX Inspect runtime unavailable: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    return value
+  })
 }
 
 function validateDefinition(value: unknown, metadata: HostPluginMetadata): HostDefinition {
@@ -88,7 +123,7 @@ export function createHostPlugin(value: unknown, metadata: HostPluginMetadata): 
     inject,
     apply(ctx) {
       for (const tool of definition.tools ?? []) ctx.tools.register(tool)
-      return definition.setup?.(ctx)
+      return withRuntime(ctx, definition.setup?.(ctx), metadata)
     },
   }
 }
@@ -113,7 +148,7 @@ export function createHostModule(source: Record<string, unknown>, metadata: Host
     ...(source.inject === undefined ? {} : { inject: source.inject }),
     ...(source.Config === undefined ? {} : { Config: source.Config }),
     apply(ctx, config) {
-      return apply(ctx, config)
+      return withRuntime(ctx, apply(ctx, config), metadata)
     },
   }
 }
