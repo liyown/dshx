@@ -120,6 +120,10 @@ function modifyHost(source: string, hostFile: string, hookFile: string, event: s
   } else {
     const body = findSetupBody(setup)
     if (body === undefined) return { duplicate: false, invalidSetup: true }
+    const contextName = body.parameter === undefined
+      ? 'ctx'
+      : ts.isIdentifier(body.parameter.name) ? body.parameter.name.text : undefined
+    if (contextName === undefined) return { duplicate: false, invalidSetup: true }
     if (body.parameter === undefined) {
       const open = setup.getStart(sourceFile)
       const text = source.slice(open, body.body.getStart(sourceFile))
@@ -130,7 +134,7 @@ function modifyHost(source: string, hostFile: string, hookFile: string, event: s
     const start = body.body.getStart(sourceFile) + 1
     const existing = source.slice(start, body.body.getEnd())
     const indent = /\n([ \t]*)[^\s]/.exec(existing)?.[1] ?? '  '
-    edits.push({ start, end: start, text: `\n${indent}${name}(ctx)` })
+    edits.push({ start, end: start, text: `\n${indent}${name}(${contextName})\n` })
   }
   const imports = sourceFile.statements.filter(ts.isImportDeclaration)
   const importEnd = imports.length === 0 ? 0 : imports[imports.length - 1]!.end
