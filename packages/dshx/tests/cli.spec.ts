@@ -83,13 +83,15 @@ describe('CLI argument parser', () => {
     expect(() => parseCliArgs(['dev', '--cwd'])).toThrow('requires a value')
     expect(() => parseCliArgs(['wat'])).toThrow('Unknown argument')
     expect(() => parseCliArgs(['inspect'])).toThrow('requires a target')
-    expect(() => parseCliArgs(['inspect', 'services'])).toThrow('Unknown argument')
+    expect(() => parseCliArgs(['inspect', 'unknown-target'])).toThrow('Unknown argument')
     expect(() => parseCliArgs(['build', 'slots'])).toThrow('only valid with the inspect command')
   })
 
   it('parses inspect targets and JSON mode', () => {
     expect(parseCliArgs(['inspect', 'slots', '--json'])).toMatchObject({ command: 'inspect', inspectTarget: 'slots', json: true })
     expect(parseCliArgs(['inspect', 'tools', '--verbose', '--cwd', '/tmp/project'])).toMatchObject({ command: 'inspect', inspectTarget: 'tools', verbose: true, cwd: '/tmp/project' })
+    expect(parseCliArgs(['inspect', 'services'])).toMatchObject({ command: 'inspect', inspectTarget: 'services' })
+    expect(parseCliArgs(['inspect', 'events'])).toMatchObject({ command: 'inspect', inspectTarget: 'events' })
   })
 
   it('parses add ui options and rejects non-ui add targets', () => {
@@ -228,6 +230,44 @@ describe('CLI commands', () => {
     streams.out.end(); streams.err.end()
     expect(await text(streams.out)).toContain('Inspect tools')
     expect(await text(streams.err)).toContain('DSHX3201')
+  })
+
+  it('prints service summaries as JSON and keeps Inspect read-only', async () => {
+    const streams = io()
+    const value = project()
+    const ensure = vi.fn()
+    const code = await runCli(['inspect', 'services', '--json'], {
+      io: streams,
+      runtime: {
+        resolveConfig: async () => value,
+        inspectComposition: async (_project, target) => ({ profile: 'web', target, source: 'runtime', items: [{ name: 'logger', provider: 'core', scope: 'global' }], diagnostics: [] }),
+        ensureProfile: ensure,
+      },
+    })
+    expect(code).toBe(0)
+    expect(ensure).not.toHaveBeenCalled()
+    streams.out.end(); streams.err.end()
+    expect(JSON.parse(await text(streams.out))).toMatchObject({ target: 'services', source: 'runtime', items: [{ name: 'logger', scope: 'global' }] })
+    expect(await text(streams.err)).toBe('')
+  })
+
+  it('reports unsupported events and prints verbose provider causes to stderr', async () => {
+    const streams = io()
+    const value = project()
+    const cause = Object.assign(new Error('provider failed'), { cause: { stderr: 'connection refused' } })
+    const code = await runCli(['inspect', 'events', '--verbose'], {
+      io: streams,
+      runtime: {
+        resolveConfig: async () => value,
+        inspectComposition: async (_project, target) => ({ profile: 'web', target, source: 'runtime', items: [], diagnostics: [{ code: 'DSHX3204', severity: 'error', message: 'Unsupported', file: value.packageFile, hint: 'Use a supported adapter.' }], cause }),
+      },
+    })
+    expect(code).toBe(1)
+    streams.out.end(); streams.err.end()
+    expect(await text(streams.out)).toContain('Inspect events')
+    const errorOutput = await text(streams.err)
+    expect(errorOutput).toContain('DSHX3204')
+    expect(errorOutput).toContain('connection refused')
   })
 
   it('requires a Slot in non-TTY add ui mode without invoking the generator', async () => {
