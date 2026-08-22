@@ -131,6 +131,9 @@ function scaffoldContract(slot: SlotSummary, file: string, options: AddUiOptions
   if (slot.kind === 'list' && !registration.includes('id')) {
     return { diagnostic: diagnostic('DSHX6111', `Slot ${JSON.stringify(slot.name)} does not declare a stable list id field.`, file, 'Use an exact Slot contract that exposes the required id registration field.') }
   }
+  if (options.order !== undefined && !registration.includes('order')) {
+    return { diagnostic: diagnostic('DSHX6110', `Slot ${JSON.stringify(slot.name)} does not accept an order registration field.`, file, 'Omit --order or register this Slot manually with the official contract.') }
+  }
   if (slot.kind === 'single' && (options.id !== undefined || options.order !== undefined)) {
     return { diagnostic: diagnostic('DSHX6110', `Slot ${JSON.stringify(slot.name)} is single-valued and does not accept id/order options.`, file, 'Omit --id and --order for a single Slot, or register it manually with the official contract.') }
   }
@@ -150,10 +153,11 @@ async function defaultResolveProvider(projectRoot: string, provider: string): Pr
 
 function generatedSource(slot: SlotSummary, provider: string, id: string, order: number, registration: readonly string[]): string {
   const component = defaultComponentName(slot.name)
-  const options = registration.includes('id')
-    ? `  id: ${JSON.stringify(id)},\n  order: ${order},\n`
-    : ''
-  return `import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'\nimport type {} from ${JSON.stringify(providerClient(provider))}\nimport { defineSlot } from 'dshx/client'\n\nexport function ${component}(_props: PropsRuntime<${JSON.stringify(slot.name)}>) {\n  return <button type="button">{${JSON.stringify(slot.name)}}</button>\n}\n\nexport const generatedSlot = defineSlot(${JSON.stringify(slot.name)}, {\n${options}  component: ${component},\n})\n`
+  const options = [
+    ...(registration.includes('id') ? [`  id: ${JSON.stringify(id)},`] : []),
+    ...(registration.includes('order') ? [`  order: ${order},`] : []),
+  ].join('\n')
+  return `import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'\nimport type {} from ${JSON.stringify(providerClient(provider))}\nimport { defineSlot } from 'dshx/client'\n\nexport function ${component}(_props: PropsRuntime<${JSON.stringify(slot.name)}>) {\n  return <button type="button">{${JSON.stringify(slot.name)}}</button>\n}\n\nexport const generatedSlot = defineSlot(${JSON.stringify(slot.name)}, {\n${options}${options === '' ? '' : '\n'}  component: ${component},\n})\n`
 }
 
 function relativeImport(fromFile: string, targetFile: string): string {
