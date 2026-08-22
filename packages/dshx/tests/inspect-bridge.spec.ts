@@ -1,30 +1,72 @@
-import { describe, expect, it } from 'vitest'
+import { createHash, randomUUID } from 'node:crypto'
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { createServer } from 'node:net'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
 import { DshInspectBridgeProvider } from '../src/inspect/bridge.js'
-import { RC8_COMPATIBILITY } from '../src/compat/index.js'
 import type { ResolvedDshxConfig } from '../src/config/index.js'
 
 const project: ResolvedDshxConfig = {
-  root: '/project', packageFile: '/project/package.json', configDependencies: [], packageId: 'demo', name: 'demo', outDir: '/project/dist', profile: 'web', dev: { hostRestart: 'manual' }, build: { sourcemap: true }, compatibility: { allowUnsupported: false }, manifest: { name: 'demo' },
+  root: '/project', packageFile: '/project/package.json', configFile: '/project/dshx.config.ts', configDependencies: [], packageId: 'demo', name: 'demo', outDir: '/project/dist', profile: 'web', dev: { hostRestart: 'manual' }, build: { sourcemap: true }, compatibility: { allowUnsupported: false }, manifest: { name: 'demo' },
 }
-const dsh = { version: '0.1.0-rc.8', executable: 'local' as const, support: 'verified' as const, adapterId: RC8_COMPATIBILITY.id, protocolGeneration: RC8_COMPATIBILITY.protocolGeneration, supportedRange: RC8_COMPATIBILITY.dshRange, compatibility: RC8_COMPATIBILITY, diagnostics: [] }
+
+const tempRoots: string[] = []
+
+async function endpoint(envRoot: string, response: string): Promise<() => Promise<void>> {
+  const directory = join(envRoot, 'runtime', 'dshx', 'inspect')
+  await mkdir(directory, { recursive: true })
+  const name = createHash('sha256').update(project.packageId).digest('hex').slice(0, 20)
+  const socketPath = join(directory, `${name}.sock`)
+  const metadataPath = join(directory, `${name}.json`)
+  const server = createServer(socket => socket.once('data', () => socket.end(`${response}\n`)))
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(socketPath, resolve) })
+  await writeFile(metadataPath, JSON.stringify({ version: 1, packageId: project.packageId, root: project.root, pid: process.pid, socketPath, token: randomUUID() }) + '\n')
+  return async () => {
+    await new Promise<void>(resolve => server.close(() => resolve()))
+    await rm(envRoot, { recursive: true, force: true })
+  }
+}
+
+afterEach(async () => {
+  await Promise.all(tempRoots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+})
 
 describe('DshInspectBridgeProvider', () => {
-  it('calls the selected DSH executable and validates bridge DTOs', async () => {
-    const calls: string[][] = []
-    const provider = new DshInspectBridgeProvider(project, dsh, {
-      runner: async (args) => {
-        calls.push([...args])
-        return { exitCode: 0, stdout: JSON.stringify({ version: 1, ok: true, target: 'services', items: [{ name: 'logger', provider: 'Service', scope: 'composition' }] }), stderr: '' }
-      },
+  it('connects to the Host-owned socket and validates bridge DTOs', async () => {
+    const root = await mkdtemp(join('/tmp', 'dx-'))
+    tempRoots.push(root)
+    const directory = join(root, 'runtime', 'dshx', 'inspect')
+    await mkdir(directory, { recursive: true })
+    const name = createHash('sha256').update(project.packageId).digest('hex').slice(0, 20)
+    const socketPath = join(directory, `${name}.sock`)
+    const metadataPath = join(directory, `${name}.json`)
+    const server = createServer(socket => {
+      socket.once('data', data => {
+        const request = JSON.parse(data.toString()) as { requestId: string; target: string }
+        socket.end(JSON.stringify({ version: 1, requestId: request.requestId, ok: true, target: request.target, items: [{ name: 'logger', provider: 'Service', scope: 'composition' }] }) + '\n')
+      })
     })
+    await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(socketPath, resolve) })
+    await writeFile(metadataPath, JSON.stringify({ version: 1, packageId: project.packageId, root: project.root, pid: process.pid, socketPath, token: randomUUID() }) + '\n')
+    const provider = new DshInspectBridgeProvider(project, { env: { DSH_HOME: root } })
     await expect(provider.listServices()).resolves.toEqual([{ name: 'logger', provider: 'Service', scope: 'composition' }])
-    expect(calls[0]).toEqual(['inspect', '--profile', 'web', '--target', 'services', '--json'])
+    await new Promise<void>(resolve => server.close(() => resolve()))
   })
 
-  it('maps missing bridges and malformed responses to stable diagnostics', async () => {
-    const missing = new DshInspectBridgeProvider(project, dsh, { runner: async () => ({ exitCode: 1, stdout: '', stderr: 'No Inspect bridge is available.' }) })
+  it('maps missing endpoints and malformed responses to stable diagnostics', async () => {
+    const root = await mkdtemp(join('/tmp', 'dx-'))
+    tempRoots.push(root)
+    const missing = new DshInspectBridgeProvider(project, { env: { DSH_HOME: root } })
     await expect(missing.listEvents()).rejects.toMatchObject({ code: 'DSHX3201' })
-    const malformed = new DshInspectBridgeProvider(project, dsh, { runner: async () => ({ exitCode: 0, stdout: '{bad', stderr: '' }) })
+    const close = await endpoint(root, '{bad')
+    const malformed = new DshInspectBridgeProvider(project, { env: { DSH_HOME: root } })
     await expect(malformed.listEvents()).rejects.toMatchObject({ code: 'DSHX3203' })
+    await close()
+  })
+
+  it('keeps slots and tools outside the Host bridge contract', async () => {
+    const provider = new DshInspectBridgeProvider(project)
+    await expect(provider.listSlots()).rejects.toMatchObject({ code: 'DSHX3204' })
+    await expect(provider.listTools()).rejects.toMatchObject({ code: 'DSHX3204' })
   })
 })
