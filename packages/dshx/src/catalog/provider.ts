@@ -84,26 +84,27 @@ export async function catalogProjectCapabilities(
   } catch (error) {
     return { profile: project.profile, target, source: 'offline', items: [], diagnostics: [diagnosticFromError(error, project.packageFile)] , cause: error }
   }
+  const diagnostics = [...dsh.diagnostics]
   const capability = dsh.compatibility.catalog
   if (capability === undefined || capability.source !== 'package-metadata') {
-    return { profile: project.profile, target, source: 'offline', items: [], diagnostics: [unavailable(project.packageFile)], dsh }
+    return { profile: project.profile, target, source: 'offline', items: [], diagnostics: [unavailable(project.packageFile), ...diagnostics], dsh }
   }
   if (!capability.targets.includes(target)) {
-    return { profile: project.profile, target, source: 'offline', items: [], diagnostics: [unsupported(project.packageFile, target)], dsh }
+    return { profile: project.profile, target, source: 'offline', items: [], diagnostics: [unsupported(project.packageFile, target), ...diagnostics], dsh }
   }
   if (options.provider === undefined) {
-    return { profile: project.profile, target, source: 'offline', items: [], diagnostics: [unavailable(project.packageFile)], dsh }
+    return { profile: project.profile, target, source: 'offline', items: [], diagnostics: [unavailable(project.packageFile), ...diagnostics], dsh }
   }
   const method = methodFor(target, options.provider)
   if (method === undefined) {
-    return { profile: project.profile, target, source: 'offline', items: [], diagnostics: [unsupported(project.packageFile, target)], dsh }
+    return { profile: project.profile, target, source: 'offline', items: [], diagnostics: [unsupported(project.packageFile, target), ...diagnostics], dsh }
   }
   try {
-    return { profile: project.profile, target, source: 'offline', items: await method(), diagnostics: [], dsh }
+    return { profile: project.profile, target, source: 'offline', items: await method(), diagnostics, dsh }
   } catch (error) {
     const diagnostic = error instanceof Error && /Catalog output must|Catalog field|Inspect output must|Inspect item/.test(error.message)
       ? invalid(project.packageFile, error)
       : diagnosticFromError(error, project.packageFile)
-    return { profile: project.profile, target, source: 'offline', items: [], diagnostics: [diagnostic], cause: error, dsh }
+    return { profile: project.profile, target, source: 'offline', items: [], diagnostics: [diagnostic, ...diagnostics], cause: error, dsh }
   }
 }
