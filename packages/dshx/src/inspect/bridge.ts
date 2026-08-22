@@ -116,7 +116,7 @@ export async function inspectBridgeStatus(
       }],
     }
   }
-  if (!isRecord(value) || value.version !== PROTOCOL_VERSION || typeof value.packageId !== 'string' || typeof value.root !== 'string' || typeof value.pid !== 'number' || !Number.isInteger(value.pid) || typeof value.socketPath !== 'string') {
+  if (!isRecord(value) || value.version !== PROTOCOL_VERSION || typeof value.packageId !== 'string' || typeof value.root !== 'string' || !isAbsolute(value.root) || typeof value.pid !== 'number' || !Number.isInteger(value.pid) || typeof value.socketPath !== 'string' || !isAbsolute(value.socketPath)) {
     return {
       state: 'invalid',
       diagnostics: [{ code: 'DSHX5103', severity: 'warning', message: 'Host Inspect bridge metadata is invalid.', file: project.packageFile, hint: 'Restart the DSH Composition so DSHX can recreate its bridge metadata.' }],

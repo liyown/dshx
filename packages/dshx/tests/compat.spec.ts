@@ -17,10 +17,10 @@ describe('rc.8 compatibility', () => {
     ])
   })
 
-  it('accepts an unverified version inside the same protocol range', () => {
+  it('accepts verified and unverified versions inside the same protocol range', () => {
+    expect(classifyCompatibility('0.1.1-rc.2')).toMatchObject({ compatibility: RC8_COMPATIBILITY, support: 'verified' })
     expect(resolveCompatibility('0.1.0-rc.9')).toBe(RC8_COMPATIBILITY)
     expect(classifyCompatibility('0.1.0-rc.9')).toMatchObject({ compatibility: RC8_COMPATIBILITY, support: 'compatible-range' })
-    expect(classifyCompatibility('0.1.1-rc.2')).toMatchObject({ compatibility: RC8_COMPATIBILITY, support: 'compatible-range' })
   })
 
   it('rejects a new protocol generation', () => {

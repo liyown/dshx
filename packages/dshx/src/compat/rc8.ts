@@ -6,7 +6,7 @@ export const RC8_COMPATIBILITY: DshCompatibility = {
   protocolGeneration: '0.1',
   version: '0.1.0-rc.8',
   dshRange: '>=0.1.0-rc.8 <0.2.0',
-  verifiedVersions: ['0.1.0-rc.8'],
+  verifiedVersions: ['0.1.0-rc.8', '0.1.1-rc.2'],
   nodeRange: '^22.19.0 || >=24.0.0',
   profile: { listCommand: 'plugin-list-json', addCommand: 'plugin-add' },
   runtimePlugins: [
