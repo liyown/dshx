@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolveDshxConfig } from '../src/config/index.js'
-import { applyManifestRepairPlan, createManifestRepairPlan } from '../src/project/index.js'
+import { applyManifestRepairPlan, createManifestRepairPlan, rollbackManifestRepairPlan } from '../src/project/index.js'
 
 const roots: string[] = []
 
@@ -50,5 +50,17 @@ describe('deterministic manifest repair plan', () => {
     await applyManifestRepairPlan(plan)
     expect(await readFile(resolve(root, 'src-client.tsx'), 'utf8')).toBe(before)
     expect(JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'))).toHaveProperty('dsh.client')
+  })
+
+  it('restores the original manifest when a reviewed plan is rolled back', async () => {
+    const root = await project()
+    const resolved = await resolveDshxConfig({ cwd: root })
+    const packageFile = resolved.packageFile
+    const before = await readFile(packageFile, 'utf8')
+    const plan = await createManifestRepairPlan(resolved)
+    await applyManifestRepairPlan(plan)
+    expect(await readFile(packageFile, 'utf8')).not.toBe(before)
+    await rollbackManifestRepairPlan(plan)
+    expect(await readFile(packageFile, 'utf8')).toBe(before)
   })
 })
