@@ -6,6 +6,7 @@ import type { CliIO } from '../src/cli/run.js'
 import type { DevEvent, DevSession } from '../src/dev/index.js'
 import type { ResolvedDshxConfig } from '../src/config/index.js'
 import type { PreparedProjectProfile } from '../src/profile/index.js'
+import type { InspectOptions, InspectTarget } from '../src/inspect/index.js'
 
 function project(): ResolvedDshxConfig {
   return {
@@ -89,6 +90,8 @@ describe('CLI argument parser', () => {
 
   it('parses inspect targets and JSON mode', () => {
     expect(parseCliArgs(['inspect', 'slots', '--json'])).toMatchObject({ command: 'inspect', inspectTarget: 'slots', json: true })
+    expect(parseCliArgs(['inspect', 'slots', '--root', 'sidebar.footer.action'])).toMatchObject({ command: 'inspect', inspectTarget: 'slots', root: 'sidebar.footer.action' })
+    expect(() => parseCliArgs(['inspect', 'services', '--root', 'logger'])).toThrow('--root')
     expect(parseCliArgs(['inspect', 'tools', '--verbose', '--cwd', '/tmp/project'])).toMatchObject({ command: 'inspect', inspectTarget: 'tools', verbose: true, cwd: '/tmp/project' })
     expect(parseCliArgs(['inspect', 'services'])).toMatchObject({ command: 'inspect', inspectTarget: 'services' })
     expect(parseCliArgs(['inspect', 'events'])).toMatchObject({ command: 'inspect', inspectTarget: 'events' })
@@ -241,6 +244,23 @@ describe('CLI commands', () => {
     expect(output).toMatchObject({ target: 'slots', source: 'runtime', project: { packageId: value.packageId } })
     expect(output.items).toEqual([{ name: 'sidebar.footer.action', provider: '@provider/sidebar', kind: 'action', scope: 'global', metadata: { order: 10 } }])
     expect(await text(streams.err)).toBe('')
+  })
+
+  it('forwards an exact Slot root to the Inspect runtime', async () => {
+    const streams = io()
+    const value = project()
+    const inspectComposition = vi.fn(async (_project: ResolvedDshxConfig, target: InspectTarget, options?: InspectOptions) => ({
+      profile: 'web' as const, target, source: 'runtime' as const,
+      items: [{ name: options?.slotRoot ?? 'sidebar', kind: 'list', scope: 'root' }], diagnostics: [],
+    } as const))
+    const code = await runCli(['inspect', 'slots', '--root', 'sidebar.footer.action', '--json'], {
+      io: streams,
+      runtime: { resolveConfig: async () => value, inspectComposition },
+    })
+    expect(code).toBe(0)
+    expect(inspectComposition).toHaveBeenCalledWith(value, 'slots', { slotRoot: 'sidebar.footer.action' })
+    streams.out.end(); streams.err.end()
+    expect(JSON.parse(await text(streams.out))).toMatchObject({ target: 'slots', items: [{ name: 'sidebar.footer.action' }] })
   })
 
   it('reports an unavailable runtime provider with a non-zero inspect result', async () => {

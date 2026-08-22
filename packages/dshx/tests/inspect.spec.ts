@@ -48,6 +48,21 @@ describe('inspectProjectComposition', () => {
     expect(inspectProfile).toHaveBeenCalledOnce()
   })
 
+  it('passes the exact Slot root to an injected Client provider', async () => {
+    const value = project()
+    const listSlots = vi.fn(async (options?: { root?: string }) => options?.root === undefined
+      ? [{ name: 'sidebar.footer.action', kind: 'list', scope: 'root' }]
+      : [{ name: options.root, kind: 'list', scope: 'root', metadata: { catalog: { registration: [], replaceRisk: 'none' } } }])
+    const result = await inspectProjectComposition(value, 'slots', {
+      provider: { listSlots, listTools: async () => [] },
+      resolveDsh: async () => installation(),
+      inspectProfile: async () => ({ state: 'linked' as const, profile: 'web', packageId: value.packageId, root: value.root }),
+      slotRoot: 'sidebar.footer.action',
+    })
+    expect(result.diagnostics).toEqual([])
+    expect(listSlots).toHaveBeenCalledWith({ root: 'sidebar.footer.action' })
+  })
+
   it('reports absent links before attempting to query a provider', async () => {
     const value = project()
     const listSlots = vi.fn(async () => [{ name: 'should-not-run' }])

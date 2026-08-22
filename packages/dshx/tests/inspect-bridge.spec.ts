@@ -89,9 +89,35 @@ describe('DshInspectBridgeProvider', () => {
     await close()
   })
 
-  it('keeps slots and tools outside the Host bridge contract', async () => {
-    const provider = new DshInspectBridgeProvider(project)
-    await expect(provider.listSlots()).rejects.toMatchObject({ code: 'DSHX3204' })
+  it('queries compact and exact Client Slot contracts through the Host bridge', async () => {
+    const root = await mkdtemp(join('/tmp', 'dx-'))
+    tempRoots.push(root)
+    const directory = join(root, 'runtime', 'dshx', 'inspect')
+    await mkdir(directory, { recursive: true })
+    const name = createHash('sha256').update(project.packageId).digest('hex').slice(0, 20)
+    const socketPath = join(directory, `${name}.sock`)
+    const metadataPath = join(directory, `${name}.json`)
+    const server = createServer(socket => {
+      socket.once('data', data => {
+        const request = JSON.parse(data.toString()) as { requestId: string; target: string; input?: { root?: string } }
+        const exact = request.input?.root !== undefined
+        const value = exact
+          ? [{ name: request.input?.root, kind: 'list', scope: 'root', metadata: { catalog: { registration: [{ name: 'id', required: true, type: 'string' }], replaceRisk: 'none', ownerProps: [], standardProps: [] }, occupants: [] } }]
+          : [{ name: 'sidebar', kind: 'single', scope: 'root', metadata: { purpose: 'Sidebar', children: [{ name: 'sidebar.footer.action', kind: 'list', scope: 'root', purpose: 'Footer action' }] } }, { name: 'sidebar.footer.action', kind: 'list', scope: 'root', metadata: { purpose: 'Footer action', children: [] } }]
+        socket.end(JSON.stringify({ version: 1, requestId: request.requestId, ok: true, target: request.target, items: value }) + '\n')
+      })
+    })
+    await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(socketPath, resolve) })
+    await writeFile(metadataPath, JSON.stringify({ version: 1, packageId: project.packageId, root: project.root, pid: process.pid, socketPath, token: randomUUID() }) + '\n')
+    const provider = new DshInspectBridgeProvider(project, { env: { DSH_HOME: root } })
+    await expect(provider.listSlots()).resolves.toEqual([
+      { name: 'sidebar', kind: 'single', scope: 'root', metadata: { purpose: 'Sidebar', children: [{ name: 'sidebar.footer.action', kind: 'list', scope: 'root', purpose: 'Footer action' }] } },
+      { name: 'sidebar.footer.action', kind: 'list', scope: 'root', metadata: { purpose: 'Footer action', children: [] } },
+    ])
+    await expect(provider.listSlots({ root: 'sidebar.footer.action' })).resolves.toMatchObject([{
+      name: 'sidebar.footer.action', kind: 'list', scope: 'root', metadata: { catalog: { replaceRisk: 'none' }, occupants: [] },
+    }])
     await expect(provider.listTools()).rejects.toMatchObject({ code: 'DSHX3204' })
+    await new Promise<void>(resolve => server.close(() => resolve()))
   })
 })

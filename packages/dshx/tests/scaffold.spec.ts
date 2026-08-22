@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { createUiScaffold } from '../src/scaffold/ui.js'
 import type { ResolvedDshxConfig } from '../src/config/types.js'
 import type { InspectResult } from '../src/inspect/types.js'
+import type { InspectOptions, InspectTarget } from '../src/inspect/types.js'
 
 const compatibility = {
   id: 'dsh-0.1', protocolGeneration: '0.1', version: '0.1.0-rc.8', dshRange: '>=0.1.0-rc.8 <0.2.0', verifiedVersions: ['0.1.0-rc.8'],
@@ -24,7 +25,19 @@ function project(root: string, clientEntry: string | undefined, manifest: Record
 function inspectResult(): InspectResult {
   return {
     profile: 'web', target: 'slots', source: 'runtime',
-    items: [{ name: 'sidebar.footer.action', provider: '@demo/sidebar', kind: 'action', scope: 'global' }], diagnostics: [],
+    items: [{
+      name: 'sidebar.footer.action', provider: '@demo/sidebar', kind: 'list', scope: 'global',
+      metadata: {
+        catalog: {
+          registration: [
+            { name: 'id', required: true, type: 'string' },
+            { name: 'order', required: false, type: 'number' },
+          ],
+          replaceRisk: 'none',
+        },
+        occupants: [],
+      },
+    }], diagnostics: [],
   }
 }
 
@@ -119,6 +132,49 @@ describe('add ui scaffold', () => {
       const result = await createUiScaffold({ project: value.project, slot: 'sidebar.footer.action' }, { inspectComposition: async () => inspectResult(), resolveProvider: async () => true })
       expect(result.diagnostics[0]?.code).toBe('DSHX6105')
       expect(await readFile(resolve(value.root, 'src/client.tsx'), 'utf8')).toContain('native')
+    } finally { await value.cleanup() }
+  })
+
+  it('performs a second exact query and omits list-only fields for a single Slot', async () => {
+    const value = await setup(true)
+    try {
+      const calls: Array<{ slotRoot?: string }> = []
+      const inspectComposition = async (_project: ResolvedDshxConfig, _target: InspectTarget, options?: InspectOptions): Promise<InspectResult> => {
+        calls.push(options ?? {})
+        return {
+          profile: 'web', target: 'slots', source: 'runtime', diagnostics: [],
+          items: [{
+            name: 'sidebar.footer.action', provider: '@demo/sidebar', kind: 'single', scope: 'root',
+            ...(options?.slotRoot === undefined ? {} : { metadata: { catalog: { registration: [], replaceRisk: 'none' }, occupants: [] } }),
+          }],
+        }
+      }
+      const result = await createUiScaffold({ project: value.project, slot: 'sidebar.footer.action' }, {
+        compatibility, inspectComposition, resolveProvider: async () => true, checkManifest: async () => [],
+      })
+      expect(result.diagnostics).toEqual([])
+      expect(calls).toEqual([{}, { slotRoot: 'sidebar.footer.action' }])
+      const generated = await readFile(resolve(value.root, 'src/slots/sidebar.footer.action.tsx'), 'utf8')
+      expect(generated).not.toContain('id:')
+      expect(generated).not.toContain('order:')
+    } finally { await value.cleanup() }
+  })
+
+  it('refuses keyed Slots and incomplete exact metadata before writing', async () => {
+    const value = await setup(true)
+    try {
+      const keyed = await createUiScaffold({ project: value.project, slot: 'sidebar.footer.action' }, {
+        inspectComposition: async (_project, _target, options): Promise<InspectResult> => ({
+          profile: 'web', target: 'slots', source: 'runtime', diagnostics: [],
+          items: [{
+            name: 'sidebar.footer.action', provider: '@demo/sidebar', kind: options?.slotRoot === undefined ? 'list' : 'keyed', scope: 'root',
+            ...(options?.slotRoot === undefined ? {} : { metadata: { catalog: { registration: [{ name: 'key', required: true, type: 'string' }], replaceRisk: 'none' } } }),
+          }],
+        }),
+        resolveProvider: async () => true,
+      })
+      expect(keyed.diagnostics[0]?.code).toBe('DSHX6110')
+      await expect(readFile(resolve(value.root, 'src/slots/sidebar.footer.action.tsx'), 'utf8')).rejects.toThrow()
     } finally { await value.cleanup() }
   })
 })
