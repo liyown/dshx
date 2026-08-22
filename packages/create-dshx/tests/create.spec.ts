@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { PassThrough } from 'node:stream'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
@@ -22,11 +22,15 @@ describe('create-dshx', () => {
   it('renders a complete full template without workspace dependencies', async () => {
     const root = await temp()
     const result = await createProject({ name: 'demo', cwd: root, install: false })
-    expect(result.files).toHaveLength(9)
-    const manifest = JSON.parse(await defaultFileSystem.readFile(resolve(result.root, 'package.json'))) as { devDependencies: Record<string, string> }
+    expect(result.files).toHaveLength(10)
+    const manifest = JSON.parse(await defaultFileSystem.readFile(resolve(result.root, 'package.json'))) as { devDependencies: Record<string, string>; scripts: Record<string, string> }
     expect(manifest.devDependencies['@becomeopc/dshx']).toBe('0.1.1')
     expect(manifest.devDependencies['@deepseek-ai/dsh']).toBe('>=0.1.0-rc.8 <0.2.0')
+    expect(manifest.scripts.dev).toBe('dshx dev --open')
     expect(Object.values(manifest.devDependencies).some(value => value.startsWith('workspace:'))).toBe(false)
+    expect(await readFile(resolve(result.root, 'src/client.tsx'), 'utf8')).toContain('Build. Ship. Observe.')
+    expect(await readFile(resolve(result.root, 'src/api/status.ts'), 'utf8')).toContain('defineApi')
+    expect(await readFile(resolve(result.root, 'src/Status.module.css'), 'utf8')).toContain('.deck')
     await rm(root, { recursive: true, force: true })
   })
 

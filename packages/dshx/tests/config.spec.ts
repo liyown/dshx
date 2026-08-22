@@ -100,7 +100,7 @@ describe('resolveDshxConfig', () => {
     expect(resolved.configDependencies).toContain(resolve(root, 'config-values.ts'))
   })
 
-  it('supports Host-only and Client-only projects', async () => {
+  it('resolves any independently enabled Host or Client entry', async () => {
     const hostProject = await temporaryProject({ name: '@test/host', type: 'module' })
     const hostEntry = await source(hostProject.root, 'src/host.ts')
     const clientProject = await temporaryProject({ name: '@test/client', type: 'module' })

@@ -14,6 +14,7 @@ describe('rc.8 compatibility', () => {
     ])
     expect(RC8_COMPATIBILITY.client.preloadedExternals).toEqual([
       '@deepseek-ai/dsh-client-runtime/client',
+      '@deepseek-ai/dsh-client-connection/client',
     ])
   })
 

@@ -41,7 +41,7 @@ describe('client compiler', () => {
     expect(code).not.toContain('react.production.min')
     expect(code).toMatch(/sourceMappingURL=client\.js\.map/)
     expect(map.sources.some(source => source.endsWith('/src/client.tsx') || source.endsWith('src/client.tsx'))).toBe(true)
-    expect(map.sourcesContent?.some(source => source?.includes('DSHX Phase A') === true)).toBe(true)
+    expect(map.sourcesContent?.some(source => source?.includes('Build. Ship. Observe.') === true)).toBe(true)
 
     let registration: { id: string; factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } | undefined
     const styles: Array<{ dataset: Record<string, string>; textContent: string }> = []
@@ -58,20 +58,34 @@ describe('client compiler', () => {
     expect(styles).toHaveLength(0)
 
     const plugin = registration?.factory((id) => {
+      if (id === 'react') {
+        const context = { Provider: 'provider' }
+        return {
+          createContext: () => context,
+          createElement: (type: unknown, props: unknown, child: unknown) => ({ type, props: { ...(props as object), children: child } }),
+          useContext: () => undefined,
+          useEffect: () => undefined,
+          useMemo: (factory: () => unknown) => factory(),
+          useState: (value: unknown) => [value, () => undefined],
+        }
+      }
       if (id === 'react/jsx-runtime') {
-        return { jsx: (type: unknown, props: unknown) => ({ type, props }) }
+        return {
+          jsx: (type: unknown, props: unknown) => ({ type, props }),
+          jsxs: (type: unknown, props: unknown) => ({ type, props }),
+        }
       }
       throw new Error(`unexpected require: ${id}`)
     })
     expect(styles).toHaveLength(1)
     expect(styles[0]?.dataset.plugin).toBe('@dshx/phase-a-fixture')
     expect(styles[0]?.dataset.pluginCss).toContain('src/Status.module.css')
-    expect(styles[0]?.textContent).toContain('color:#087f5b')
+    expect(styles[0]?.textContent).toContain('background:#101b2a')
     const registered: unknown[] = []
     const clientPlugin = plugin as unknown as { name: string; inject: readonly string[]; apply(ctx: unknown): unknown }
     expect(clientPlugin.name).toBe('@dshx/phase-a-fixture')
-    expect(clientPlugin.inject).toEqual(['slots'])
-    clientPlugin.apply({ slots: {
+    expect(clientPlugin.inject).toEqual(['slots', 'connection'])
+    await clientPlugin.apply({ slots: {
       inject: (_name: string, register: () => unknown) => register(),
       register: (options: unknown, component: unknown) => {
         registered.push({ options, component })
@@ -79,10 +93,10 @@ describe('client compiler', () => {
       },
     } })
     expect(registered).toHaveLength(1)
-    const component = (registered[0] as { component: () => { props: { className: string; children: string } } }).component
+    const component = (registered[0] as { component: () => { type: unknown; props: { children: { type: string; props: { className: string } } } } }).component
     const element = component()
-    expect(element.props.children).toBe('DSHX Phase A')
-    expect(element.props.className).toMatch(/_status$/)
+    expect(element.type).toBe('provider')
+    expect(typeof element.props.children.type).toBe('function')
   })
 
   it('adapts a defineClient default export and keeps the logical name in the bundle', async () => {
@@ -219,11 +233,11 @@ describe('client compiler', () => {
     }
 
     try {
-      const first = await waitForArtifact(code => code.includes('DSHX Phase A'))
+      const first = await waitForArtifact(code => code.includes('Build. Ship. Observe.'))
       const sourcePath = resolve(root, 'src/client.tsx')
       const source = await readFile(sourcePath, 'utf8')
-      await writeFile(sourcePath, source.replace('DSHX Phase A', 'DSHX Phase A rebuilt'))
-      const second = await waitForArtifact(code => code.includes('DSHX Phase A rebuilt'))
+      await writeFile(sourcePath, source.replace('Build. Ship. Observe.', 'Build. Ship. Observe. Rebuilt'))
+      const second = await waitForArtifact(code => code.includes('Build. Ship. Observe. Rebuilt'))
       expect(first).not.toBe(second)
     } finally {
       await result.close()

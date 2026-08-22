@@ -258,6 +258,25 @@ describe('development process orchestration', () => {
     await session.close()
   })
 
+  it('treats --open as a DSHX policy flag without forwarding it to DSH', async () => {
+    const projectValue = project('host')
+    const host = new FakeWatcher()
+    const calls: string[][] = []
+    const session = await startDevSession(projectValue, {
+      dshArgs: ['--open'],
+      ensureProfile: async () => prepared(projectValue),
+      hostWatcher: async () => host,
+      child: async (_project, args) => {
+        calls.push([...args])
+        return new FakeChild()
+      },
+    })
+    host.build({ code: 'BUNDLE_END' })
+    await flush()
+    expect(calls).toEqual([['--profile', 'web']])
+    await session.close()
+  })
+
   it.each([
     [1, null, 'DSHX4402'],
     [null, 'SIGABRT', 'DSHX4403'],
