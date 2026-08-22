@@ -145,6 +145,8 @@ The Client Slot seam is the official `Slots.listSubTree` provider exposed by the
 
 `dshx add ui` consumes both queries. It emits the official `PropsRuntime<...>` type and a type-only provider `/client` import, but only generates registration fields whose kind and defaults are unambiguous: list Slots receive `id` and `order`, while single Slots receive no list-only fields. Keyed, chain, select, unknown-required, or incomplete contracts return `DSHX6110`/`DSHX6111` before any file is written. Manifest failure still rolls back the complete transaction, and repeated contributions remain idempotent. Client Tool Inspect, offline Catalog fallback, Catalog cache, and `check --fix` remain out of scope.
 
+The isolated Phase A smoke was run against both the existing `0.1.0-rc.8` fixture and a temporary `0.1.1-rc.2` install. Both versions returned live Slot trees and the exact `sidebar.footer.action` contract through the Host-owned bridge; Services and Events remained runtime-backed. The rc.2 dependency swap was temporary and no fixture manifest or lockfile change is part of this stage.
+
 ## 2026-08-22: `add tool` generates the smallest official Tool contract
 
 `dshx add tool --name <name>` is a local source scaffold and does not require Runtime Inspect. Inspect Tool summaries are discovery DTOs and do not contain enough information to safely synthesize arbitrary parameter schemas, so the generated definition deliberately uses `parameters: {}` and a string `output` with the official text renderer. Authors continue editing the resulting `defineTool()` with the full rc.8 API for typed parameters, canonical output, timeout, concurrency, and presentation behavior.
