@@ -129,6 +129,25 @@ describe('CLI commands', () => {
     await expect(text(streams.out)).resolves.toContain('Built @test/plugin')
   })
 
+  it('builds a no-op Host root artifact for an explicit Client-only project', async () => {
+    const streams = io()
+    const value = project()
+    const { hostEntry: _hostEntry, ...clientOnlyFields } = value
+    const clientOnly: ResolvedDshxConfig = clientOnlyFields
+    const calls: string[] = []
+    const code = await runCli(['build'], {
+      io: streams,
+      runtime: {
+        resolveConfig: async () => clientOnly,
+        checkManifest: async () => [],
+        buildHost: async options => { calls.push(`host:${options.entry ?? 'stub'}`); return {} as never },
+        buildClient: async () => { calls.push('client'); return {} as never },
+      },
+    })
+    expect(code).toBe(0)
+    expect(calls).toEqual(['host:stub', 'client'])
+  })
+
   it('check emits JSON and reports absent Profile links without adding them', async () => {
     const streams = io()
     const value = project()

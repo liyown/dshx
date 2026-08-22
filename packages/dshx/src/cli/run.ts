@@ -198,11 +198,15 @@ async function runBuild(args: CliArgs, options: CliRunOptions, project: Resolved
   for (const item of diagnostics) printDiagnostic(io, item)
   if (hasErrors(diagnostics)) return 1
   const jobs: Array<{ readonly fallback: string; readonly task: Promise<unknown> }> = []
-  if (project.hostEntry !== undefined) jobs.push({ fallback: resolvePath(project.outDir, 'index.js'), task: (runtime.buildHost ?? buildHost)({
+  // DSH loads every linked package through its root export, including an
+  // explicit Client-only package. The compiler's undefined entry is a
+  // deliberate no-op Host module that satisfies that loader contract without
+  // enabling the Host face in DSHX config or scaffold commands.
+  jobs.push({ fallback: resolvePath(project.outDir, 'index.js'), task: (runtime.buildHost ?? buildHost)({
     packageId: project.packageId,
     logicalName: project.name,
     root: project.root,
-    entry: project.hostEntry,
+    ...(project.hostEntry === undefined ? {} : { entry: project.hostEntry }),
     outDir: project.outDir,
     sourcemap: project.build.sourcemap,
     compatibility,
