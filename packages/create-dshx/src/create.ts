@@ -20,7 +20,7 @@ export function packageVersion(): string {
     const manifest = require('../package.json') as { version?: unknown }
     if (typeof manifest.version === 'string' && manifest.version !== '') return manifest.version
   } catch { /* package metadata may be unavailable in source-only environments */ }
-  return '0.1.0'
+  return '0.1.1'
 }
 
 function diagnostic(code: `DSHX${number}`, message: string, file: string, hint: string, cause?: unknown): CreateDiagnostic {

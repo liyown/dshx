@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-08-22
+
+- Report the installed DSHX package version from `dshx --version`.
+- Keep `create-dshx` and `@becomeopc/dshx` template versions aligned.
+
 ## 0.1.0 - 2026-08-22
 
 Initial public release of DSHX and create-dshx.
