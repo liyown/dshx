@@ -7,7 +7,7 @@ export interface DshProfileCompatibility {
 }
 
 export interface DshInspectCompatibility {
-  readonly targets: readonly ('slots' | 'tools')[]
+  readonly targets: readonly ('slots' | 'tools' | 'services' | 'events')[]
   readonly provider: 'runtime' | 'unavailable'
 }
 
