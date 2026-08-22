@@ -2,6 +2,8 @@
 
 DSHX is a build-time development toolkit for out-of-tree DeepSeek Harness plugins.
 
+The long-term API and implementation sequence is tracked in [ROADMAP.md](./ROADMAP.md). It separates stable contribution APIs from official runtime escape hatches and capability gates.
+
 The first public release, `0.1.0`, targets the DSH `0.1` protocol generation. `0.1.0-rc.8` and `0.1.1-rc.2` are verified against the Phase A fixture; later compatible `0.1.x` versions are accepted with an explicit compatibility warning until smoke-tested. The implemented foundation includes the Host and Client compilers, read-only project configuration resolution, strict package/patch manifest checking, idempotent Profile linking through the official DSH CLI, and the internal development process orchestrator.
 
 ```bash
