@@ -147,6 +147,33 @@ describe('CLI commands', () => {
     expect(JSON.parse(output)).toMatchObject({ diagnostics: [{ code: 'DSHX4305', severity: 'error' }], dsh: { adapterId: 'dsh-0.1', protocolGeneration: '0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0' }, runtimePlugins: [], bridge: { state: 'disabled', metadata: null } })
   })
 
+  it('check overlays loaded runtime plugin state from a running bridge', async () => {
+    const streams = io()
+    const value = project()
+    const base = profile(value).dsh
+    const dsh = {
+      ...base,
+      compatibility: {
+        ...base.compatibility,
+        runtimePlugins: [{ id: 'tool-cordis', packageName: '@deepseek-ai/dsh-tool-cordis', load: 'module' as const, provides: ['Service', 'Event'], optional: true }],
+      },
+    }
+    const code = await runCli(['check', '--json'], {
+      io: streams,
+      runtime: {
+        resolveConfig: async () => value,
+        checkManifest: async () => [],
+        resolveDsh: async () => dsh,
+        inspectProfile: async () => ({ state: 'linked', profile: value.profile, packageId: value.packageId, root: value.root }),
+        inspectRuntimePlugins: () => ({ plugins: [{ id: 'tool-cordis', packageName: '@deepseek-ai/dsh-tool-cordis', provides: ['Service', 'Event'], status: 'available' as const }], diagnostics: [] }),
+        inspectBridgeStatus: async () => ({ state: 'running' as const, metadata: { runtimePlugins: [{ id: 'tool-cordis', packageName: '@deepseek-ai/dsh-tool-cordis', provides: ['Service', 'Event'], status: 'loaded' }] }, diagnostics: [] }),
+      },
+    })
+    expect(code).toBe(0)
+    streams.out.end(); streams.err.end()
+    expect(JSON.parse(await text(streams.out))).toMatchObject({ runtimePlugins: [{ id: 'tool-cordis', status: 'loaded' }], bridge: { state: 'running' } })
+  })
+
   it('blocks dev before profile linking when manifest has errors', async () => {
     const streams = io()
     const ensure = vi.fn()
