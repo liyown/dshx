@@ -12,6 +12,8 @@ import { checkProjectManifest } from '../project/index.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import { inspectProjectComposition } from '../inspect/index.js'
 import type { InspectResult, InspectTarget } from '../inspect/index.js'
+import { catalogProjectCapabilities } from '../catalog/index.js'
+import type { CatalogResult } from '../catalog/index.js'
 import { inspectBridgeStatus } from '../inspect/bridge.js'
 import type { InspectBridgeStatus } from '../inspect/bridge.js'
 import { inspectRuntimePlugins } from '../runtime-status.js'
@@ -39,6 +41,7 @@ export interface CliRuntime {
   readonly buildClient?: typeof buildClient
   readonly startDev?: typeof startDevSession
   readonly inspectComposition?: typeof inspectProjectComposition
+  readonly catalogCapabilities?: typeof catalogProjectCapabilities
   readonly inspectRuntimePlugins?: typeof inspectRuntimePlugins
   readonly inspectBridgeStatus?: typeof inspectBridgeStatus
   readonly addUi?: (options: AddUiOptions) => Promise<AddUiResult>
@@ -303,6 +306,71 @@ function inspectSummary(project: ResolvedDshxConfig, result: InspectResult): Rec
     items: result.items,
     diagnostics: result.diagnostics,
   }
+}
+
+function catalogSummary(project: ResolvedDshxConfig, result: CatalogResult): Record<string, unknown> {
+  return {
+    project: {
+      root: project.root,
+      packageId: project.packageId,
+      profile: project.profile,
+    },
+    target: result.target,
+    source: result.source,
+    dsh: result.dsh === undefined ? null : {
+      version: result.dsh.version,
+      adapterId: result.dsh.adapterId,
+      protocolGeneration: result.dsh.protocolGeneration,
+      support: result.dsh.support,
+      supportedRange: result.dsh.supportedRange,
+    },
+    items: result.items,
+    diagnostics: result.diagnostics,
+  }
+}
+
+async function runCatalog(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
+  const io = options.io ?? defaultIO()
+  const runtime = options.runtime ?? {}
+  const target = args.inspectTarget as InspectTarget | undefined
+  if (target === undefined) throw new CliUsageError('Catalog requires a target: slots, tools, services, or events.')
+  let result: CatalogResult
+  try {
+    result = await (runtime.catalogCapabilities ?? catalogProjectCapabilities)(project, target)
+  } catch (error) {
+    const item = diagnosticFromError(error, project.packageFile)
+    if (args.json) write(io.stdout, `${JSON.stringify({ project: projectSummary(project), target, source: 'offline', items: [], diagnostics: [item] }, null, 2)}\n`)
+    else printDiagnostic(io, item)
+    if (args.verbose) printVerboseCause(io, error)
+    return 1
+  }
+  if (args.json) write(io.stdout, `${JSON.stringify(catalogSummary(project, result), null, 2)}\n`)
+  else {
+    for (const item of result.diagnostics) printDiagnostic(io, item)
+    const dshLabel = result.dsh === undefined ? '' : `, DSH ${result.dsh.version}, adapter ${result.dsh.adapterId}`
+    write(io.stdout, `Catalog ${target} (offline${dshLabel}) for ${project.packageId}\n`)
+    for (const item of result.items) {
+      if (target === 'slots') {
+        const slot = item as { readonly name: string; readonly provider?: string; readonly kind?: string; readonly scope?: string }
+        const details = [slot.provider, slot.kind, slot.scope].filter((value): value is string => value !== undefined).join(' / ')
+        write(io.stdout, `  ${slot.name}${details === '' ? '' : ` (${details})`}\n`)
+      } else if (target === 'tools') {
+        const tool = item as { readonly name: string; readonly provider?: string; readonly description?: string }
+        const details = [tool.provider, tool.description].filter((value): value is string => value !== undefined).join(' - ')
+        write(io.stdout, `  ${tool.name}${details === '' ? '' : `: ${details}`}\n`)
+      } else if (target === 'services') {
+        const service = item as { readonly name: string; readonly provider?: string; readonly scope?: string }
+        const details = [service.provider, service.scope].filter((value): value is string => value !== undefined).join(' / ')
+        write(io.stdout, `  ${service.name}${details === '' ? '' : ` (${details})`}\n`)
+      } else {
+        const event = item as { readonly name: string; readonly provider?: string }
+        write(io.stdout, `  ${event.name}${event.provider === undefined ? '' : ` (${event.provider})`}\n`)
+      }
+    }
+    if (args.verbose && result.cause !== undefined) printVerboseCause(io, result.cause)
+  }
+  if (args.json && args.verbose && result.cause !== undefined) printVerboseCause(io, result.cause)
+  return hasErrors(result.diagnostics) ? 1 : 0
 }
 
 async function runInspect(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
@@ -620,7 +688,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     return 2
   }
   if (args.help) {
-    write(io.stdout, 'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ndev: --open\ninspect targets: slots, tools, services, events\ninspect slots: --root <slot-name>\nadd targets: ui, tool, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n')
+    write(io.stdout, 'Usage: dshx <build|check|dev|inspect|catalog|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/catalog/add: --json\ndev: --open\ninspect targets: slots, tools, services, events\ncatalog targets: slots, tools, services, events\ninspect slots: --root <slot-name>\nadd targets: ui, tool, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n')
     return 0
   }
   if (args.version) {
@@ -635,6 +703,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     if (args.command === 'build') return await runBuild(args, options, project)
     if (args.command === 'check') return await runCheck(args, options, project)
     if (args.command === 'inspect') return await runInspect(args, options, project)
+    if (args.command === 'catalog') return await runCatalog(args, options, project)
     if (args.command === 'add') {
       if (args.addTarget === 'tool') return await runAddTool(args, options, project)
       if (args.addTarget === 'hook') return await runAddHook(args, options, project)
@@ -643,9 +712,11 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     return await runDev(args, options, project)
   } catch (error) {
     const item = diagnosticFromError(error)
-    if ((args.command === 'check' || args.command === 'inspect' || args.command === 'add') && args.json) {
+    if ((args.command === 'check' || args.command === 'inspect' || args.command === 'catalog' || args.command === 'add') && args.json) {
       write(io.stdout, `${JSON.stringify(args.command === 'inspect'
         ? { project: null, target: args.inspectTarget ?? null, source: 'runtime', items: [], diagnostics: [item] }
+        : args.command === 'catalog'
+          ? { project: null, target: args.inspectTarget ?? null, source: 'offline', items: [], diagnostics: [item] }
         : args.command === 'add'
           ? args.addTarget === 'tool'
             ? { project: null, name: args.name ?? null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }
