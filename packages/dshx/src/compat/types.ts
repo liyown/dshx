@@ -26,6 +26,12 @@ export interface DshInspectCompatibility {
   }
 }
 
+/** Static metadata capability, kept separate from live runtime Inspect. */
+export interface DshCatalogCompatibility {
+  readonly targets: readonly ('slots' | 'tools' | 'services' | 'events')[]
+  readonly source: 'package-metadata' | 'unavailable'
+}
+
 /** Build/runtime protocol values owned by one DSH compatibility generation. */
 export interface DshCompatibility {
   readonly id: string
@@ -37,6 +43,7 @@ export interface DshCompatibility {
   readonly profile: DshProfileCompatibility
   readonly runtimePlugins?: readonly DshxRuntimePluginSpec[]
   readonly inspect?: DshInspectCompatibility
+  readonly catalog?: DshCatalogCompatibility
   readonly client: {
     readonly platformModules: readonly string[]
     readonly preloadedExternals: readonly string[]

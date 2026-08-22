@@ -5,7 +5,7 @@ import { intersects, satisfies, valid } from 'semver'
 import type { DshCompatibilityResolution } from './types.js'
 
 export { RC8_COMPATIBILITY } from './rc8.js'
-export type { DshCompatibility, DshCompatibilityResolution, DshInspectCompatibility, DshProfileCompatibility, DshSupportStatus, DshxRuntimePluginSpec } from './types.js'
+export type { DshCatalogCompatibility, DshCompatibility, DshCompatibilityResolution, DshInspectCompatibility, DshProfileCompatibility, DshSupportStatus, DshxRuntimePluginSpec } from './types.js'
 
 const ADAPTERS = [RC8_COMPATIBILITY] as const
 for (let index = 0; index < ADAPTERS.length; index += 1) {
