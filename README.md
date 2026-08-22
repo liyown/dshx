@@ -21,7 +21,7 @@ The initializer refuses to overwrite an existing directory, generates a Host Too
 
 The package exposes five user commands. `dshx build` validates the manifest and builds enabled Host/Client faces without touching DSH or project metadata. `dshx check` performs the same read-only manifest checks plus DSH version and Profile-link inspection; use `--json` for automation. DSHX prefers the project-local `pnpm exec dsh`, then falls back to the official `dsh` on PATH, so plugin developers can debug against an existing user installation without adding DSH to every plugin manifest. `dshx dev` ensures the project is linked through the selected DSH CLI, starts the coordinated watchers, and launches DSH only after the enabled faces build successfully. Web sessions pass `--no-open` by default; use `dshx dev --open` to opt in to browser handoff. In an interactive terminal, `r` restarts DSH and `q` closes the session.
 
-While an official DSH composition is already running, use `dshx inspect slots`, `dshx inspect tools`, `dshx inspect services`, or `dshx inspect events` to read live composition summaries. `--json` produces a machine-readable result and `--verbose` includes the original provider cause. Inspect is strictly read-only: it does not start DSH, add/remove Profile links, write a catalog, or generate TypeScript. For Services/Events, rc.8 uses the local Inspect Bridge exposed by `dshx dev` (or by manually starting `dsh --profile web --inspect-bridge`). The bridge is a per-user Unix socket with a short-lived token and only exposes composition-scoped Service/Event catalogs; without a running bridge, `dshx inspect services/events` returns `DSHX3201/DSHX3205` rather than fabricating offline data. `defineSlot()` TypeScript completion still comes from the provider's official declaration merging, not from Inspect.
+While an official DSH composition is already running, use `dshx inspect slots`, `dshx inspect tools`, `dshx inspect services`, or `dshx inspect events` to read live composition summaries. `--json` produces a machine-readable result and `--verbose` includes the original provider cause. Inspect is strictly read-only: it does not start DSH, add/remove Profile links, write a catalog, or generate TypeScript. For Services/Events, the selected compatibility adapter loads the allowlisted official Cordis child plugins inside the current Host and the dshx Host artifact exposes a local Inspect Bridge when `DSHX_INSPECT_BRIDGE=1` is set (this is enabled by `dshx dev`). The bridge is a per-user Unix socket with a short-lived token and only exposes composition-scoped Service/Event catalogs; without a running bridge or official provider, `dshx inspect services/events` returns `DSHX3201/DSHX3205` rather than fabricating offline data. `defineSlot()` TypeScript completion still comes from the provider's official declaration merging, not from Inspect.
 
 When a supported Runtime Inspect Provider reports a Slot, `dshx add ui --slot <name>` can generate a typed TSX contribution and attach it to the existing `defineClient({ slots })` entry. In a TTY, `dshx add ui` presents the inspected Slot list; non-TTY scripts must pass `--slot`. The provider package must already be installed in the plugin project because the generator writes its `/client` type-only import but never runs a package manager. `--dry-run` prints the planned files without writing them, and repeated generation of the same Slot is idempotent. Host-only projects receive a Client entry, `./client` export, and `dsh.client` metadata through this explicit command. Native named Client modules, missing providers, and unavailable rc.8 inspect seams are reported without changing files. `add ui` does not link Profiles, start DSH, write a catalog, or implement `add hook` or `check --fix`.
 
@@ -31,12 +31,14 @@ Use `dshx add hook --event <name>` to scaffold a native Cordis event listener. T
 
 Projects can import `defineConfig` and `resolveDshxConfig` from `dshx/config`. Resolution finds the nearest `package.json`, loads only a root `dshx.config.ts`, and applies explicit fields before the `src/host.ts` / `src/client.tsx` conventions and defaults. The package ID always remains `package.json.name`; an optional config `name` is a separate logical Host name.
 
-Plugin projects should declare the DSH host as a development dependency so `pnpm exec dshx dev` is immediately reproducible:
+Plugin projects should declare the DSH host and the adapter-approved optional Host child plugins as development dependencies so `pnpm exec dshx dev` is immediately reproducible:
 
 ```json
 {
   "devDependencies": {
-    "@deepseek-ai/dsh": ">=0.1.0-rc.8 <0.2.0"
+    "@deepseek-ai/dsh": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-cordis-host-runner": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-tool-cordis": ">=0.1.0-rc.8 <0.2.0"
   }
 }
 ```
