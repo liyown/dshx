@@ -150,6 +150,82 @@ describe('CLI commands', () => {
     expect(JSON.parse(output)).toMatchObject({ diagnostics: [{ code: 'DSHX4305', severity: 'error' }], dsh: { adapterId: 'dsh-0.1', protocolGeneration: '0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0' }, runtimePlugins: [], bridge: { state: 'disabled', metadata: null } })
   })
 
+  it('supports check --fix dry-run with a machine-readable repair summary', async () => {
+    const streams = io()
+    const value = project()
+    const apply = vi.fn()
+    const code = await runCli(['check', '--fix', '--dry-run', '--json'], {
+      io: streams,
+      runtime: {
+        resolveConfig: async () => value,
+        resolveDsh: async () => profile(value).dsh,
+        inspectProfile: async () => ({ state: 'linked' as const, profile: value.profile, packageId: value.packageId, root: value.root }),
+        checkManifest: async () => [],
+        inspectRuntimePlugins: () => ({ plugins: [], diagnostics: [] }),
+        inspectBridgeStatus: async () => ({ state: 'disabled' as const, diagnostics: [] }),
+        createRepairPlan: async () => ({ root: value.root, files: [{ file: value.packageFile, before: '{}', after: '{"name":"fixed"}' }], changedFiles: [value.packageFile], diagnostics: [], diff: '--- package.json\n+++ package.json\n' }),
+        applyRepairPlan: apply,
+      },
+    })
+    expect(code).toBe(0)
+    expect(apply).not.toHaveBeenCalled()
+    streams.out.end(); streams.err.end()
+    expect(JSON.parse(await text(streams.out))).toMatchObject({ fix: { requested: true, dryRun: true, applied: false, changedFiles: [value.packageFile] } })
+  })
+
+  it('applies a deterministic repair and rechecks the project', async () => {
+    const streams = io()
+    const value = project()
+    const apply = vi.fn()
+    const checkManifest = vi.fn(async () => [])
+    const code = await runCli(['check', '--fix', '--json'], {
+      io: streams,
+      runtime: {
+        resolveConfig: async () => value,
+        resolveDsh: async () => profile(value).dsh,
+        inspectProfile: async () => ({ state: 'linked' as const, profile: value.profile, packageId: value.packageId, root: value.root }),
+        checkManifest,
+        inspectRuntimePlugins: () => ({ plugins: [], diagnostics: [] }),
+        inspectBridgeStatus: async () => ({ state: 'disabled' as const, diagnostics: [] }),
+        createRepairPlan: async () => ({ root: value.root, files: [{ file: value.packageFile, before: '{}', after: '{"name":"fixed"}' }], changedFiles: [value.packageFile], diagnostics: [], diff: 'planned diff' }),
+        applyRepairPlan: apply,
+      },
+    })
+    expect(code).toBe(0)
+    expect(apply).toHaveBeenCalledOnce()
+    expect(checkManifest).toHaveBeenCalledTimes(3)
+    streams.out.end(); streams.err.end()
+    expect(JSON.parse(await text(streams.out))).toMatchObject({ fix: { requested: true, applied: true, dryRun: false } })
+  })
+
+  it('rolls back when post-fix manifest validation fails', async () => {
+    const streams = io()
+    const value = project()
+    const rollback = vi.fn()
+    let checks = 0
+    const code = await runCli(['check', '--fix'], {
+      io: streams,
+      runtime: {
+        resolveConfig: async () => value,
+        resolveDsh: async () => profile(value).dsh,
+        inspectProfile: async () => ({ state: 'linked' as const, profile: value.profile, packageId: value.packageId, root: value.root }),
+        checkManifest: async () => {
+          checks += 1
+          return checks === 2 ? [{ code: 'DSHX4110', severity: 'error' as const, message: 'bad export', file: value.packageFile, hint: 'repair' }] : []
+        },
+        inspectRuntimePlugins: () => ({ plugins: [], diagnostics: [] }),
+        inspectBridgeStatus: async () => ({ state: 'disabled' as const, diagnostics: [] }),
+        createRepairPlan: async () => ({ root: value.root, files: [{ file: value.packageFile, before: '{}', after: '{"name":"fixed"}' }], changedFiles: [value.packageFile], diagnostics: [], diff: 'planned diff' }),
+        applyRepairPlan: async () => undefined,
+        rollbackRepairPlan: rollback,
+      },
+    })
+    expect(code).toBe(1)
+    expect(rollback).toHaveBeenCalledOnce()
+    streams.out.end(); streams.err.end()
+    expect(await text(streams.err)).toContain('DSHX4146')
+  })
+
   it('check overlays loaded runtime plugin state from a running bridge', async () => {
     const streams = io()
     const value = project()
