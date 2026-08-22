@@ -49,6 +49,16 @@ describe('add hook scaffold', () => {
     } finally { await value.cleanup() }
   })
 
+  it('uses an existing setup parameter name when attaching the listener', async () => {
+    const value = await setup('define')
+    try {
+      await writeFile(resolve(value.root, 'src/host.ts'), "import { defineHost } from 'dshx/host'\n\nexport default defineHost({ setup(context) { context.services } })\n")
+      const result = await createHookScaffold({ project: value.project, event: 'agent.ready' }, { checkManifest: async () => [] })
+      expect(result.diagnostics).toEqual([])
+      expect(await readFile(resolve(value.root, 'src/host.ts'), 'utf8')).toContain('registerAgentReadyHook(context)')
+    } finally { await value.cleanup() }
+  })
+
   it('rejects native Hosts, invalid names and rolls back checker failures', async () => {
     const native = await setup('native')
     try {
