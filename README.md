@@ -63,4 +63,6 @@ Existing native Host modules with named `name`, `inject`, `Config`, and `apply` 
 
 The real DSH browser/HMR smoke test remains a release gate. Unit or simulated loader tests do not count as that verification.
 
+For a full rc.2 cold-start matrix, run `pnpm run smoke:rc2`. It creates Full, Host-only, Client-only, and native Host projects in a temporary root, installs the published `0.1.1-rc.2` DSH packages plus a local dshx tarball, builds each project, exercises Profile linking, runtime Inspect, scaffold idempotency, Client HMR, Host restart, and cleanup, then removes the temporary root. Set `DSHX_KEEP_SMOKE=1` only when preserving a failed run for diagnosis is necessary.
+
 The repository's generated-package smoke tests use local build artifacts until `dshx` and `create-dshx` are published to npm. A registry install of a generated project therefore requires the corresponding public `dshx` version to have been released first.
