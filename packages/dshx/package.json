@@ -1,6 +1,16 @@
 {
   "name": "dshx",
   "version": "0.1.0",
+  "description": "Build and debug DeepSeek Harness Host and Client plugins.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liyown/dshx.git",
+    "directory": "packages/dshx"
+  },
+  "bugs": {
+    "url": "https://github.com/liyown/dshx/issues"
+  },
+  "homepage": "https://github.com/liyown/dshx#readme",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -38,7 +48,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

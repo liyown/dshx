@@ -2,6 +2,15 @@
   "name": "create-dshx",
   "version": "0.1.0",
   "description": "Create a DeepSeek Harness plugin project.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liyown/dshx.git",
+    "directory": "packages/create-dshx"
+  },
+  "bugs": {
+    "url": "https://github.com/liyown/dshx/issues"
+  },
+  "homepage": "https://github.com/liyown/dshx#readme",
   "type": "module",
   "bin": {
     "create-dshx": "./dist/cli.js"
@@ -14,7 +23,7 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": ["dist", "README.md"],
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
