@@ -49,8 +49,8 @@ function fallbackName(metadata: HostPluginMetadata): string {
 }
 
 async function startHostRuntime(ctx: Context, metadata: HostPluginMetadata): Promise<void> {
-  if (!inspectBridgeEnabled()) return
   const runtimePlugins = await loadRuntimePlugins(ctx, metadata.compatibility)
+  if (!inspectBridgeEnabled()) return
   const bridge = await startHostInspectBridge(ctx, {
     packageId: metadata.packageId,
     root: metadata.root ?? process.cwd(),
@@ -65,7 +65,7 @@ function withRuntime(
   result: unknown,
   metadata: HostPluginMetadata,
 ): unknown {
-  if (!inspectBridgeEnabled()) return result
+  if (!inspectBridgeEnabled() && (metadata.compatibility?.runtimePlugins?.length ?? 0) === 0) return result
   return Promise.resolve(result).then(async value => {
     try {
       await startHostRuntime(ctx, metadata)
