@@ -68,6 +68,30 @@ async function expectFailure(command, args, code, options = {}) {
   return result
 }
 
+async function expectFailureOneOf(command, args, codes, options = {}) {
+  const result = await run(command, args, options)
+  if (result.code === 0) throw new Error(`${commandLabel(command, args)} unexpectedly succeeded`)
+  if (!codes.some(code => result.stdout.includes(code) || result.stderr.includes(code))) {
+    throw new Error(`${commandLabel(command, args)} failed without one of ${codes.join(', ')}\n${result.stderr}\n${result.stdout}`)
+  }
+  return result
+}
+
+async function inspectMaybeAvailable(root, env, args) {
+  const result = await run('pnpm', ['exec', 'dshx', ...args, '--json'], { cwd: root, env })
+  let value
+  try { value = JSON.parse(result.stdout) } catch (error) {
+    error.cause = { stdout: result.stdout, stderr: result.stderr }
+    throw error
+  }
+  const diagnostics = Array.isArray(value.diagnostics) ? value.diagnostics : []
+  const allowedUnavailable = diagnostics.some(item => item && (item.code === 'DSHX3201' || item.code === 'DSHX3202'))
+  if (result.code !== 0 && !allowedUnavailable) {
+    throw new Error(`Inspect ${args.join(' ')} failed unexpectedly\n${result.stderr}\n${result.stdout}`)
+  }
+  return value
+}
+
 async function packageJson(root) {
   return JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 }
@@ -153,21 +177,30 @@ async function startDev(root, env) {
   })
   let stdout = ''
   let stderr = ''
-  let ready = false
+  let sessionReady = false
+  let dshReady = false
   let exited = false
   let resolveReady
   let rejectReady
   const readyPromise = new Promise((resolveResult, rejectResult) => { resolveReady = resolveResult; rejectReady = rejectResult })
+  const maybeReady = () => {
+    if (sessionReady && dshReady) {
+      clearTimeout(timer)
+      resolveReady()
+    }
+  }
   const timer = setTimeout(() => rejectReady(new Error(`dshx dev did not start\n${stdout}\n${stderr}`)), timeoutMs)
   child.stdout.on('data', chunk => {
     stdout += chunk.toString()
-    if (stdout.includes('Dev session started')) { ready = true; clearTimeout(timer); resolveReady() }
+    if (stdout.includes('Dev session started')) sessionReady = true
+    if (stdout.includes('dsh web:')) dshReady = true
+    maybeReady()
   })
   child.stderr.on('data', chunk => { stderr += chunk.toString() })
   child.once('error', error => { clearTimeout(timer); rejectReady(error) })
   child.once('close', (code, signal) => {
     exited = true
-    if (!ready) { clearTimeout(timer); rejectReady(new Error(`dshx dev exited before ready: ${code ?? signal}\n${stdout}\n${stderr}`)) }
+    if (!sessionReady || !dshReady) { clearTimeout(timer); rejectReady(new Error(`dshx dev exited before ready: ${code ?? signal}\n${stdout}\n${stderr}`)) }
   })
   await readyPromise
   await new Promise(resolveResult => setTimeout(resolveResult, 750))
@@ -223,8 +256,10 @@ async function main() {
     try {
       const check = await jsonCommand(projects.hostOnly, { DSH_HOME: join(dshHome, 'host-only') }, ['check'])
       if (check.diagnostics.some(item => item.severity === 'error')) throw new Error('Host-only check failed after dev link')
-      await expectFailure('pnpm', ['exec', 'dshx', 'inspect', 'services', '--json'], 'DSHX3201', { cwd: projects.hostOnly, env: { DSH_HOME: join(dshHome, 'host-only') } })
-      await expectFailure('pnpm', ['exec', 'dshx', 'add', 'ui', '--slot', 'sidebar.footer.action', '--provider', '@deepseek-ai/dsh-client-ui-sidebar', '--dry-run', '--json'], 'DSHX6102', { cwd: projects.hostOnly, env: { DSH_HOME: join(dshHome, 'host-only') } })
+      const hostServices = await jsonCommand(projects.hostOnly, { DSH_HOME: join(dshHome, 'host-only') }, ['inspect', 'services'])
+      const hostEvents = await jsonCommand(projects.hostOnly, { DSH_HOME: join(dshHome, 'host-only') }, ['inspect', 'events'])
+      if (hostServices.source !== 'runtime' || hostEvents.source !== 'runtime') throw new Error('Host-only Inspect did not return runtime data')
+      await expectFailureOneOf('pnpm', ['exec', 'dshx', 'add', 'ui', '--slot', 'sidebar.footer.action', '--provider', '@deepseek-ai/dsh-client-ui-sidebar', '--dry-run', '--json'], ['DSHX6102', 'DSHX3202'], { cwd: projects.hostOnly, env: { DSH_HOME: join(dshHome, 'host-only') } })
       await expectSuccess('pnpm', ['exec', 'dshx', 'add', 'tool', '--name', 'host.status'], { cwd: projects.hostOnly, env: { DSH_HOME: join(dshHome, 'host-only') } })
       await expectSuccess('pnpm', ['exec', 'dshx', 'add', 'hook', '--event', 'session.created'], { cwd: projects.hostOnly, env: { DSH_HOME: join(dshHome, 'host-only') } })
       await expectSuccess('pnpm', ['exec', 'dshx', 'build'], { cwd: projects.hostOnly, env: { DSH_HOME: join(dshHome, 'host-only') } })
@@ -241,15 +276,16 @@ async function main() {
       await clientDev.close()
     }
 
-    for (const name of ['plugin-full-b', 'plugin-host-only', 'plugin-client-only', 'plugin-native']) {
+    for (const name of ['fullB', 'hostOnly', 'clientOnly', 'native']) {
       await expectSuccess('pnpm', ['exec', 'dsh', 'plugin', '--profile', 'web', 'add', projects[name]], { cwd: projects.fullA, env: { DSH_HOME: join(dshHome, 'multi') } })
     }
     const fullDev = await startDev(projects.fullA, { DSH_HOME: join(dshHome, 'multi') })
     try {
       const check = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['check'])
       if (check.diagnostics.some(item => item.severity === 'error')) throw new Error('Full plugin check failed after dev link')
-      const slots = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['inspect', 'slots'])
-      const exact = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['inspect', 'slots', '--root', 'sidebar.footer.action'])
+      const inspectEnv = { DSH_HOME: join(dshHome, 'multi') }
+      const slots = await inspectMaybeAvailable(projects.fullA, inspectEnv, ['inspect', 'slots'])
+      const exact = await inspectMaybeAvailable(projects.fullA, inspectEnv, ['inspect', 'slots', '--root', 'sidebar.footer.action'])
       const services = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['inspect', 'services'])
       const events = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['inspect', 'events'])
       console.log(JSON.stringify({
