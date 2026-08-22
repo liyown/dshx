@@ -12,8 +12,8 @@ import { checkProjectManifest } from '../project/index.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import { inspectProjectComposition } from '../inspect/index.js'
 import type { InspectResult, InspectTarget } from '../inspect/index.js'
-import { createToolScaffold, createUiScaffold } from '../scaffold/index.js'
-import type { AddToolOptions, AddToolResult, AddUiOptions, AddUiResult } from '../scaffold/index.js'
+import { createHookScaffold, createToolScaffold, createUiScaffold } from '../scaffold/index.js'
+import type { AddHookOptions, AddHookResult, AddToolOptions, AddToolResult, AddUiOptions, AddUiResult } from '../scaffold/index.js'
 import { DEFAULT_COMPATIBILITY, detectInstalledDshVersion, resolveDeclaredCompatibility, classifyCompatibility } from '../compat/index.js'
 import { CliUsageError, parseCliArgs, type CliArgs } from './args.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
@@ -36,6 +36,7 @@ export interface CliRuntime {
   readonly inspectComposition?: typeof inspectProjectComposition
   readonly addUi?: (options: AddUiOptions) => Promise<AddUiResult>
   readonly addTool?: (options: AddToolOptions) => Promise<AddToolResult>
+  readonly addHook?: (options: AddHookOptions) => Promise<AddHookResult>
 }
 
 export interface CliRunOptions {
@@ -433,6 +434,59 @@ async function runAddTool(args: CliArgs, options: CliRunOptions, project: Resolv
   return result.diagnostics.some(item => item.severity === 'error') ? 1 : 0
 }
 
+function hookSummary(project: ResolvedDshxConfig, result: AddHookResult): Record<string, unknown> {
+  return {
+    project: projectSummary(project),
+    event: result.event,
+    changedFiles: result.changedFiles,
+    generatedFiles: result.generatedFiles,
+    diagnostics: result.diagnostics,
+    dryRun: result.dryRun,
+    ...(result.diff === undefined ? {} : { diff: result.diff }),
+  }
+}
+
+async function runAddHook(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
+  const io = options.io ?? defaultIO()
+  const runtime = options.runtime ?? {}
+  let event = args.event
+  if (event === undefined && io.stdin.isTTY && !args.json) event = (await promptLine(io, 'Hook event: ')) .trim()
+  if (event === undefined || event === '') {
+    const item = { code: 'DSHX6301', severity: 'error' as const, message: 'A Hook event is required.', file: project.packageFile, hint: 'Pass --event <event.name>, or run in a TTY and enter a Hook event.' }
+    if (args.json) write(io.stdout, `${JSON.stringify({ project: projectSummary(project), event: null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`)
+    else printDiagnostic(io, item)
+    return 2
+  }
+  const hookOptions: AddHookOptions = {
+    project,
+    event,
+    ...(args.file === undefined ? {} : { file: args.file }),
+    dryRun: args.dryRun,
+  }
+  let result: AddHookResult
+  try {
+    result = runtime.addHook === undefined
+      ? await createHookScaffold(hookOptions, { ...(runtime.checkManifest === undefined ? {} : { checkManifest: runtime.checkManifest }) })
+      : await runtime.addHook(hookOptions)
+  } catch (error) {
+    const item = diagnosticFromError(error, project.packageFile)
+    if (args.json) write(io.stdout, `${JSON.stringify({ project: projectSummary(project), event, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`)
+    else printDiagnostic(io, item)
+    if (args.verbose) printVerboseCause(io, error)
+    return 1
+  }
+  if (args.json) write(io.stdout, `${JSON.stringify(hookSummary(project, result), null, 2)}\n`)
+  else {
+    for (const item of result.diagnostics) printDiagnostic(io, item)
+    if (!result.diagnostics.some(item => item.severity === 'error')) {
+      write(io.stdout, `${result.dryRun ? 'Planned' : 'Generated'} Hook ${result.event}\n`)
+      for (const file of result.changedFiles) write(io.stdout, `  ${file}\n`)
+      if (result.diff !== undefined) write(io.stdout, result.diff)
+    }
+  }
+  return result.diagnostics.some(item => item.severity === 'error') ? 1 : 0
+}
+
 function eventLine(event: DevEvent): string | undefined {
   if (event.type === 'build-success') return `${event.face} build succeeded${event.initial ? ' (initial)' : ''}`
   if (event.type === 'client-rebuilt') return 'client rebuilt'
@@ -519,7 +573,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     return 2
   }
   if (args.help) {
-    write(io.stdout, 'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ndev: --open\ninspect targets: slots, tools\nadd targets: ui, tool\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\n')
+    write(io.stdout, 'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ndev: --open\ninspect targets: slots, tools\nadd targets: ui, tool, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n')
     return 0
   }
   if (args.version) {
@@ -534,7 +588,11 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     if (args.command === 'build') return await runBuild(args, options, project)
     if (args.command === 'check') return await runCheck(args, options, project)
     if (args.command === 'inspect') return await runInspect(args, options, project)
-    if (args.command === 'add') return args.addTarget === 'tool' ? await runAddTool(args, options, project) : await runAddUi(args, options, project)
+    if (args.command === 'add') {
+      if (args.addTarget === 'tool') return await runAddTool(args, options, project)
+      if (args.addTarget === 'hook') return await runAddHook(args, options, project)
+      return await runAddUi(args, options, project)
+    }
     return await runDev(args, options, project)
   } catch (error) {
     const item = diagnosticFromError(error)
@@ -544,7 +602,9 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
         : args.command === 'add'
           ? args.addTarget === 'tool'
             ? { project: null, name: args.name ?? null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }
-            : { project: null, slot: null, provider: null, changedFiles: [], generatedFiles: [], manifestChanged: false, diagnostics: [item] }
+            : args.addTarget === 'hook'
+              ? { project: null, event: args.event ?? null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }
+              : { project: null, slot: null, provider: null, changedFiles: [], generatedFiles: [], manifestChanged: false, diagnostics: [item] }
           : { project: null, diagnostics: [item], dsh: null, profile: null }, null, 2)}\n`)
       if (args.verbose) printVerboseCause(io, error)
     } else {

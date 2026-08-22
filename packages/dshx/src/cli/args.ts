@@ -101,7 +101,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
       inspectTarget = token
       continue
     }
-    if (token === 'ui' || token === 'tool') {
+    if (token === 'ui' || token === 'tool' || token === 'hook') {
       if (addTarget !== undefined) throw new CliUsageError('Only one add target may be specified.')
       addTarget = token
       continue
@@ -121,6 +121,9 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   if (command === 'inspect' && inspectTarget === undefined && !help && !version) throw new CliUsageError('Inspect requires a target: slots or tools.')
   if (command === 'add' && addTarget === undefined && !help && !version) throw new CliUsageError('Add requires a target: ui, tool, or hook.')
   if (command === 'add' && addTarget !== 'ui' && addTarget !== 'tool' && addTarget !== 'hook') throw new CliUsageError('Only add ui, add tool, and add hook are supported.')
+  if (command === 'add' && addTarget !== 'ui' && (slot !== undefined || provider !== undefined || id !== undefined || order !== undefined)) throw new CliUsageError('Slot options are only valid with add ui.')
+  if (command === 'add' && addTarget !== 'tool' && (name !== undefined || description !== undefined)) throw new CliUsageError('Tool options are only valid with add tool.')
+  if (command === 'add' && addTarget !== 'hook' && event !== undefined) throw new CliUsageError('--event is only valid with add hook.')
   if (help || version) return {
     ...(command === undefined ? {} : { command }),
     ...(inspectTarget === undefined ? {} : { inspectTarget }),
