@@ -1,6 +1,6 @@
 export type CliCommand = 'build' | 'check' | 'dev' | 'inspect' | 'add'
 export type CliInspectTarget = 'slots' | 'tools'
-export type CliAddTarget = 'ui' | 'tool'
+export type CliAddTarget = 'ui' | 'tool' | 'hook'
 
 export interface CliArgs {
   readonly command?: CliCommand
@@ -13,6 +13,7 @@ export interface CliArgs {
   readonly slot?: string
   readonly name?: string
   readonly description?: string
+  readonly event?: string
   readonly provider?: string
   readonly file?: string
   readonly id?: string
@@ -47,6 +48,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   let slot: string | undefined
   let name: string | undefined
   let description: string | undefined
+  let event: string | undefined
   let provider: string | undefined
   let file: string | undefined
   let id: string | undefined
@@ -69,14 +71,15 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
       index += 1
       continue
     }
-    if (token === '--slot' || token === '--provider' || token === '--file' || token === '--id' || token === '--name' || token === '--description') {
+    if (token === '--slot' || token === '--provider' || token === '--file' || token === '--id' || token === '--name' || token === '--description' || token === '--event') {
       const value = requireValue(argv, index, token)
       if (token === '--slot') slot = value
       else if (token === '--provider') provider = value
       else if (token === '--file') file = value
       else if (token === '--id') id = value
       else if (token === '--name') name = value
-      else description = value
+      else if (token === '--description') description = value
+      else event = value
       index += 1
       continue
     }
@@ -108,15 +111,16 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
 
   if (json && command !== undefined && command !== 'check' && command !== 'inspect' && command !== 'add') throw new CliUsageError('--json is only valid with check, inspect, or add.')
   if (open && command !== undefined && command !== 'dev') throw new CliUsageError('--open is only valid with dev.')
-  if (dryRun && command !== 'add') throw new CliUsageError('--dry-run is only valid with add ui.')
+  if (dryRun && command !== 'add') throw new CliUsageError('--dry-run is only valid with add commands.')
   if ((slot !== undefined || provider !== undefined || id !== undefined || order !== undefined) && command !== 'add') throw new CliUsageError('add ui options are only valid with add ui.')
   if ((name !== undefined || description !== undefined) && command !== 'add') throw new CliUsageError('add tool options are only valid with add tool.')
+  if (event !== undefined && command !== 'add') throw new CliUsageError('--event is only valid with add hook.')
   if ((json || open) && command === undefined) throw new CliUsageError('An option requires a command.')
   if (command !== 'inspect' && inspectTarget !== undefined) throw new CliUsageError('Inspect targets are only valid with the inspect command.')
   if (command !== 'add' && addTarget !== undefined) throw new CliUsageError('Add targets are only valid with the add command.')
   if (command === 'inspect' && inspectTarget === undefined && !help && !version) throw new CliUsageError('Inspect requires a target: slots or tools.')
-  if (command === 'add' && addTarget === undefined && !help && !version) throw new CliUsageError('Add requires a target: ui.')
-  if (command === 'add' && addTarget !== 'ui' && addTarget !== 'tool') throw new CliUsageError('Only add ui and add tool are supported.')
+  if (command === 'add' && addTarget === undefined && !help && !version) throw new CliUsageError('Add requires a target: ui, tool, or hook.')
+  if (command === 'add' && addTarget !== 'ui' && addTarget !== 'tool' && addTarget !== 'hook') throw new CliUsageError('Only add ui, add tool, and add hook are supported.')
   if (help || version) return {
     ...(command === undefined ? {} : { command }),
     ...(inspectTarget === undefined ? {} : { inspectTarget }),
@@ -125,6 +129,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     ...(slot === undefined ? {} : { slot }),
     ...(name === undefined ? {} : { name }),
     ...(description === undefined ? {} : { description }),
+    ...(event === undefined ? {} : { event }),
     ...(provider === undefined ? {} : { provider }),
     ...(file === undefined ? {} : { file }),
     ...(id === undefined ? {} : { id }),
@@ -140,6 +145,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     ...(slot === undefined ? {} : { slot }),
     ...(name === undefined ? {} : { name }),
     ...(description === undefined ? {} : { description }),
+    ...(event === undefined ? {} : { event }),
     ...(provider === undefined ? {} : { provider }),
     ...(file === undefined ? {} : { file }),
     ...(id === undefined ? {} : { id }),
