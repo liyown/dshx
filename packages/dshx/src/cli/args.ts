@@ -1,5 +1,5 @@
 export type CliCommand = 'build' | 'check' | 'dev' | 'inspect' | 'add'
-export type CliInspectTarget = 'slots' | 'tools'
+export type CliInspectTarget = 'slots' | 'tools' | 'services' | 'events'
 export type CliAddTarget = 'ui' | 'tool' | 'hook'
 
 export interface CliArgs {
@@ -96,7 +96,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
       command = token
       continue
     }
-    if (token === 'slots' || token === 'tools') {
+    if (token === 'slots' || token === 'tools' || token === 'services' || token === 'events') {
       if (inspectTarget !== undefined) throw new CliUsageError('Only one inspect target may be specified.')
       inspectTarget = token
       continue
@@ -118,7 +118,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   if ((json || open) && command === undefined) throw new CliUsageError('An option requires a command.')
   if (command !== 'inspect' && inspectTarget !== undefined) throw new CliUsageError('Inspect targets are only valid with the inspect command.')
   if (command !== 'add' && addTarget !== undefined) throw new CliUsageError('Add targets are only valid with the add command.')
-  if (command === 'inspect' && inspectTarget === undefined && !help && !version) throw new CliUsageError('Inspect requires a target: slots or tools.')
+  if (command === 'inspect' && inspectTarget === undefined && !help && !version) throw new CliUsageError('Inspect requires a target: slots, tools, services, or events.')
   if (command === 'add' && addTarget === undefined && !help && !version) throw new CliUsageError('Add requires a target: ui, tool, or hook.')
   if (command === 'add' && addTarget !== 'ui' && addTarget !== 'tool' && addTarget !== 'hook') throw new CliUsageError('Only add ui, add tool, and add hook are supported.')
   if (command === 'add' && addTarget !== 'ui' && (slot !== undefined || provider !== undefined || id !== undefined || order !== undefined)) throw new CliUsageError('Slot options are only valid with add ui.')
