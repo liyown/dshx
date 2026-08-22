@@ -1,9 +1,10 @@
-import { access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
-import { dirname, relative, resolve, sep } from 'node:path'
+import { dirname, relative, resolve } from 'node:path'
 import ts from 'typescript'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 import { checkProjectManifest } from '../project/index.js'
+import { applyFilePlan, insideProject, readOptionalFile, renderFileDiff, rollbackFilePlan } from './common.js'
+import type { FilePlan } from './common.js'
 
 export interface AddToolOptions {
   readonly project: ResolvedDshxConfig
@@ -23,25 +24,12 @@ export interface AddToolResult {
   readonly diff?: string
 }
 
-interface PlannedFile {
-  readonly file: string
-  readonly before?: string
-  readonly after: string
-}
-
 export interface AddToolDependencies {
   readonly checkManifest?: typeof checkProjectManifest
 }
 
-const fs = { access, mkdir, readFile, rename, unlink, writeFile }
-
 function diagnostic(code: string, message: string, file: string, hint: string, severity: 'error' | 'warning' = 'error'): DshxDiagnostic {
   return { code, severity, message, file, hint }
-}
-
-function inside(root: string, target: string): boolean {
-  const path = relative(root, target)
-  return path !== '' && path !== '..' && !path.startsWith(`..${sep}`) && !path.startsWith(sep)
 }
 
 function safeName(value: string): string {
@@ -62,10 +50,6 @@ function toolIdentifier(name: string): string {
 function sourceForTool(name: string, description: string): string {
   const identifier = toolIdentifier(name)
   return `import { defineTool } from 'dshx/host'\n\nexport const ${identifier} = defineTool({\n  name: ${JSON.stringify(name)},\n  description: ${JSON.stringify(description)},\n  parameters: {},\n  output: {\n    schema: { type: 'string' },\n    render: (_args, value) => [{ type: 'text', text: value }],\n  },\n  async execute() {\n    return ${JSON.stringify(`Implement ${name}`)}\n  },\n})\n`
-}
-
-function readOptional(file: string): Promise<string | undefined> {
-  return fs.readFile(file, 'utf8').catch(() => undefined)
 }
 
 function findDefineHost(sourceFile: ts.SourceFile): ts.CallExpression | undefined {
@@ -138,38 +122,7 @@ function newHostSource(toolFile: string, hostFile: string, name: string): string
   return `import { defineHost } from 'dshx/host'\nimport { ${toolIdentifier(name)} } from ${JSON.stringify(importPath)}\n\nexport default defineHost({\n  tools: [${toolIdentifier(name)}],\n})\n`
 }
 
-function diff(plan: readonly PlannedFile[]): string {
-  return plan.map(item => `--- ${item.file}\n+++ ${item.file}\n${item.after.split('\n').map(line => `+${line}`).join('\n')}\n`).join('\n')
-}
-
-async function apply(plan: readonly PlannedFile[]): Promise<void> {
-  const applied: PlannedFile[] = []
-  const temps: string[] = []
-  try {
-    for (let index = 0; index < plan.length; index += 1) {
-      const item = plan[index]!
-      await fs.mkdir(dirname(item.file), { recursive: true })
-      const temp = `${item.file}.dshx-tmp-${process.pid}-${index}`
-      temps.push(temp)
-      await fs.writeFile(temp, item.after, 'utf8')
-      await fs.rename(temp, item.file)
-      applied.push(item)
-    }
-  } catch (cause) {
-    await rollback(applied)
-    for (const temp of temps) await fs.unlink(temp).catch(() => undefined)
-    throw cause
-  }
-}
-
-async function rollback(plan: readonly PlannedFile[]): Promise<void> {
-  for (const item of [...plan].reverse()) {
-    if (item.before === undefined) await fs.unlink(item.file).catch(() => undefined)
-    else await fs.writeFile(item.file, item.before, 'utf8').catch(() => undefined)
-  }
-}
-
-function result(project: ResolvedDshxConfig, options: AddToolOptions, diagnostics: readonly DshxDiagnostic[], plan: readonly PlannedFile[], diffText?: string): AddToolResult {
+function result(project: ResolvedDshxConfig, options: AddToolOptions, diagnostics: readonly DshxDiagnostic[], plan: readonly FilePlan[], diffText?: string): AddToolResult {
   return {
     root: project.root,
     name: options.name,
@@ -193,20 +146,20 @@ export async function createToolScaffold(options: AddToolOptions, dependencies: 
     return result(project, options, [diagnostic('DSHX6201', `Invalid Tool name ${JSON.stringify(options.name)}.`, file, 'Use a non-empty name containing letters, numbers, dots, hyphens, or underscores.')], [])
   }
   const toolFile = resolve(project.root, options.file ?? `src/tools/${safeFileName(options.name)}.ts`)
-  if (!inside(project.root, toolFile) || !toolFile.endsWith('.ts')) {
+  if (!insideProject(project.root, toolFile) || !toolFile.endsWith('.ts')) {
     return result(project, options, [diagnostic('DSHX6202', `Tool file must be a .ts path inside the project root: ${toolFile}.`, file, 'Use --file with a path such as src/tools/status.ts.')], [])
   }
-  const existingToolFile = await readOptional(toolFile)
+  const existingToolFile = await readOptionalFile(toolFile)
   if (existingToolFile !== undefined) {
     const ast = ts.createSourceFile(toolFile, existingToolFile, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
     if (hasTool(ast, options.name)) return result(project, options, [diagnostic('DSHX6206', `Tool ${JSON.stringify(options.name)} is already defined in ${toolFile}.`, toolFile, 'Keep the existing Tool; no files were changed.', 'warning')], [])
     return result(project, options, [diagnostic('DSHX6202', `Tool file already exists: ${toolFile}.`, toolFile, 'Choose another --file path or remove the existing file after reviewing it.')], [])
   }
   const hostFile = project.hostEntry ?? resolve(project.root, 'src/host.ts')
-  if (!inside(project.root, hostFile)) return result(project, options, [diagnostic('DSHX6202', `Host file must stay inside the project root: ${hostFile}.`, file, 'Move the Host entry under the project root.')], [])
-  const configSource = project.configFile === undefined ? undefined : await readOptional(project.configFile)
+  if (!insideProject(project.root, hostFile)) return result(project, options, [diagnostic('DSHX6202', `Host file must stay inside the project root: ${hostFile}.`, file, 'Move the Host entry under the project root.')], [])
+  const configSource = project.configFile === undefined ? undefined : await readOptionalFile(project.configFile)
   if (explicitHostDisabled(project, configSource)) return result(project, options, [diagnostic('DSHX6203', 'Host is explicitly disabled for this project.', project.configFile ?? file, 'Remove host: false or create the Tool through a project with an enabled Host face.')], [])
-  const hostBefore = await readOptional(hostFile)
+  const hostBefore = await readOptionalFile(hostFile)
   const toolAfter = sourceForTool(options.name, options.description ?? 'Generated DSHX tool.')
   let hostAfter: string
   if (hostBefore === undefined) {
@@ -218,13 +171,13 @@ export async function createToolScaffold(options: AddToolOptions, dependencies: 
     if (modified.source === undefined) return result(project, options, [diagnostic('DSHX6204', `Host ${hostFile} is not a DSHX defineHost default export.`, hostFile, 'Export default defineHost({ tools: [...] }) or register the Tool manually in native Host code.')], [])
     hostAfter = modified.source
   }
-  const plan: PlannedFile[] = [
+  const plan: FilePlan[] = [
     { file: toolFile, after: toolAfter },
     ...(hostBefore === undefined ? [{ file: hostFile, after: hostAfter }] : [{ file: hostFile, before: hostBefore, after: hostAfter }]),
   ]
-  if (options.dryRun) return result(project, options, [], plan, diff(plan))
+  if (options.dryRun) return result(project, options, [], plan, renderFileDiff(plan))
   try {
-    await apply(plan)
+    await applyFilePlan(plan)
   } catch (cause) {
     return result(project, options, [diagnostic('DSHX6207', `Failed to write Tool scaffold: ${cause instanceof Error ? cause.message : String(cause)}`, toolFile, 'Fix filesystem permissions and retry; no partial changes were kept.')], [])
   }
@@ -233,11 +186,11 @@ export async function createToolScaffold(options: AddToolOptions, dependencies: 
   try {
     postDiagnostics = await (dependencies.checkManifest ?? checkProjectManifest)(postProject)
   } catch (cause) {
-    await rollback(plan)
+    await rollbackFilePlan(plan)
     return result(project, options, [diagnostic('DSHX6208', `Generated Tool scaffold could not be validated: ${cause instanceof Error ? cause.message : String(cause)}`, file, 'Fix the project manifest before generating a Tool.')], [])
   }
   if (postDiagnostics.some(item => item.severity === 'error')) {
-    await rollback(plan)
+    await rollbackFilePlan(plan)
     return result(project, options, [diagnostic('DSHX6208', 'Generated Tool scaffold failed Manifest Checker validation and was rolled back.', file, 'Fix the project manifest before generating a Tool.'), ...postDiagnostics], [])
   }
   return result(project, options, postDiagnostics, plan)

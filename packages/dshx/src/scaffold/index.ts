@@ -1,5 +1,7 @@
 export { createUiScaffold } from './ui.js'
 export { createToolScaffold } from './tool.js'
+export { applyFilePlan, insideProject, readOptionalFile, renderFileDiff, rollbackFilePlan } from './common.js'
+export type { FilePlan } from './common.js'
 export type {
   AddUiDependencies,
   AddUiOptions,
