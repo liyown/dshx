@@ -2,7 +2,7 @@ import type { ResolvedDshxConfig } from '../config/types.js'
 import { DshxError } from '../diagnostics.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 import { inspectProjectProfile, resolveDshInstallation } from '../profile/orchestrator.js'
-import type { DshCommandResult, DshCommandRunner, ProfileOrchestratorOptions, ProjectProfileLink, ResolvedDshInstallation } from '../profile/types.js'
+import type { DshCommandRunner, ProfileOrchestratorOptions, ProjectProfileLink, ResolvedDshInstallation } from '../profile/types.js'
 import type { EventSummary, InspectOptions, InspectProvider, InspectResult, InspectTarget, ServiceSummary, SlotSummary, ToolSummary } from './types.js'
 import { DshInspectBridgeProvider } from './bridge.js'
 
@@ -50,15 +50,18 @@ function optionalString(record: Record<string, unknown>, key: string): string | 
 
 function metadata(record: Record<string, unknown>, known: readonly string[]): Readonly<Record<string, unknown>> | undefined {
   const knownSet = new Set(known)
-  const entries = Object.entries(record).filter(([key, value]) => !knownSet.has(key) && value !== undefined)
-  return entries.length === 0 ? undefined : Object.fromEntries(entries)
+  const nested = record.metadata
+  if (nested !== undefined && !isRecord(nested)) throw new Error('Inspect field "metadata" must be an object when present.')
+  const entries = Object.entries(record).filter(([key, value]) => !knownSet.has(key) && key !== 'metadata' && value !== undefined)
+  const merged = { ...(nested ?? {}), ...Object.fromEntries(entries) }
+  return Object.keys(merged).length === 0 ? undefined : merged
 }
 
 export function normalizeSlots(value: unknown): readonly SlotSummary[] {
   if (!Array.isArray(value)) throw new Error('Slot Inspect output must be an array.')
   return value.map((entry, index) => {
     if (!isRecord(entry) || typeof entry.name !== 'string' || entry.name.trim() === '') throw new Error(`Slot Inspect item ${index} must contain a non-empty string name.`)
-    const known = ['name', 'provider', 'kind', 'scope'] as const
+    const known = ['name', 'provider', 'kind', 'scope', 'metadata'] as const
     const provider = optionalString(entry, 'provider')
     const kind = optionalString(entry, 'kind')
     const scope = optionalString(entry, 'scope')
@@ -77,7 +80,7 @@ export function normalizeTools(value: unknown): readonly ToolSummary[] {
   if (!Array.isArray(value)) throw new Error('Tool Inspect output must be an array.')
   return value.map((entry, index) => {
     if (!isRecord(entry) || typeof entry.name !== 'string' || entry.name.trim() === '') throw new Error(`Tool Inspect item ${index} must contain a non-empty string name.`)
-    const known = ['name', 'provider', 'description'] as const
+    const known = ['name', 'provider', 'description', 'metadata'] as const
     const provider = optionalString(entry, 'provider')
     const description = optionalString(entry, 'description')
     const extra = metadata(entry, known)
@@ -94,7 +97,7 @@ export function normalizeServices(value: unknown): readonly ServiceSummary[] {
   if (!Array.isArray(value)) throw new Error('Service Inspect output must be an array.')
   return value.map((entry, index) => {
     if (!isRecord(entry) || typeof entry.name !== 'string' || entry.name.trim() === '') throw new Error(`Service Inspect item ${index} must contain a non-empty string name.`)
-    const known = ['name', 'provider', 'scope'] as const
+    const known = ['name', 'provider', 'scope', 'metadata'] as const
     const provider = optionalString(entry, 'provider')
     const scope = optionalString(entry, 'scope')
     const extra = metadata(entry, known)
@@ -111,7 +114,7 @@ export function normalizeEvents(value: unknown): readonly EventSummary[] {
   if (!Array.isArray(value)) throw new Error('Event Inspect output must be an array.')
   return value.map((entry, index) => {
     if (!isRecord(entry) || typeof entry.name !== 'string' || entry.name.trim() === '') throw new Error(`Event Inspect item ${index} must contain a non-empty string name.`)
-    const known = ['name', 'provider'] as const
+    const known = ['name', 'provider', 'metadata'] as const
     const provider = optionalString(entry, 'provider')
     const extra = metadata(entry, known)
     return {
@@ -156,7 +159,9 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
     return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unavailableProvider(project.packageFile), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
   }
   const provider = options.provider
-    ?? (dsh === undefined ? undefined : new DshInspectBridgeProvider(project, dsh, profileOptions(options)))
+    ?? (dsh === undefined ? undefined : new DshInspectBridgeProvider(project, {
+      ...(options.env === undefined ? {} : { env: options.env }),
+    }))
   if (provider === undefined) return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unavailableProvider(project.packageFile), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
   try {
     const method = target === 'slots'
