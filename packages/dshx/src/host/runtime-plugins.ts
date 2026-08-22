@@ -8,10 +8,21 @@ export interface RuntimePluginDiagnostic {
   readonly cause?: unknown
 }
 
+export type RuntimePluginStatusKind = 'available' | 'missing' | 'loaded' | 'skipped' | 'failed'
+
+export interface RuntimePluginStatus {
+  readonly id: string
+  readonly packageName: string
+  readonly provides: readonly string[]
+  readonly status: RuntimePluginStatusKind
+  readonly message?: string
+}
+
 export interface RuntimePluginState {
   readonly loaded: readonly string[]
   readonly skipped: readonly string[]
   readonly diagnostics: readonly RuntimePluginDiagnostic[]
+  readonly plugins: readonly RuntimePluginStatus[]
 }
 
 interface InspectRegistry {
@@ -51,9 +62,11 @@ export async function loadRuntimePlugins(
   const loaded: string[] = []
   const skipped: string[] = []
   const diagnostics: RuntimePluginDiagnostic[] = []
+  const plugins: RuntimePluginStatus[] = []
   for (const spec of specs) {
     if (spec.provides.every(capability => hasCapability(ctx, capability))) {
       skipped.push(spec.id)
+      plugins.push({ id: spec.id, packageName: spec.packageName, provides: spec.provides, status: 'skipped' })
       continue
     }
     try {
@@ -62,11 +75,14 @@ export async function loadRuntimePlugins(
       const awaitFiber = (fiber as { await?: () => Promise<unknown> } | undefined)?.await
       if (typeof awaitFiber === 'function') await awaitFiber.call(fiber)
       loaded.push(spec.id)
+      plugins.push({ id: spec.id, packageName: spec.packageName, provides: spec.provides, status: 'loaded' })
     } catch (cause) {
-      diagnostics.push({ pluginId: spec.id, packageName: spec.packageName, message: errorMessage(cause), cause })
+      const message = errorMessage(cause)
+      diagnostics.push({ pluginId: spec.id, packageName: spec.packageName, message, cause })
+      plugins.push({ id: spec.id, packageName: spec.packageName, provides: spec.provides, status: 'failed', message })
       if (!spec.optional) throw cause
     }
   }
 
-  return { loaded, skipped, diagnostics }
+  return { loaded, skipped, diagnostics, plugins }
 }

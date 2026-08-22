@@ -5,6 +5,7 @@ import { homedir, tmpdir } from 'node:os'
 import process from 'node:process'
 import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
+import type { RuntimePluginStatus } from './runtime-plugins.js'
 
 const PROTOCOL_VERSION = 1
 const MAX_MESSAGE_BYTES = 64 * 1024
@@ -20,6 +21,7 @@ export interface HostInspectBridgeMetadata {
   readonly packageId: string
   readonly root: string
   readonly logicalName?: string
+  readonly runtimePlugins?: readonly RuntimePluginStatus[]
 }
 
 export interface HostInspectBridgeHandle {

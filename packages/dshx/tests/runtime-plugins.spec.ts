@@ -25,6 +25,7 @@ describe('Host runtime child plugin loader', () => {
       runtimePlugins: [{ id: 'tool-cordis', packageName: '@deepseek-ai/dsh-tool-cordis', load: 'module', provides: ['Service', 'Event'], optional: true }],
     })
     expect(result.skipped).toEqual(['tool-cordis'])
+    expect(result.plugins).toEqual([{ id: 'tool-cordis', packageName: '@deepseek-ai/dsh-tool-cordis', provides: ['Service', 'Event'], status: 'skipped' }])
     expect(plugin).not.toHaveBeenCalled()
   })
 
@@ -37,6 +38,7 @@ describe('Host runtime child plugin loader', () => {
     })
     expect(result.loaded).toEqual([])
     expect(result.diagnostics[0]).toMatchObject({ pluginId: 'untrusted', packageName: 'example-untrusted-plugin' })
+    expect(result.plugins[0]).toMatchObject({ id: 'untrusted', status: 'failed' })
     expect(plugin).not.toHaveBeenCalled()
   })
 })
