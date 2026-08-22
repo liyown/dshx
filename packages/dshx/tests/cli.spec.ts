@@ -97,8 +97,9 @@ describe('CLI argument parser', () => {
       command: 'add', addTarget: 'ui', slot: 'sidebar.footer.action', provider: '@provider/sidebar', order: 2, dryRun: true, json: true,
     })
     expect(() => parseCliArgs(['add'])).toThrow('requires a target')
-    expect(() => parseCliArgs(['add', 'tool'])).toThrow('Unknown argument')
+    expect(parseCliArgs(['add', 'tool'])).toMatchObject({ command: 'add', addTarget: 'tool' })
     expect(() => parseCliArgs(['add', 'ui', '--order', 'nope'])).toThrow('integer')
+    expect(parseCliArgs(['add', 'tool', '--name', 'status', '--description', 'Status', '--dry-run', '--json'])).toMatchObject({ command: 'add', addTarget: 'tool', name: 'status', description: 'Status', dryRun: true, json: true })
   })
 })
 
@@ -241,5 +242,16 @@ describe('CLI commands', () => {
     expect(addUi).not.toHaveBeenCalled()
     streams.out.end(); streams.err.end()
     expect(await text(streams.err)).toContain('DSHX6101')
+  })
+
+  it('requires a Tool name in non-TTY add tool mode without invoking the generator', async () => {
+    const streams = io()
+    const value = project()
+    const addTool = vi.fn()
+    const code = await runCli(['add', 'tool'], { io: streams, runtime: { resolveConfig: async () => value, addTool } })
+    expect(code).toBe(2)
+    expect(addTool).not.toHaveBeenCalled()
+    streams.out.end(); streams.err.end()
+    expect(await text(streams.err)).toContain('DSHX6201')
   })
 })

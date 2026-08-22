@@ -12,8 +12,8 @@ import { checkProjectManifest } from '../project/index.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import { inspectProjectComposition } from '../inspect/index.js'
 import type { InspectResult, InspectTarget } from '../inspect/index.js'
-import { createUiScaffold } from '../scaffold/index.js'
-import type { AddUiOptions, AddUiResult } from '../scaffold/index.js'
+import { createToolScaffold, createUiScaffold } from '../scaffold/index.js'
+import type { AddToolOptions, AddToolResult, AddUiOptions, AddUiResult } from '../scaffold/index.js'
 import { DEFAULT_COMPATIBILITY, detectInstalledDshVersion, resolveDeclaredCompatibility, classifyCompatibility } from '../compat/index.js'
 import { CliUsageError, parseCliArgs, type CliArgs } from './args.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
@@ -35,6 +35,7 @@ export interface CliRuntime {
   readonly startDev?: typeof startDevSession
   readonly inspectComposition?: typeof inspectProjectComposition
   readonly addUi?: (options: AddUiOptions) => Promise<AddUiResult>
+  readonly addTool?: (options: AddToolOptions) => Promise<AddToolResult>
 }
 
 export interface CliRunOptions {
@@ -369,6 +370,69 @@ async function runAddUi(args: CliArgs, options: CliRunOptions, project: Resolved
   return result.diagnostics.some(item => item.severity === 'error') ? 1 : 0
 }
 
+function toolSummary(project: ResolvedDshxConfig, result: AddToolResult): Record<string, unknown> {
+  return {
+    project: projectSummary(project),
+    name: result.name,
+    changedFiles: result.changedFiles,
+    generatedFiles: result.generatedFiles,
+    diagnostics: result.diagnostics,
+    dryRun: result.dryRun,
+    ...(result.diff === undefined ? {} : { diff: result.diff }),
+  }
+}
+
+async function promptLine(io: CliIO, question: string): Promise<string> {
+  const prompt = createInterface({ input: io.stdin, output: io.stdout })
+  try {
+    return await new Promise<string>(resolve => prompt.question(question, resolve))
+  } finally {
+    prompt.close()
+  }
+}
+
+async function runAddTool(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
+  const io = options.io ?? defaultIO()
+  const runtime = options.runtime ?? {}
+  let name = args.name
+  if (name === undefined && io.stdin.isTTY && !args.json) name = (await promptLine(io, 'Tool name: ')).trim()
+  if (name === undefined || name === '') {
+    const item = { code: 'DSHX6201', severity: 'error' as const, message: 'A Tool name is required.', file: project.packageFile, hint: 'Pass --name <name>, or run in a TTY and enter a Tool name.' }
+    if (args.json) write(io.stdout, `${JSON.stringify({ project: projectSummary(project), name: null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`)
+    else printDiagnostic(io, item)
+    return 2
+  }
+  const toolOptions: AddToolOptions = {
+    project,
+    name,
+    ...(args.description === undefined ? {} : { description: args.description }),
+    ...(args.file === undefined ? {} : { file: args.file }),
+    dryRun: args.dryRun,
+  }
+  let result: AddToolResult
+  try {
+    result = runtime.addTool === undefined
+      ? await createToolScaffold(toolOptions, { ...(runtime.checkManifest === undefined ? {} : { checkManifest: runtime.checkManifest }) })
+      : await runtime.addTool(toolOptions)
+  } catch (error) {
+    const item = diagnosticFromError(error, project.packageFile)
+    if (args.json) write(io.stdout, `${JSON.stringify({ project: projectSummary(project), name, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`)
+    else printDiagnostic(io, item)
+    if (args.verbose) printVerboseCause(io, error)
+    return 1
+  }
+  if (args.json) write(io.stdout, `${JSON.stringify(toolSummary(project, result), null, 2)}\n`)
+  else {
+    for (const item of result.diagnostics) printDiagnostic(io, item)
+    if (!result.diagnostics.some(item => item.severity === 'error')) {
+      write(io.stdout, `${result.dryRun ? 'Planned' : 'Generated'} Tool ${result.name}\n`)
+      for (const file of result.changedFiles) write(io.stdout, `  ${file}\n`)
+      if (result.diff !== undefined) write(io.stdout, result.diff)
+    }
+  }
+  return result.diagnostics.some(item => item.severity === 'error') ? 1 : 0
+}
+
 function eventLine(event: DevEvent): string | undefined {
   if (event.type === 'build-success') return `${event.face} build succeeded${event.initial ? ' (initial)' : ''}`
   if (event.type === 'client-rebuilt') return 'client rebuilt'
@@ -455,7 +519,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     return 2
   }
   if (args.help) {
-    write(io.stdout, 'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ndev: --open\ninspect targets: slots, tools\nadd targets: ui\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\n')
+    write(io.stdout, 'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ndev: --open\ninspect targets: slots, tools\nadd targets: ui, tool\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\n')
     return 0
   }
   if (args.version) {
@@ -470,7 +534,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     if (args.command === 'build') return await runBuild(args, options, project)
     if (args.command === 'check') return await runCheck(args, options, project)
     if (args.command === 'inspect') return await runInspect(args, options, project)
-    if (args.command === 'add') return await runAddUi(args, options, project)
+    if (args.command === 'add') return args.addTarget === 'tool' ? await runAddTool(args, options, project) : await runAddUi(args, options, project)
     return await runDev(args, options, project)
   } catch (error) {
     const item = diagnosticFromError(error)
@@ -478,7 +542,9 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
       write(io.stdout, `${JSON.stringify(args.command === 'inspect'
         ? { project: null, target: args.inspectTarget ?? null, source: 'runtime', items: [], diagnostics: [item] }
         : args.command === 'add'
-          ? { project: null, slot: null, provider: null, changedFiles: [], generatedFiles: [], manifestChanged: false, diagnostics: [item] }
+          ? args.addTarget === 'tool'
+            ? { project: null, name: args.name ?? null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }
+            : { project: null, slot: null, provider: null, changedFiles: [], generatedFiles: [], manifestChanged: false, diagnostics: [item] }
           : { project: null, diagnostics: [item], dsh: null, profile: null }, null, 2)}\n`)
       if (args.verbose) printVerboseCause(io, error)
     } else {
