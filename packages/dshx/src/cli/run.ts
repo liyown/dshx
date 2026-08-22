@@ -8,7 +8,7 @@ import type { DevEvent, DevSession } from '../dev/index.js'
 import { DshxError } from '../diagnostics.js'
 import { ensureProjectProfile, inspectProjectProfile, resolveDshInstallation } from '../profile/index.js'
 import type { PreparedProjectProfile, ProjectProfileLink, ResolvedDshInstallation } from '../profile/types.js'
-import { checkProjectManifest } from '../project/index.js'
+import { applyManifestRepairPlan, checkProjectManifest, createManifestRepairPlan, rollbackManifestRepairPlan } from '../project/index.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import { inspectProjectComposition } from '../inspect/index.js'
 import type { InspectResult, InspectTarget } from '../inspect/index.js'
@@ -255,8 +255,16 @@ interface CheckResult {
   readonly bridge: InspectBridgeStatus
 }
 
-async function runCheck(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
-  const io = options.io ?? defaultIO()
+interface CheckFixResult {
+  readonly requested: boolean
+  readonly dryRun: boolean
+  readonly applied: boolean
+  readonly changedFiles: readonly string[]
+  readonly diff: string
+  readonly diagnostics: readonly DshxDiagnostic[]
+}
+
+async function collectCheck(options: CliRunOptions, project: ResolvedDshxConfig): Promise<CheckResult> {
   const runtime = options.runtime ?? {}
   let diagnostics: DshxDiagnostic[] = []
   let dsh: ResolvedDshInstallation | undefined
@@ -282,13 +290,93 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
   runtimePlugins = mergeRuntimePluginStatus(runtimePlugins, bridge)
   diagnostics = [...await (runtime.checkManifest ?? checkProjectManifest)(project, { compatibility }), ...runtimePlugins.diagnostics, ...bridge.diagnostics, ...diagnostics]
   const result: CheckResult = { project, diagnostics, ...(dsh === undefined ? {} : { dsh }), ...(profile === undefined ? {} : { profile }), runtimePlugins, bridge }
+  return result
+}
+
+function fixSummary(value: CheckFixResult): Record<string, unknown> {
+  return {
+    requested: value.requested,
+    dryRun: value.dryRun,
+    applied: value.applied,
+    changedFiles: value.changedFiles,
+    diff: value.diff,
+    diagnostics: value.diagnostics,
+  }
+}
+
+async function runCheck(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
+  const io = options.io ?? defaultIO()
+  const runtime = options.runtime ?? {}
+  let result = await collectCheck(options, project)
+  let fix: CheckFixResult = { requested: args.fix, dryRun: args.dryRun, applied: false, changedFiles: [], diff: '', diagnostics: [] }
+
+  if (args.fix) {
+    const compatibility = result.dsh?.compatibility ?? resolveDeclaredCompatibility(project.manifest)?.compatibility ?? DEFAULT_COMPATIBILITY
+    const plan = await createManifestRepairPlan(project, { compatibility })
+    const fixDiagnostics: DshxDiagnostic[] = [...plan.diagnostics]
+    let applied = false
+    if (!args.dryRun && plan.files.length > 0 && !plan.diagnostics.some(item => item.severity === 'error')) {
+      try {
+        await applyManifestRepairPlan(plan)
+        applied = true
+      } catch (error) {
+        fixDiagnostics.push({
+          code: 'DSHX4145', severity: 'error',
+          message: `Manifest repair could not be written: ${error instanceof Error ? error.message : String(error)}`,
+          file: project.packageFile,
+          hint: 'Check filesystem permissions and run dshx check --fix again.',
+        })
+      }
+      if (applied) {
+        try {
+          const refreshed = await (runtime.resolveConfig ?? resolveDshxConfig)({ cwd: project.root })
+          const manifestDiagnostics = await (runtime.checkManifest ?? checkProjectManifest)(refreshed, { compatibility })
+          if (manifestDiagnostics.some(item => item.severity === 'error')) {
+            await rollbackManifestRepairPlan(plan)
+            applied = false
+            fixDiagnostics.push({
+              code: 'DSHX4146', severity: 'error',
+              message: 'Manifest validation failed after repair; all changes were rolled back.',
+              file: project.packageFile,
+              hint: 'Review the reported manifest errors and repair ambiguous fields manually.',
+            })
+            result = await collectCheck(options, project)
+          } else {
+            result = await collectCheck(options, refreshed)
+          }
+        } catch (error) {
+          await rollbackManifestRepairPlan(plan)
+          applied = false
+          fixDiagnostics.push({
+            code: 'DSHX4146', severity: 'error',
+            message: `Manifest validation could not complete after repair: ${error instanceof Error ? error.message : String(error)}; all changes were rolled back.`,
+            file: project.packageFile,
+            hint: 'Run dshx check --fix again after resolving the project configuration error.',
+          })
+          result = await collectCheck(options, project)
+        }
+      }
+    }
+    fix = {
+      requested: true,
+      dryRun: args.dryRun,
+      applied,
+      changedFiles: plan.changedFiles,
+      diff: plan.diff,
+      diagnostics: fixDiagnostics,
+    }
+  }
+  const diagnostics = [...result.diagnostics, ...fix.diagnostics]
   if (args.json) {
-    write(io.stdout, `${JSON.stringify({ project: projectSummary(project), diagnostics, dsh: installationSummary(dsh), profile: profile ?? null, runtimePlugins: runtimePlugins.plugins, bridge: { state: bridge.state, metadata: bridge.metadata ?? null } }, null, 2)}\n`)
+    write(io.stdout, `${JSON.stringify({ project: projectSummary(result.project), diagnostics, dsh: installationSummary(result.dsh), profile: result.profile ?? null, runtimePlugins: result.runtimePlugins.plugins, bridge: { state: result.bridge.state, metadata: result.bridge.metadata ?? null }, fix: fixSummary(fix) }, null, 2)}\n`)
   } else {
     for (const item of diagnostics) printDiagnostic(io, item)
-    if (!hasErrors(diagnostics)) write(io.stdout, `Check passed for ${project.packageId}\n`)
+    if (args.fix && fix.diff !== '') {
+      write(io.stdout, `${fix.applied ? 'Applied' : 'Planned'} manifest repair:\n${fix.diff}`)
+    }
+    if (!hasErrors(diagnostics)) write(io.stdout, `Check passed for ${result.project.packageId}\n`)
   }
-  return hasErrors(result.diagnostics) ? 1 : 0
+  return hasErrors(diagnostics) ? 1 : 0
 }
 
 function inspectSummary(project: ResolvedDshxConfig, result: InspectResult): Record<string, unknown> {
