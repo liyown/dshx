@@ -1,5 +1,6 @@
 import type { Readable, Writable } from 'node:stream'
 import { createInterface } from 'node:readline'
+import { createRequire } from 'node:module'
 import { resolve as resolvePath } from 'node:path'
 import { buildClient, buildHost } from '../compiler/index.js'
 import { resolveDshxConfig } from '../config/index.js'
@@ -56,7 +57,17 @@ export interface CliRunOptions {
   readonly version?: string
 }
 
-const VERSION = '0.0.0'
+const require = createRequire(import.meta.url)
+
+function packageVersion(): string {
+  try {
+    const manifest = require('../../package.json') as { version?: unknown }
+    if (typeof manifest.version === 'string' && manifest.version !== '') return manifest.version
+  } catch { /* source-only environments may not have package metadata */ }
+  return '0.0.0'
+}
+
+const VERSION = packageVersion()
 
 function defaultIO(): CliIO {
   return { stdin: process.stdin, stdout: process.stdout, stderr: process.stderr }
