@@ -20,6 +20,7 @@ function linked(value: ResolvedDshxConfig) {
 describe('services and events inspect normalization', () => {
   it('normalizes summaries and preserves metadata', () => {
     expect(normalizeServices([{ name: 'logger', provider: 'core', scope: 'global', version: '1' }])).toEqual([{ name: 'logger', provider: 'core', scope: 'global', metadata: { version: '1' } }])
+    expect(normalizeServices([{ name: 'logger', metadata: { description: 'structured' }, version: '1' }])).toEqual([{ name: 'logger', metadata: { description: 'structured', version: '1' } }])
     expect(normalizeEvents([{ name: 'agent.ready', provider: 'agent', payload: { type: 'object' } }])).toEqual([{ name: 'agent.ready', provider: 'agent', metadata: { payload: { type: 'object' } } }])
   })
 
