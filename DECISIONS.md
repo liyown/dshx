@@ -139,6 +139,12 @@ The generator writes a new `src/slots/<slot>.tsx` component and minimally edits 
 
 This stage uses TypeScript AST positions for safe edits but does not introduce a DSHX Slot DSL, duplicate official Slot types, Catalog caching, `add tool`, `add hook`, or `check --fix`. The stable generator diagnostics occupy `DSHX6101` through `DSHX6109`.
 
+## 2026-08-22: Client Slot Inspect is progressive and contract-gated
+
+The Client Slot seam is the official `Slots.listSubTree` provider exposed by the running browser Composition. `dshx inspect slots` first reads the compact purpose/topology tree; `dshx inspect slots --root <name>` performs a second query for the selected Slot's exact catalog, registration fields, props metadata, occupants, and replacement risk. DSHX normalizes these JSON-compatible results without copying the official Slot types or inventing a static catalog. A missing browser, Client runner, synchronized provider, or bridge remains an explicit runtime diagnostic rather than an empty successful result.
+
+`dshx add ui` consumes both queries. It emits the official `PropsRuntime<...>` type and a type-only provider `/client` import, but only generates registration fields whose kind and defaults are unambiguous: list Slots receive `id` and `order`, while single Slots receive no list-only fields. Keyed, chain, select, unknown-required, or incomplete contracts return `DSHX6110`/`DSHX6111` before any file is written. Manifest failure still rolls back the complete transaction, and repeated contributions remain idempotent. Client Tool Inspect, offline Catalog fallback, Catalog cache, and `check --fix` remain out of scope.
+
 ## 2026-08-22: `add tool` generates the smallest official Tool contract
 
 `dshx add tool --name <name>` is a local source scaffold and does not require Runtime Inspect. Inspect Tool summaries are discovery DTOs and do not contain enough information to safely synthesize arbitrary parameter schemas, so the generated definition deliberately uses `parameters: {}` and a string `output` with the official text renderer. Authors continue editing the resulting `defineTool()` with the full rc.8 API for typed parameters, canonical output, timeout, concurrency, and presentation behavior.
