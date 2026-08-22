@@ -202,7 +202,11 @@ function slotItems(value: unknown): readonly Record<string, unknown>[] {
   }
   if (requestedRoot !== undefined) {
     const selected = value.selected
-    if (selected === undefined) return []
+    if (!requestedRoot.available) {
+      if (selected !== undefined) throw new BridgeFailure('DSHX3203', 'Slot Inspect returned a selected contract for an unavailable root.')
+      return []
+    }
+    if (selected === undefined) throw new BridgeFailure('DSHX3203', 'Slot Inspect returned an available root without a selected contract.')
     if (!isRecord(selected) || selected.name !== requestedRoot.name) throw new BridgeFailure('DSHX3203', 'Slot Inspect selected contract does not match requestedRoot.')
     return [slotNode(selected)]
   }
