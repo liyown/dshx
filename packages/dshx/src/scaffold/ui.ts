@@ -98,6 +98,45 @@ function providerClient(provider: string): string {
   return `${provider}/client`
 }
 
+interface SlotScaffoldContract {
+  readonly kind: 'list' | 'single'
+  readonly registration: readonly string[]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function scaffoldContract(slot: SlotSummary, file: string, options: AddUiOptions): { contract?: SlotScaffoldContract; diagnostic?: DshxDiagnostic } {
+  if (slot.kind !== 'list' && slot.kind !== 'single') {
+    return { diagnostic: diagnostic('DSHX6110', `Slot ${JSON.stringify(slot.name)} uses unsupported ${JSON.stringify(slot.kind ?? 'unknown')} registration semantics.`, file, 'Choose a list or single Slot, or register keyed/chain/select fields manually.') }
+  }
+  if (!isRecord(slot.metadata) || !isRecord(slot.metadata.catalog)) {
+    return { diagnostic: diagnostic('DSHX6111', `Slot ${JSON.stringify(slot.name)} has no stable exact contract metadata.`, file, 'Run dshx inspect slots --root <slot-name> with a Client Inspect provider that exposes the full catalog.') }
+  }
+  const catalog = slot.metadata.catalog
+  if (typeof catalog.replaceRisk !== 'string' || !Array.isArray(catalog.registration)) {
+    return { diagnostic: diagnostic('DSHX6111', `Slot ${JSON.stringify(slot.name)} has incomplete provider registration metadata.`, file, 'Use an official Client Slot provider with catalog.registration and replaceRisk fields.') }
+  }
+  const registration: string[] = []
+  for (const entry of catalog.registration) {
+    if (!isRecord(entry) || typeof entry.name !== 'string' || entry.name.trim() === '' || typeof entry.required !== 'boolean' || (entry.type !== undefined && typeof entry.type !== 'string')) {
+      return { diagnostic: diagnostic('DSHX6111', `Slot ${JSON.stringify(slot.name)} has an invalid registration field descriptor.`, file, 'Use the exact contract returned by the official Client Slot Inspect provider.') }
+    }
+    registration.push(entry.name)
+    if (entry.required && !['id', 'order'].includes(entry.name)) {
+      return { diagnostic: diagnostic('DSHX6110', `Slot ${JSON.stringify(slot.name)} requires unsupported registration field ${JSON.stringify(entry.name)}.`, file, 'Register this Slot manually using its official provider contract.') }
+    }
+  }
+  if (slot.kind === 'list' && !registration.includes('id')) {
+    return { diagnostic: diagnostic('DSHX6111', `Slot ${JSON.stringify(slot.name)} does not declare a stable list id field.`, file, 'Use an exact Slot contract that exposes the required id registration field.') }
+  }
+  if (slot.kind === 'single' && (options.id !== undefined || options.order !== undefined)) {
+    return { diagnostic: diagnostic('DSHX6110', `Slot ${JSON.stringify(slot.name)} is single-valued and does not accept id/order options.`, file, 'Omit --id and --order for a single Slot, or register it manually with the official contract.') }
+  }
+  return { contract: { kind: slot.kind, registration } }
+}
+
 async function defaultResolveProvider(projectRoot: string, provider: string): Promise<boolean> {
   try {
     const require = createRequire(resolve(projectRoot, 'package.json'))
@@ -109,9 +148,12 @@ async function defaultResolveProvider(projectRoot: string, provider: string): Pr
   }
 }
 
-function generatedSource(slot: SlotSummary, provider: string, id: string, order: number): string {
+function generatedSource(slot: SlotSummary, provider: string, id: string, order: number, registration: readonly string[]): string {
   const component = defaultComponentName(slot.name)
-  return `import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'\nimport type {} from ${JSON.stringify(providerClient(provider))}\nimport { defineSlot } from 'dshx/client'\n\nexport function ${component}(_props: PropsRuntime<${JSON.stringify(slot.name)}>) {\n  return <button type="button">{${JSON.stringify(slot.name)}}</button>\n}\n\nexport const generatedSlot = defineSlot(${JSON.stringify(slot.name)}, {\n  id: ${JSON.stringify(id)},\n  order: ${order},\n  component: ${component},\n})\n`
+  const options = registration.includes('id')
+    ? `  id: ${JSON.stringify(id)},\n  order: ${order},\n`
+    : ''
+  return `import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'\nimport type {} from ${JSON.stringify(providerClient(provider))}\nimport { defineSlot } from 'dshx/client'\n\nexport function ${component}(_props: PropsRuntime<${JSON.stringify(slot.name)}>) {\n  return <button type="button">{${JSON.stringify(slot.name)}}</button>\n}\n\nexport const generatedSlot = defineSlot(${JSON.stringify(slot.name)}, {\n${options}  component: ${component},\n})\n`
 }
 
 function relativeImport(fromFile: string, targetFile: string): string {
@@ -290,10 +332,41 @@ export async function createUiScaffold(options: AddUiOptions, dependencies: AddU
     const item = diagnostic('DSHX6101', 'A Slot name is required in non-interactive mode.', packageFile, 'Pass --slot <slot-name>, or run in a TTY to choose a Slot interactively.')
     return result(project, { name: '' }, options.provider ?? '', [item], [], false)
   }
-  const slot = slots.find(item => item.name === slotName)
-  if (slot === undefined) {
+  const treeSlot = slots.find(item => item.name === slotName)
+  if (treeSlot === undefined) {
     const item = diagnostic('DSHX6103', `Slot ${JSON.stringify(slotName)} was not returned by the Runtime Inspect Provider.`, packageFile, 'Run dshx inspect slots and choose an available Slot name.')
     return result(project, { name: slotName }, options.provider ?? '', [item], [], false)
+  }
+  let exact: InspectResult
+  try {
+    exact = await (dependencies.inspectComposition ?? inspectProjectComposition)(project, 'slots', {
+      ...(options.inspect ?? {}),
+      slotRoot: treeSlot.name,
+    })
+  } catch (cause) {
+    const item = diagnostic('DSHX6102', 'Unable to inspect the exact Slot contract from the running DSH composition.', packageFile, 'Start a supported Client Slot Inspect Provider and retry.', 'error')
+    return result(project, treeSlot, options.provider ?? treeSlot.provider ?? '', [item], [], false)
+  }
+  if (exact.diagnostics.some(item => item.severity === 'error')) {
+    const mapped = exact.diagnostics.map(item => item.code === 'DSHX3201' || item.code === 'DSHX3202' || item.code === 'DSHX3205'
+      ? diagnostic('DSHX6102', item.message, item.file, item.hint)
+      : item.code === 'DSHX3203'
+        ? diagnostic('DSHX6111', item.message, item.file, item.hint)
+        : item)
+    return result(project, treeSlot, options.provider ?? treeSlot.provider ?? '', mapped, [], false)
+  }
+  const exactSlot = (exact.items as readonly SlotSummary[]).find(item => item.name === treeSlot.name)
+  if (exactSlot === undefined) {
+    const item = diagnostic('DSHX6111', `Exact contract for Slot ${JSON.stringify(treeSlot.name)} was not returned by the Client Inspect Provider.`, packageFile, 'Run dshx inspect slots --root <slot-name> and retry after the Client provider is synchronized.')
+    return result(project, treeSlot, options.provider ?? treeSlot.provider ?? '', [item], [], false)
+  }
+  const exactContract = scaffoldContract(exactSlot, packageFile, options)
+  if (exactContract.diagnostic !== undefined) return result(project, exactSlot, options.provider ?? exactSlot.provider ?? treeSlot.provider ?? '', [exactContract.diagnostic], [], false)
+  const contract = exactContract.contract!
+  const slot: SlotSummary = {
+    ...treeSlot,
+    ...exactSlot,
+    ...(exactSlot.metadata === undefined ? {} : { metadata: exactSlot.metadata }),
   }
   const provider = options.provider ?? slot.provider
   if (provider === undefined || provider.trim() === '') {
@@ -375,7 +448,7 @@ export async function createUiScaffold(options: AddUiOptions, dependencies: AddU
     clientAfter = modified.source
   }
   const plan: PlannedFile[] = [
-    { file: targetFile, after: generatedSource(slot, provider, options.id ?? defaultId(project, slot.name), options.order ?? 0) },
+    { file: targetFile, after: generatedSource(slot, provider, options.id ?? defaultId(project, slot.name), options.order ?? 0, contract.registration) },
     ...(clientBefore === undefined ? [{ file: clientFile, after: clientAfter }] : [{ file: clientFile, before: clientBefore, after: clientAfter }]),
     ...(manifestAfter === undefined ? [] : [{ file: packageFile, before: packageBefore, after: manifestAfter }]),
   ]
