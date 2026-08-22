@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { DshxError } from '../diagnostics.js'
 import type { ClientDefinition, SlotContribution } from './types.js'
 
-const CLIENT_DEFINITION_KEYS = new Set(['name', 'inject', 'slots', 'setup'])
+const CLIENT_DEFINITION_KEYS = new Set(['name', 'inject', 'slots', 'api', 'apis', 'setup'])
 
 /** Project identity embedded by the Client compiler. */
 export interface ClientPluginMetadata {
@@ -26,6 +26,13 @@ interface ClientSlotsService {
 
 interface ClientRuntimeContext extends Context {
   readonly slots: ClientSlotsService
+}
+
+function normalizeApis(definition: ClientDefinition): readonly import('../api/types.js').ApiContract[] {
+  return [
+    ...(definition.api === undefined ? [] : [definition.api]),
+    ...(definition.apis ?? []),
+  ]
 }
 
 function fail(
@@ -103,6 +110,12 @@ function validateDefinition(value: unknown, metadata: ClientPluginMetadata): Cli
   if (source.setup !== undefined && typeof source.setup !== 'function') {
     fail('DSHX2102', 'Client definition setup must be a function.', metadata, 'Use setup(ctx) { ... } or remove setup.')
   }
+  if (source.api !== undefined && (typeof source.api !== 'object' || source.api === null || Array.isArray(source.api))) {
+    fail('DSHX2102', 'Client api must be a value returned by defineApi().', metadata, 'Use api: contract or remove api.')
+  }
+  if (source.apis !== undefined && (!Array.isArray(source.apis) || source.apis.some(item => typeof item !== 'object' || item === null || Array.isArray(item)))) {
+    fail('DSHX2102', 'Client apis must be an array of values returned by defineApi().', metadata, 'Use apis: [contract] or remove apis.')
+  }
   return value as ClientDefinition
 }
 
@@ -112,16 +125,28 @@ export function createClientPlugin(value: unknown, metadata: ClientPluginMetadat
   const inject = [...new Set([
     ...(definition.inject ?? []),
     ...(definition.slots !== undefined && definition.slots.length > 0 ? ['slots'] : []),
+    ...(normalizeApis(definition).length > 0 ? ['connection'] : []),
   ])]
+  const apis = normalizeApis(definition)
   return {
     name: definition.name ?? fallbackName(metadata),
     inject,
     apply(ctx) {
       const client = ctx as ClientRuntimeContext
-      for (const slot of definition.slots ?? []) {
-        client.slots.inject(slot.name, () => client.slots.register({ name: slot.name, ...slot.options }, slot.component))
+      if (apis.length === 0) {
+        for (const slot of definition.slots ?? []) {
+          client.slots.inject(slot.name, () => client.slots.register({ name: slot.name, ...slot.options }, slot.component))
+        }
+        return definition.setup?.(ctx)
       }
-      return definition.setup?.(ctx)
+      return import('../api/client.js').then(({ createApiClient, provideApiContext }) => {
+        const apiClients = new Map(apis.map(contract => [contract, createApiClient(ctx, contract, metadata.packageId)]))
+        for (const slot of definition.slots ?? []) {
+          const component = provideApiContext(slot.component as any, apiClients)
+          client.slots.inject(slot.name, () => client.slots.register({ name: slot.name, ...slot.options }, component))
+        }
+        return definition.setup?.(ctx)
+      })
     },
   }
 }

@@ -26,6 +26,15 @@ export interface DshInspectCompatibility {
   }
 }
 
+export interface DshConnectionCompatibility {
+  readonly packageName: '@deepseek-ai/dsh-client-connection'
+  readonly clientModule: '@deepseek-ai/dsh-client-connection/client'
+  readonly protocolVersion: 1
+  readonly hostRpc: boolean
+  readonly clientRpc: boolean
+  readonly defaultAuthority: 'loopback'
+}
+
 /** Build/runtime protocol values owned by one DSH compatibility generation. */
 export interface DshCompatibility {
   readonly id: string
@@ -37,6 +46,7 @@ export interface DshCompatibility {
   readonly profile: DshProfileCompatibility
   readonly runtimePlugins?: readonly DshxRuntimePluginSpec[]
   readonly inspect?: DshInspectCompatibility
+  readonly connection?: DshConnectionCompatibility
   readonly client: {
     readonly platformModules: readonly string[]
     readonly preloadedExternals: readonly string[]

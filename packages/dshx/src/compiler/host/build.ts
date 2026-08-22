@@ -5,10 +5,12 @@ import { build, type InlineConfig, type Plugin } from 'vite'
 import { DshxError } from '../../diagnostics.js'
 import type { DshCompatibility } from '../../compat/types.js'
 import { isHostExternal, singleHostChunkPlugin } from './guards.js'
+import { API_PUBLIC_SOURCE } from '../api-public.js'
 
 const VIRTUAL_HOST_ENTRY = '\0virtual:dshx-host-entry'
 const VIRTUAL_HOST_PUBLIC = '\0virtual:dshx-host-public'
 const DSHX_HOST_PUBLIC = '@becomeopc/dshx/host'
+const DSHX_API_PUBLIC = '@becomeopc/dshx/api'
 const HOST_RUNTIME_PATH = fileURLToPath(new URL('../../host/runtime.js', import.meta.url))
 
 /** Options for producing one Node ESM Host bundle. */
@@ -51,8 +53,8 @@ function hostEntryPlugin(
   return {
     name: 'dshx-host-entry',
     resolveId(source) {
-      if (source === VIRTUAL_HOST_ENTRY || source === DSHX_HOST_PUBLIC) {
-        return source === DSHX_HOST_PUBLIC ? VIRTUAL_HOST_PUBLIC : VIRTUAL_HOST_ENTRY
+      if (source === VIRTUAL_HOST_ENTRY || source === DSHX_HOST_PUBLIC || source === DSHX_API_PUBLIC) {
+        return source === DSHX_HOST_PUBLIC ? VIRTUAL_HOST_PUBLIC : source === DSHX_API_PUBLIC ? `${VIRTUAL_HOST_PUBLIC}-api` : VIRTUAL_HOST_ENTRY
       }
       return null
     },
@@ -64,6 +66,7 @@ function hostEntryPlugin(
           '',
         ].join('\n')
       }
+      if (id === `${VIRTUAL_HOST_PUBLIC}-api`) return API_PUBLIC_SOURCE
       if (id !== VIRTUAL_HOST_ENTRY) return null
       if (paths.entry === undefined) {
         return `export const name = ${JSON.stringify(name)}\nexport function apply() {}\n`
@@ -134,7 +137,7 @@ function hostConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options: 
       rollupOptions: {
         input: VIRTUAL_HOST_ENTRY,
         preserveEntrySignatures: 'strict',
-        external: source => source !== DSHX_HOST_PUBLIC && isHostExternal(source),
+        external: source => source !== DSHX_HOST_PUBLIC && source !== DSHX_API_PUBLIC && isHostExternal(source),
         output: {
           format: 'es',
           entryFileNames: 'index.js',

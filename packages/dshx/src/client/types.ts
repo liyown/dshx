@@ -10,12 +10,22 @@ import type {
   SlotMap,
   StoreDecl,
 } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ApiContract, ApiMethodDefinition } from '../api/types.js'
 
 /** Author-facing Client definition backed by the official Cordis context. */
 export interface ClientDefinition {
   readonly name?: string
   readonly inject?: readonly string[]
-  readonly slots?: readonly SlotContribution[]
+  // Keep this constraint structural. A bare SlotContribution defaults to an
+  // unknown Slot union whose kind-specific options are intentionally empty;
+  // defineSlot() supplies the precise relationship on the inferred value.
+  readonly slots?: readonly {
+    readonly name: string
+    readonly options: object
+    readonly component: unknown
+  }[]
+  readonly api?: ApiContract<Record<string, ApiMethodDefinition<any, any>>>
+  readonly apis?: readonly ApiContract<Record<string, ApiMethodDefinition<any, any>>>[]
   readonly setup?: (ctx: Context) => void | Promise<void>
 }
 

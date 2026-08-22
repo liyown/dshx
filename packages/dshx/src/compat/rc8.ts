@@ -40,6 +40,14 @@ export const RC8_COMPATIBILITY: DshCompatibility = {
       eventProvider: 'Event',
     },
   },
+  connection: {
+    packageName: '@deepseek-ai/dsh-client-connection',
+    clientModule: '@deepseek-ai/dsh-client-connection/client',
+    protocolVersion: 1,
+    hostRpc: true,
+    clientRpc: true,
+    defaultAuthority: 'loopback',
+  },
   client: {
     platformModules: [
       'react',
@@ -52,6 +60,7 @@ export const RC8_COMPATIBILITY: DshCompatibility = {
     ],
     preloadedExternals: [
       '@deepseek-ai/dsh-client-runtime/client',
+      '@deepseek-ai/dsh-client-connection/client',
     ],
     manifest: {
       platform: 'web',

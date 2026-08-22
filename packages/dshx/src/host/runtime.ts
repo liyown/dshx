@@ -12,8 +12,9 @@ import type { HostDefinition } from './types.js'
 import type { DshCompatibility } from '../compat/types.js'
 import { loadRuntimePlugins } from './runtime-plugins.js'
 import { inspectBridgeEnabled, ownHostInspectBridge, startHostInspectBridge } from './inspect-bridge.js'
+import { registerApi } from '../api/runtime.js'
 
-const HOST_DEFINITION_KEYS = new Set(['name', 'inject', 'tools', 'setup'])
+const HOST_DEFINITION_KEYS = new Set(['name', 'inject', 'tools', 'api', 'apis', 'setup'])
 
 /** Project identity embedded by the Host compiler. */
 export interface HostPluginMetadata {
@@ -58,6 +59,13 @@ async function startHostRuntime(ctx: Context, metadata: HostPluginMetadata): Pro
     runtimePlugins: runtimePlugins.plugins,
   })
   ownHostInspectBridge(ctx, bridge)
+}
+
+function normalizeApis(definition: HostDefinition): readonly import('../api/types.js').ApiHostRegistration[] {
+  return [
+    ...(definition.api === undefined ? [] : [definition.api]),
+    ...(definition.apis ?? []),
+  ]
 }
 
 function withRuntime(
@@ -108,6 +116,12 @@ function validateDefinition(value: unknown, metadata: HostPluginMetadata): HostD
   if (source.tools !== undefined && !Array.isArray(source.tools)) {
     fail('DSHX2002', 'Host definition tools must be an array of official ToolDefinition values.', metadata, 'Use tools: [tool] or remove tools when this Host registers no tools.')
   }
+  if (source.api !== undefined && (typeof source.api !== 'object' || source.api === null || Array.isArray(source.api))) {
+    fail('DSHX2002', 'Host api must be a value returned by api.host().', metadata, 'Use api: contract.host({ method() { ... } }) or remove api.')
+  }
+  if (source.apis !== undefined && (!Array.isArray(source.apis) || source.apis.some(item => typeof item !== 'object' || item === null || Array.isArray(item)))) {
+    fail('DSHX2002', 'Host apis must be an array of values returned by api.host().', metadata, 'Use apis: [contract.host({ ... })] or remove apis.')
+  }
   if (source.setup !== undefined && typeof source.setup !== 'function') {
     fail('DSHX2002', 'Host definition setup must be a function.', metadata, 'Use setup(ctx) { ... } or remove setup.')
   }
@@ -119,12 +133,16 @@ export function createHostPlugin(value: unknown, metadata: HostPluginMetadata): 
   const definition = validateDefinition(value, metadata)
   const inject = [...new Set(definition.inject ?? [])]
   if ((definition.tools?.length ?? 0) > 0 && !inject.includes('tools')) inject.push('tools')
+  const apis = normalizeApis(definition)
+  if (apis.length > 0 && !inject.includes('connection')) inject.push('connection')
   return {
     name: definition.name ?? fallbackName(metadata),
     inject,
     apply(ctx) {
       for (const tool of definition.tools ?? []) ctx.tools.register(tool)
-      return withRuntime(ctx, definition.setup?.(ctx), metadata)
+      if (apis.length === 0) return withRuntime(ctx, definition.setup?.(ctx), metadata)
+      const apiSetup = Promise.all(apis.map(api => registerApi(ctx, metadata.packageId, api)))
+      return withRuntime(ctx, apiSetup.then(() => definition.setup?.(ctx)), metadata)
     },
   }
 }
