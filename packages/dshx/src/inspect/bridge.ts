@@ -1,9 +1,10 @@
 import { randomUUID, createHash } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import { createConnection } from 'node:net'
 import { homedir, tmpdir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import { DshxError } from '../diagnostics.js'
+import type { DshxDiagnostic } from '../diagnostics.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import type { InspectProvider, ServiceSummary, EventSummary, SlotSummary, ToolSummary } from './types.js'
 
@@ -32,6 +33,14 @@ interface BridgeResponse {
 export interface DshInspectBridgeProviderOptions {
   readonly env?: Readonly<NodeJS.ProcessEnv>
   readonly timeoutMs?: number
+}
+
+export type InspectBridgeState = 'disabled' | 'running' | 'stale' | 'invalid' | 'unavailable'
+
+export interface InspectBridgeStatus {
+  readonly state: InspectBridgeState
+  readonly metadata?: Readonly<Record<string, unknown>>
+  readonly diagnostics: readonly DshxDiagnostic[]
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -64,6 +73,82 @@ function processAlive(pid: number): boolean {
   } catch (error) {
     return (error as NodeJS.ErrnoException).code !== 'ESRCH'
   }
+}
+
+function publicMetadata(value: Record<string, unknown>): Readonly<Record<string, unknown>> {
+  const { token: _token, ...safe } = value
+  return safe
+}
+
+/** Read the local Host bridge state without connecting to or starting DSH. */
+export async function inspectBridgeStatus(
+  project: ResolvedDshxConfig,
+  options: DshInspectBridgeProviderOptions = {},
+): Promise<InspectBridgeStatus> {
+  const env = { ...process.env, ...options.env }
+  const paths = endpointPaths(project.packageId, env)
+  let text: string
+  try {
+    text = await readFile(paths.metadataPath, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { state: 'disabled', diagnostics: [] }
+    return {
+      state: 'invalid',
+      diagnostics: [{
+        code: 'DSHX5103', severity: 'warning',
+        message: `Unable to read the Host Inspect bridge metadata: ${String(error)}`,
+        file: project.packageFile,
+        hint: 'Remove the stale bridge metadata or restart the DSH Composition with dshx dev.',
+      }],
+    }
+  }
+  let value: unknown
+  try {
+    value = JSON.parse(text)
+  } catch (error) {
+    return {
+      state: 'invalid',
+      diagnostics: [{
+        code: 'DSHX5103', severity: 'warning',
+        message: `Host Inspect bridge metadata is not valid JSON: ${String(error)}`,
+        file: project.packageFile,
+        hint: 'Restart the DSH Composition so DSHX can recreate its bridge metadata.',
+      }],
+    }
+  }
+  if (!isRecord(value) || value.version !== PROTOCOL_VERSION || typeof value.packageId !== 'string' || typeof value.root !== 'string' || typeof value.pid !== 'number' || !Number.isInteger(value.pid) || typeof value.socketPath !== 'string') {
+    return {
+      state: 'invalid',
+      diagnostics: [{ code: 'DSHX5103', severity: 'warning', message: 'Host Inspect bridge metadata is invalid.', file: project.packageFile, hint: 'Restart the DSH Composition so DSHX can recreate its bridge metadata.' }],
+    }
+  }
+  if (value.packageId !== project.packageId || resolve(value.root) !== resolve(project.root) || resolve(value.socketPath) !== resolve(paths.socketPath)) {
+    return {
+      state: 'invalid',
+      diagnostics: [{ code: 'DSHX5103', severity: 'warning', message: 'Host Inspect bridge metadata does not belong to this project.', file: project.packageFile, hint: 'Close stale DSH processes and restart the project from its configured root.' }],
+    }
+  }
+  if (!processAlive(value.pid)) {
+    return {
+      state: 'stale',
+      metadata: publicMetadata(value),
+      diagnostics: [{ code: 'DSHX5103', severity: 'warning', message: 'The Host Inspect bridge belongs to an exited Composition.', file: project.packageFile, hint: 'Restart the project with dshx dev before using runtime Inspect.' }],
+    }
+  }
+  try {
+    await access(value.socketPath)
+  } catch {
+    return {
+      state: 'stale',
+      metadata: publicMetadata(value),
+      diagnostics: [{ code: 'DSHX5103', severity: 'warning', message: 'The Host Inspect bridge socket is missing.', file: project.packageFile, hint: 'Restart the project with dshx dev before using runtime Inspect.' }],
+    }
+  }
+  const runtimePlugins = Array.isArray(value.runtimePlugins) ? value.runtimePlugins : []
+  const failed = runtimePlugins.some(item => isRecord(item) && (item.status === 'failed' || item.status === 'missing'))
+  return { state: failed ? 'unavailable' : 'running', metadata: publicMetadata(value), diagnostics: failed
+    ? [{ code: 'DSHX5103', severity: 'warning', message: 'One or more optional DSHX runtime plugins failed to load in the running Composition.', file: project.packageFile, hint: 'Run dshx check --json for plugin details and install the missing development dependencies.' }]
+    : [] }
 }
 
 async function readMetadata(path: string, project: ResolvedDshxConfig, expectedSocket: string): Promise<{ metadata: Required<Pick<BridgeMetadata, 'packageId' | 'root' | 'pid' | 'socketPath' | 'token'>>; socketPath: string }> {

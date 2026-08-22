@@ -12,11 +12,16 @@ import { checkProjectManifest } from '../project/index.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import { inspectProjectComposition } from '../inspect/index.js'
 import type { InspectResult, InspectTarget } from '../inspect/index.js'
+import { inspectBridgeStatus } from '../inspect/bridge.js'
+import type { InspectBridgeStatus } from '../inspect/bridge.js'
+import { inspectRuntimePlugins } from '../runtime-status.js'
+import type { RuntimePluginReport } from '../runtime-status.js'
 import { createHookScaffold, createToolScaffold, createUiScaffold } from '../scaffold/index.js'
 import type { AddHookOptions, AddHookResult, AddToolOptions, AddToolResult, AddUiOptions, AddUiResult } from '../scaffold/index.js'
 import { DEFAULT_COMPATIBILITY, detectInstalledDshVersion, resolveDeclaredCompatibility, classifyCompatibility } from '../compat/index.js'
 import { CliUsageError, parseCliArgs, type CliArgs } from './args.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
+import type { RuntimePluginStatus } from '../host/runtime-plugins.js'
 
 export interface CliIO {
   readonly stdin: Readable & { isTTY?: boolean; setRawMode?: (mode: boolean) => void }
@@ -34,6 +39,8 @@ export interface CliRuntime {
   readonly buildClient?: typeof buildClient
   readonly startDev?: typeof startDevSession
   readonly inspectComposition?: typeof inspectProjectComposition
+  readonly inspectRuntimePlugins?: typeof inspectRuntimePlugins
+  readonly inspectBridgeStatus?: typeof inspectBridgeStatus
   readonly addUi?: (options: AddUiOptions) => Promise<AddUiResult>
   readonly addTool?: (options: AddToolOptions) => Promise<AddToolResult>
   readonly addHook?: (options: AddHookOptions) => Promise<AddHookResult>
@@ -101,6 +108,29 @@ function printVerboseCause(io: CliIO, error: unknown): void {
 
 function hasErrors(items: readonly DshxDiagnostic[]): boolean {
   return items.some(item => item.severity === 'error')
+}
+
+function mergeRuntimePluginStatus(
+  report: RuntimePluginReport,
+  bridge: InspectBridgeStatus,
+): RuntimePluginReport {
+  const raw = bridge.metadata?.runtimePlugins
+  if (!Array.isArray(raw)) return report
+  const runtime = new Map<string, RuntimePluginStatus>()
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) continue
+    const value = item as Record<string, unknown>
+    if (typeof value.id !== 'string' || typeof value.packageName !== 'string' || !Array.isArray(value.provides) || value.provides.some(entry => typeof entry !== 'string') || (value.status !== 'loaded' && value.status !== 'skipped' && value.status !== 'failed')) continue
+    runtime.set(value.id, {
+      id: value.id,
+      packageName: value.packageName,
+      provides: value.provides as string[],
+      status: value.status,
+      ...(typeof value.message === 'string' ? { message: value.message } : {}),
+    })
+  }
+  if (runtime.size === 0) return report
+  return { ...report, plugins: report.plugins.map(plugin => runtime.get(plugin.id) ?? plugin) }
 }
 
 function projectSummary(project: ResolvedDshxConfig): Record<string, unknown> {
@@ -221,6 +251,8 @@ interface CheckResult {
   readonly diagnostics: readonly DshxDiagnostic[]
   readonly dsh?: ResolvedDshInstallation
   readonly profile?: ProjectProfileLink
+  readonly runtimePlugins: RuntimePluginReport
+  readonly bridge: InspectBridgeStatus
 }
 
 async function runCheck(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
@@ -229,6 +261,8 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
   let diagnostics: DshxDiagnostic[] = []
   let dsh: ResolvedDshInstallation | undefined
   let profile: ProjectProfileLink | undefined
+  let runtimePlugins: RuntimePluginReport = { plugins: [], diagnostics: [] }
+  let bridge: InspectBridgeStatus = { state: 'disabled', diagnostics: [] }
   try {
     dsh = await (runtime.resolveDsh ?? resolveDshInstallation)(project)
     diagnostics.push(...dsh.diagnostics)
@@ -243,10 +277,13 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
     diagnostics.push(diagnosticFromError(error, project.packageFile))
   }
   const compatibility = dsh?.compatibility ?? resolveDeclaredCompatibility(project.manifest)?.compatibility ?? DEFAULT_COMPATIBILITY
-  diagnostics = [...await (runtime.checkManifest ?? checkProjectManifest)(project, { compatibility }), ...diagnostics]
-  const result: CheckResult = { project, diagnostics, ...(dsh === undefined ? {} : { dsh }), ...(profile === undefined ? {} : { profile }) }
+  runtimePlugins = await (runtime.inspectRuntimePlugins ?? inspectRuntimePlugins)(project, compatibility)
+  bridge = await (runtime.inspectBridgeStatus ?? inspectBridgeStatus)(project)
+  runtimePlugins = mergeRuntimePluginStatus(runtimePlugins, bridge)
+  diagnostics = [...await (runtime.checkManifest ?? checkProjectManifest)(project, { compatibility }), ...runtimePlugins.diagnostics, ...bridge.diagnostics, ...diagnostics]
+  const result: CheckResult = { project, diagnostics, ...(dsh === undefined ? {} : { dsh }), ...(profile === undefined ? {} : { profile }), runtimePlugins, bridge }
   if (args.json) {
-    write(io.stdout, `${JSON.stringify({ project: projectSummary(project), diagnostics, dsh: installationSummary(dsh), profile: profile ?? null }, null, 2)}\n`)
+    write(io.stdout, `${JSON.stringify({ project: projectSummary(project), diagnostics, dsh: installationSummary(dsh), profile: profile ?? null, runtimePlugins: runtimePlugins.plugins, bridge: { state: bridge.state, metadata: bridge.metadata ?? null } }, null, 2)}\n`)
   } else {
     for (const item of diagnostics) printDiagnostic(io, item)
     if (!hasErrors(diagnostics)) write(io.stdout, `Check passed for ${project.packageId}\n`)

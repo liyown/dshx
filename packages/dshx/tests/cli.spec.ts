@@ -144,7 +144,7 @@ describe('CLI commands', () => {
     expect(ensure).not.toHaveBeenCalled()
     streams.out.end(); streams.err.end()
     const output = await text(streams.out)
-    expect(JSON.parse(output)).toMatchObject({ diagnostics: [{ code: 'DSHX4305', severity: 'error' }], dsh: { adapterId: 'dsh-0.1', protocolGeneration: '0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0' } })
+    expect(JSON.parse(output)).toMatchObject({ diagnostics: [{ code: 'DSHX4305', severity: 'error' }], dsh: { adapterId: 'dsh-0.1', protocolGeneration: '0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0' }, runtimePlugins: [], bridge: { state: 'disabled', metadata: null } })
   })
 
   it('blocks dev before profile linking when manifest has errors', async () => {

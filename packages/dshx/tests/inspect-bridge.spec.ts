@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DshInspectBridgeProvider } from '../src/inspect/bridge.js'
+import { DshInspectBridgeProvider, inspectBridgeStatus } from '../src/inspect/bridge.js'
 import type { ResolvedDshxConfig } from '../src/config/index.js'
 
 const project: ResolvedDshxConfig = {
@@ -51,6 +51,31 @@ describe('DshInspectBridgeProvider', () => {
     const provider = new DshInspectBridgeProvider(project, { env: { DSH_HOME: root } })
     await expect(provider.listServices()).resolves.toEqual([{ name: 'logger', provider: 'Service', scope: 'composition' }])
     await new Promise<void>(resolve => server.close(() => resolve()))
+  })
+
+  it('reports a running bridge without exposing its authentication token', async () => {
+    const root = await mkdtemp(join('/tmp', 'dx-'))
+    tempRoots.push(root)
+    const close = await endpoint(root, JSON.stringify({ version: 1, requestId: 'unused', ok: true, target: 'services', items: [] }))
+    const status = await inspectBridgeStatus(project, { env: { DSH_HOME: root } })
+    expect(status.state).toBe('running')
+    expect(status.metadata).toBeDefined()
+    expect(status.metadata).not.toHaveProperty('token')
+    await close()
+  })
+
+  it('reports stale bridge metadata without connecting to a process', async () => {
+    const root = await mkdtemp(join('/tmp', 'dx-'))
+    tempRoots.push(root)
+    const directory = join(root, 'runtime', 'dshx', 'inspect')
+    await mkdir(directory, { recursive: true })
+    const name = createHash('sha256').update(project.packageId).digest('hex').slice(0, 20)
+    const socketPath = join(directory, `${name}.sock`)
+    const metadataPath = join(directory, `${name}.json`)
+    await writeFile(metadataPath, JSON.stringify({ version: 1, packageId: project.packageId, root: project.root, pid: 99999999, socketPath, token: randomUUID() }) + '\n')
+    const status = await inspectBridgeStatus(project, { env: { DSH_HOME: root } })
+    expect(status.state).toBe('stale')
+    expect(status.diagnostics[0]).toMatchObject({ code: 'DSHX5103', severity: 'warning' })
   })
 
   it('maps missing endpoints and malformed responses to stable diagnostics', async () => {
