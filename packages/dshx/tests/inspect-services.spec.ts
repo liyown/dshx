@@ -58,17 +58,15 @@ describe('services and events inspect normalization', () => {
     expect(result.diagnostics[0]?.code).toBe('DSHX3204')
   })
 
-  it('reports rc.8 services/events as unsupported without querying a provider', async () => {
+  it('reports a missing rc.8 bridge without fabricating services', async () => {
     const value = project()
-    const listServices = vi.fn(async () => [{ name: 'should-not-run' }])
     const inspectProfile = vi.fn(async () => linked(value))
     const result = await inspectProjectComposition(value, 'services', {
-      provider: { listSlots: async () => [], listTools: async () => [], listServices },
       resolveDsh: async () => installation(),
       inspectProfile,
+      runner: async () => ({ exitCode: 1, stdout: '', stderr: 'No Inspect bridge is available for profile "web".', executable: 'local' }),
     })
-    expect(result.diagnostics[0]?.code).toBe('DSHX3204')
-    expect(listServices).not.toHaveBeenCalled()
-    expect(inspectProfile).not.toHaveBeenCalled()
+    expect(result.diagnostics[0]?.code).toBe('DSHX3201')
+    expect(inspectProfile).toHaveBeenCalledTimes(1)
   })
 })
