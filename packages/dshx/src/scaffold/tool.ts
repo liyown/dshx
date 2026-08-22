@@ -49,7 +49,7 @@ function toolIdentifier(name: string): string {
 
 function sourceForTool(name: string, description: string): string {
   const identifier = toolIdentifier(name)
-  return `import { defineTool } from 'dshx/host'\n\nexport const ${identifier} = defineTool({\n  name: ${JSON.stringify(name)},\n  description: ${JSON.stringify(description)},\n  parameters: {},\n  output: {\n    schema: { type: 'string' },\n    render: (_args, value) => [{ type: 'text', text: value }],\n  },\n  async execute() {\n    return ${JSON.stringify(`Implement ${name}`)}\n  },\n})\n`
+  return `import { defineTool } from '@becomeopc/dshx/host'\n\nexport const ${identifier} = defineTool({\n  name: ${JSON.stringify(name)},\n  description: ${JSON.stringify(description)},\n  parameters: {},\n  output: {\n    schema: { type: 'string' },\n    render: (_args, value) => [{ type: 'text', text: value }],\n  },\n  async execute() {\n    return ${JSON.stringify(`Implement ${name}`)}\n  },\n})\n`
 }
 
 function findDefineHost(sourceFile: ts.SourceFile): ts.CallExpression | undefined {
@@ -119,7 +119,7 @@ function newHostSource(toolFile: string, hostFile: string, name: string): string
   let importPath = relative(dirname(hostFile), toolFile).replaceAll('\\', '/')
   if (!importPath.startsWith('.')) importPath = `./${importPath}`
   importPath = importPath.replace(/\.ts$/, '')
-  return `import { defineHost } from 'dshx/host'\nimport { ${toolIdentifier(name)} } from ${JSON.stringify(importPath)}\n\nexport default defineHost({\n  tools: [${toolIdentifier(name)}],\n})\n`
+  return `import { defineHost } from '@becomeopc/dshx/host'\nimport { ${toolIdentifier(name)} } from ${JSON.stringify(importPath)}\n\nexport default defineHost({\n  tools: [${toolIdentifier(name)}],\n})\n`
 }
 
 function result(project: ResolvedDshxConfig, options: AddToolOptions, diagnostics: readonly DshxDiagnostic[], plan: readonly FilePlan[], diffText?: string): AddToolResult {

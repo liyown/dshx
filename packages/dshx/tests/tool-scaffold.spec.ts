@@ -19,7 +19,7 @@ async function setup(host: 'define' | 'native' | 'missing' | 'disabled'): Promis
   await writeFile(resolve(root, 'package.json'), JSON.stringify({ name: '@demo/plugin', type: 'module', exports: { '.': './dist/index.js' }, dsh: { bundle: { patch: './cordis.patch.yml' } } }))
   await writeFile(resolve(root, 'cordis.patch.yml'), '- insert:\n    - id: demo\n')
   let configFile: string | undefined
-  if (host === 'define') await writeFile(resolve(root, 'src/host.ts'), "import { defineHost } from 'dshx/host'\n\nexport default defineHost({ setup() {} })\n")
+  if (host === 'define') await writeFile(resolve(root, 'src/host.ts'), "import { defineHost } from '@becomeopc/dshx/host'\n\nexport default defineHost({ setup() {} })\n")
   if (host === 'native') await writeFile(resolve(root, 'src/host.ts'), 'export const name = "demo"\nexport function apply() {}\n')
   if (host === 'disabled') {
     configFile = resolve(root, 'dshx.config.ts')
@@ -37,7 +37,7 @@ describe('add tool scaffold', () => {
       const result = await createToolScaffold({ project: value.project, name: 'status', description: 'Status tool' }, { checkManifest: async () => [] })
       expect(result.diagnostics).toEqual([])
       const tool = await readFile(resolve(value.root, 'src/tools/status.ts'), 'utf8')
-      expect(tool).toContain("import { defineTool } from 'dshx/host'")
+      expect(tool).toContain("import { defineTool } from '@becomeopc/dshx/host'")
       expect(tool).toContain('parameters: {}')
       expect(tool).toContain("schema: { type: 'string' }")
       const host = await readFile(resolve(value.root, 'src/host.ts'), 'utf8')

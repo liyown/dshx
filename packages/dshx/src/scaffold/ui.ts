@@ -157,7 +157,7 @@ function generatedSource(slot: SlotSummary, provider: string, id: string, order:
     ...(registration.includes('id') ? [`  id: ${JSON.stringify(id)},`] : []),
     ...(registration.includes('order') ? [`  order: ${order},`] : []),
   ].join('\n')
-  return `import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'\nimport type {} from ${JSON.stringify(providerClient(provider))}\nimport { defineSlot } from 'dshx/client'\n\nexport function ${component}(_props: PropsRuntime<${JSON.stringify(slot.name)}>) {\n  return <button type="button">{${JSON.stringify(slot.name)}}</button>\n}\n\nexport const generatedSlot = defineSlot(${JSON.stringify(slot.name)}, {\n${options}${options === '' ? '' : '\n'}  component: ${component},\n})\n`
+  return `import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'\nimport type {} from ${JSON.stringify(providerClient(provider))}\nimport { defineSlot } from '@becomeopc/dshx/client'\n\nexport function ${component}(_props: PropsRuntime<${JSON.stringify(slot.name)}>) {\n  return <button type="button">{${JSON.stringify(slot.name)}}</button>\n}\n\nexport const generatedSlot = defineSlot(${JSON.stringify(slot.name)}, {\n${options}${options === '' ? '' : '\n'}  component: ${component},\n})\n`
 }
 
 function relativeImport(fromFile: string, targetFile: string): string {
@@ -228,7 +228,7 @@ function modifyClientSource(source: string, file: string, contributionFile: stri
 function newClientSource(clientFile: string, contributionFile: string, slotName: string): string {
   const importPath = relativeImport(clientFile, contributionFile)
   const identifier = contributionIdentifier(slotName)
-  return `import { defineClient } from 'dshx/client'\nimport { generatedSlot as ${identifier} } from ${JSON.stringify(importPath)}\n\nexport default defineClient({\n  slots: [${identifier}],\n})\n`
+  return `import { defineClient } from '@becomeopc/dshx/client'\nimport { generatedSlot as ${identifier} } from ${JSON.stringify(importPath)}\n\nexport default defineClient({\n  slots: [${identifier}],\n})\n`
 }
 
 function updateManifest(

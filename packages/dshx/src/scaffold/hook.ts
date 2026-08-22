@@ -150,7 +150,7 @@ function modifyHost(source: string, hostFile: string, hookFile: string, event: s
 }
 
 function newHostSource(hostFile: string, hookFile: string, event: string): string {
-  return `import { defineHost } from 'dshx/host'\nimport { ${registerName(event)} } from ${JSON.stringify(importPath(hostFile, hookFile))}\n\nexport default defineHost({\n  setup(ctx) {\n    ${registerName(event)}(ctx)\n  },\n})\n`
+  return `import { defineHost } from '@becomeopc/dshx/host'\nimport { ${registerName(event)} } from ${JSON.stringify(importPath(hostFile, hookFile))}\n\nexport default defineHost({\n  setup(ctx) {\n    ${registerName(event)}(ctx)\n  },\n})\n`
 }
 
 function makeResult(project: ResolvedDshxConfig, options: AddHookOptions, diagnostics: readonly DshxDiagnostic[], plan: readonly FilePlan[], diff?: string): AddHookResult {

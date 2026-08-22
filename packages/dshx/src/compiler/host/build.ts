@@ -8,7 +8,7 @@ import { isHostExternal, singleHostChunkPlugin } from './guards.js'
 
 const VIRTUAL_HOST_ENTRY = '\0virtual:dshx-host-entry'
 const VIRTUAL_HOST_PUBLIC = '\0virtual:dshx-host-public'
-const DSHX_HOST_PUBLIC = 'dshx/host'
+const DSHX_HOST_PUBLIC = '@becomeopc/dshx/host'
 const HOST_RUNTIME_PATH = fileURLToPath(new URL('../../host/runtime.js', import.meta.url))
 
 /** Options for producing one Node ESM Host bundle. */

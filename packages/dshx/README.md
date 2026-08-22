@@ -5,7 +5,7 @@ Build and debug DSH Host and Client plugins.
 ## Install
 
 ```bash
-pnpm add -D dshx @deepseek-ai/dsh
+pnpm add -D @becomeopc/dshx @deepseek-ai/dsh
 ```
 
 For runtime plugin loading and Inspect, also install the adapter-approved optional packages:

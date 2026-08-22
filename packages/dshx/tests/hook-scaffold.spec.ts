@@ -18,7 +18,7 @@ async function setup(host: 'define' | 'missing' | 'native'): Promise<{ root: str
   await mkdir(resolve(root, 'src'), { recursive: true })
   await writeFile(resolve(root, 'package.json'), JSON.stringify({ name: 'demo-plugin', type: 'module', exports: { '.': './dist/index.js' }, dsh: { bundle: { patch: './cordis.patch.yml' } } }))
   await writeFile(resolve(root, 'cordis.patch.yml'), '- insert:\n    - id: demo\n')
-  if (host === 'define') await writeFile(resolve(root, 'src/host.ts'), "import { defineHost } from 'dshx/host'\n\nexport default defineHost({\n  name: 'demo',\n  setup() {},\n})\n")
+  if (host === 'define') await writeFile(resolve(root, 'src/host.ts'), "import { defineHost } from '@becomeopc/dshx/host'\n\nexport default defineHost({\n  name: 'demo',\n  setup() {},\n})\n")
   if (host === 'native') await writeFile(resolve(root, 'src/host.ts'), 'export const name = "demo"\nexport function apply() {}\n')
   return { root, project: project(root, host === 'missing' ? undefined : resolve(root, 'src/host.ts')), cleanup: () => rm(root, { recursive: true, force: true }) }
 }
@@ -52,7 +52,7 @@ describe('add hook scaffold', () => {
   it('uses an existing setup parameter name when attaching the listener', async () => {
     const value = await setup('define')
     try {
-      await writeFile(resolve(value.root, 'src/host.ts'), "import { defineHost } from 'dshx/host'\n\nexport default defineHost({ setup(context) { context.services } })\n")
+      await writeFile(resolve(value.root, 'src/host.ts'), "import { defineHost } from '@becomeopc/dshx/host'\n\nexport default defineHost({ setup(context) { context.services } })\n")
       const result = await createHookScaffold({ project: value.project, event: 'agent.ready' }, { checkManifest: async () => [] })
       expect(result.diagnostics).toEqual([])
       expect(await readFile(resolve(value.root, 'src/host.ts'), 'utf8')).toContain('registerAgentReadyHook(context)')

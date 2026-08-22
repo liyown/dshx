@@ -71,7 +71,7 @@ This remains a process-control API rather than a user command. It does not own s
 
 ## 2026-08-21: create-dshx generates the first runnable Full project
 
-`create-dshx` is a separate public package so `pnpm create dshx <name>` follows pnpm's standard create-package resolution. `dshx` is also publishable and keeps the compiler, runtime helpers, and `dshx build/check/dev` bin. The two packages use the same release version; generated manifests never contain `workspace:*` and receive the matching `dshx` version.
+`create-dshx` is a separate public package so `pnpm create dshx <name>` follows pnpm's standard create-package resolution. The compiler package is published as `@becomeopc/dshx` because npm rejects the unscoped `dshx` name as too similar to existing packages; it keeps the compiler, runtime helpers, and `dshx build/check/dev` bin. The two packages use the same release version; generated manifests never contain `workspace:*` and receive the matching `@becomeopc/dshx` version.
 
 The first initializer only emits a Full Host + Client project. It uses a small, checked template containing `defineHost`/official `defineTool`, `defineClient`/`defineSlot`, the sidebar provider declaration import, the required exports, DSH metadata, and a minimal bundle patch. Project names are non-scoped npm names and are used as both the target directory and package ID. Existing target directories are never overwritten.
 
@@ -83,7 +83,7 @@ The initializer does not implement Host-only/Client-only templates, `check --fix
 
 ## 2026-08-21: defineHost is an identity API over the official Host model
 
-`dshx/host` exposes an identity-preserving `defineHost()` whose `setup` receives the official Cordis `Context` and whose `tools` accept the rc.8 `ToolDefinition` directly. DSHX does not introduce parallel Context, Tool, registry, or disposer types. The official Cordis and tools packages are peer dependencies used for public typing; re-exporting the official `defineTool` remains a separate next-stage decision.
+`@becomeopc/dshx/host` exposes an identity-preserving `defineHost()` whose `setup` receives the official Cordis `Context` and whose `tools` accept the rc.8 `ToolDefinition` directly. DSHX does not introduce parallel Context, Tool, registry, or disposer types. The official Cordis and tools packages are peer dependencies used for public typing; re-exporting the official `defineTool` remains a separate next-stage decision.
 
 The Host compiler now builds through a virtual entry. A default export is normalized as a Host definition; a module without a default export retains its native `name`, `inject`, `Config`, and `apply` contract. Definition names override the resolved logical project name, which in turn falls back to the package ID. Client-only projects keep a named no-op Host entry.
 
@@ -93,17 +93,17 @@ The public identity helper and internal adapter are bundled into `dist/index.js`
 
 ## 2026-08-21: defineTool is the official rc.8 helper
 
-`dshx/host` re-exports the exact `@deepseek-ai/dsh-tools` `defineTool` function. DSHX does not copy `ToolDefinition`, `DefineToolOptions`, schema inference, validation, output rendering, timeout policy, presentation, or registry lifecycle. A Host definition registers those official values through `ctx.tools.register()` in declaration order; Cordis owns registration disposal.
+`@becomeopc/dshx/host` re-exports the exact `@deepseek-ai/dsh-tools` `defineTool` function. DSHX does not copy `ToolDefinition`, `DefineToolOptions`, schema inference, validation, output rendering, timeout policy, presentation, or registry lifecycle. A Host definition registers those official values through `ctx.tools.register()` in declaration order; Cordis owns registration disposal.
 
-The Host virtual module exposes an inlined identity `defineHost` and forwards `defineTool` to the bare `@deepseek-ai/dsh-tools` external. Built Host artifacts therefore contain no `dshx/host` or DSHX runtime import and use the DSH-provided official Tool module at load time. Tool View, custom Tool shortcuts, and the user-facing CLI remain later stages.
+The Host virtual module exposes an inlined identity `defineHost` and forwards `defineTool` to the bare `@deepseek-ai/dsh-tools` external. Built Host artifacts therefore contain no `@becomeopc/dshx/host` or DSHX runtime import and use the DSH-provided official Tool module at load time. Tool View, custom Tool shortcuts, and the user-facing CLI remain later stages.
 
 ## 2026-08-21: defineClient is a thin official Client adapter
 
-`dshx/client` exposes an identity-preserving `defineClient()` with `name`, ordered `inject`, `slots`, and `setup(ctx)`. The `Context` type is imported directly from official Cordis; DSHX does not create a private Client context, service container, slot registry, or disposer list. Slot contributions are created by the official-type-driven `defineSlot()` helper and use one authoritative registration path through the rc.8 Slot service.
+`@becomeopc/dshx/client` exposes an identity-preserving `defineClient()` with `name`, ordered `inject`, `slots`, and `setup(ctx)`. The `Context` type is imported directly from official Cordis; DSHX does not create a private Client context, service container, slot registry, or disposer list. Slot contributions are created by the official-type-driven `defineSlot()` helper and use one authoritative registration path through the rc.8 Slot service.
 
 The Client compiler uses a virtual entry just like the Host compiler. A default export is validated and normalized to `{ name, inject, apply }`; a module without a default export keeps native `name`, `inject`, `Config`, and `apply` exports. Definition name overrides the resolved logical project name, then the package ID. Inject entries keep first-occurrence order and are deduplicated. Malformed default definitions use `DSHX2101`/`DSHX2102` with the source file and a repair hint.
 
-The identity helper and adapter are bundled into the lazy-CJS Client artifact. Built output must not import `dshx/client` or DSHX internal runtime code; official Cordis/DSH modules remain governed by the existing Client external policy. Client setup lifecycle remains owned by the official Cordis runtime, and native Client compatibility is retained while the public helper is adopted.
+The identity helper and adapter are bundled into the lazy-CJS Client artifact. Built output must not import `@becomeopc/dshx/client` or DSHX internal runtime code; official Cordis/DSH modules remain governed by the existing Client external policy. Client setup lifecycle remains owned by the official Cordis runtime, and native Client compatibility is retained while the public helper is adopted.
 
 ## 2026-08-21: defineSlot delegates to the official Slot registry
 

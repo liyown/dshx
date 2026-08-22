@@ -25,7 +25,7 @@ describe('host compiler', () => {
   it('adapts a defineHost default export and inlines the DSHX Host runtime', async () => {
     const root = await temporaryProject()
     await writeFile(resolve(root, 'src/host.ts'), [
-      "import { defineHost } from 'dshx/host'",
+      "import { defineHost } from '@becomeopc/dshx/host'",
       "const first = { name: 'first' }",
       "const second = { name: 'second' }",
       'export default defineHost({',
@@ -65,7 +65,7 @@ describe('host compiler', () => {
   it('keeps official defineTool external while adapting the Host entry', async () => {
     const root = await temporaryProject()
     await writeFile(resolve(root, 'src/host.ts'), [
-      "import { defineHost, defineTool } from 'dshx/host'",
+      "import { defineHost, defineTool } from '@becomeopc/dshx/host'",
       "const tool = defineTool({",
       "  name: 'status',",
       "  description: 'Return status.',",
@@ -176,7 +176,7 @@ describe('host compiler', () => {
   it('rewrites the Host artifact after a watched source change', async () => {
     const root = await temporaryProject()
     const sourcePath = resolve(root, 'src/host.ts')
-    await writeFile(sourcePath, "import { defineHost } from 'dshx/host'\nexport default defineHost({ setup() { return 'Phase A has no Host behavior' } })\n")
+    await writeFile(sourcePath, "import { defineHost } from '@becomeopc/dshx/host'\nexport default defineHost({ setup() { return 'Phase A has no Host behavior' } })\n")
     const result = await buildHost({
       packageId: '@dshx/phase-a-fixture',
       root,

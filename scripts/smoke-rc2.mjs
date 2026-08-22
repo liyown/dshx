@@ -83,7 +83,7 @@ function setDependency(manifest, name, version) {
 
 async function configureRc2(root, dshxTarball) {
   const manifest = await packageJson(root)
-  setDependency(manifest, 'dshx', `file:${dshxTarball}`)
+  setDependency(manifest, '@becomeopc/dshx', `file:${dshxTarball}`)
   for (const name of [
     '@deepseek-ai/dsh',
     '@deepseek-ai/dsh-cordis-host-runner',
@@ -120,7 +120,7 @@ async function removeClient(root) {
 async function removeHost(root) {
   const manifest = await packageJson(root)
   await writePackageJson(root, manifest)
-  await writeFile(join(root, 'dshx.config.ts'), `import { defineConfig } from 'dshx/config'\n\nexport default defineConfig({ profile: 'web', host: false })\n`)
+  await writeFile(join(root, 'dshx.config.ts'), `import { defineConfig } from '@becomeopc/dshx/config'\n\nexport default defineConfig({ profile: 'web', host: false })\n`)
   await rm(join(root, 'src/host.ts'), { force: true })
 }
 
@@ -184,10 +184,10 @@ async function startDev(root, env) {
 }
 
 async function packDshx(destination) {
-  await expectSuccess('pnpm', ['--filter', 'dshx', 'pack', '--pack-destination', destination])
+  await expectSuccess('pnpm', ['--filter', '@becomeopc/dshx', 'pack', '--pack-destination', destination])
   const files = (await import('node:fs/promises')).readdir(destination)
   const names = await files
-  const file = names.find(name => name.startsWith('dshx-') && name.endsWith('.tgz'))
+  const file = names.find(name => name.includes('dshx-') && name.endsWith('.tgz'))
   if (file === undefined) throw new Error('pnpm pack did not produce a dshx tarball')
   return join(destination, file)
 }

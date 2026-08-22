@@ -1,4 +1,4 @@
-import { defineHost, defineTool } from 'dshx/host'
+import { defineHost, defineTool } from '@becomeopc/dshx/host'
 
 const phaseATool = defineTool({
   name: 'dshx_phase_a_status',

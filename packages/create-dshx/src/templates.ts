@@ -6,7 +6,7 @@ export const TEMPLATE_FILES = [
 ] as const
 
 export function renderTemplate(path: (typeof TEMPLATE_FILES)[number], context: TemplateContext): string {
-  if (path === 'src/host.ts') return `import { defineHost, defineTool } from 'dshx/host'
+  if (path === 'src/host.ts') return `import { defineHost, defineTool } from '@becomeopc/dshx/host'
 
 const statusTool = defineTool({
   name: '${context.packageId.replace(/[^a-zA-Z0-9_-]/g, '_')}_status',
@@ -30,7 +30,7 @@ export default defineHost({
 `
   if (path === 'src/client.tsx') return `import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { defineClient, defineSlot } from 'dshx/client'
+import { defineClient, defineSlot } from '@becomeopc/dshx/client'
 import styles from './Status.module.css'
 
 function StatusButton(_props: PropsRuntime<'sidebar.footer.action'>) {
@@ -56,7 +56,7 @@ export default defineClient({ slots: [status] })
   padding: 6px 10px;
 }
 `
-  if (path === 'dshx.config.ts') return `import { defineConfig } from 'dshx/config'
+  if (path === 'dshx.config.ts') return `import { defineConfig } from '@becomeopc/dshx/config'
 
 export default defineConfig({
   profile: 'web',
@@ -75,7 +75,7 @@ export default defineConfig({
     dsh: { bundle: { patch: './cordis.patch.yml' }, client: { platform: 'web', inject: ['@deepseek-ai/dsh-client-ui-sidebar'], external: [], immediately: false } },
     scripts: { dev: 'dshx dev', build: 'dshx build', check: 'dshx check' },
     devDependencies: {
-      dshx: context.dshxVersion, '@deepseek-ai/dsh': context.dshVersion,
+      '@becomeopc/dshx': context.dshxVersion, '@deepseek-ai/dsh': context.dshVersion,
       '@deepseek-ai/cordis': '^4.0.1', '@deepseek-ai/dsh-cordis-host-runner': '>=0.1.0-rc.8 <0.2.0',
       '@deepseek-ai/dsh-tool-cordis': '>=0.1.0-rc.8 <0.2.0', '@deepseek-ai/dsh-tools': '>=0.1.0-rc.8 <0.2.0',
       '@deepseek-ai/dsh-client-ui-slots': '>=0.1.0-rc.8 <0.2.0', '@deepseek-ai/dsh-client-ui-sidebar': '>=0.1.0-rc.8 <0.2.0',

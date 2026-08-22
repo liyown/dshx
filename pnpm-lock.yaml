@@ -20,6 +20,9 @@ importers:
 
   fixtures/phase-a:
     devDependencies:
+      '@becomeopc/dshx':
+        specifier: workspace:*
+        version: link:../../packages/dshx
       '@deepseek-ai/dsh':
         specifier: 0.1.0-rc.8
         version: 0.1.0-rc.8(941a15a5168ee103c8ec1dbd3dbad3e9)
@@ -38,9 +41,6 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: 0.1.0-rc.8
         version: 0.1.0-rc.8(ac9081d1e007de8a90a707560a8ae1c3)
-      dshx:
-        specifier: workspace:*
-        version: link:../../packages/dshx
 
   packages/create-dshx:
     dependencies:

@@ -52,7 +52,7 @@ async function setup(full: boolean): Promise<{ root: string; project: ResolvedDs
   await writeFile(resolve(root, 'src/host.ts'), 'export const name = "demo"\nexport function apply() {}\n')
   await writeFile(resolve(root, 'node_modules-marker'), '')
   if (full) {
-    await writeFile(resolve(root, 'src/client.tsx'), 'import { defineClient } from "dshx/client"\n\nexport default defineClient({ setup() {} })\n')
+    await writeFile(resolve(root, 'src/client.tsx'), 'import { defineClient } from "@becomeopc/dshx/client"\n\nexport default defineClient({ setup() {} })\n')
   }
   const manifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')) as Record<string, unknown>
   return { root, project: project(root, full ? resolve(root, 'src/client.tsx') : undefined, manifest), cleanup: () => rm(root, { recursive: true, force: true }) }

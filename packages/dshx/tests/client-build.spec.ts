@@ -88,7 +88,7 @@ describe('client compiler', () => {
   it('adapts a defineClient default export and keeps the logical name in the bundle', async () => {
     const root = await temporaryProject()
     await writeFile(resolve(root, 'src/client.tsx'), [
-      "import { defineClient } from 'dshx/client'",
+      "import { defineClient } from '@becomeopc/dshx/client'",
       'export default defineClient({',
       "  name: 'explicit-client',",
       "  inject: ['remote', 'remote'],",

@@ -1,5 +1,5 @@
 {
-  "name": "dshx",
+  "name": "@becomeopc/dshx",
   "version": "0.1.0",
   "description": "Build and debug DeepSeek Harness Host and Client plugins.",
   "repository": {

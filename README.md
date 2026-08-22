@@ -9,7 +9,7 @@ pnpm install
 pnpm check
 ```
 
-The public packages are `dshx` (the compiler, runtime helpers, and CLI) and `create-dshx` (the project initializer). Start a new Full plugin with the project-book workflow:
+The public packages are `@becomeopc/dshx` (the compiler, runtime helpers, and `dshx` CLI) and `create-dshx` (the project initializer). Start a new Full plugin with the project-book workflow:
 
 ```bash
 pnpm create dshx demo
@@ -29,7 +29,7 @@ Use `dshx add tool --name <name>` to scaffold an official Host Tool. The generat
 
 Use `dshx add hook --event <name>` to scaffold a native Cordis event listener. The generated `src/hooks/<event>.ts` exports `registerHook(ctx)` and calls `ctx.on(<event>, ...)`; the Host `defineHost` setup is minimally extended to invoke it. DSHX does not invent an event naming DSL, infer listener parameters, inspect or start DSH, install dependencies, or change Profile links. Existing native named Hosts and unsafe setup shapes are rejected with a repair hint, and repeated event registrations are idempotent warnings. `--dry-run` and `--json` are available for scripts; non-TTY callers must provide `--event`.
 
-Projects can import `defineConfig` and `resolveDshxConfig` from `dshx/config`. Resolution finds the nearest `package.json`, loads only a root `dshx.config.ts`, and applies explicit fields before the `src/host.ts` / `src/client.tsx` conventions and defaults. The package ID always remains `package.json.name`; an optional config `name` is a separate logical Host name.
+Projects can import `defineConfig` and `resolveDshxConfig` from `@becomeopc/dshx/config`. Resolution finds the nearest `package.json`, loads only a root `dshx.config.ts`, and applies explicit fields before the `src/host.ts` / `src/client.tsx` conventions and defaults. The package ID always remains `package.json.name`; an optional config `name` is a separate logical Host name.
 
 Plugin projects should declare the DSH host and the adapter-approved optional Host child plugins as development dependencies so `pnpm exec dshx dev` is immediately reproducible:
 
@@ -53,9 +53,9 @@ The internal development session keeps Host and Client watchers alive when their
 
 An unexpected DSH exit is reported as failed and is not put into an automatic restart loop. `restart()` performs one explicit stop/start without changing the Profile link. `close()` is idempotent, closes both watchers first, then sends SIGTERM to DSH and escalates to SIGKILL after a bounded timeout. The CLI maps TTY `r` to `restart()` and `q`/Ctrl-C to `close()`; non-TTY sessions respond only to process signals.
 
-Host projects can import `defineHost` and the official `defineTool` for the selected DSH generation from `dshx/host` and default-export a definition with `inject`, tools, and direct `setup(ctx)` access to the official Cordis Context. `defineTool` is the exact official function, not a DSHX wrapper; schemas, execution validation, output rendering, and tool lifecycle remain owned by DSH. `defineHost()` preserves the original object; the Host compiler supplies the resolved logical name, merges the `tools` dependency when needed, registers tools through `ctx.tools.register()`, and runs setup afterward. The Host helper and thin adapter are inlined into `dist/index.js`, while `@deepseek-ai/dsh-tools` remains a bare external resolved by DSH.
+Host projects can import `defineHost` and the official `defineTool` for the selected DSH generation from `@becomeopc/dshx/host` and default-export a definition with `inject`, tools, and direct `setup(ctx)` access to the official Cordis Context. `defineTool` is the exact official function, not a DSHX wrapper; schemas, execution validation, output rendering, and tool lifecycle remain owned by DSH. `defineHost()` preserves the original object; the Host compiler supplies the resolved logical name, merges the `tools` dependency when needed, registers tools through `ctx.tools.register()`, and runs setup afterward. The Host helper and thin adapter are inlined into `dist/index.js`, while `@deepseek-ai/dsh-tools` remains a bare external resolved by DSH.
 
-Client projects can import `defineClient` from `dshx/client` and default-export a definition with an optional logical `name`, ordered service `inject`, and `setup(ctx)`. The setup receives the official Cordis Context; DSHX only deduplicates the declared dependencies and adapts the definition to the selected DSH generation's native `{ name, inject, apply, Config }` module shape. Existing native named Client exports remain supported. The Client helper and adapter are inlined into `dist/client.js`, so the built lazy-CJS module has no `dshx/client` runtime import.
+Client projects can import `defineClient` from `@becomeopc/dshx/client` and default-export a definition with an optional logical `name`, ordered service `inject`, and `setup(ctx)`. The setup receives the official Cordis Context; DSHX only deduplicates the declared dependencies and adapts the definition to the selected DSH generation's native `{ name, inject, apply, Config }` module shape. Existing native named Client exports remain supported. The Client helper and adapter are inlined into `dist/client.js`, so the built lazy-CJS module has no `@becomeopc/dshx/client` runtime import.
 
 Client definitions may now include `slots: [defineSlot(...)]`. `defineSlot()` uses the selected DSH generation's official `SlotMap` declaration merging and registration types, while the adapter calls `ctx.slots.inject()` and `ctx.slots.register()` in declaration order. A non-empty Slot list adds the Cordis `slots` dependency automatically; registration disposal remains owned by the official Fiber. Add a type-only import from the matching Slot provider's `/client` export when its SlotMap augmentation is needed. Inspect reads the live runtime composition for discovery, but does not replace these compile-time types.
 

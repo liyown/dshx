@@ -10,7 +10,7 @@ import { clientGuardPlugin, singleClientChunkPlugin } from './guards.js'
 
 const VIRTUAL_CLIENT_ENTRY = '\0virtual:dshx-client-entry'
 const VIRTUAL_CLIENT_PUBLIC = '\0virtual:dshx-client-public'
-const DSHX_CLIENT_PUBLIC = 'dshx/client'
+const DSHX_CLIENT_PUBLIC = '@becomeopc/dshx/client'
 const CLIENT_RUNTIME_PATH = fileURLToPath(new URL('../../client/runtime.js', import.meta.url))
 
 /** Options for producing one DSH-compatible lazy-CJS client bundle. */

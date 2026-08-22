@@ -1,6 +1,6 @@
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { defineClient, defineSlot } from 'dshx/client'
+import { defineClient, defineSlot } from '@becomeopc/dshx/client'
 import styles from './Status.module.css'
 
 /** Additive UI used to prove TSX and CSS Modules compilation. */
