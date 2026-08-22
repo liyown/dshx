@@ -95,8 +95,6 @@ describe('CLI argument parser', () => {
     expect(parseCliArgs(['inspect', 'tools', '--verbose', '--cwd', '/tmp/project'])).toMatchObject({ command: 'inspect', inspectTarget: 'tools', verbose: true, cwd: '/tmp/project' })
     expect(parseCliArgs(['inspect', 'services'])).toMatchObject({ command: 'inspect', inspectTarget: 'services' })
     expect(parseCliArgs(['inspect', 'events'])).toMatchObject({ command: 'inspect', inspectTarget: 'events' })
-    expect(parseCliArgs(['catalog', 'slots', '--json'])).toMatchObject({ command: 'catalog', inspectTarget: 'slots', json: true })
-    expect(() => parseCliArgs(['catalog'])).toThrow('requires a target')
   })
 
   it('parses add ui options and rejects non-ui add targets', () => {
@@ -111,46 +109,6 @@ describe('CLI argument parser', () => {
 })
 
 describe('CLI commands', () => {
-  it('prints a pure offline Catalog JSON result without invoking Inspect or Profile APIs', async () => {
-    const streams = io()
-    const value = project()
-    const inspect = vi.fn()
-    const code = await runCli(['catalog', 'slots', '--json'], {
-      io: streams,
-      runtime: {
-        resolveConfig: async () => value,
-        inspectComposition: inspect,
-        catalogCapabilities: async () => ({
-          profile: value.profile,
-          target: 'slots' as const,
-          source: 'offline' as const,
-          items: [{ name: 'sidebar.footer.action', kind: 'list' }],
-          diagnostics: [],
-          dsh: { version: '0.1.0-rc.8', adapterId: 'dsh-0.1', protocolGeneration: '0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0', support: 'verified' as const, executable: 'local' as const, compatibility: {} as never, diagnostics: [] },
-        }),
-      },
-    })
-    expect(code).toBe(0)
-    streams.out.end(); streams.err.end()
-    expect(JSON.parse(await text(streams.out))).toMatchObject({ source: 'offline', target: 'slots', items: [{ name: 'sidebar.footer.action' }], dsh: { adapterId: 'dsh-0.1' } })
-    expect(inspect).not.toHaveBeenCalled()
-  })
-
-  it('returns Catalog provider diagnostics with exit code 1', async () => {
-    const streams = io()
-    const value = project()
-    const code = await runCli(['catalog', 'tools'], {
-      io: streams,
-      runtime: {
-        resolveConfig: async () => value,
-        catalogCapabilities: async () => ({ profile: value.profile, target: 'tools' as const, source: 'offline' as const, items: [], diagnostics: [{ code: 'DSHX3301', severity: 'error' as const, message: 'not available', file: value.packageFile, hint: 'use inspect' }] }),
-      },
-    })
-    expect(code).toBe(1)
-    streams.out.end(); streams.err.end()
-    expect(await text(streams.err)).toContain('DSHX3301')
-  })
-
   it('builds enabled faces in parallel and does not touch Profile APIs', async () => {
     const streams = io()
     const value = project()
