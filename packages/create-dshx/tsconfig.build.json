@@ -4,7 +4,7 @@
     "composite": true,
     "outDir": "dist",
     "rootDir": "src",
-    "tsBuildInfoFile": "dist/.tsbuildinfo"
+    "tsBuildInfoFile": ".cache/create-dshx.tsbuildinfo"
   },
   "include": ["src/**/*.ts"]
 }
