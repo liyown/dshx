@@ -4,7 +4,7 @@ import { DEFAULT_COMPATIBILITY } from '../compat/index.js'
 import type { DshCompatibility } from '../compat/types.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
-import { applyFilePlan } from '../scaffold/common.js'
+import { applyFilePlan, rollbackFilePlan } from '../scaffold/common.js'
 import type { FilePlan } from '../scaffold/common.js'
 
 export interface ManifestRepairPlan {
@@ -166,4 +166,9 @@ export async function applyManifestRepairPlan(plan: ManifestRepairPlan): Promise
   if (plan.files.length === 0) return
   if (plan.diagnostics.some(item => item.severity === 'error')) throw new Error('Cannot apply a repair plan with errors.')
   await applyFilePlan(plan.files)
+}
+
+/** Restore the exact pre-repair contents after a post-write validation failure. */
+export async function rollbackManifestRepairPlan(plan: ManifestRepairPlan): Promise<void> {
+  await rollbackFilePlan(plan.files)
 }
