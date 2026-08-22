@@ -49,7 +49,7 @@ function registerName(event: string): string {
 }
 
 function sourceForHook(event: string): string {
-  return `import type { Context } from '@deepseek-ai/cordis'\n\nexport function registerHook(ctx: Context) {\n  return ctx.on(${JSON.stringify(event)}, (...args) => {\n    void args\n    // Add hook behavior here.\n  })\n}\n`
+  return `import type { Context } from '@deepseek-ai/cordis'\n\nexport function ${registerName(event)}(ctx: Context) {\n  return ctx.on(${JSON.stringify(event)}, (...args) => {\n    void args\n    // Add hook behavior here.\n  })\n}\n`
 }
 
 function isNamed(node: ts.NamedDeclaration, name: string): boolean {
@@ -146,7 +146,7 @@ function modifyHost(source: string, hostFile: string, hookFile: string, event: s
 }
 
 function newHostSource(hostFile: string, hookFile: string, event: string): string {
-  return `import { defineHost } from 'dshx/host'\nimport { registerHook } from ${JSON.stringify(importPath(hostFile, hookFile))}\n\nexport default defineHost({\n  setup(ctx) {\n    registerHook(ctx)\n  },\n})\n`
+  return `import { defineHost } from 'dshx/host'\nimport { ${registerName(event)} } from ${JSON.stringify(importPath(hostFile, hookFile))}\n\nexport default defineHost({\n  setup(ctx) {\n    ${registerName(event)}(ctx)\n  },\n})\n`
 }
 
 function makeResult(project: ResolvedDshxConfig, options: AddHookOptions, diagnostics: readonly DshxDiagnostic[], plan: readonly FilePlan[], diff?: string): AddHookResult {
