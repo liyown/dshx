@@ -50,6 +50,8 @@ export interface DevSession {
 
 /** Options for starting a dev process without taking over terminal input. */
 export interface DevSessionOptions {
+  /** Ask the DSH child to expose its local read-only Inspect bridge. */
+  readonly inspectBridge?: boolean
   readonly env?: Readonly<NodeJS.ProcessEnv>
   readonly dshArgs?: readonly string[]
   readonly profile?: ProfileOrchestratorOptions

@@ -163,6 +163,7 @@ export async function startDevSession(
     const args = [
       '--profile',
       profile.profile,
+      ...(options.inspectBridge === true ? ['--inspect-bridge'] : []),
       ...(profile.profile === 'web' && !(options.dshArgs ?? []).some(arg => arg === '--no-open' || arg === '--open') ? ['--no-open'] : []),
       ...(options.dshArgs ?? []),
     ]

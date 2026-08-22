@@ -527,6 +527,7 @@ async function runDev(args: CliArgs, options: CliRunOptions, project: ResolvedDs
   try {
     session = await (runtime.startDev ?? startDevSession)(project, {
       preparedProfile: profile,
+      inspectBridge: true,
       dshArgs: args.open ? ['--open'] : [],
     })
   } catch (error) {
