@@ -4,6 +4,10 @@ import type { DshxDiagnostic } from '../diagnostics.js'
 
 export type InspectTarget = 'slots' | 'tools' | 'services' | 'events'
 
+export interface InspectSlotOptions {
+  readonly root?: string
+}
+
 export interface SlotSummary {
   readonly name: string
   readonly provider?: string
@@ -33,7 +37,7 @@ export interface EventSummary {
 }
 
 export interface InspectProvider {
-  readonly listSlots: () => Promise<readonly SlotSummary[]>
+  readonly listSlots: (options?: InspectSlotOptions) => Promise<readonly SlotSummary[]>
   readonly listTools: () => Promise<readonly ToolSummary[]>
   readonly listServices?: () => Promise<readonly ServiceSummary[]>
   readonly listEvents?: () => Promise<readonly EventSummary[]>
@@ -56,6 +60,7 @@ export interface InspectOptions {
   readonly runner?: DshCommandRunner
   readonly env?: Readonly<NodeJS.ProcessEnv>
   readonly executable?: 'local' | 'global'
+  readonly slotRoot?: string
   readonly resolveDsh?: (project: ResolvedDshxConfig, options?: ProfileOrchestratorOptions) => Promise<ResolvedDshInstallation>
   readonly inspectProfile?: (project: ResolvedDshxConfig, options?: ProfileOrchestratorOptions) => Promise<ProjectProfileLink>
 }

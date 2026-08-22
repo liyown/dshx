@@ -174,7 +174,9 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
     if (typeof method !== 'function') return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [options.provider === undefined ? unavailableProvider(project.packageFile) : unsupportedTarget(project.packageFile, target), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
     let raw: unknown
     try {
-      raw = await method.call(provider)
+      raw = target === 'slots'
+        ? await provider.listSlots(options.slotRoot === undefined ? undefined : { root: options.slotRoot })
+        : await method.call(provider)
     } catch (error) {
       return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [diagnosticFromError(error, project.packageFile), ...diagnostics], cause: error, ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
     }

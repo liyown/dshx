@@ -6,7 +6,7 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { DshxError } from '../diagnostics.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
-import type { InspectProvider, ServiceSummary, EventSummary, SlotSummary, ToolSummary } from './types.js'
+import type { InspectProvider, InspectSlotOptions, ServiceSummary, EventSummary, SlotSummary, ToolSummary } from './types.js'
 
 const PROTOCOL_VERSION = 1
 const MAX_MESSAGE_BYTES = 64 * 1024
@@ -180,13 +180,13 @@ async function readMetadata(path: string, project: ResolvedDshxConfig, expectedS
   return { metadata: value as Required<Pick<BridgeMetadata, 'packageId' | 'root' | 'pid' | 'socketPath' | 'token'>>, socketPath: value.socketPath }
 }
 
-async function request(project: ResolvedDshxConfig, target: 'services' | 'events', options: DshInspectBridgeProviderOptions): Promise<readonly Record<string, unknown>[]> {
+async function request(project: ResolvedDshxConfig, target: 'services' | 'events' | 'slots', options: DshInspectBridgeProviderOptions, input?: Record<string, unknown>): Promise<readonly Record<string, unknown>[]> {
   const env = { ...process.env, ...options.env }
   const paths = endpointPaths(project.packageId, env)
   const { metadata, socketPath } = await readMetadata(paths.metadataPath, project, paths.socketPath)
   const requestId = `inspect-${randomUUID()}`
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const payload = JSON.stringify({ version: PROTOCOL_VERSION, requestId, token: metadata.token, operation: 'list', target }) + '\n'
+  const payload = JSON.stringify({ version: PROTOCOL_VERSION, requestId, token: metadata.token, operation: 'list', target, ...(input === undefined ? {} : { input }) }) + '\n'
   return await new Promise((resolveRequest, rejectRequest) => {
     const socket = createConnection(socketPath)
     let buffer = ''
@@ -252,8 +252,11 @@ async function request(project: ResolvedDshxConfig, target: 'services' | 'events
 export class DshInspectBridgeProvider implements InspectProvider {
   constructor(private readonly project: ResolvedDshxConfig, private readonly options: DshInspectBridgeProviderOptions = {}) {}
 
-  listSlots(): Promise<readonly SlotSummary[]> {
-    return Promise.reject(fail('DSHX3204', 'The Host Inspect bridge does not expose Slot data.', 'Use the official Slot Inspect provider when it is available.'))
+  async listSlots(options: InspectSlotOptions = {}): Promise<readonly SlotSummary[]> {
+    if (options.root !== undefined && (typeof options.root !== 'string' || options.root.trim() === '')) {
+      throw fail('DSHX3203', 'Slot Inspect root must be a non-empty string.', 'Pass a valid Slot name or omit --root.')
+    }
+    return await request(this.project, 'slots', this.options, options.root === undefined ? undefined : { root: options.root }) as unknown as readonly SlotSummary[]
   }
 
   listTools(): Promise<readonly ToolSummary[]> {
