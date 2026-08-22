@@ -163,10 +163,12 @@ export async function startDevSession(
     const args = [
       '--profile',
       profile.profile,
-      ...(options.inspectBridge === true ? ['--inspect-bridge'] : []),
       ...(profile.profile === 'web' && !(options.dshArgs ?? []).some(arg => arg === '--no-open' || arg === '--open') ? ['--no-open'] : []),
       ...(options.dshArgs ?? []),
     ]
+    const childEnvironment = options.inspectBridge === true
+      ? { ...environment, DSHX_INSPECT_BRIDGE: '1' }
+      : environment
     try {
       const childFactory = options.child ?? ((childProject, childArgs, childEnv) => childFromExeca(
         childProject,
@@ -174,7 +176,7 @@ export async function startDevSession(
         childEnv,
         profile.dsh.executable ?? 'local',
       ))
-      const started = await childFactory(project, args, environment)
+      const started = await childFactory(project, args, childEnvironment)
       if (closed) {
         await stopChild(started)
         return
