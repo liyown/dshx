@@ -29,7 +29,7 @@ export const RC8_COMPATIBILITY: DshCompatibility = {
     targets: ['slots', 'tools', 'services', 'events'],
     provider: 'unavailable',
     providerByTarget: {
-      slots: 'unavailable',
+      slots: 'runtime',
       tools: 'unavailable',
       services: 'runtime',
       events: 'runtime',
