@@ -1,6 +1,6 @@
 import type { DshCompatibility } from './types.js'
 
-/** Client build protocol verified against DeepSeek Harness 0.1.0-rc.8. */
+/** DSH 0.1 protocol adapter, verified against the rc.8 baseline. */
 export const RC8_COMPATIBILITY: DshCompatibility = {
   id: 'dsh-0.1',
   protocolGeneration: '0.1',
@@ -9,6 +9,22 @@ export const RC8_COMPATIBILITY: DshCompatibility = {
   verifiedVersions: ['0.1.0-rc.8'],
   nodeRange: '^22.19.0 || >=24.0.0',
   profile: { listCommand: 'plugin-list-json', addCommand: 'plugin-add' },
+  runtimePlugins: [
+    {
+      id: 'cordis-host-runner',
+      packageName: '@deepseek-ai/dsh-cordis-host-runner',
+      load: 'default',
+      provides: ['cordisInspect'],
+      optional: true,
+    },
+    {
+      id: 'tool-cordis',
+      packageName: '@deepseek-ai/dsh-tool-cordis',
+      load: 'module',
+      provides: ['Service', 'Event'],
+      optional: true,
+    },
+  ],
   inspect: {
     targets: ['slots', 'tools', 'services', 'events'],
     provider: 'unavailable',
@@ -17,6 +33,11 @@ export const RC8_COMPATIBILITY: DshCompatibility = {
       tools: 'unavailable',
       services: 'runtime',
       events: 'runtime',
+    },
+    bridge: {
+      protocolVersion: 1,
+      serviceProvider: 'Service',
+      eventProvider: 'Event',
     },
   },
   client: {

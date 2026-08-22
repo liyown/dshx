@@ -72,6 +72,8 @@ function hostEntryPlugin(
         packageId: options.packageId,
         logicalName: name,
         sourceFile: paths.entry,
+        root: paths.root,
+        compatibility: options.compatibility,
       }
       return [
         `import * as source from ${JSON.stringify(paths.entry)}`,

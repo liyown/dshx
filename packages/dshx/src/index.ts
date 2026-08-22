@@ -1,7 +1,7 @@
 export { buildClient, buildHost } from './compiler/index.js'
 export type { BuildClientOptions, BuildHostOptions, ClientBuildResult, HostBuildResult } from './compiler/index.js'
 export { resolveCompatibility, classifyCompatibility, resolveDeclaredCompatibility, COMPATIBILITY_ADAPTERS, RC8_COMPATIBILITY, DEFAULT_COMPATIBILITY } from './compat/index.js'
-export type { DshCompatibility, DshCompatibilityResolution, DshInspectCompatibility, DshProfileCompatibility, DshSupportStatus } from './compat/index.js'
+export type { DshCompatibility, DshCompatibilityResolution, DshInspectCompatibility, DshProfileCompatibility, DshSupportStatus, DshxRuntimePluginSpec } from './compat/index.js'
 export { DshxError } from './diagnostics.js'
 export type { DshxDiagnostic, DshxDiagnosticSeverity } from './diagnostics.js'
 export { runCli } from './cli/run.js'
