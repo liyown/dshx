@@ -41,6 +41,9 @@ export interface CliRuntime {
   readonly inspectComposition?: typeof inspectProjectComposition
   readonly inspectRuntimePlugins?: typeof inspectRuntimePlugins
   readonly inspectBridgeStatus?: typeof inspectBridgeStatus
+  readonly createRepairPlan?: typeof createManifestRepairPlan
+  readonly applyRepairPlan?: typeof applyManifestRepairPlan
+  readonly rollbackRepairPlan?: typeof rollbackManifestRepairPlan
   readonly addUi?: (options: AddUiOptions) => Promise<AddUiResult>
   readonly addTool?: (options: AddToolOptions) => Promise<AddToolResult>
   readonly addHook?: (options: AddHookOptions) => Promise<AddHookResult>
@@ -312,12 +315,12 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
 
   if (args.fix) {
     const compatibility = result.dsh?.compatibility ?? resolveDeclaredCompatibility(project.manifest)?.compatibility ?? DEFAULT_COMPATIBILITY
-    const plan = await createManifestRepairPlan(project, { compatibility })
+    const plan = await (runtime.createRepairPlan ?? createManifestRepairPlan)(project, { compatibility })
     const fixDiagnostics: DshxDiagnostic[] = [...plan.diagnostics]
     let applied = false
     if (!args.dryRun && plan.files.length > 0 && !plan.diagnostics.some(item => item.severity === 'error')) {
       try {
-        await applyManifestRepairPlan(plan)
+        await (runtime.applyRepairPlan ?? applyManifestRepairPlan)(plan)
         applied = true
       } catch (error) {
         fixDiagnostics.push({
@@ -332,7 +335,7 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
           const refreshed = await (runtime.resolveConfig ?? resolveDshxConfig)({ cwd: project.root })
           const manifestDiagnostics = await (runtime.checkManifest ?? checkProjectManifest)(refreshed, { compatibility })
           if (manifestDiagnostics.some(item => item.severity === 'error')) {
-            await rollbackManifestRepairPlan(plan)
+            await (runtime.rollbackRepairPlan ?? rollbackManifestRepairPlan)(plan)
             applied = false
             fixDiagnostics.push({
               code: 'DSHX4146', severity: 'error',
@@ -345,7 +348,7 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
             result = await collectCheck(options, refreshed)
           }
         } catch (error) {
-          await rollbackManifestRepairPlan(plan)
+          await (runtime.rollbackRepairPlan ?? rollbackManifestRepairPlan)(plan)
           applied = false
           fixDiagnostics.push({
             code: 'DSHX4146', severity: 'error',
