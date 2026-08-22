@@ -1,4 +1,4 @@
-export type CliCommand = 'build' | 'check' | 'dev' | 'inspect' | 'catalog' | 'add'
+export type CliCommand = 'build' | 'check' | 'dev' | 'inspect' | 'add'
 export type CliInspectTarget = 'slots' | 'tools' | 'services' | 'events'
 export type CliAddTarget = 'ui' | 'tool' | 'hook'
 
@@ -20,6 +20,7 @@ export interface CliArgs {
   readonly id?: string
   readonly order?: number
   readonly dryRun: boolean
+  readonly fix: boolean
   readonly help: boolean
   readonly version: boolean
 }
@@ -56,6 +57,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   let id: string | undefined
   let order: number | undefined
   let dryRun = false
+  let fix = false
   let help = false
   let version = false
 
@@ -68,6 +70,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     if (token === '--json') { json = true; continue }
     if (token === '--open') { open = true; continue }
     if (token === '--dry-run') { dryRun = true; continue }
+    if (token === '--fix') { fix = true; continue }
     if (token === '--cwd') {
       cwd = requireValue(argv, index, '--cwd')
       index += 1
@@ -98,7 +101,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
       index += 1
       continue
     }
-    if (token === 'build' || token === 'check' || token === 'dev' || token === 'inspect' || token === 'catalog' || token === 'add') {
+    if (token === 'build' || token === 'check' || token === 'dev' || token === 'inspect' || token === 'add') {
       if (command !== undefined) throw new CliUsageError('Only one command may be specified.')
       command = token
       continue
@@ -116,17 +119,18 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     throw new CliUsageError(`Unknown argument ${JSON.stringify(token)}.`)
   }
 
-  if (json && command !== undefined && command !== 'check' && command !== 'inspect' && command !== 'catalog' && command !== 'add') throw new CliUsageError('--json is only valid with check, inspect, catalog, or add.')
+  if (json && command !== undefined && command !== 'check' && command !== 'inspect' && command !== 'add') throw new CliUsageError('--json is only valid with check, inspect, or add.')
   if (open && command !== undefined && command !== 'dev') throw new CliUsageError('--open is only valid with dev.')
-  if (dryRun && command !== 'add') throw new CliUsageError('--dry-run is only valid with add commands.')
+  if (dryRun && command !== 'add' && !(command === 'check' && fix)) throw new CliUsageError('--dry-run is only valid with add commands or check --fix.')
+  if (fix && command !== 'check') throw new CliUsageError('--fix is only valid with check.')
   if ((slot !== undefined || provider !== undefined || id !== undefined || order !== undefined) && command !== 'add') throw new CliUsageError('add ui options are only valid with add ui.')
   if ((name !== undefined || description !== undefined) && command !== 'add') throw new CliUsageError('add tool options are only valid with add tool.')
   if (event !== undefined && command !== 'add') throw new CliUsageError('--event is only valid with add hook.')
   if (root !== undefined && (command !== 'inspect' || inspectTarget !== 'slots')) throw new CliUsageError('--root is only valid with inspect slots.')
   if ((json || open) && command === undefined) throw new CliUsageError('An option requires a command.')
-  if (command !== 'inspect' && command !== 'catalog' && inspectTarget !== undefined) throw new CliUsageError('Inspect targets are only valid with the inspect command (or catalog command).')
+  if (command !== 'inspect' && inspectTarget !== undefined) throw new CliUsageError('Inspect targets are only valid with the inspect command.')
   if (command !== 'add' && addTarget !== undefined) throw new CliUsageError('Add targets are only valid with the add command.')
-  if ((command === 'inspect' || command === 'catalog') && inspectTarget === undefined && !help && !version) throw new CliUsageError(`${command === 'catalog' ? 'Catalog' : 'Inspect'} requires a target: slots, tools, services, or events.`)
+  if (command === 'inspect' && inspectTarget === undefined && !help && !version) throw new CliUsageError('Inspect requires a target: slots, tools, services, or events.')
   if (command === 'add' && addTarget === undefined && !help && !version) throw new CliUsageError('Add requires a target: ui, tool, or hook.')
   if (command === 'add' && addTarget !== 'ui' && addTarget !== 'tool' && addTarget !== 'hook') throw new CliUsageError('Only add ui, add tool, and add hook are supported.')
   if (command === 'add' && addTarget !== 'ui' && (slot !== undefined || provider !== undefined || id !== undefined || order !== undefined)) throw new CliUsageError('Slot options are only valid with add ui.')
@@ -146,9 +150,9 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     ...(file === undefined ? {} : { file }),
     ...(id === undefined ? {} : { id }),
     ...(order === undefined ? {} : { order }),
-    verbose, json, open, dryRun, help, version,
+    verbose, json, open, dryRun, fix, help, version,
   }
-  if (command === undefined) throw new CliUsageError('A command is required: build, check, dev, inspect, catalog, or add.')
+  if (command === undefined) throw new CliUsageError('A command is required: build, check, dev, inspect, or add.')
   return {
     command,
     ...(inspectTarget === undefined ? {} : { inspectTarget }),
@@ -163,6 +167,6 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     ...(file === undefined ? {} : { file }),
     ...(id === undefined ? {} : { id }),
     ...(order === undefined ? {} : { order }),
-    verbose, json, open, dryRun, help, version,
+    verbose, json, open, dryRun, fix, help, version,
   }
 }
