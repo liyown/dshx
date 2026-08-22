@@ -12,7 +12,8 @@
     "check": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm --filter create-dshx typecheck && pnpm --filter create-dshx test && pnpm --filter create-dshx build",
     "phase-a:build": "pnpm run build && pnpm --filter @dshx/phase-a-fixture build",
     "test": "pnpm --filter dshx test",
-    "typecheck": "pnpm --filter dshx typecheck"
+    "typecheck": "pnpm --filter dshx typecheck",
+    "smoke:rc2": "pnpm run build && node scripts/smoke-rc2.mjs"
   },
   "devDependencies": {
     "@types/node": "22.19.20",
