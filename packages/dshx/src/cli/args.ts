@@ -121,8 +121,8 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
 
   if (json && command !== undefined && command !== 'check' && command !== 'inspect' && command !== 'add') throw new CliUsageError('--json is only valid with check, inspect, or add.')
   if (open && command !== undefined && command !== 'dev') throw new CliUsageError('--open is only valid with dev.')
-  if (dryRun && command !== 'add' && !(command === 'check' && fix)) throw new CliUsageError('--dry-run is only valid with add commands or check --fix.')
-  if (fix && command !== 'check') throw new CliUsageError('--fix is only valid with check.')
+  if (dryRun && command !== 'add' && !(command === 'check' && fix)) throw new CliUsageError('DSHX4147: --dry-run is only valid with add commands or check --fix.')
+  if (fix && command !== 'check') throw new CliUsageError('DSHX4147: --fix is only valid with check.')
   if ((slot !== undefined || provider !== undefined || id !== undefined || order !== undefined) && command !== 'add') throw new CliUsageError('add ui options are only valid with add ui.')
   if ((name !== undefined || description !== undefined) && command !== 'add') throw new CliUsageError('add tool options are only valid with add tool.')
   if (event !== undefined && command !== 'add') throw new CliUsageError('--event is only valid with add hook.')

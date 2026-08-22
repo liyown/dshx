@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { DEFAULT_COMPATIBILITY } from '../compat/index.js'
 import type { DshCompatibility } from '../compat/types.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
+import { DshxError } from '../diagnostics.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 import { applyFilePlan, rollbackFilePlan } from '../scaffold/common.js'
 import type { FilePlan } from '../scaffold/common.js'
@@ -164,7 +165,12 @@ export async function createManifestRepairPlan(
 /** Apply a previously reviewed repair plan using the shared atomic file transaction. */
 export async function applyManifestRepairPlan(plan: ManifestRepairPlan): Promise<void> {
   if (plan.files.length === 0) return
-  if (plan.diagnostics.some(item => item.severity === 'error')) throw new Error('Cannot apply a repair plan with errors.')
+  if (plan.diagnostics.some(item => item.severity === 'error')) {
+    throw new DshxError('DSHX4144', 'The manifest repair plan contains errors and cannot be applied.', {
+      ...(plan.files[0] === undefined ? {} : { file: plan.files[0].file }),
+      hint: 'Resolve the reported manifest diagnostics manually before applying a repair plan.',
+    })
+  }
   await applyFilePlan(plan.files)
 }
 

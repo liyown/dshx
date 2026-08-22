@@ -317,18 +317,27 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
     const compatibility = result.dsh?.compatibility ?? resolveDeclaredCompatibility(project.manifest)?.compatibility ?? DEFAULT_COMPATIBILITY
     const plan = await (runtime.createRepairPlan ?? createManifestRepairPlan)(project, { compatibility })
     const fixDiagnostics: DshxDiagnostic[] = [...plan.diagnostics]
+    if (plan.diagnostics.some(item => item.severity === 'error')) {
+      fixDiagnostics.push({
+        code: 'DSHX4144', severity: 'error',
+        message: 'The manifest repair plan is not safe to apply.',
+        file: project.packageFile,
+        hint: 'Resolve the repair plan diagnostics manually before retrying --fix.',
+      })
+    }
     let applied = false
     if (!args.dryRun && plan.files.length > 0 && !plan.diagnostics.some(item => item.severity === 'error')) {
       try {
         await (runtime.applyRepairPlan ?? applyManifestRepairPlan)(plan)
         applied = true
       } catch (error) {
-        fixDiagnostics.push({
-          code: 'DSHX4145', severity: 'error',
-          message: `Manifest repair could not be written: ${error instanceof Error ? error.message : String(error)}`,
-          file: project.packageFile,
-          hint: 'Check filesystem permissions and run dshx check --fix again.',
-        })
+        if (error instanceof DshxError && error.code === 'DSHX4144') fixDiagnostics.push(diagnosticFromError(error, project.packageFile))
+        else fixDiagnostics.push({
+            code: 'DSHX4145', severity: 'error',
+            message: `Manifest repair could not be written: ${error instanceof Error ? error.message : String(error)}`,
+            file: project.packageFile,
+            hint: 'Check filesystem permissions and run dshx check --fix again.',
+          })
       }
       if (applied) {
         try {
