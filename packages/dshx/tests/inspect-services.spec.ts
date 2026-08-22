@@ -61,12 +61,14 @@ describe('services and events inspect normalization', () => {
   it('reports rc.8 services/events as unsupported without querying a provider', async () => {
     const value = project()
     const listServices = vi.fn(async () => [{ name: 'should-not-run' }])
+    const inspectProfile = vi.fn(async () => linked(value))
     const result = await inspectProjectComposition(value, 'services', {
       provider: { listSlots: async () => [], listTools: async () => [], listServices },
       resolveDsh: async () => installation(),
-      inspectProfile: async () => linked(value),
+      inspectProfile,
     })
     expect(result.diagnostics[0]?.code).toBe('DSHX3204')
     expect(listServices).not.toHaveBeenCalled()
+    expect(inspectProfile).not.toHaveBeenCalled()
   })
 })
