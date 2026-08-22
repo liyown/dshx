@@ -40,10 +40,6 @@ export const RC8_COMPATIBILITY: DshCompatibility = {
       eventProvider: 'Event',
     },
   },
-  catalog: {
-    targets: [],
-    source: 'unavailable',
-  },
   client: {
     platformModules: [
       'react',
