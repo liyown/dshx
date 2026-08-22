@@ -274,7 +274,7 @@ async function runInspect(args: CliArgs, options: CliRunOptions, project: Resolv
   const target = args.inspectTarget as InspectTarget | undefined
   // The parser guarantees this in normal CLI use; retaining the guard keeps the
   // injected runtime API safe for callers that construct CliArgs themselves.
-  if (target === undefined) throw new CliUsageError('Inspect requires a target: slots or tools.')
+  if (target === undefined) throw new CliUsageError('Inspect requires a target: slots, tools, services, or events.')
   const result = await (runtime.inspectComposition ?? inspectProjectComposition)(project, target)
   if (args.json) {
     write(io.stdout, `${JSON.stringify(inspectSummary(project, result), null, 2)}\n`)
@@ -286,10 +286,18 @@ async function runInspect(args: CliArgs, options: CliRunOptions, project: Resolv
         const slot = item as { readonly name: string; readonly provider?: string; readonly kind?: string; readonly scope?: string }
         const details = [slot.provider, slot.kind, slot.scope].filter((value): value is string => value !== undefined).join(' / ')
         write(io.stdout, `  ${slot.name}${details === '' ? '' : ` (${details})`}\n`)
-      } else {
+      } else if (target === 'tools') {
         const tool = item as { readonly name: string; readonly provider?: string; readonly description?: string }
         const details = [tool.provider, tool.description].filter((value): value is string => value !== undefined).join(' - ')
         write(io.stdout, `  ${tool.name}${details === '' ? '' : `: ${details}`}\n`)
+      } else if (target === 'services') {
+        const service = item as { readonly name: string; readonly provider?: string; readonly scope?: string }
+        const details = [service.provider, service.scope].filter((value): value is string => value !== undefined).join(' / ')
+        write(io.stdout, `  ${service.name}${details === '' ? '' : ` (${details})`}\n`)
+      } else {
+        const event = item as { readonly name: string; readonly provider?: string }
+        const details = event.provider
+        write(io.stdout, `  ${event.name}${details === undefined ? '' : ` (${details})`}\n`)
       }
     }
     if (args.verbose && result.cause !== undefined) printVerboseCause(io, result.cause)
@@ -573,7 +581,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     return 2
   }
   if (args.help) {
-    write(io.stdout, 'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ndev: --open\ninspect targets: slots, tools\nadd targets: ui, tool, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n')
+    write(io.stdout, 'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ndev: --open\ninspect targets: slots, tools, services, events\nadd targets: ui, tool, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n')
     return 0
   }
   if (args.version) {
