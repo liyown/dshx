@@ -3,7 +3,7 @@ import { DshxError } from '../diagnostics.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 import { inspectProjectProfile, resolveDshInstallation } from '../profile/orchestrator.js'
 import type { DshCommandResult, DshCommandRunner, ProfileOrchestratorOptions, ProjectProfileLink, ResolvedDshInstallation } from '../profile/types.js'
-import type { InspectOptions, InspectProvider, InspectResult, InspectTarget, SlotSummary, ToolSummary } from './types.js'
+import type { EventSummary, InspectOptions, InspectProvider, InspectResult, InspectTarget, ServiceSummary, SlotSummary, ToolSummary } from './types.js'
 
 const INSPECT_TIMEOUT_MS = 30_000
 
@@ -89,6 +89,38 @@ export function normalizeTools(value: unknown): readonly ToolSummary[] {
   })
 }
 
+export function normalizeServices(value: unknown): readonly ServiceSummary[] {
+  if (!Array.isArray(value)) throw new Error('Service Inspect output must be an array.')
+  return value.map((entry, index) => {
+    if (!isRecord(entry) || typeof entry.name !== 'string' || entry.name.trim() === '') throw new Error(`Service Inspect item ${index} must contain a non-empty string name.`)
+    const known = ['name', 'provider', 'scope'] as const
+    const provider = optionalString(entry, 'provider')
+    const scope = optionalString(entry, 'scope')
+    const extra = metadata(entry, known)
+    return {
+      name: entry.name,
+      ...(provider === undefined ? {} : { provider }),
+      ...(scope === undefined ? {} : { scope }),
+      ...(extra === undefined ? {} : { metadata: extra }),
+    }
+  })
+}
+
+export function normalizeEvents(value: unknown): readonly EventSummary[] {
+  if (!Array.isArray(value)) throw new Error('Event Inspect output must be an array.')
+  return value.map((entry, index) => {
+    if (!isRecord(entry) || typeof entry.name !== 'string' || entry.name.trim() === '') throw new Error(`Event Inspect item ${index} must contain a non-empty string name.`)
+    const known = ['name', 'provider'] as const
+    const provider = optionalString(entry, 'provider')
+    const extra = metadata(entry, known)
+    return {
+      name: entry.name,
+      ...(provider === undefined ? {} : { provider }),
+      ...(extra === undefined ? {} : { metadata: extra }),
+    }
+  })
+}
+
 function profileOptions(options: InspectOptions): ProfileOrchestratorOptions {
   return {
     ...(options.runner === undefined ? {} : { runner: options.runner }),
@@ -119,7 +151,13 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
   }
   if (options.provider === undefined) return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unavailableProvider(project.packageFile), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
   try {
-    const method = target === 'slots' ? options.provider.listSlots : options.provider.listTools
+    const method = target === 'slots'
+      ? options.provider.listSlots
+      : target === 'tools'
+        ? options.provider.listTools
+        : target === 'services'
+          ? options.provider.listServices
+          : options.provider.listEvents
     if (typeof method !== 'function') return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [unsupportedTarget(project.packageFile, target), ...diagnostics], ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
     let raw: unknown
     try {
@@ -129,7 +167,13 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
     }
     let items: readonly SlotSummary[] | readonly ToolSummary[]
     try {
-      items = target === 'slots' ? normalizeSlots(raw) : normalizeTools(raw)
+      items = target === 'slots'
+        ? normalizeSlots(raw)
+        : target === 'tools'
+          ? normalizeTools(raw)
+          : target === 'services'
+            ? normalizeServices(raw)
+            : normalizeEvents(raw)
     } catch (error) {
       return { profile: project.profile, target, source: 'runtime', items: [], diagnostics: [invalidProviderDto(project.packageFile, error), ...diagnostics], cause: error, ...(dsh === undefined ? {} : { dsh }), ...(profileLink === undefined ? {} : { profileLink }) }
     }

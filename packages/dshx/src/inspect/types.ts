@@ -2,7 +2,7 @@ import type { ResolvedDshxConfig } from '../config/types.js'
 import type { DshCommandRunner, ProfileOrchestratorOptions, ProjectProfileLink, ResolvedDshInstallation } from '../profile/types.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 
-export type InspectTarget = 'slots' | 'tools'
+export type InspectTarget = 'slots' | 'tools' | 'services' | 'events'
 
 export interface SlotSummary {
   readonly name: string
@@ -19,16 +19,31 @@ export interface ToolSummary {
   readonly metadata?: Readonly<Record<string, unknown>>
 }
 
+export interface ServiceSummary {
+  readonly name: string
+  readonly provider?: string
+  readonly scope?: string
+  readonly metadata?: Readonly<Record<string, unknown>>
+}
+
+export interface EventSummary {
+  readonly name: string
+  readonly provider?: string
+  readonly metadata?: Readonly<Record<string, unknown>>
+}
+
 export interface InspectProvider {
   readonly listSlots: () => Promise<readonly SlotSummary[]>
   readonly listTools: () => Promise<readonly ToolSummary[]>
+  readonly listServices?: () => Promise<readonly ServiceSummary[]>
+  readonly listEvents?: () => Promise<readonly EventSummary[]>
 }
 
 export interface InspectResult {
   readonly profile: string
   readonly target: InspectTarget
   readonly source: 'runtime'
-  readonly items: readonly SlotSummary[] | readonly ToolSummary[]
+  readonly items: readonly SlotSummary[] | readonly ToolSummary[] | readonly ServiceSummary[] | readonly EventSummary[]
   readonly diagnostics: readonly DshxDiagnostic[]
   /** Original provider/DSH failure, exposed only to verbose CLI output. */
   readonly cause?: unknown
