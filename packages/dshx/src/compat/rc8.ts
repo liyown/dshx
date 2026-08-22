@@ -9,7 +9,16 @@ export const RC8_COMPATIBILITY: DshCompatibility = {
   verifiedVersions: ['0.1.0-rc.8'],
   nodeRange: '^22.19.0 || >=24.0.0',
   profile: { listCommand: 'plugin-list-json', addCommand: 'plugin-add' },
-  inspect: { targets: ['slots', 'tools'], provider: 'unavailable' },
+  inspect: {
+    targets: ['slots', 'tools', 'services', 'events'],
+    provider: 'unavailable',
+    providerByTarget: {
+      slots: 'unavailable',
+      tools: 'unavailable',
+      services: 'runtime',
+      events: 'runtime',
+    },
+  },
   client: {
     platformModules: [
       'react',

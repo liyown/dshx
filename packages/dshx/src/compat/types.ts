@@ -8,7 +8,9 @@ export interface DshProfileCompatibility {
 
 export interface DshInspectCompatibility {
   readonly targets: readonly ('slots' | 'tools' | 'services' | 'events')[]
-  readonly provider: 'runtime' | 'unavailable'
+  /** Legacy aggregate capability retained for adapters authored before target-specific providers. */
+  readonly provider?: 'runtime' | 'unavailable'
+  readonly providerByTarget?: Partial<Record<'slots' | 'tools' | 'services' | 'events', 'runtime' | 'unavailable'>>
 }
 
 /** Build/runtime protocol values owned by one DSH compatibility generation. */
