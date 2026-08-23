@@ -20,6 +20,11 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Local browser QA artifacts
+.playwright-cli/
+output/
+public/dshx-runtime-reference.png
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
