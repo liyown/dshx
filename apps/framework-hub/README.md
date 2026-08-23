@@ -119,6 +119,19 @@ Use oversized but restrained headlines.
 
 The homepage should feel closer to a modern technical publication or framework documentation site than a marketing-heavy startup website.
 
+INTERNATIONALIZATION
+
+The Hub uses URL-prefixed locales:
+
+- /en
+- /zh
+
+The root URL negotiates the initial locale from Accept-Language; an explicit locale
+in the URL always wins. Shared UI copy is kept in the typed locale catalog under
+src/lib/i18n, while plugin records remain placeholder data until a content API is
+introduced. Future API responses should return already-localized domain fields so
+the browser does not choose a language per record.
+
 BRAND MOTIF — THE X
 
 Create a visual identity around the “X” in DSHX.

@@ -1,23 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Container, SectionLabel, Chip } from "@/components/dshx/primitives";
 import { CodeSurface, Code } from "@/components/dshx/code";
+import { createTranslator, parseLocale, useI18n } from "@/lib/i18n";
 
-export const Route = createFileRoute("/examples")({
-  head: () => ({
+export const Route = createFileRoute("/$locale/examples")({
+  head: ({ params }) => {
+    const t = createTranslator(parseLocale(params.locale));
+    return {
     meta: [
-      { title: "Examples — DSHX plugin patterns" },
+      { title: t("examples.title") + " — DSHX" },
       {
         name: "description",
-        content:
-          "Reference DSHX plugins: host tools, React slot contributions, typed Host–Client APIs and runtime hooks.",
+        content: t("examples.title"),
       },
-      { property: "og:title", content: "Examples — DSHX plugin patterns" },
+      { property: "og:title", content: t("examples.title") + " — DSHX" },
       {
         property: "og:description",
-        content: "Small, complete DSHX plugins you can read end to end.",
+        content: t("examples.title"),
       },
     ],
-  }),
+    };
+  },
   component: Examples,
 });
 
@@ -60,23 +63,53 @@ const examples = [
   },
 ];
 
+const exampleCopy = {
+  "hello-slot": {
+    title: "examples.hello.title",
+    tag: "examples.hello.tag",
+    description: "examples.hello.description",
+  },
+  "search-tool": {
+    title: "examples.search.title",
+    tag: "examples.search.tag",
+    description: "examples.search.description",
+  },
+  "typed-api": {
+    title: "examples.api.title",
+    tag: "examples.api.tag",
+    description: "examples.api.description",
+  },
+  "runtime-hooks": {
+    title: "examples.hooks.title",
+    tag: "examples.hooks.tag",
+    description: "examples.hooks.description",
+  },
+} as const;
+
 function Examples() {
+  const { t } = useI18n();
   return (
     <main>
       <Container className="py-16 md:py-24">
-        <SectionLabel index="/examples">Reference plugins</SectionLabel>
+        <SectionLabel index="/examples">{t("examples.label")}</SectionLabel>
         <h1 className="text-balance-tight mt-6 text-[clamp(2rem,4.5vw,3.25rem)] leading-[1.05] font-medium">
-          Small plugins, read end to end.
+          {t("examples.title")}
         </h1>
 
         <div className="mt-12 grid gap-6 lg:grid-cols-2">
           {examples.map((e) => (
             <div key={e.name} className="rounded-xl border border-border bg-surface p-5">
               <div className="flex items-center gap-2.5">
-                <span className="font-mono text-[13.5px]">{e.name}</span>
-                <Chip tone="accent">{e.tag}</Chip>
+                <span className="font-mono text-[13.5px]">
+                  {t(exampleCopy[e.name as keyof typeof exampleCopy].title)}
+                </span>
+                <Chip tone="accent">
+                  {t(exampleCopy[e.name as keyof typeof exampleCopy].tag)}
+                </Chip>
               </div>
-              <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{e.desc}</p>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
+                {t(exampleCopy[e.name as keyof typeof exampleCopy].description)}
+              </p>
               <CodeSurface className="mt-4" dots={false} title={`${e.name}/src`}>
                 <Code code={e.code} />
               </CodeSurface>

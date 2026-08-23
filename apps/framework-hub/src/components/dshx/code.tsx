@@ -66,6 +66,7 @@ export function CodeSurface({
 }) {
   return (
     <div
+      data-scroll-surface
       className={cn(
         "overflow-hidden rounded-xl border border-ink-border bg-ink text-ink-foreground",
         className,
@@ -94,10 +95,12 @@ export function Code({
   code,
   className,
   highlightLines = [],
+  lineNumbers = false,
 }: {
   code: string;
   className?: string | undefined;
   highlightLines?: number[] | undefined;
+  lineNumbers?: boolean | undefined;
 }) {
   const lines = code.replace(/\n$/, "").split("\n");
   return (
@@ -113,15 +116,23 @@ export function Code({
             key={i}
             className={cn(
               "-mx-2 px-2 transition-colors duration-500",
+              lineNumbers && "grid grid-cols-[2.5rem_minmax(0,1fr)]",
               highlightLines.includes(i + 1) && "bg-accent/12 shadow-[inset_2px_0_0] shadow-accent",
             )}
           >
-            {tokenize(line).map((tk, j) => (
-              <span key={j} className={tk.c ? colors[tk.c] : undefined}>
-                {tk.t}
+            {lineNumbers ? (
+              <span aria-hidden className="select-none pr-4 text-right text-ink-muted/55">
+                {i + 1}
               </span>
-            ))}
-            {line === "" ? " " : ""}
+            ) : null}
+            <span>
+              {tokenize(line).map((tk, j) => (
+                <span key={j} className={tk.c ? colors[tk.c] : undefined}>
+                  {tk.t}
+                </span>
+              ))}
+              {line === "" ? " " : ""}
+            </span>
           </div>
         ))}
       </code>

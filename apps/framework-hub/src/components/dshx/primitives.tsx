@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { localizedPath, useI18n } from "@/lib/i18n";
 
 /* ---------- X motif ---------- */
 
@@ -41,15 +42,13 @@ export function Container({
   className?: string | undefined;
 }) {
   return (
-    <div className={cn("mx-auto w-full max-w-[1180px] px-6 md:px-10", className)}>
-      {children}
-    </div>
+    <div className={cn("mx-auto w-full max-w-[1180px] px-6 md:px-10", className)}>{children}</div>
   );
 }
 
 export function SectionLabel({ index, children }: { index: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3" data-scroll-kicker>
       <span className="font-mono text-[11px] tracking-[0.12em] text-accent">{index}</span>
       <span className="mono-label">{children}</span>
       <span className="h-px flex-1 bg-border" />
@@ -66,6 +65,7 @@ export function SectionHeading({
 }) {
   return (
     <h2
+      data-scroll-heading
       className={cn(
         "text-balance-tight max-w-3xl text-[clamp(1.75rem,3.6vw,2.75rem)] leading-[1.08] font-medium",
         className,
@@ -76,9 +76,18 @@ export function SectionHeading({
   );
 }
 
-export function Lede({ children, className }: { children: ReactNode; className?: string | undefined }) {
+export function Lede({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string | undefined;
+}) {
   return (
-    <p className={cn("max-w-2xl text-[15px] leading-relaxed text-muted-foreground", className)}>
+    <p
+      className={cn("max-w-2xl text-[15px] leading-relaxed text-muted-foreground", className)}
+      data-scroll-copy
+    >
       {children}
     </p>
   );
@@ -102,6 +111,7 @@ export function ButtonLink({
   children: ReactNode;
   className?: string | undefined;
 }) {
+  const { locale } = useI18n();
   const styles = {
     primary: "bg-primary text-primary-foreground hover:bg-primary/90",
     accent: "bg-accent text-accent-foreground hover:bg-accent/90",
@@ -122,7 +132,7 @@ export function ButtonLink({
     );
   }
   return (
-    <Link to={to ?? "/"} className={cn(base, styles, className)}>
+    <Link to={localizedPath(locale, to ?? "/")} className={cn(base, styles, className)}>
       {children}
     </Link>
   );

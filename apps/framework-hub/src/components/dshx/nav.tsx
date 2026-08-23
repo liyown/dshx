@@ -1,16 +1,18 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Container, Wordmark, XMark, ButtonLink } from "./primitives";
 import { cn } from "@/lib/utils";
+import { localizedPath, useI18n } from "@/lib/i18n";
 
 const links = [
-  { label: "Docs", to: "/docs" },
-  { label: "Plugins", to: "/plugins" },
-  { label: "Examples", to: "/examples" },
-  { label: "Changelog", to: "/changelog" },
-];
+  { key: "nav.plugins", to: "/plugins" },
+  { key: "nav.docs", to: "/docs" },
+  { key: "nav.changelog", to: "/changelog" },
+] as const;
 
 export function Nav() {
+  const { locale, t } = useI18n();
+  const location = useRouterState({ select: (state) => state.location });
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -21,6 +23,10 @@ export function Nav() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const alternateLocale = locale === "en" ? "zh" : "en";
+  const alternateHref =
+    localizedPath(alternateLocale, location.pathname) + location.searchStr + location.hash;
+
   return (
     <header
       className={cn(
@@ -29,20 +35,20 @@ export function Nav() {
       )}
     >
       <Container className="flex h-14 items-center justify-between gap-6">
-        <Link to="/" className="group flex items-center gap-2.5">
+        <Link to={localizedPath(locale, "/")} className="group flex items-center gap-2.5">
           <XMark className="size-[18px] text-foreground transition-transform duration-500 group-hover:rotate-90" />
           <Wordmark />
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
-          {links.map((l) => (
+          {links.map((link) => (
             <Link
-              key={l.to}
-              to={l.to}
+              key={link.to}
+              to={localizedPath(locale, link.to)}
               className="rounded-md px-2.5 py-1.5 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
               activeProps={{ className: "text-foreground" }}
             >
-              {l.label}
+              {t(link.key)}
             </Link>
           ))}
         </nav>
@@ -54,14 +60,21 @@ export function Nav() {
             rel="noreferrer"
             className="hidden px-2.5 py-1.5 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground sm:block"
           >
-            GitHub
+            {t("nav.github")}
           </a>
           <ButtonLink to="/docs" variant="primary" className="h-9">
-            Get Started
+            {t("nav.getStarted")}
           </ButtonLink>
+          <a
+            href={alternateHref}
+            aria-label={t("nav.language")}
+            className="hidden rounded-md border border-border px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground sm:block"
+          >
+            {locale === "en" ? t("nav.switchToChinese") : t("nav.switchToEnglish")}
+          </a>
           <button
-            onClick={() => setOpen((v) => !v)}
-            aria-label="Menu"
+            onClick={() => setOpen((value) => !value)}
+            aria-label={t("nav.menu")}
             className="flex size-9 items-center justify-center rounded-md border border-border md:hidden"
           >
             <span className="flex flex-col gap-[3px]">
@@ -75,16 +88,23 @@ export function Nav() {
       {open && (
         <div className="border-t border-border bg-background md:hidden">
           <Container className="flex flex-col py-2">
-            {links.map((l) => (
+            {links.map((link) => (
               <Link
-                key={l.to}
-                to={l.to}
+                key={link.to}
+                to={localizedPath(locale, link.to)}
                 onClick={() => setOpen(false)}
                 className="py-2.5 text-[14px] text-muted-foreground"
               >
-                {l.label}
+                {t(link.key)}
               </Link>
             ))}
+            <a
+              href={alternateHref}
+              onClick={() => setOpen(false)}
+              className="py-2.5 text-[14px] text-muted-foreground"
+            >
+              {locale === "en" ? t("nav.switchToChinese") : t("nav.switchToEnglish")}
+            </a>
           </Container>
         </div>
       )}

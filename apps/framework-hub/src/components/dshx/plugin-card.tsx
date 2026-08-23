@@ -2,11 +2,13 @@ import { Link } from "@tanstack/react-router";
 import type { Plugin } from "@/lib/plugins";
 import { Chip } from "./primitives";
 import { cn } from "@/lib/utils";
+import { localizedPath, useI18n } from "@/lib/i18n";
 
 function BadgeTag({ badge }: { badge: Plugin["badge"] }) {
-  if (badge === "official") return <Chip tone="accent">official</Chip>;
-  if (badge === "verified") return <Chip tone="ok">verified</Chip>;
-  return <Chip>community</Chip>;
+  const { t } = useI18n();
+  if (badge === "official") return <Chip tone="accent">{t("plugin.badge.official")}</Chip>;
+  if (badge === "verified") return <Chip tone="ok">{t("plugin.badge.verified")}</Chip>;
+  return <Chip>{t("plugin.badge.community")}</Chip>;
 }
 
 function Glyph({ plugin, size = 40 }: { plugin: Plugin; size?: number }) {
@@ -22,10 +24,11 @@ function Glyph({ plugin, size = 40 }: { plugin: Plugin; size?: number }) {
 }
 
 export function PluginCard({ plugin }: { plugin: Plugin }) {
+  const { locale } = useI18n();
   return (
     <Link
-      to="/plugins/$slug"
-      params={{ slug: plugin.slug }}
+      data-scroll-surface
+      to={localizedPath(locale, "/plugins/" + plugin.slug)}
       className="group relative flex flex-col gap-3.5 rounded-xl border border-border bg-surface p-4 transition-colors duration-150 hover:border-border-strong hover:bg-surface-2/60"
     >
       <div className="flex items-start gap-3">
@@ -64,10 +67,11 @@ export function PluginCard({ plugin }: { plugin: Plugin }) {
 }
 
 export function PluginRow({ plugin }: { plugin: Plugin }) {
+  const { locale } = useI18n();
   return (
     <Link
-      to="/plugins/$slug"
-      params={{ slug: plugin.slug }}
+      data-scroll-surface
+      to={localizedPath(locale, "/plugins/" + plugin.slug)}
       className="group flex items-center gap-4 border-b border-border px-3 py-3.5 transition-colors last:border-b-0 hover:bg-surface-2/60"
     >
       <Glyph plugin={plugin} size={28} />

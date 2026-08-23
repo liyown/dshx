@@ -1,32 +1,37 @@
 import { Link } from "@tanstack/react-router";
 import { Container, Wordmark, XMark } from "./primitives";
+import { localizedPath, useI18n, type MessageKey } from "@/lib/i18n";
 
-const groups: { title: string; items: { label: string; to?: string; href?: string }[] }[] = [
+const groups: {
+  title: MessageKey;
+  items: { key: MessageKey; to?: string; href?: string }[];
+}[] = [
   {
-    title: "Product",
+    title: "footer.product",
     items: [
-      { label: "Docs", to: "/docs" },
-      { label: "Examples", to: "/examples" },
-      { label: "Plugins", to: "/plugins" },
+      { key: "nav.plugins", to: "/plugins" },
+      { key: "nav.docs", to: "/docs" },
     ],
   },
   {
-    title: "Community",
+    title: "footer.community",
     items: [
-      { label: "GitHub", href: "https://github.com" },
-      { label: "Discussions", href: "https://github.com" },
+      { key: "nav.github", href: "https://github.com" },
+      { key: "footer.discussions", href: "https://github.com" },
     ],
   },
   {
-    title: "Resources",
+    title: "footer.resources",
     items: [
-      { label: "Changelog", to: "/changelog" },
-      { label: "Compatibility", to: "/changelog" },
+      { key: "nav.changelog", to: "/changelog" },
+      { key: "footer.compatibility", to: "/changelog" },
     ],
   },
 ];
 
 export function Footer() {
+  const { locale, t } = useI18n();
+
   return (
     <footer className="mt-32 border-t border-border">
       <Container className="grid gap-12 py-16 md:grid-cols-[1.4fr_repeat(3,1fr)] md:py-20">
@@ -36,34 +41,34 @@ export function Footer() {
             <Wordmark />
           </div>
           <p className="max-w-[16rem] text-[14px] leading-relaxed text-muted-foreground">
-            Build the DSH ecosystem.
+            {t("footer.tagline")}
           </p>
           <p className="mt-auto font-mono text-[11px] text-muted-foreground">
             MIT · v0.4.0 · dsh ^0.9
           </p>
         </div>
 
-        {groups.map((g) => (
-          <div key={g.title} className="flex flex-col gap-3">
-            <span className="mono-label">{g.title}</span>
-            {g.items.map((it) =>
-              it.href ? (
+        {groups.map((group) => (
+          <div key={group.title} className="flex flex-col gap-3">
+            <span className="mono-label">{t(group.title)}</span>
+            {group.items.map((item) =>
+              item.href ? (
                 <a
-                  key={it.label}
-                  href={it.href}
+                  key={item.key}
+                  href={item.href}
                   target="_blank"
                   rel="noreferrer"
                   className="text-[14px] text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  {it.label}
+                  {t(item.key)}
                 </a>
               ) : (
                 <Link
-                  key={it.label}
-                  to={it.to ?? "/"}
+                  key={item.key}
+                  to={localizedPath(locale, item.to ?? "/")}
                   className="text-[14px] text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  {it.label}
+                  {t(item.key)}
                 </Link>
               ),
             )}

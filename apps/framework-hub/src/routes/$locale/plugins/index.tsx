@@ -4,32 +4,36 @@ import { Container, SectionLabel, Chip } from "@/components/dshx/primitives";
 import { PluginCard, PluginRow } from "@/components/dshx/plugin-card";
 import { categories, plugins } from "@/lib/plugins";
 import { cn } from "@/lib/utils";
+import { createTranslator, parseLocale, useI18n } from "@/lib/i18n";
 
-export const Route = createFileRoute("/plugins/")({
-  head: () => ({
+export const Route = createFileRoute("/$locale/plugins/")({
+  head: ({ params }) => {
+    const t = createTranslator(parseLocale(params.locale));
+    return {
     meta: [
-      { title: "DSH Plugins — Discover the DSHX ecosystem" },
+      { title: t("plugins.title") },
       {
         name: "description",
-        content:
-          "Browse DSH plugins built with DSHX: tools, UI slots, agents, memory and integrations, with versions and runtime compatibility.",
+        content: t("plugins.intro"),
       },
-      { property: "og:title", content: "DSH Plugins — Discover the DSHX ecosystem" },
+      { property: "og:title", content: t("plugins.title") },
       {
         property: "og:description",
-        content: "A package ecosystem for DSH: featured, trending and recently updated plugins.",
+        content: t("plugins.intro"),
       },
     ],
-  }),
+    };
+  },
   component: PluginsPage,
 });
 
 const tabs = ["Featured", "Trending", "Recently Updated", "New"] as const;
 
 function PluginsPage() {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<string | null>(null);
-  const [tab, setTab] = useState<(typeof tabs)[number]>("Featured");
+  const [activeTab, setTab] = useState<(typeof tabs)[number]>("Featured");
   const [view, setView] = useState<"grid" | "list">("grid");
 
   const results = useMemo(() => {
@@ -41,22 +45,21 @@ function PluginsPage() {
             .toLowerCase()
             .includes(query.toLowerCase())),
     );
-    if (tab === "Featured") list = [...list].sort((a, b) => Number(!!b.featured) - Number(!!a.featured));
-    if (tab === "Trending") list = list.filter((p) => p.trending || !cat).sort((a, b) => b.stars - a.stars);
-    if (tab === "New") list = [...list].sort((a, b) => Number(!!b.isNew) - Number(!!a.isNew));
+    if (activeTab === "Featured") list = [...list].sort((a, b) => Number(!!b.featured) - Number(!!a.featured));
+    if (activeTab === "Trending") list = list.filter((p) => p.trending || !cat).sort((a, b) => b.stars - a.stars);
+    if (activeTab === "New") list = [...list].sort((a, b) => Number(!!b.isNew) - Number(!!a.isNew));
     return list;
-  }, [query, cat, tab]);
+  }, [query, cat, activeTab]);
 
   return (
     <main>
       <Container className="py-16 md:py-24">
-        <SectionLabel index="/plugins">Registry preview</SectionLabel>
+        <SectionLabel index="/plugins">{t("plugins.label")}</SectionLabel>
         <h1 className="text-balance-tight mt-6 text-[clamp(2rem,4.5vw,3.25rem)] leading-[1.05] font-medium">
-          DSH plugins, built with DSHX.
+          {t("plugins.title")}
         </h1>
         <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-          An open registry for the DSH runtime. Curated today, community-published next. No
-          pricing, no ratings — versions, compatibility and maintainers.
+          {t("plugins.intro")}
         </p>
 
         <div className="mt-10 flex items-center gap-3 rounded-xl border border-border-strong bg-surface px-4 py-3 transition-colors focus-within:border-accent">
@@ -64,10 +67,12 @@ function PluginsPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search DSH plugins…"
+            placeholder={t("plugins.search")}
             className="w-full bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
           />
-          <Chip className="shrink-0 whitespace-nowrap">{results.length} results</Chip>
+          <Chip className="shrink-0 whitespace-nowrap">
+            {t("plugins.results", { count: results.length })}
+          </Chip>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-1.5">
@@ -80,7 +85,7 @@ function PluginsPage() {
                 : "border-border text-muted-foreground hover:text-foreground",
             )}
           >
-            All
+            {t("plugins.all")}
           </button>
           {categories.map((c) => (
             <button
@@ -100,17 +105,25 @@ function PluginsPage() {
 
         <div className="mt-10 flex items-center justify-between border-b border-border pb-3">
           <div className="flex gap-4">
-            {tabs.map((t) => (
+            {tabs.map((tab) => (
               <button
-                key={t}
-                onClick={() => setTab(t)}
+                key={tab}
+                onClick={() => setTab(tab)}
                 className={cn(
                   "relative pb-3 text-[13.5px] transition-colors",
-                  tab === t ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                  activeTab === tab ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {t}
-                {tab === t && <span className="absolute -bottom-px left-0 h-px w-full bg-accent" />}
+                {tab === "Featured"
+                  ? t("plugins.featured")
+                  : tab === "Trending"
+                    ? t("plugins.trending")
+                    : tab === "Recently Updated"
+                      ? t("plugins.recentlyUpdated")
+                      : t("plugins.new")}
+                {activeTab === tab && (
+                  <span className="absolute -bottom-px left-0 h-px w-full bg-accent" />
+                )}
               </button>
             ))}
           </div>
@@ -146,15 +159,14 @@ function PluginsPage() {
 
         {results.length === 0 && (
           <p className="mt-10 font-mono text-[12.5px] text-muted-foreground">
-            no plugins matched · try a different category
+            {t("plugins.noMatches")}
           </p>
         )}
 
         <div className="mt-16 rounded-xl border border-dashed border-border-strong p-6">
-          <span className="mono-label">Publishing</span>
+          <span className="mono-label">{t("plugins.publishing")}</span>
           <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-muted-foreground">
-            Open publishing is not live yet. Plugins listed here are curated from the community.
-            DSHX is the development framework — the community builds the ecosystem.
+            {t("plugins.publishingBody")}
           </p>
         </div>
       </Container>

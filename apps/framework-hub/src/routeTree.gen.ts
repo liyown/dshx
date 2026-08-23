@@ -10,91 +10,120 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ChangelogRouteImport } from './routes/changelog'
-import { Route as DocsRouteImport } from './routes/docs'
-import { Route as ExamplesRouteImport } from './routes/examples'
-import { Route as PluginsIndexRouteImport } from './routes/plugins.index'
-import { Route as PluginsSlugRouteImport } from './routes/plugins.$slug'
+import { Route as LocaleRouteImport } from './routes/$locale'
+import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
+import { Route as LocaleChangelogRouteImport } from './routes/$locale/changelog'
+import { Route as LocaleDocsRouteImport } from './routes/$locale/docs'
+import { Route as LocaleExamplesRouteImport } from './routes/$locale/examples'
+import { Route as LocalePluginsIndexRouteImport } from './routes/$locale/plugins/index'
+import { Route as LocalePluginsSlugRouteImport } from './routes/$locale/plugins/$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ChangelogRoute = ChangelogRouteImport.update({
+const LocaleRoute = LocaleRouteImport.update({
+  id: '/$locale',
+  path: '/$locale',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocaleIndexRoute = LocaleIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleChangelogRoute = LocaleChangelogRouteImport.update({
   id: '/changelog',
   path: '/changelog',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => LocaleRoute,
 } as any)
-const DocsRoute = DocsRouteImport.update({
+const LocaleDocsRoute = LocaleDocsRouteImport.update({
   id: '/docs',
   path: '/docs',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => LocaleRoute,
 } as any)
-const ExamplesRoute = ExamplesRouteImport.update({
+const LocaleExamplesRoute = LocaleExamplesRouteImport.update({
   id: '/examples',
   path: '/examples',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => LocaleRoute,
 } as any)
-const PluginsIndexRoute = PluginsIndexRouteImport.update({
+const LocalePluginsIndexRoute = LocalePluginsIndexRouteImport.update({
   id: '/plugins/',
   path: '/plugins/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => LocaleRoute,
 } as any)
-const PluginsSlugRoute = PluginsSlugRouteImport.update({
+const LocalePluginsSlugRoute = LocalePluginsSlugRouteImport.update({
   id: '/plugins/$slug',
   path: '/plugins/$slug',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => LocaleRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/changelog': typeof ChangelogRoute
-  '/docs': typeof DocsRoute
-  '/examples': typeof ExamplesRoute
-  '/plugins/$slug': typeof PluginsSlugRoute
-  '/plugins/': typeof PluginsIndexRoute
+  '/$locale': typeof LocaleRouteWithChildren
+  '/$locale/changelog': typeof LocaleChangelogRoute
+  '/$locale/docs': typeof LocaleDocsRoute
+  '/$locale/examples': typeof LocaleExamplesRoute
+  '/$locale/': typeof LocaleIndexRoute
+  '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
+  '/$locale/plugins/': typeof LocalePluginsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/changelog': typeof ChangelogRoute
-  '/docs': typeof DocsRoute
-  '/examples': typeof ExamplesRoute
-  '/plugins/$slug': typeof PluginsSlugRoute
-  '/plugins': typeof PluginsIndexRoute
+  '/$locale/changelog': typeof LocaleChangelogRoute
+  '/$locale/docs': typeof LocaleDocsRoute
+  '/$locale/examples': typeof LocaleExamplesRoute
+  '/$locale': typeof LocaleIndexRoute
+  '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
+  '/$locale/plugins': typeof LocalePluginsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/changelog': typeof ChangelogRoute
-  '/docs': typeof DocsRoute
-  '/examples': typeof ExamplesRoute
-  '/plugins/$slug': typeof PluginsSlugRoute
-  '/plugins/': typeof PluginsIndexRoute
+  '/$locale': typeof LocaleRouteWithChildren
+  '/$locale/changelog': typeof LocaleChangelogRoute
+  '/$locale/docs': typeof LocaleDocsRoute
+  '/$locale/examples': typeof LocaleExamplesRoute
+  '/$locale/': typeof LocaleIndexRoute
+  '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
+  '/$locale/plugins/': typeof LocalePluginsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/changelog' | '/docs' | '/examples' | '/plugins/$slug' | '/plugins/'
+    | '/'
+    | '/$locale'
+    | '/$locale/changelog'
+    | '/$locale/docs'
+    | '/$locale/examples'
+    | '/$locale/'
+    | '/$locale/plugins/$slug'
+    | '/$locale/plugins/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/changelog' | '/docs' | '/examples' | '/plugins/$slug' | '/plugins'
+  to:
+    | '/'
+    | '/$locale/changelog'
+    | '/$locale/docs'
+    | '/$locale/examples'
+    | '/$locale'
+    | '/$locale/plugins/$slug'
+    | '/$locale/plugins'
   id:
     | '__root__'
     | '/'
-    | '/changelog'
-    | '/docs'
-    | '/examples'
-    | '/plugins/$slug'
-    | '/plugins/'
+    | '/$locale'
+    | '/$locale/changelog'
+    | '/$locale/docs'
+    | '/$locale/examples'
+    | '/$locale/'
+    | '/$locale/plugins/$slug'
+    | '/$locale/plugins/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ChangelogRoute: typeof ChangelogRoute
-  DocsRoute: typeof DocsRoute
-  ExamplesRoute: typeof ExamplesRoute
-  PluginsSlugRoute: typeof PluginsSlugRoute
-  PluginsIndexRoute: typeof PluginsIndexRoute
+  LocaleRoute: typeof LocaleRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -106,51 +135,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/changelog': {
-      id: '/changelog'
+    '/$locale': {
+      id: '/$locale'
+      path: '/$locale'
+      fullPath: '/$locale'
+      preLoaderRoute: typeof LocaleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/': {
+      id: '/$locale/'
+      path: '/'
+      fullPath: '/$locale/'
+      preLoaderRoute: typeof LocaleIndexRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/changelog': {
+      id: '/$locale/changelog'
       path: '/changelog'
-      fullPath: '/changelog'
-      preLoaderRoute: typeof ChangelogRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/$locale/changelog'
+      preLoaderRoute: typeof LocaleChangelogRouteImport
+      parentRoute: typeof LocaleRoute
     }
-    '/docs': {
-      id: '/docs'
+    '/$locale/docs': {
+      id: '/$locale/docs'
       path: '/docs'
-      fullPath: '/docs'
-      preLoaderRoute: typeof DocsRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/$locale/docs'
+      preLoaderRoute: typeof LocaleDocsRouteImport
+      parentRoute: typeof LocaleRoute
     }
-    '/examples': {
-      id: '/examples'
+    '/$locale/examples': {
+      id: '/$locale/examples'
       path: '/examples'
-      fullPath: '/examples'
-      preLoaderRoute: typeof ExamplesRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/$locale/examples'
+      preLoaderRoute: typeof LocaleExamplesRouteImport
+      parentRoute: typeof LocaleRoute
     }
-    '/plugins/': {
-      id: '/plugins/'
+    '/$locale/plugins/': {
+      id: '/$locale/plugins/'
       path: '/plugins'
-      fullPath: '/plugins/'
-      preLoaderRoute: typeof PluginsIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/$locale/plugins/'
+      preLoaderRoute: typeof LocalePluginsIndexRouteImport
+      parentRoute: typeof LocaleRoute
     }
-    '/plugins/$slug': {
-      id: '/plugins/$slug'
+    '/$locale/plugins/$slug': {
+      id: '/$locale/plugins/$slug'
       path: '/plugins/$slug'
-      fullPath: '/plugins/$slug'
-      preLoaderRoute: typeof PluginsSlugRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/$locale/plugins/$slug'
+      preLoaderRoute: typeof LocalePluginsSlugRouteImport
+      parentRoute: typeof LocaleRoute
     }
   }
 }
 
+interface LocaleRouteChildren {
+  LocaleChangelogRoute: typeof LocaleChangelogRoute
+  LocaleDocsRoute: typeof LocaleDocsRoute
+  LocaleExamplesRoute: typeof LocaleExamplesRoute
+  LocaleIndexRoute: typeof LocaleIndexRoute
+  LocalePluginsSlugRoute: typeof LocalePluginsSlugRoute
+  LocalePluginsIndexRoute: typeof LocalePluginsIndexRoute
+}
+
+const LocaleRouteChildren: LocaleRouteChildren = {
+  LocaleChangelogRoute: LocaleChangelogRoute,
+  LocaleDocsRoute: LocaleDocsRoute,
+  LocaleExamplesRoute: LocaleExamplesRoute,
+  LocaleIndexRoute: LocaleIndexRoute,
+  LocalePluginsSlugRoute: LocalePluginsSlugRoute,
+  LocalePluginsIndexRoute: LocalePluginsIndexRoute,
+}
+
+const LocaleRouteWithChildren =
+  LocaleRoute._addFileChildren(LocaleRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ChangelogRoute: ChangelogRoute,
-  DocsRoute: DocsRoute,
-  ExamplesRoute: ExamplesRoute,
-  PluginsSlugRoute: PluginsSlugRoute,
-  PluginsIndexRoute: PluginsIndexRoute,
+  LocaleRoute: LocaleRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

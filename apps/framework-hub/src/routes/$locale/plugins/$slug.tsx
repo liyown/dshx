@@ -4,16 +4,20 @@ import { Container, Chip, ButtonLink, SectionLabel } from "@/components/dshx/pri
 import { CodeSurface, Code } from "@/components/dshx/code";
 import { getPlugin, plugins } from "@/lib/plugins";
 import { cn } from "@/lib/utils";
+import { createTranslator, localizedPath, parseLocale, useI18n } from "@/lib/i18n";
 
-export const Route = createFileRoute("/plugins/$slug")({
+export const Route = createFileRoute("/$locale/plugins/$slug")({
   loader: ({ params }) => {
     const plugin = getPlugin(params.slug);
     if (!plugin) throw notFound();
     return { plugin };
   },
-  head: ({ loaderData }) => {
+  head: ({ loaderData, params }) => {
+    const t = createTranslator(parseLocale(params.locale));
     if (!loaderData) {
-      return { meta: [{ title: "Plugin not found — DSHX" }, { name: "robots", content: "noindex" }] };
+      return {
+        meta: [{ title: t("errors.pageNotFound") + " — DSHX" }, { name: "robots", content: "noindex" }],
+      };
     }
     const p = loaderData.plugin;
     return {
@@ -29,9 +33,18 @@ export const Route = createFileRoute("/plugins/$slug")({
 });
 
 const sections = ["Overview", "README", "Versions", "Compatibility", "Dependencies", "Changelog"];
+const sectionKeys = {
+  Overview: "plugin.overview",
+  README: "plugin.readme",
+  Versions: "plugin.versions",
+  Compatibility: "plugin.compatibility",
+  Dependencies: "plugin.dependencies",
+  Changelog: "plugin.changelog",
+} as const;
 
 function PluginDetail() {
   const { plugin } = Route.useLoaderData();
+  const { locale, t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [active, setActive] = useState("Overview");
   const install = `dsh plugin add ${plugin.scope}`;
@@ -42,10 +55,10 @@ function PluginDetail() {
     <main>
       <Container className="py-12 md:py-16">
         <Link
-          to="/plugins"
+          to={localizedPath(locale, "/plugins")}
           className="font-mono text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
         >
-          ← plugins
+          {t("plugin.back")}
         </Link>
 
         <div className="mt-8 flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
@@ -84,11 +97,11 @@ function PluginDetail() {
               <span className="text-ink-accent">$</span>
               {install}
               <span className={cn("text-[11px]", copied ? "text-ok" : "text-ink-muted")}>
-                {copied ? "copied" : "copy"}
+                {copied ? t("plugin.copied") : t("plugin.copy")}
               </span>
             </button>
             <ButtonLink href="https://github.com" variant="outline">
-              Open GitHub
+              {t("plugin.openGithub")}
             </ButtonLink>
           </div>
         </div>
@@ -105,7 +118,7 @@ function PluginDetail() {
                     active === s ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {s}
+                  {t(sectionKeys[s as keyof typeof sectionKeys])}
                   {active === s && (
                     <span className="absolute -bottom-px left-0 h-px w-full bg-accent" />
                   )}
@@ -115,9 +128,7 @@ function PluginDetail() {
 
             <div className="mt-8 space-y-6">
               <p className="text-[15px] leading-relaxed text-muted-foreground">
-                {plugin.name} contributes host tools and a React slot to the DSH runtime. It is
-                authored with DSHX, so the host and client share a typed API contract and ship as a
-                single plugin package.
+                {t("plugin.description", { name: plugin.name })}
               </p>
 
               <CodeSurface title="src/client.tsx">
@@ -170,13 +181,12 @@ export default defineClient({
         </div>
 
         <div className="mt-20">
-          <SectionLabel index="→">Related</SectionLabel>
+          <SectionLabel index="→">{t("plugin.related")}</SectionLabel>
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             {related.map((p) => (
               <Link
                 key={p.slug}
-                to="/plugins/$slug"
-                params={{ slug: p.slug }}
+                to={localizedPath(locale, "/plugins/" + p.slug)}
                 className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-border-strong"
               >
                 <div className="text-[14px] font-medium">{p.name}</div>
