@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { Nav } from "../components/dshx/nav";
 import { Footer } from "../components/dshx/footer";
+import { DevelopmentBanner } from "../components/dshx/development-banner";
 import { SiteMotionLayer } from "../components/dshx/site-motion-layer";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { createTranslator, I18nProvider, localeFromPathname, localizedPath } from "../lib/i18n";
@@ -104,7 +105,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap",
       },
       {
         rel: "stylesheet",
@@ -150,6 +151,7 @@ function RootComponent() {
           <div className="site-motion-shell">
             <div className="site-motion-content">
               {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+              <DevelopmentBanner />
               <Nav />
               <Outlet />
               <Footer />

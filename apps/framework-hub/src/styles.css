@@ -22,6 +22,7 @@
   --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-hand: "Caveat", cursive;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -176,6 +177,40 @@
 }
 
 /* ---------- DSHX utilities ---------- */
+
+.github-star-callout {
+  pointer-events: none;
+  position: absolute;
+  top: calc(100% + 11px);
+  right: 50%;
+  width: 220px;
+  height: 76px;
+  color: color-mix(in oklch, var(--accent) 80%, transparent);
+}
+
+.github-star-callout::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 0;
+  width: 88px;
+  height: 58px;
+  border-right: 2.5px solid currentColor;
+  border-bottom: 2.5px solid currentColor;
+  border-bottom-right-radius: 52px;
+}
+
+.github-star-callout::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -5px;
+  width: 12px;
+  height: 12px;
+  border-top: 2.5px solid currentColor;
+  border-left: 2.5px solid currentColor;
+  transform: rotate(45deg);
+}
 
 @utility hairline-x {
   position: relative;
