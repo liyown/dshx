@@ -89,6 +89,8 @@ Settings use Standard Schema rather than a mandatory schema library. Before stab
 
 ### Stage 1: Harden the current API
 
+Status: complete for the current DSH 0.1 Connection seam. Artifact/source parity, JSON transformation, channel disposal, version-mismatch classification, cancellation, and reconnect-aware query scheduling are covered. The rc.2 matrix verifies real unary calls and Host restart; the rc.8 browser fixture verifies initial `useQuery`, in-flight AbortSignal propagation to the Host, reconnect recovery, and Client HMR remount/refetch.
+
 - Keep `defineApi`/`method` compatible with the official Connection API.
 - Verify Host and Client lifecycle, API version mismatch, reconnect, AbortSignal, and HMR behavior against real DSH fixtures.
 - Keep `useQuery` as a deliberately small state model; do not add query caching or optimistic updates.
@@ -96,7 +98,12 @@ Settings use Standard Schema rather than a mandatory schema library. Before stab
 
 ### Stage 2: Command Contribution
 
-Add `defineCommand` only after the official Command registration contract is fixture-tested. The API should preserve official command context, argument parsing, collision behavior, ordering, and Fiber disposal. Add `dshx add command` only as a source scaffold for the official structure.
+Status: complete for the current DSH 0.1 Command seam. `defineCommand` preserves the official `CommandDefinition`, Host definitions register commands in declaration order through `ctx.commands.register()`, and Cordis retains collision, scope, cancellation, and Fiber disposal ownership. `dshx add command` is a transactional source scaffold. The rc.2 matrix verifies the generated Command through the official registry and `commands/execute` parser before and after an automatic Host restart.
+
+- Keep `defineCommand` as a typed identity helper over the official Command object.
+- Keep command scope, parsing, collisions, lifecycle events, cancellation, and disposal in DSH.
+- Keep `dshx add command` local, idempotent, rollback-safe, and independent of Runtime Inspect or Profile mutation.
+- Do not route slash commands through `session.prompt`; the verified rc.2 seam is the official Connection `commands/execute` Remote.
 
 ### Stage 3: Prompt Contributions
 
@@ -161,4 +168,3 @@ Every capability stage is validated against the combinations that users may free
 - Mixed DSHX/native entries.
 
 These combinations test compatibility; they do not constrain authoring choices.
-

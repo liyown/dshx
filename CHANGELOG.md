@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Harden typed unary APIs across compiled artifacts, cancellation, version mismatch, Host disposal/restart, and reconnect-aware queries.
+- Add official Command contributions through `defineCommand`, `defineHost({ commands })`, and the transactional `dshx add command` scaffold.
+- Extend the real DSH `0.1.1-rc.2` smoke matrix with Host API calls, official Command registry/parser execution, and version/restart checks.
+
 ## 0.1.1 - 2026-08-22
 
 - Report the installed DSHX package version from `dshx --version`.
