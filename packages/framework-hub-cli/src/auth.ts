@@ -1,6 +1,6 @@
 import { createServer, type ServerResponse } from "node:http";
 import { randomBytes, createHash } from "node:crypto";
-import { spawn } from "node:child_process";
+import open from "open";
 
 import { api } from "./api.js";
 import { deleteToken, readToken, saveToken } from "./keychain.js";
@@ -44,15 +44,23 @@ function redirectAuthorizationPage(response: ServerResponse, location: string) {
   response.end();
 }
 
-function openBrowser(url: string) {
-  const command =
-    process.platform === "darwin"
-      ? "open"
-      : process.platform === "win32"
-        ? "cmd"
-        : "xdg-open";
-  const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
-  spawn(command, args, { detached: true, stdio: "ignore" }).unref();
+export type BrowserOpener = (url: string) => Promise<unknown>;
+export interface AuthorizationOutput {
+  write(value: string): unknown;
+}
+
+export async function openAuthorizationUrl(
+  url: string,
+  opener: BrowserOpener = (target) => open(target, { wait: false }),
+  output: AuthorizationOutput = process.stderr,
+): Promise<boolean> {
+  try {
+    await opener(url);
+    return true;
+  } catch {
+    output.write(`Unable to open a browser. Authorize at:\n${url}\n`);
+    return false;
+  }
 }
 
 export async function login(hub: string, scopes: string[]) {
@@ -125,8 +133,8 @@ export async function login(hub: string, scopes: string[]) {
       },
       false,
     );
-    openBrowser(created.authorizeUrl);
-    process.stderr.write("Browser opened. Complete GitHub authorization…\n");
+    if (await openAuthorizationUrl(created.authorizeUrl))
+      process.stderr.write("Browser opened. Complete GitHub authorization…\n");
     const timeout = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(
         () => reject(new Error("CLI authorization timed out")),

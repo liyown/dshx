@@ -2,7 +2,14 @@
   "name": "@becomeopc/dshx-hub-cli",
   "version": "0.2.0",
   "description": "Deterministic local verification and operations protocol for DSHX Hub.",
-  "keywords": ["deepseek", "deepseek-harness", "plugins", "verification", "catalog", "cli"],
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "plugins",
+    "verification",
+    "catalog",
+    "cli"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -22,7 +29,11 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
@@ -30,10 +41,14 @@
     "build": "tsc -p tsconfig.build.json",
     "prepack": "pnpm build",
     "lint": "prettier --check src test",
+    "test:keyring-load": "node test/keyring-load.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {
+    "@napi-rs/keyring": "1.3.0",
+    "citty": "0.2.2",
+    "open": "11.0.1",
     "tar": "7.5.22",
     "yaml": "catalog:",
     "zod": "catalog:"

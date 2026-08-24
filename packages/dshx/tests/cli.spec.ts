@@ -76,6 +76,21 @@ describe('CLI argument parser', () => {
     expect(parseCliArgs(['build', '--cwd', '/tmp/project', '--verbose'])).toMatchObject({ command: 'build', cwd: '/tmp/project', verbose: true })
     expect(parseCliArgs(['check', '--json'])).toMatchObject({ command: 'check', json: true })
     expect(parseCliArgs(['dev', '--open'])).toMatchObject({ command: 'dev', open: true })
+    expect(parseCliArgs(['add', 'hook', '--event', 'agent.ready', '--file', 'src/ready.ts', '--dry-run', '--json'])).toMatchInlineSnapshot(`
+      {
+        "addTarget": "hook",
+        "command": "add",
+        "dryRun": true,
+        "event": "agent.ready",
+        "file": "src/ready.ts",
+        "fix": false,
+        "help": false,
+        "json": true,
+        "open": false,
+        "verbose": false,
+        "version": false,
+      }
+    `)
   })
 
   it('rejects unknown arguments and invalid option combinations', () => {

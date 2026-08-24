@@ -42,6 +42,39 @@ describe('create-dshx', () => {
     await rm(root, { recursive: true, force: true })
   })
 
+  it('uses packageManager metadata before PATH and keeps PATH priority stable', async () => {
+    const root = await temp()
+    await writeFile(resolve(root, 'package.json'), JSON.stringify({ packageManager: 'yarn@4.9.4' }))
+    const runner = async (): Promise<{ exitCode: number }> => ({ exitCode: 0 })
+    await expect(detectPackageManager(root, defaultFileSystem, runner)).resolves.toBe('yarn')
+
+    const fs = {
+      ...defaultFileSystem,
+      exists: async (): Promise<boolean> => false,
+    }
+    const calls: string[] = []
+    const pathRunner = async (_command: string, args: readonly string[]): Promise<{ exitCode: number }> => {
+      calls.push(args[0] ?? '')
+      return { exitCode: args[0] === 'pnpm' ? 0 : 1 }
+    }
+    await expect(detectPackageManager(root, fs, pathRunner)).resolves.toBe('pnpm')
+    expect(calls).toEqual(['pnpm'])
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it('keeps an explicit package manager ahead of project detection', async () => {
+    const root = await temp()
+    const calls: string[] = []
+    const runner = async (command: string): Promise<{ exitCode: number }> => {
+      calls.push(command)
+      return { exitCode: 0 }
+    }
+    const result = await createProject({ name: 'demo', cwd: root, packageManager: 'npm' }, { runner })
+    expect(result.packageManager).toBe('npm')
+    expect(calls).toEqual(['npm'])
+    await rm(root, { recursive: true, force: true })
+  })
+
   it('keeps generated files when installation fails', async () => {
     const root = await temp()
     const runner = async (command: string): Promise<{ exitCode: number }> => ({ exitCode: command === 'which' ? 0 : 1 })

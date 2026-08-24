@@ -1,7 +1,7 @@
 import type { Readable, Writable } from 'node:stream'
-import { createInterface } from 'node:readline'
 import { createRequire } from 'node:module'
 import { resolve as resolvePath } from 'node:path'
+import { isCancel, select, text } from '@clack/prompts'
 import { buildClient, buildHost } from '../compiler/index.js'
 import { resolveDshxConfig } from '../config/index.js'
 import { startDevSession } from '../dev/index.js'
@@ -475,16 +475,13 @@ async function runInspect(args: CliArgs, options: CliRunOptions, project: Resolv
 
 async function selectSlotInteractively(io: CliIO, items: readonly { readonly name: string }[]): Promise<string | undefined> {
   if (items.length === 0) return undefined
-  write(io.stdout, 'Available Slots:\n')
-  items.forEach((item, index) => write(io.stdout, `  ${index + 1}. ${item.name}\n`))
-  const prompt = createInterface({ input: io.stdin, output: io.stdout })
-  try {
-    const answer = await new Promise<string>(resolve => prompt.question('Select a Slot number: ', resolve))
-    const index = Number(answer.trim())
-    return Number.isInteger(index) && index >= 1 && index <= items.length ? items[index - 1]?.name : undefined
-  } finally {
-    prompt.close()
-  }
+  const answer = await select({
+    message: 'Select a Slot',
+    options: items.map(item => ({ value: item.name, label: item.name })),
+    input: io.stdin,
+    output: io.stdout,
+  })
+  return isCancel(answer) ? undefined : answer
 }
 
 function addSummary(project: ResolvedDshxConfig, result: AddUiResult): Record<string, unknown> {
@@ -559,12 +556,8 @@ function toolSummary(project: ResolvedDshxConfig, result: AddToolResult): Record
 }
 
 async function promptLine(io: CliIO, question: string): Promise<string> {
-  const prompt = createInterface({ input: io.stdin, output: io.stdout })
-  try {
-    return await new Promise<string>(resolve => prompt.question(question, resolve))
-  } finally {
-    prompt.close()
-  }
+  const answer = await text({ message: question.replace(/:\s*$/, ''), input: io.stdin, output: io.stdout })
+  return isCancel(answer) ? '' : answer
 }
 
 async function runAddTool(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {

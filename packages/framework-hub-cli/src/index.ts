@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { defineCommand, parseArgs as parseCittyArgs } from "citty";
 
 import { api } from "./api.js";
 import {
@@ -27,14 +28,192 @@ import { submitMetrics } from "./metrics.js";
 import { submitTargetVerification } from "./targets.js";
 import { verifyEvidenceManifest } from "./validate.js";
 
-const args = process.argv.slice(2);
+const hubArgs = {
+  hub: { type: "string", description: "Hub base URL.", valueHint: "url" },
+  input: {
+    type: "string",
+    description: "Read JSON input from a file or stdin.",
+    valueHint: "file",
+  },
+  output: {
+    type: "string",
+    description: "Write JSON output to a file.",
+    valueHint: "file",
+  },
+  all: { type: "boolean", description: "Process every available page." },
+  help: { type: "boolean", alias: "h", description: "Show command help." },
+  version: {
+    type: "boolean",
+    alias: "V",
+    description: "Show the installed version.",
+  },
+  confidence: { type: "string", valueHint: "number" },
+  cursor: { type: "string", valueHint: "cursor" },
+  decisionCode: { type: "string", valueHint: "code" },
+  error: { type: "string", valueHint: "message" },
+  expected: { type: "string", valueHint: "count" },
+  expires: { type: "string", valueHint: "timestamp" },
+  id: { type: "string", valueHint: "id" },
+  idempotencyKey: { type: "string", valueHint: "key" },
+  kind: { type: "string", valueHint: "kind" },
+  lease: { type: "string", valueHint: "token" },
+  limit: { type: "string", valueHint: "count" },
+  mode: { type: "string", valueHint: "mode" },
+  policyVersion: { type: "string", valueHint: "version" },
+  reason: { type: "string", valueHint: "text" },
+  reports: { type: "string", valueHint: "ids" },
+  role: { type: "string", valueHint: "role" },
+  run: { type: "string", valueHint: "id" },
+  scope: { type: "string", valueHint: "scope" },
+  scopes: { type: "string", valueHint: "scopes" },
+  status: { type: "string", valueHint: "status" },
+  target: { type: "string", valueHint: "id" },
+  timeout: { type: "string", valueHint: "seconds" },
+  type: { type: "string", valueHint: "type" },
+  user: { type: "string", valueHint: "id" },
+} as const;
+
+const leaf = (name: string, description: string) =>
+  defineCommand({ meta: { name, description }, args: hubArgs });
+
+/** Citty command metadata for the complete published Hub operations surface. */
+export const hubCliCommand = defineCommand({
+  meta: {
+    name: "dshx-hub",
+    description:
+      "Operate the verified DSHX community Hub with stable JSON contracts.",
+  },
+  args: hubArgs,
+  subCommands: {
+    auth: defineCommand({
+      meta: { name: "auth", description: "Manage Hub authentication." },
+      args: hubArgs,
+      subCommands: {
+        login: leaf(
+          "login",
+          "Authorize through the browser and store a revocable token.",
+        ),
+        status: leaf("status", "Validate the current Hub token."),
+        logout: leaf("logout", "Revoke and delete the current Hub token."),
+      },
+    }),
+    contract: defineCommand({
+      meta: { name: "contract", description: "Read live Hub contracts." },
+      args: hubArgs,
+      subCommands: { show: leaf("show", "Read a versioned input contract.") },
+    }),
+    catalog: defineCommand({
+      meta: {
+        name: "catalog",
+        description: "Inspect and verify catalog data.",
+      },
+      args: hubArgs,
+      subCommands: {
+        inventory: leaf("inventory", "Read published catalog identities."),
+        worklist: leaf("worklist", "Read pending catalog work."),
+        verify: leaf("verify", "Verify a local package evidence manifest."),
+        check: leaf("check", "Validate a catalog proposal page."),
+      },
+    }),
+    sync: defineCommand({
+      meta: {
+        name: "sync",
+        description: "Manage recoverable catalog staging runs.",
+      },
+      args: hubArgs,
+      subCommands: Object.fromEntries(
+        ["start", "put", "preview", "commit", "resume", "abort"].map((name) => [
+          name,
+          leaf(name, `Run catalog sync ${name}.`),
+        ]),
+      ),
+    }),
+    metrics: defineCommand({
+      meta: { name: "metrics", description: "Submit sourced metrics." },
+      args: hubArgs,
+      subCommands: { submit: leaf("submit", "Submit metric observations.") },
+    }),
+    targets: defineCommand({
+      meta: {
+        name: "targets",
+        description: "Submit installation target evidence.",
+      },
+      args: hubArgs,
+      subCommands: {
+        submit: leaf("submit", "Submit target verification results."),
+      },
+    }),
+    media: defineCommand({
+      meta: { name: "media", description: "Check and upload verified media." },
+      args: hubArgs,
+      subCommands: {
+        check: leaf("check", "Validate local media evidence."),
+        upload: leaf("upload", "Upload verified local media."),
+      },
+    }),
+    maintenance: defineCommand({
+      meta: { name: "maintenance", description: "Audit Hub consistency." },
+      args: hubArgs,
+      subCommands: { audit: leaf("audit", "Run a Hub maintenance audit.") },
+    }),
+    moderation: defineCommand({
+      meta: {
+        name: "moderation",
+        description: "Review and moderate Hub content.",
+      },
+      args: hubArgs,
+      subCommands: Object.fromEntries(
+        [
+          "queue",
+          "hide",
+          "restore",
+          "dismiss",
+          "restrict",
+          "unrestrict",
+          "ban",
+          "unban",
+        ].map((name) => [name, leaf(name, `Run moderation ${name}.`)]),
+      ),
+    }),
+    approvals: defineCommand({
+      meta: { name: "approvals", description: "Manage approval workflows." },
+      args: hubArgs,
+      subCommands: Object.fromEntries(
+        [
+          "create",
+          "show",
+          "wait",
+          "revise",
+          "claim-effect",
+          "effect-result",
+        ].map((name) => [name, leaf(name, `Run approval ${name}.`)]),
+      ),
+    }),
+    users: defineCommand({
+      meta: { name: "users", description: "Manage Hub users." },
+      args: hubArgs,
+      subCommands: {
+        role: defineCommand({
+          meta: { name: "role", description: "Manage user roles." },
+          args: hubArgs,
+          subCommands: {
+            set: leaf("set", "Set a user role through approval."),
+          },
+        }),
+      },
+    }),
+  },
+});
+
+const parsedArgs = parseCittyArgs(process.argv.slice(2), hubArgs);
+const args = parsedArgs._;
 const group = args[0];
 const command = args[1];
 const option = (name: string, fallback?: string) => {
-  const index = args.indexOf(name);
-  return index >= 0 ? args[index + 1] : fallback;
+  const value = parsedArgs[name.slice(2)];
+  return typeof value === "string" && value !== "" ? value : fallback;
 };
-const flag = (name: string) => args.includes(name);
+const flag = (name: string) => parsedArgs[name.slice(2)] === true;
 const hub = option(
   "--hub",
   process.env["DSHX_HUB_URL"] ?? "https://dshx.io",
@@ -301,6 +480,10 @@ async function approvalsCommand() {
 }
 
 async function main() {
+  if (flag("--version")) {
+    process.stdout.write(`${await cliVersion()}\n`);
+    return;
+  }
   if (!group || group === "help" || flag("--help")) {
     process.stdout.write(helpText(currentHelpPath()));
     return;
