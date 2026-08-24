@@ -16,11 +16,7 @@ export class DshxError extends Error {
   readonly hint: string | undefined
   readonly file: string | undefined
 
-  constructor(
-    code: string,
-    message: string,
-    options: { readonly cause?: unknown; readonly file?: string; readonly hint?: string } = {},
-  ) {
+  constructor(code: string, message: string, options: { readonly cause?: unknown; readonly file?: string; readonly hint?: string } = {}) {
     super(`${code}\n\n${message}`, options.cause === undefined ? undefined : { cause: options.cause })
     this.name = 'DshxError'
     this.code = code

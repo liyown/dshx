@@ -20,16 +20,11 @@ export interface ApiMethodDefinition<I = void, O = unknown> {
   readonly __output?: O
 }
 
-export interface ApiContract<
-  Methods extends Record<string, ApiMethodDefinition<any, any>> = Record<string, ApiMethodDefinition<any, any>>,
-> {
+export interface ApiContract<Methods extends Record<string, ApiMethodDefinition<any, any>> = Record<string, ApiMethodDefinition<any, any>>> {
   readonly id: string
   readonly version: number
   readonly methods: Methods
-  readonly host: <Handlers extends ApiHandlers<Methods>>(
-    handlers: Handlers,
-    options?: ApiHostOptions,
-  ) => ApiHostRegistration<Methods, Handlers>
+  readonly host: <Handlers extends ApiHandlers<Methods>>(handlers: Handlers, options?: ApiHostOptions) => ApiHostRegistration<Methods, Handlers>
 }
 
 export type ApiInput<M> = M extends ApiMethodDefinition<infer I, any> ? I : never
@@ -67,13 +62,15 @@ export type ApiCallOptions = {
   readonly signal?: AbortSignal
 }
 
-export type ApiMethodClient<M> = ApiInput<M> extends void
-  ? (input?: undefined, options?: ApiCallOptions) => Promise<ApiOutput<M>>
-  : (input: ApiInput<M>, options?: ApiCallOptions) => Promise<ApiOutput<M>>
+export type ApiMethodClient<M> =
+  ApiInput<M> extends void
+    ? (input?: undefined, options?: ApiCallOptions) => Promise<ApiOutput<M>>
+    : (input: ApiInput<M>, options?: ApiCallOptions) => Promise<ApiOutput<M>>
 
-export type ApiSafeMethodClient<M> = ApiInput<M> extends void
-  ? (input?: undefined, options?: ApiCallOptions) => Promise<ApiCallResult<ApiOutput<M>>>
-  : (input: ApiInput<M>, options?: ApiCallOptions) => Promise<ApiCallResult<ApiOutput<M>>>
+export type ApiSafeMethodClient<M> =
+  ApiInput<M> extends void
+    ? (input?: undefined, options?: ApiCallOptions) => Promise<ApiCallResult<ApiOutput<M>>>
+    : (input: ApiInput<M>, options?: ApiCallOptions) => Promise<ApiCallResult<ApiOutput<M>>>
 
 export type ApiClient<Methods extends Record<string, ApiMethodDefinition<any, any>> = Record<string, ApiMethodDefinition<any, any>>> = {
   readonly [K in keyof Methods]: ApiMethodClient<Methods[K]>
@@ -83,9 +80,7 @@ export type ApiClient<Methods extends Record<string, ApiMethodDefinition<any, an
   }
 }
 
-export type ApiCallResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: ApiError }
+export type ApiCallResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: ApiError }
 
 export type ApiErrorKind = 'transport' | 'remote' | 'contract' | 'aborted' | 'unavailable'
 

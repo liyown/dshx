@@ -8,7 +8,7 @@ import type { InspectResult } from '../src/inspect/types.js'
 import type { InspectOptions, InspectTarget } from '../src/inspect/types.js'
 
 const compatibility = {
-  id: 'dsh-0.1', protocolGeneration: '0.1', version: '0.1.0-rc.8', dshRange: '>=0.1.0-rc.8 <0.2.0', verifiedVersions: ['0.1.0-rc.8'],
+  id: 'protocol-1', protocolGeneration: 'protocol-1', lifecycle: 'active' as const, version: '0.1.0-rc.8', dshRange: '>=0.1.0-rc.8 <0.2.0-0', verified: { minimum: '0.1.0-rc.8', latest: '0.1.0-rc.8' }, verifiedVersions: ['0.1.0-rc.8'],
   nodeRange: '^22.19.0 || >=24.0.0', profile: { listCommand: 'plugin-list-json' as const, addCommand: 'plugin-add' as const },
   inspect: { targets: ['slots', 'tools'] as const, provider: 'unavailable' as const },
   client: { platformModules: [], preloadedExternals: [], manifest: { platform: 'web' as const, moduleRequestsField: 'external' as const, packageEdgesField: 'inject' as const } },

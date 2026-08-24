@@ -9,12 +9,12 @@
   },
   "scripts": {
     "build": "pnpm --filter @becomeopc/dshx build && pnpm --filter create-dshx build",
-    "lint": "pnpm --filter @becomeopc/dshx-framework-hub lint && pnpm --filter @becomeopc/dshx-hub-cli lint",
-    "format:check": "prettier --check README.md README.zh-CN.md docs packages/*/README.md package.json pnpm-workspace.yaml .github renovate.json5",
+    "lint": "eslint eslint.config.js packages/dshx/src packages/create-dshx/src scripts && pnpm --filter @becomeopc/dshx-framework-hub lint && pnpm --filter @becomeopc/dshx-hub-cli lint",
+    "format:check": "prettier --check README.md README.zh-CN.md ROADMAP.md DECISIONS.md CHANGELOG.md CONTRIBUTING.md SECURITY.md RELEASING.md docs packages/*/README.md package.json pnpm-workspace.yaml .github renovate.json5 prettier.core.json && prettier --check eslint.config.js packages/dshx/src packages/create-dshx/src scripts --config prettier.core.json",
     "deps:check": "knip",
     "audit:prod": "pnpm audit --prod --audit-level high",
     "check": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm --filter create-dshx typecheck && pnpm --filter create-dshx test && pnpm --filter create-dshx build",
-    "check:all": "pnpm run check && pnpm run hub:check && pnpm run smoke:rc2",
+    "check:all": "pnpm run lint && pnpm run format:check && pnpm run deps:check && pnpm run audit:prod && pnpm run check && pnpm run hub:check && pnpm run smoke:packages && pnpm run smoke:dsh",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "changeset publish",
@@ -30,14 +30,19 @@
     "smoke:packages": "node scripts/smoke-packages.mjs",
     "test": "pnpm --filter @becomeopc/dshx test",
     "typecheck": "pnpm --filter @becomeopc/dshx typecheck",
-    "smoke:rc2": "pnpm run build && node scripts/smoke-rc2.mjs"
+    "compatibility:matrix": "pnpm --filter @becomeopc/dshx build && node scripts/compatibility-matrix.mjs",
+    "smoke:dsh": "pnpm run build && node scripts/smoke-dsh.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.1",
+    "@eslint/js": "^9.32.0",
     "@types/node": "catalog:",
+    "eslint": "^9.32.0",
+    "globals": "^15.15.0",
     "knip": "6.32.2",
     "prettier": "catalog:",
     "typescript": "catalog:",
+    "typescript-eslint": "^8.56.1",
     "vitest": "catalog:"
   },
   "pnpm": {

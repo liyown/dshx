@@ -3,13 +3,19 @@ import { PassThrough } from 'node:stream'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createProject, detectPackageManager, validateProjectName } from '../src/index.js'
+import { createProject, DEFAULT_DSH_RANGE, DEFAULT_DSH_VERSION, detectPackageManager, validateProjectName } from '../src/index.js'
+import { DEFAULT_COMPATIBILITY } from '../../dshx/src/compat/index.js'
 import { defaultFileSystem } from '../src/fs.js'
 import { runCreate } from '../src/cli.js'
 
 async function temp(): Promise<string> { return mkdtemp(resolve(tmpdir(), 'dshx-create-')) }
 
 describe('create-dshx', () => {
+  it('keeps generated DSH defaults aligned with the core compatibility registry', () => {
+    expect(DEFAULT_DSH_RANGE).toBe(DEFAULT_COMPATIBILITY.dshRange)
+    expect(DEFAULT_DSH_VERSION).toBe(DEFAULT_COMPATIBILITY.verified.latest)
+  })
+
   it('validates names and rejects existing targets before writing', async () => {
     expect(validateProjectName('Bad Name')?.code).toBe('DSHX6001')
     const root = await temp()
@@ -23,9 +29,10 @@ describe('create-dshx', () => {
     const root = await temp()
     const result = await createProject({ name: 'demo', cwd: root, install: false })
     expect(result.files).toHaveLength(10)
-    const manifest = JSON.parse(await defaultFileSystem.readFile(resolve(result.root, 'package.json'))) as { devDependencies: Record<string, string>; scripts: Record<string, string> }
+    const manifest = JSON.parse(await defaultFileSystem.readFile(resolve(result.root, 'package.json'))) as { devDependencies: Record<string, string>; peerDependencies: Record<string, string>; scripts: Record<string, string> }
     expect(manifest.devDependencies['@becomeopc/dshx']).toBe('0.1.1')
-    expect(manifest.devDependencies['@deepseek-ai/dsh']).toBe('>=0.1.0-rc.8 <0.2.0')
+    expect(manifest.devDependencies['@deepseek-ai/dsh']).toBe('0.1.1-rc.2')
+    expect(manifest.peerDependencies['@deepseek-ai/dsh']).toBe('>=0.1.0-rc.8 <0.2.0-0')
     expect(manifest.scripts.dev).toBe('dshx dev --open')
     expect(Object.values(manifest.devDependencies).some(value => value.startsWith('workspace:'))).toBe(false)
     expect(await readFile(resolve(result.root, 'src/client.tsx'), 'utf8')).toContain('Build. Ship. Observe.')

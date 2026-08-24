@@ -39,6 +39,8 @@ dshx add hook --event <event-name>
 - `@becomeopc/dshx/compiler`: programmatic Host and Client builds.
 - `@becomeopc/dshx/cli`: stable parser and CLI runner interfaces.
 
-DSHX `0.1.x` targets the DSH `0.1` protocol generation. See the [documentation](https://dshx.io/docs), [compatibility policy](https://github.com/liyown/dshx/blob/main/docs/compatibility.md), and [roadmap](https://github.com/liyown/dshx/blob/main/ROADMAP.md).
+Declare the plugin's public DSH range in `peerDependencies` and pin one concrete local DSH in `devDependencies`. DSHX versions independently; the installed DSH selects the adapter. The current adapter is `protocol-1`, not a mechanical alias for DSH `0.1` semver.
+
+See the [documentation](https://dshx.io/docs), [compatibility policy](https://github.com/liyown/dshx/blob/main/docs/compatibility.md), and [roadmap](https://github.com/liyown/dshx/blob/main/ROADMAP.md).
 
 MIT © DSHX contributors.

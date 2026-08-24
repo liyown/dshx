@@ -24,10 +24,7 @@ export interface DshCommandRunOptions {
 }
 
 /** Testable command seam whose arguments begin after the DSH executable. */
-export type DshCommandRunner = (
-  args: readonly string[],
-  options: DshCommandRunOptions,
-) => Promise<DshCommandResult>
+export type DshCommandRunner = (args: readonly string[], options: DshCommandRunOptions) => Promise<DshCommandResult>
 
 /** Internal overrides for profile orchestration and isolated compatibility smoke tests. */
 export interface ProfileOrchestratorOptions {
@@ -52,17 +49,17 @@ export interface ResolvedDshInstallation {
 /** Read-only link state reported by the official profile plugin command. */
 export type ProjectProfileLink =
   | {
-    readonly state: 'absent'
-    readonly profile: string
-    readonly packageId: string
-    readonly root: string
-  }
+      readonly state: 'absent'
+      readonly profile: string
+      readonly packageId: string
+      readonly root: string
+    }
   | {
-    readonly state: 'linked'
-    readonly profile: string
-    readonly packageId: string
-    readonly root: string
-  }
+      readonly state: 'linked'
+      readonly profile: string
+      readonly packageId: string
+      readonly root: string
+    }
 
 /** Profile state ready for a later dev process manager. */
 export interface PreparedProjectProfile {

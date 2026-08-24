@@ -9,10 +9,7 @@ export interface RuntimePluginReport {
   readonly diagnostics: readonly DshxDiagnostic[]
 }
 
-function packageStatus(
-  spec: DshxRuntimePluginSpec,
-  require: NodeRequire,
-): { readonly status: RuntimePluginStatusKind; readonly message?: string } {
+function packageStatus(spec: DshxRuntimePluginSpec, require: NodeRequire): { readonly status: RuntimePluginStatusKind; readonly message?: string } {
   try {
     require.resolve(spec.packageName)
     return { status: 'available' }
@@ -22,10 +19,7 @@ function packageStatus(
 }
 
 /** Read adapter-approved runtime plugin availability without starting DSH. */
-export function inspectRuntimePlugins(
-  project: ResolvedDshxConfig,
-  compatibility: DshCompatibility | undefined,
-): RuntimePluginReport {
+export function inspectRuntimePlugins(project: ResolvedDshxConfig, compatibility: DshCompatibility | undefined): RuntimePluginReport {
   const specs = compatibility?.runtimePlugins ?? []
   const require = createRequire(project.packageFile)
   const plugins: RuntimePluginStatus[] = []

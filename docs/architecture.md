@@ -18,15 +18,20 @@ DSH and Cordis own:
 - dependency injection, registration collisions, cancellation, disposal, and ordering;
 - Connection transport, browser runtime, Client HMR, and Host process semantics.
 
-Public DSHX helpers are thin declarations over official contracts. Native named DSH modules and direct `setup(ctx)` access remain supported escape hatches.
+Public DSHX helpers are thin declarations over official contracts. Declarative Tools, Commands, Slots, and DSHX APIs may be adapted by the selected generation adapter. Native named DSH modules and direct `setup(ctx)` calls use official DSH/Cordis APIs directly; compatibility of those calls remains the plugin author's responsibility.
 
 ## Build and runtime flow
 
-1. DSHX resolves the nearest plugin project and selects a compatible adapter.
-2. The compiler validates the manifest and builds whichever Host or Client entries are enabled.
-3. Generated helpers are inlined; official runtime packages remain external and are resolved by DSH.
-4. `dshx dev` links the project through the official Profile CLI, starts watchers, and launches DSH only after enabled entries have built successfully.
-5. Client rebuilds use native DSH HMR. Host rebuild behavior follows the configured restart policy.
+1. DSHX resolves the nearest plugin project, reads its public DSH peer range, and detects the DSH version actually installed for development.
+2. The installed DSH version selects one protocol-generation adapter; the public range must fit wholly inside that generation for the default single artifact.
+3. The compiler validates the manifest and builds whichever Host or Client entries are enabled.
+4. Generated helpers are inlined; official runtime packages remain external and are resolved by DSH.
+5. `dshx dev` links the project through the official Profile CLI, starts watchers, and launches DSH only after enabled entries have built successfully.
+6. Client rebuilds use native DSH HMR. Host rebuild behavior follows the configured restart policy.
+
+## Compatibility registry
+
+One adapter represents one observable DSH contract generation, not one published version or semver minor. Its non-overlapping semver range, lifecycle, protocol capabilities, and real-smoke verification boundaries live together under `packages/dshx/src/compat`. One DSHX release may contain multiple adapters, while one built plugin artifact targets one adapter by default. Stable in-range versions may be compatible without being verified; unverified prereleases are experimental. CI derives representative minimum/latest jobs from the same registry and runs one version-parameterized scenario.
 
 ## Inspect boundary
 

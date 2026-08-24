@@ -4,7 +4,7 @@ import { loadRuntimePlugins } from '../src/host/runtime-plugins.js'
 import type { DshCompatibility } from '../src/compat/index.js'
 
 const baseCompatibility: DshCompatibility = {
-  id: 'test', protocolGeneration: 'test', version: '0.0.0', dshRange: '*', verifiedVersions: [], nodeRange: '*',
+  id: 'test', protocolGeneration: 'test', lifecycle: 'active', version: '0.0.0', dshRange: '*', verified: { minimum: '0.0.0', latest: '0.0.0' }, verifiedVersions: [], nodeRange: '*',
   profile: { listCommand: 'plugin-list-json', addCommand: 'plugin-add' },
   client: { platformModules: [], preloadedExternals: [], manifest: { platform: 'web', moduleRequestsField: 'external', packageEdgesField: 'inject' } },
 }

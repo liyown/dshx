@@ -16,7 +16,11 @@ export interface CreateIO {
   readonly readLine?: (question: string, defaultValue?: string) => Promise<string>
   readonly confirm?: (question: string, defaultValue: boolean) => Promise<boolean>
 }
-export interface CommandResult { readonly exitCode: number; readonly stdout?: string; readonly stderr?: string }
+export interface CommandResult {
+  readonly exitCode: number
+  readonly stdout?: string
+  readonly stderr?: string
+}
 export type CommandRunner = (command: string, args: readonly string[], options: { readonly cwd: string }) => Promise<CommandResult>
 export interface FileSystem {
   readonly exists: (path: string) => Promise<boolean>
@@ -33,7 +37,10 @@ export interface CreateProjectOptions {
   readonly install?: boolean
   readonly packageManager?: PackageManager
   readonly dshxVersion?: string
+  /** Exact DSH version installed for local development. */
   readonly dshVersion?: string
+  /** Public DSH support range written to peerDependencies. */
+  readonly dshRange?: string
 }
 export interface CreateProjectResult {
   readonly root: string

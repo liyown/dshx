@@ -8,7 +8,7 @@ const project: ResolvedDshxConfig = {
 }
 
 const compatibility: DshCompatibility = {
-  id: 'test', protocolGeneration: 'test', version: '0.0.0', dshRange: '*', verifiedVersions: [], nodeRange: '*',
+  id: 'test', protocolGeneration: 'test', lifecycle: 'active', version: '0.0.0', dshRange: '*', verified: { minimum: '0.0.0', latest: '0.0.0' }, verifiedVersions: [], nodeRange: '*',
   profile: { listCommand: 'plugin-list-json', addCommand: 'plugin-add' },
   runtimePlugins: [{ id: 'missing', packageName: 'not-installed-runtime-plugin', load: 'module', provides: ['Inspect'], optional: true }],
   client: { platformModules: [], preloadedExternals: [], manifest: { platform: 'web', moduleRequestsField: 'external', packageEdgesField: 'inject' } },

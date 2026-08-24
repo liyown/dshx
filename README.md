@@ -60,14 +60,16 @@ See the [CLI reference](./docs/cli-reference.md) for command behavior and automa
 
 ## Compatibility
 
-DSHX `0.1.x` targets the DSH `0.1` protocol generation.
+DSHX manages DSH support by observable protocol generation, not by creating an adapter for every release or mirroring DSH semver. The current `protocol-1` adapter covers `>=0.1.0-rc.8 <0.2.0-0`; if a future DSH minor preserves the contract, that range can be extended without adding an adapter.
 
-| DSH version              | Status               | Verification                                                                         |
-| ------------------------ | -------------------- | ------------------------------------------------------------------------------------ |
-| `0.1.0-rc.8`             | Verified             | Phase A fixture, browser Client, Inspect, and HMR                                    |
-| `0.1.1-rc.2`             | Verified             | Cold-start matrix, Profile linking, APIs, Commands, Inspect, restart, and Client HMR |
-| Later compatible `0.1.x` | Allowed with warning | Must pass the real smoke matrix before being marked verified                         |
-| Outside `0.1.x`          | Rejected by default  | Requires an explicit compatibility override                                          |
+A plugin declares its public DSH support in `peerDependencies`, installs one concrete DSH version in `devDependencies`, and versions DSHX independently. `build`, `dev`, and `check` select the adapter from the actually installed DSH version and reject a single artifact whose public range crosses incompatible protocol generations.
+
+| Status         | Meaning                                                                                 |
+| -------------- | --------------------------------------------------------------------------------------- |
+| `verified`     | This exact DSH version passed the real-runtime smoke scenario.                          |
+| `compatible`   | A stable version shares a known generation contract but was not smoke-tested exactly.   |
+| `experimental` | An unverified prerelease uses a known generation adapter with an explicit warning.      |
+| `unsupported`  | No adapter owns the version; DSHX rejects it unless the existing override is requested. |
 
 Read [compatibility and verification](./docs/compatibility.md) before changing DSH ranges or adapters.
 
@@ -97,7 +99,7 @@ pnpm install --frozen-lockfile
 pnpm check:all
 ```
 
-The real DSH browser/HMR smoke remains a release gate; unit or simulated-loader tests do not replace it. Framework Hub production deployment is intentionally local-only and is not run by GitHub Actions.
+The generic real DSH smoke remains a CI gate; unit or simulated-loader tests do not replace it. npm package publication and Framework Hub production deployment are intentionally local-only and are not run by GitHub Actions.
 
 Read [Contributing](./CONTRIBUTING.md), the [dependency policy](./docs/dependency-policy.md), and the [Security policy](./SECURITY.md) before opening a change. Product direction and unfinished capability gates remain visible in the [Roadmap](./ROADMAP.md).
 
