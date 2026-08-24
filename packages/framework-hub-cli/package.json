@@ -1,0 +1,42 @@
+{
+  "name": "@becomeopc/dshx-hub-cli",
+  "version": "0.2.0",
+  "description": "Deterministic local verification and operations protocol for DSHX Hub.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liyown/dshx.git",
+    "directory": "packages/framework-hub-cli"
+  },
+  "bugs": {
+    "url": "https://github.com/liyown/dshx/issues"
+  },
+  "homepage": "https://dshx.io",
+  "type": "module",
+  "bin": {
+    "dshx-hub": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "prettier --check src test",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "tar": "7.5.11",
+    "yaml": "2.8.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.20",
+    "prettier": "3.7.4",
+    "typescript": "5.9.3",
+    "vitest": "4.1.8"
+  }
+}
