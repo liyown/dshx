@@ -29,6 +29,7 @@
   ],
   "vars": {
     "SITE_URL": "https://dshx.io",
+    "EMAIL_FROM": "DSHX Hub <no-reply@mail.dshx.io>",
     "HUB_ADMIN_GITHUB_IDS": "55525531",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAEZWJA2y_lLvE9ZT",
   },

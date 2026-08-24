@@ -40,6 +40,15 @@ function hasDatabaseBinding(value: unknown): value is AppBindings {
   return value != null && typeof value === "object" && "DB" in value;
 }
 
+function hasWaitUntil(value: unknown): value is { waitUntil(promise: Promise<unknown>): void } {
+  return (
+    value != null &&
+    typeof value === "object" &&
+    "waitUntil" in value &&
+    typeof value.waitUntil === "function"
+  );
+}
+
 async function loadDevBindings(): Promise<AppBindings> {
   if (!import.meta.env.DEV) return {};
 
@@ -138,8 +147,12 @@ export default {
       const localeRedirect = redirectToLocale(request);
       if (localeRedirect) return localeRedirect;
       const handler = await getServerEntry();
+      const context: AppRequestContext = {
+        cloudflare: await resolveBindings(request, env),
+        ...(hasWaitUntil(ctx) ? { executionCtx: ctx } : {}),
+      };
       const response = await handler.fetch(request, {
-        context: { cloudflare: await resolveBindings(request, env) },
+        context,
       });
       return withSecurityHeaders(await normalizeCatastrophicSsrResponse(response, request));
     } catch (error) {
