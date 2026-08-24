@@ -30,6 +30,7 @@ Do not add production fixtures, execute third-party plugin lifecycle scripts, or
 - Add a Changeset for publishable Framework, `create-dshx`, or Hub CLI changes.
 - `@becomeopc/dshx` and `create-dshx` release as a fixed version group.
 - `@becomeopc/dshx-hub-cli` releases independently.
+- Follow the [trusted publishing and first-release runbook](docs/releasing.md); never add npm or Cloudflare production tokens to GitHub.
 - Website deployment is manual from a configured development machine; GitHub Actions never deploys Cloudflare resources.
 
 By participating, you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
