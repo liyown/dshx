@@ -98,7 +98,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -140,19 +139,24 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const location = useRouterState({ select: (state) => state.location });
   const locale = localeFromPathname(location.pathname);
+  const isAdmin = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
 
   return (
     <QueryClientProvider client={queryClient}>
       <I18nProvider locale={locale}>
-        <div className="site-motion-shell">
-          <div className="site-motion-content">
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Nav />
-            <Outlet />
-            <Footer />
+        {isAdmin ? (
+          <Outlet />
+        ) : (
+          <div className="site-motion-shell">
+            <div className="site-motion-content">
+              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+              <Nav />
+              <Outlet />
+              <Footer />
+            </div>
+            <SiteMotionLayer />
           </div>
-          <SiteMotionLayer />
-        </div>
+        )}
       </I18nProvider>
     </QueryClientProvider>
   );

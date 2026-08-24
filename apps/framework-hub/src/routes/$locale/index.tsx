@@ -16,11 +16,16 @@ import { DevLoop } from "@/components/dshx/dev-loop";
 import { PluginCard } from "@/components/dshx/plugin-card";
 import { useHydratedReducedMotion } from "@/components/dshx/use-hydrated-reduced-motion";
 import { useSiteScrollMotion } from "@/components/dshx/use-site-scroll-motion";
-import { plugins } from "@/lib/plugins";
+import { loadCatalog } from "@/lib/catalog/functions";
+import type { CatalogCard } from "@/lib/catalog/types";
 import { cn } from "@/lib/utils";
 import { createTranslator, localizedPath, parseLocale, useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/$locale/")({
+  loader: ({ params }) =>
+    loadCatalog({
+      data: { locale: parseLocale(params.locale), q: "", sort: "featured", limit: 6 },
+    }),
   head: ({ params }) => {
     const t = createTranslator(parseLocale(params.locale));
     return {
@@ -42,6 +47,7 @@ export const Route = createFileRoute("/$locale/")({
 });
 
 function Home() {
+  const { items } = Route.useLoaderData();
   const reduceMotion = useHydratedReducedMotion();
   useSiteScrollMotion(reduceMotion);
 
@@ -54,7 +60,7 @@ function Home() {
       <Inspection />
       <ProgressivePower />
       <ReactUi />
-      <Ecosystem />
+      <Ecosystem plugins={items} />
     </main>
   );
 }
@@ -103,7 +109,7 @@ function Hero() {
           </p>
           <div className="mt-8 flex flex-wrap gap-2.5" data-motion-hero="actions">
             <ButtonLink to="/docs">{t("nav.getStarted")}</ButtonLink>
-            <ButtonLink href="https://github.com" variant="outline">
+            <ButtonLink href="https://github.com/liyown/dshx" variant="outline">
               {t("home.viewGithub")}
             </ButtonLink>
           </div>
@@ -460,7 +466,7 @@ export function Status({ session }: SlotProps<'sidebar.footer.action'>) {
 
 /* ---------------- ecosystem ---------------- */
 
-function Ecosystem() {
+function Ecosystem({ plugins }: { plugins: CatalogCard[] }) {
   const { locale, t } = useI18n();
   return (
     <Section index="07" label={t("home.ecosystemLabel")}>

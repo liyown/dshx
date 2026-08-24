@@ -25,7 +25,9 @@ export function renderErrorPage(locale: Locale = "en"): string {
     "      <h1>" + t("errors.pageLoadFailed") + "</h1>",
     "      <p>" + t("errors.pageLoadFailedBody") + "</p>",
     '      <div class="actions">',
-    '        <button class="primary" onclick="location.reload()">' + t("errors.tryAgain") + "</button>",
+    '        <button class="primary" onclick="location.reload()">' +
+      t("errors.tryAgain") +
+      "</button>",
     '        <a class="secondary" href="/' + locale + '">' + t("errors.goHome") + "</a>",
     "      </div>",
     "    </div>",

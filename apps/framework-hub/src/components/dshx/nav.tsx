@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 import { Container, Wordmark, XMark, ButtonLink } from "./primitives";
 import { cn } from "@/lib/utils";
 import { localizedPath, useI18n } from "@/lib/i18n";
+import { MobileSessionLink, SessionLink } from "@/components/community/auth-controls";
 
 const links = [
   { key: "nav.plugins", to: "/plugins" },
   { key: "nav.docs", to: "/docs" },
-  { key: "nav.changelog", to: "/changelog" },
 ] as const;
 
 export function Nav() {
@@ -55,13 +55,14 @@ export function Nav() {
 
         <div className="flex items-center gap-2">
           <a
-            href="https://github.com"
+            href="https://github.com/liyown/dshx"
             target="_blank"
             rel="noreferrer"
             className="hidden px-2.5 py-1.5 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground sm:block"
           >
             {t("nav.github")}
           </a>
+          <SessionLink />
           <ButtonLink to="/docs" variant="primary" className="h-9">
             {t("nav.getStarted")}
           </ButtonLink>
@@ -105,6 +106,9 @@ export function Nav() {
             >
               {locale === "en" ? t("nav.switchToChinese") : t("nav.switchToEnglish")}
             </a>
+            <div className="py-2.5">
+              <MobileSessionLink locale={locale} />
+            </div>
           </Container>
         </div>
       )}
