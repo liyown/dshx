@@ -5,13 +5,13 @@ import { build, type InlineConfig, type Plugin } from 'vite'
 import { DshxError } from '../../diagnostics.js'
 import type { DshCompatibility } from '../../compat/types.js'
 import { isHostExternal, singleHostChunkPlugin } from './guards.js'
-import { API_PUBLIC_SOURCE } from '../api-public.js'
 
 const VIRTUAL_HOST_ENTRY = '\0virtual:dshx-host-entry'
 const VIRTUAL_HOST_PUBLIC = '\0virtual:dshx-host-public'
 const DSHX_HOST_PUBLIC = '@becomeopc/dshx/host'
 const DSHX_API_PUBLIC = '@becomeopc/dshx/api'
 const HOST_RUNTIME_PATH = fileURLToPath(new URL('../../host/runtime.js', import.meta.url))
+const API_DEFINE_PATH = fileURLToPath(new URL('../../api/define.js', import.meta.url))
 
 /** Options for producing one Node ESM Host bundle. */
 export interface BuildHostOptions {
@@ -52,6 +52,7 @@ function hostEntryPlugin(
   const name = options.logicalName ?? options.packageId
   return {
     name: 'dshx-host-entry',
+    enforce: 'pre',
     resolveId(source) {
       if (source === VIRTUAL_HOST_ENTRY || source === DSHX_HOST_PUBLIC || source === DSHX_API_PUBLIC) {
         return source === DSHX_HOST_PUBLIC ? VIRTUAL_HOST_PUBLIC : source === DSHX_API_PUBLIC ? `${VIRTUAL_HOST_PUBLIC}-api` : VIRTUAL_HOST_ENTRY
@@ -62,11 +63,14 @@ function hostEntryPlugin(
       if (id === VIRTUAL_HOST_PUBLIC) {
         return [
           'export function defineHost(definition) { return definition }',
+          'export function defineCommand(definition) { return definition }',
           "export { defineTool } from '@deepseek-ai/dsh-tools'",
           '',
         ].join('\n')
       }
-      if (id === `${VIRTUAL_HOST_PUBLIC}-api`) return API_PUBLIC_SOURCE
+      if (id === `${VIRTUAL_HOST_PUBLIC}-api`) {
+        return `export { defineApi, method } from ${JSON.stringify(API_DEFINE_PATH)}\n`
+      }
       if (id !== VIRTUAL_HOST_ENTRY) return null
       if (paths.entry === undefined) {
         return `export const name = ${JSON.stringify(name)}\nexport function apply() {}\n`

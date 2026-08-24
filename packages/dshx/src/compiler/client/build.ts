@@ -7,7 +7,6 @@ import type { DshCompatibility } from '../../compat/types.js'
 import { DshxError } from '../../diagnostics.js'
 import { clientCssPlugin } from './css.js'
 import { clientGuardPlugin, singleClientChunkPlugin } from './guards.js'
-import { API_PUBLIC_SOURCE } from '../api-public.js'
 
 const VIRTUAL_CLIENT_ENTRY = '\0virtual:dshx-client-entry'
 const VIRTUAL_CLIENT_PUBLIC = '\0virtual:dshx-client-public'
@@ -15,6 +14,7 @@ const DSHX_CLIENT_PUBLIC = '@becomeopc/dshx/client'
 const DSHX_API_PUBLIC = '@becomeopc/dshx/api'
 const CLIENT_RUNTIME_PATH = fileURLToPath(new URL('../../client/runtime.js', import.meta.url))
 const CLIENT_API_PATH = fileURLToPath(new URL('../../api/client.js', import.meta.url))
+const API_DEFINE_PATH = fileURLToPath(new URL('../../api/define.js', import.meta.url))
 
 /** Options for producing one DSH-compatible lazy-CJS client bundle. */
 export interface BuildClientOptions {
@@ -56,6 +56,7 @@ function clientEntryPlugin(
   const name = options.logicalName ?? options.packageId
   return {
     name: 'dshx-client-entry',
+    enforce: 'pre',
     resolveId(source) {
       if (source === VIRTUAL_CLIENT_ENTRY || source === DSHX_CLIENT_PUBLIC || source === DSHX_API_PUBLIC) {
         return source === DSHX_CLIENT_PUBLIC ? VIRTUAL_CLIENT_PUBLIC : source === DSHX_API_PUBLIC ? `${VIRTUAL_CLIENT_PUBLIC}-api` : VIRTUAL_CLIENT_ENTRY
@@ -72,7 +73,9 @@ function clientEntryPlugin(
         `export { useApi, useQuery, createApiClient } from ${JSON.stringify(CLIENT_API_PATH)}`,
         '',
       ].join('\n')
-      if (id === `${VIRTUAL_CLIENT_PUBLIC}-api`) return API_PUBLIC_SOURCE
+      if (id === `${VIRTUAL_CLIENT_PUBLIC}-api`) {
+        return `export { defineApi, method } from ${JSON.stringify(API_DEFINE_PATH)}\n`
+      }
       if (id !== VIRTUAL_CLIENT_ENTRY) return null
       const metadata = {
         packageId: options.packageId,

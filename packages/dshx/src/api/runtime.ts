@@ -87,6 +87,28 @@ function error(kind: ApiError['kind'], message: string, apiId: string, method: s
   return new ApiErrorClass(kind, message, apiId, method, retryable, remoteCode, cause === undefined ? undefined : { cause })
 }
 
+function aborted(apiId: string, method: string, cause?: unknown): ApiError {
+  return error('aborted', 'API request was aborted.', apiId, method, false, cause, 'aborted')
+}
+
+function throwIfAborted(signal: AbortSignal | undefined, apiId: string, method: string): void {
+  if (signal?.aborted === true) throw aborted(apiId, method, signal.reason)
+}
+
+function errorFromRemote(
+  result: Extract<RpcResult, { readonly ok: false }>,
+  apiId: string,
+  method: string,
+): ApiError {
+  const code = result.error?.code
+  const message = result.error?.message ?? `API method ${method} failed.`
+  if (code === 'DSHX6401' || code === 'contract' || code === 'bad-request') {
+    return error('contract', message, apiId, method, false, undefined, code)
+  }
+  if (code === 'aborted') return aborted(apiId, method)
+  return error('remote', message, apiId, method, false, undefined, code)
+}
+
 function registrationContract(registration: ApiHostRegistration): ApiContract {
   return registration.contract
 }
@@ -109,8 +131,6 @@ export async function registerApi(
   if (previous !== undefined && previous !== owner) {
     throw new Error(`API channel collision at ${channel}: ${previous} and ${owner}.`)
   }
-  owners.set(channel, owner)
-  channelOwners.set(ctx, owners)
   const remove = connection.rpc.handle(channel, async (endpoint, payload, signal) => {
     const methodDefinition = contract.methods[endpoint]
     const handler = registration.handlers[endpoint]
@@ -118,13 +138,15 @@ export async function registerApi(
       return { ok: false, error: { code: 'bad-request', message: `Unknown API method ${endpoint}.` } }
     }
     try {
+      throwIfAborted(signal, contract.id, endpoint)
       if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) throw error('contract', 'Invalid API request envelope.', contract.id, endpoint, false)
       const envelope = payload as { version?: unknown; input?: unknown }
       if (envelope.version !== contract.version) throw error('contract', `API version mismatch for ${contract.id}.`, contract.id, endpoint, false, undefined, 'DSHX6401')
       const input = await validate(methodDefinition.input, envelope.input)
       jsonBytes(input)
-      const output = await handler({ input, ctx, signal } as never)
-      await validate(methodDefinition.output, output)
+      throwIfAborted(signal, contract.id, endpoint)
+      const output = await validate(methodDefinition.output, await handler({ input, ctx, signal } as never))
+      throwIfAborted(signal, contract.id, endpoint)
       jsonBytes(output)
       return { ok: true, value: { version: contract.version, output } }
     } catch (cause) {
@@ -133,7 +155,19 @@ export async function registerApi(
       return { ok: false, error: { code: 'internal', message: cause instanceof Error ? cause.message : String(cause) } }
     }
   }, { authority: registration.authority })
-  ctx.effect(() => remove, `dshx api: ${contract.id}`)
+  owners.set(channel, owner)
+  channelOwners.set(ctx, owners)
+  const dispose = async (): Promise<void> => {
+    if (owners.get(channel) === owner) owners.delete(channel)
+    if (owners.size === 0) channelOwners.delete(ctx)
+    await remove()
+  }
+  try {
+    ctx.effect(() => dispose, `dshx api: ${contract.id}`)
+  } catch (cause) {
+    await dispose()
+    throw cause
+  }
 }
 
 export function createApiClient<const Methods extends Record<string, ApiMethodDefinition<any, any>>>(
@@ -148,20 +182,24 @@ export function createApiClient<const Methods extends Record<string, ApiMethodDe
     const rpc = connection?.rpc
     if (rpc?.call === undefined) throw error('unavailable', 'The DSH Connection provider is unavailable.', contract.id, name, true)
     try {
+      throwIfAborted(options?.signal, contract.id, name)
       const methodDefinition = contract.methods[name]
       if (methodDefinition === undefined) throw error('contract', `Unknown API method ${name}.`, contract.id, name, false)
       const validated = await validate(methodDefinition.input, input)
       jsonBytes(validated)
+      throwIfAborted(options?.signal, contract.id, name)
       const result = await rpc.call(apiChannel(packageId, contract.id), name, { version: contract.version, input: validated }, options?.signal)
-      if (!result.ok) throw error('remote', result.error?.message ?? `API method ${name} failed.`, contract.id, name, false, undefined, result.error?.code)
+      throwIfAborted(options?.signal, contract.id, name)
+      if (!result.ok) throw errorFromRemote(result, contract.id, name)
       const envelope = result.value as { version?: unknown; output?: unknown }
       if (envelope.version !== contract.version) throw error('contract', `API version mismatch for ${contract.id}.`, contract.id, name, false, undefined, 'DSHX6401')
       const output = await validate(methodDefinition.output, envelope.output)
       jsonBytes(output)
+      throwIfAborted(options?.signal, contract.id, name)
       return output
     } catch (cause) {
       if (cause instanceof ApiErrorClass) throw cause
-      if (options?.signal?.aborted) throw error('aborted', 'API request was aborted.', contract.id, name, false, cause)
+      if (options?.signal?.aborted) throw aborted(contract.id, name, cause)
       if (cause instanceof ContractViolation) throw error('contract', cause.message, contract.id, name, false, cause)
       throw error('transport', cause instanceof Error ? cause.message : String(cause), contract.id, name, true, cause)
     }

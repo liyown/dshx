@@ -128,6 +128,25 @@ describe('client compiler', () => {
     expect(plugin.inject).toEqual(['remote'])
   })
 
+  it('embeds the same API contract validation in the lazy Client factory', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/client.tsx'), [
+      "import { defineApi, method } from '@becomeopc/dshx/api'",
+      "import { defineClient } from '@becomeopc/dshx/client'",
+      "const invalid = defineApi({ id: 'invalid/id', version: 1, methods: { get: method() } })",
+      'export default defineClient({ api: invalid })',
+      '',
+    ].join('\n'))
+    await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
+    const registration: { factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } = {} as never
+    vm.runInNewContext(code, {
+      window: { __ModuleLoader__: { load: (value: typeof registration) => Object.assign(registration, value) } },
+    })
+    expect(() => registration.factory(() => ({}))).toThrow('Invalid API id')
+    expect(code).not.toContain('@becomeopc/dshx/api')
+  })
+
   it('preserves native named Client exports and Config', async () => {
     const root = await temporaryProject()
     await writeFile(resolve(root, 'src/client.tsx'), [
