@@ -1,9 +1,12 @@
 import { and, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
-import { requireBindings } from "@/lib/db/context";
 import { communityRateLimits, userRestrictions } from "@/lib/db/schema";
 import { HttpError } from "@/lib/http";
+import {
+  getCommunityVerificationExpiry,
+  verifyTurnstileToken,
+} from "@/lib/community/verification.server";
 
 export async function requireCommunityWrite(
   request: Request,
@@ -57,19 +60,6 @@ export async function requireCommunityWrite(
   if ((limit?.requestCount ?? 0) > 10)
     throw new HttpError(429, "Too many community writes", "rate_limited");
 
-  const bindings = requireBindings(context);
-  if (!bindings.TURNSTILE_SECRET_KEY)
-    throw new HttpError(503, "Turnstile is not configured", "turnstile_unavailable");
-  const form = new FormData();
-  form.set("secret", bindings.TURNSTILE_SECRET_KEY);
-  form.set("response", turnstileToken);
-  const ip = request.headers.get("cf-connecting-ip");
-  if (ip) form.set("remoteip", ip);
-  const result = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-    method: "POST",
-    body: form,
-  });
-  const verification = (await result.json()) as { success?: boolean };
-  if (!verification.success)
-    throw new HttpError(422, "Turnstile verification failed", "turnstile_failed");
+  if (await getCommunityVerificationExpiry(request, context, userId)) return;
+  await verifyTurnstileToken(request, context, turnstileToken);
 }

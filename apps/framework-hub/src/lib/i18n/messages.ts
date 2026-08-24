@@ -34,6 +34,17 @@ const en = {
     "Something went wrong on our end. You can try refreshing or head back home.",
   "errors.tryAgain": "Try again",
   "errors.goHome": "Go home",
+  "community.verification.checking": "Checking human verification…",
+  "community.verification.required":
+    "Verify once to enable community actions for the next 30 minutes.",
+  "community.verification.confirming": "Confirming verification…",
+  "community.verification.active":
+    "Human verification is active for 30 minutes. You won't need to verify every action.",
+  "community.verification.failed": "Human verification failed. Please try the check again.",
+  "community.verification.loadFailed":
+    "Verification status could not be loaded. Please refresh and try again.",
+  "community.verification.unavailable":
+    "Community actions are unavailable until human verification is configured.",
   "seo.title": "DSHX — The developer framework for DSH plugins",
   "seo.description":
     "Build DSH plugins with TypeScript, React, typed Host–Client APIs and a fast development loop.",
@@ -243,6 +254,13 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     "errors.pageLoadFailedBody": "服务端出现了一些问题。你可以刷新页面，或者返回首页。",
     "errors.tryAgain": "重试",
     "errors.goHome": "返回首页",
+    "community.verification.checking": "正在检查人机验证状态……",
+    "community.verification.required": "完成一次人机验证，即可在接下来的 30 分钟内进行社区操作。",
+    "community.verification.confirming": "正在确认验证结果……",
+    "community.verification.active": "人机验证已生效 30 分钟，期间无需为每次操作重复验证。",
+    "community.verification.failed": "人机验证失败，请重新完成下方验证。",
+    "community.verification.loadFailed": "无法读取验证状态，请刷新页面后重试。",
+    "community.verification.unavailable": "人机验证配置完成前，社区操作暂不可用。",
     "seo.title": "DSHX — DSH 插件开发框架",
     "seo.description":
       "使用 TypeScript、React、类型安全的 Host–Client API 和快速开发循环构建 DSH 插件。",

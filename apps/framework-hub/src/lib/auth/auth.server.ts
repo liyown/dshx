@@ -163,7 +163,10 @@ export function requireSameOrigin(request: Request, context: unknown) {
   const bindings = requireBindings(context);
   const origin = request.headers.get("origin");
   if (!origin) throw new HttpError(403, "Origin header required", "origin_required");
-  const siteOrigin = new URL(bindings.SITE_URL ?? request.url).origin;
-  if (origin !== siteOrigin)
+  const allowedOrigins = new Set([
+    new URL(bindings.SITE_URL ?? request.url).origin,
+    new URL(request.url).origin,
+  ]);
+  if (!allowedOrigins.has(origin))
     throw new HttpError(403, "Cross-origin administration is forbidden", "invalid_origin");
 }

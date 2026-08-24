@@ -37,6 +37,7 @@ import { Route as AdminApprovalsIdRouteImport } from './routes/admin/approvals/$
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCliTokenRouteImport } from './routes/api/cli/token'
 import { Route as ApiCollectionsIdRouteImport } from './routes/api/collections/$id'
+import { Route as ApiCommunityVerificationRouteImport } from './routes/api/community/verification'
 import { Route as ApiMeAccountRouteImport } from './routes/api/me/account'
 import { Route as ApiMeProfileRouteImport } from './routes/api/me/profile'
 import { Route as ApiMeRelationshipsRouteImport } from './routes/api/me/relationships'
@@ -234,6 +235,12 @@ const ApiCollectionsIdRoute = ApiCollectionsIdRouteImport.update({
   path: '/api/collections/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCommunityVerificationRoute =
+  ApiCommunityVerificationRouteImport.update({
+    id: '/api/community/verification',
+    path: '/api/community/verification',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMeAccountRoute = ApiMeAccountRouteImport.update({
   id: '/api/me/account',
   path: '/api/me/account',
@@ -543,6 +550,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/token': typeof ApiCliTokenRoute
   '/api/collections/$id': typeof ApiCollectionsIdRoute
+  '/api/community/verification': typeof ApiCommunityVerificationRoute
   '/api/me/account': typeof ApiMeAccountRoute
   '/api/me/profile': typeof ApiMeProfileRoute
   '/api/me/relationships': typeof ApiMeRelationshipsRoute
@@ -625,6 +633,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/token': typeof ApiCliTokenRoute
   '/api/collections/$id': typeof ApiCollectionsIdRoute
+  '/api/community/verification': typeof ApiCommunityVerificationRoute
   '/api/me/account': typeof ApiMeAccountRoute
   '/api/me/profile': typeof ApiMeProfileRoute
   '/api/me/relationships': typeof ApiMeRelationshipsRoute
@@ -709,6 +718,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/token': typeof ApiCliTokenRoute
   '/api/collections/$id': typeof ApiCollectionsIdRoute
+  '/api/community/verification': typeof ApiCommunityVerificationRoute
   '/api/me/account': typeof ApiMeAccountRoute
   '/api/me/profile': typeof ApiMeProfileRoute
   '/api/me/relationships': typeof ApiMeRelationshipsRoute
@@ -794,6 +804,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cli/token'
     | '/api/collections/$id'
+    | '/api/community/verification'
     | '/api/me/account'
     | '/api/me/profile'
     | '/api/me/relationships'
@@ -876,6 +887,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cli/token'
     | '/api/collections/$id'
+    | '/api/community/verification'
     | '/api/me/account'
     | '/api/me/profile'
     | '/api/me/relationships'
@@ -959,6 +971,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cli/token'
     | '/api/collections/$id'
+    | '/api/community/verification'
     | '/api/me/account'
     | '/api/me/profile'
     | '/api/me/relationships'
@@ -1028,6 +1041,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCliTokenRoute: typeof ApiCliTokenRoute
   ApiCollectionsIdRoute: typeof ApiCollectionsIdRoute
+  ApiCommunityVerificationRoute: typeof ApiCommunityVerificationRoute
   ApiMeAccountRoute: typeof ApiMeAccountRoute
   ApiMeProfileRoute: typeof ApiMeProfileRoute
   ApiMeRelationshipsRoute: typeof ApiMeRelationshipsRoute
@@ -1268,6 +1282,13 @@ declare module '@tanstack/react-router' {
       path: '/api/collections/$id'
       fullPath: '/api/collections/$id'
       preLoaderRoute: typeof ApiCollectionsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/community/verification': {
+      id: '/api/community/verification'
+      path: '/api/community/verification'
+      fullPath: '/api/community/verification'
+      preLoaderRoute: typeof ApiCommunityVerificationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/me/account': {
@@ -1769,6 +1790,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCliTokenRoute: ApiCliTokenRoute,
   ApiCollectionsIdRoute: ApiCollectionsIdRoute,
+  ApiCommunityVerificationRoute: ApiCommunityVerificationRoute,
   ApiMeAccountRoute: ApiMeAccountRoute,
   ApiMeProfileRoute: ApiMeProfileRoute,
   ApiMeRelationshipsRoute: ApiMeRelationshipsRoute,

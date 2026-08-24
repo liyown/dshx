@@ -1,4 +1,4 @@
-import { Bell, Bookmark, Star } from "lucide-react";
+import { Bell, Bookmark, LoaderCircle, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { AddToCollectionDialog, ClaimPluginDialog, ReportDialog } from "./community-dialogs";
@@ -14,6 +14,9 @@ type Relationships = {
   bookmarks: Array<{ id: string }>;
   pluginFollows: Array<{ id: string }>;
 };
+
+type ApiError = { error?: { code?: string; message?: string } };
+type PendingAction = "bookmark" | "follow" | "review" | null;
 
 export function PluginCommunityActions({
   pluginId,
@@ -32,6 +35,7 @@ export function PluginCommunityActions({
   const [rating, setRating] = useState(5);
   const [body, setBody] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingAction>(null);
 
   useEffect(() => {
     if (!session.data) return;
@@ -60,70 +64,102 @@ export function PluginCommunityActions({
     setChallenge((value) => value + 1);
   }
 
+  function handleVerificationFailure(payload: ApiError) {
+    if (payload.error?.code === "turnstile_failed") resetChallenge();
+  }
+
   async function relationship(kind: "bookmark" | "follow", enabled: boolean) {
+    if (pending) return;
     setMessage(null);
-    const response = await fetch(`/api/me/plugins/${pluginId}/${kind}`, {
-      method: enabled ? "PUT" : "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        turnstileToken: token,
-        idempotencyKey: `${kind}:${crypto.randomUUID()}`,
-      }),
-    });
-    const payload = (await response.json()) as { error?: { message?: string } };
-    if (!response.ok)
-      setMessage(payload.error?.message ?? "The relationship could not be updated.");
-    else {
+    setPending(kind);
+    try {
+      const response = await fetch(`/api/me/plugins/${pluginId}/${kind}`, {
+        method: enabled ? "PUT" : "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          turnstileToken: token,
+          idempotencyKey: `${kind}:${crypto.randomUUID()}`,
+        }),
+      });
+      const payload = (await response.json()) as ApiError;
+      if (!response.ok) {
+        handleVerificationFailure(payload);
+        setMessage(payload.error?.message ?? "The relationship could not be updated.");
+        return;
+      }
       const page = await fetch("/api/me/relationships").then(
         (result) => result.json() as Promise<Relationships>,
       );
       setRelationships(page);
+    } catch {
+      setMessage("The relationship could not be updated. Check your connection and try again.");
+    } finally {
+      setPending(null);
     }
-    resetChallenge();
   }
 
   async function review() {
+    if (pending) return;
     setMessage(null);
-    const response = await fetch(`/api/plugins/${encodeURIComponent(slug)}/review`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        rating,
-        body: body.trim() || null,
-        locale,
-        turnstileToken: token,
-        idempotencyKey: `review:${crypto.randomUUID()}`,
-      }),
-    });
-    const payload = (await response.json()) as { error?: { message?: string } };
-    if (!response.ok) setMessage(payload.error?.message ?? "The review could not be published.");
-    else {
+    setPending("review");
+    try {
+      const response = await fetch(`/api/plugins/${encodeURIComponent(slug)}/review`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          rating,
+          body: body.trim() || null,
+          locale,
+          turnstileToken: token,
+          idempotencyKey: `review:${crypto.randomUUID()}`,
+        }),
+      });
+      const payload = (await response.json()) as ApiError;
+      if (!response.ok) {
+        handleVerificationFailure(payload);
+        setMessage(payload.error?.message ?? "The review could not be published.");
+        return;
+      }
       setMessage("Review published.");
       window.dispatchEvent(new CustomEvent("dshx:reviews-changed", { detail: { slug } }));
+    } catch {
+      setMessage("The review could not be published. Check your connection and try again.");
+    } finally {
+      setPending(null);
     }
-    resetChallenge();
   }
 
   return (
     <section className="space-y-4 border-t border-border pt-5">
+      <Turnstile key={challenge} onToken={setToken} />
       <div className="flex gap-2">
         <Button
           variant={bookmarked ? "secondary" : "outline"}
           size="sm"
-          disabled={!token}
+          disabled={!token || pending !== null}
+          aria-busy={pending === "bookmark"}
           onClick={() => void relationship("bookmark", !bookmarked)}
         >
-          <Bookmark data-icon="inline-start" className={cn(bookmarked && "fill-current")} />{" "}
-          {bookmarked ? "Bookmarked" : "Bookmark"}
+          {pending === "bookmark" ? (
+            <LoaderCircle data-icon="inline-start" className="animate-spin" aria-hidden />
+          ) : (
+            <Bookmark data-icon="inline-start" className={cn(bookmarked && "fill-current")} />
+          )}{" "}
+          {pending === "bookmark" ? "Saving…" : bookmarked ? "Bookmarked" : "Bookmark"}
         </Button>
         <Button
           variant={followed ? "secondary" : "outline"}
           size="sm"
-          disabled={!token}
+          disabled={!token || pending !== null}
+          aria-busy={pending === "follow"}
           onClick={() => void relationship("follow", !followed)}
         >
-          <Bell data-icon="inline-start" className={cn(followed && "fill-current")} />{" "}
-          {followed ? "Following" : "Follow"}
+          {pending === "follow" ? (
+            <LoaderCircle data-icon="inline-start" className="animate-spin" aria-hidden />
+          ) : (
+            <Bell data-icon="inline-start" className={cn(followed && "fill-current")} />
+          )}{" "}
+          {pending === "follow" ? "Saving…" : followed ? "Following" : "Follow"}
         </Button>
       </div>
       <div className="flex flex-wrap gap-1 border-t border-border pt-3">
@@ -154,12 +190,24 @@ export function PluginCommunityActions({
           className="mt-3 min-h-20"
           placeholder="Share specific, useful experience (optional)."
         />
-        <Button size="sm" className="mt-3" disabled={!token} onClick={() => void review()}>
-          Publish review
+        <Button
+          size="sm"
+          className="mt-3"
+          disabled={!token || pending !== null}
+          aria-busy={pending === "review"}
+          onClick={() => void review()}
+        >
+          {pending === "review" ? (
+            <LoaderCircle data-icon="inline-start" className="animate-spin" aria-hidden />
+          ) : null}
+          {pending === "review" ? "Publishing…" : "Publish review"}
         </Button>
       </div>
-      <Turnstile key={challenge} onToken={setToken} />
-      {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
+      {message ? (
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          {message}
+        </p>
+      ) : null}
     </section>
   );
 }
