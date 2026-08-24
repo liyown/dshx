@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { inspectProjectComposition, normalizeSlots, normalizeTools } from '../src/inspect/index.js'
 import type { ResolvedDshxConfig } from '../src/config/index.js'
-import { RC8_COMPATIBILITY } from '../src/compat/index.js'
+import { DSH_0_1_COMPATIBILITY } from '../src/compat/index.js'
 
 function project(): ResolvedDshxConfig {
   return {
@@ -13,7 +13,7 @@ function project(): ResolvedDshxConfig {
 }
 
 function installation() {
-  return { version: '0.1.0-rc.8', executable: 'local' as const, support: 'verified' as const, adapterId: RC8_COMPATIBILITY.id, protocolGeneration: RC8_COMPATIBILITY.protocolGeneration, supportedRange: RC8_COMPATIBILITY.dshRange, compatibility: RC8_COMPATIBILITY, diagnostics: [] }
+  return { version: '0.1.0-rc.8', executable: 'local' as const, support: 'verified' as const, adapterId: DSH_0_1_COMPATIBILITY.id, protocolGeneration: DSH_0_1_COMPATIBILITY.protocolGeneration, supportedRange: DSH_0_1_COMPATIBILITY.dshRange, compatibility: DSH_0_1_COMPATIBILITY, diagnostics: [] }
 }
 
 describe('runtime inspect normalization', () => {

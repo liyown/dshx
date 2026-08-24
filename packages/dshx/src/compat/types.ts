@@ -1,5 +1,11 @@
 /** Compatibility confidence for an installed DSH CLI. */
-export type DshSupportStatus = 'verified' | 'compatible-range' | 'unsupported'
+export type DshSupportStatus = 'verified' | 'compatible' | 'experimental' | 'unsupported'
+
+/** Representative real-runtime verification boundaries for one compatibility generation. */
+export interface DshVerifiedVersions {
+  readonly minimum: string
+  readonly latest: string
+}
 
 export interface DshxRuntimePluginSpec {
   readonly id: string
@@ -39,8 +45,11 @@ export interface DshConnectionCompatibility {
 export interface DshCompatibility {
   readonly id: string
   readonly protocolGeneration: string
+  /** DSH version whose contract originally defined this adapter. */
   readonly version: string
   readonly dshRange: string
+  readonly verified: DshVerifiedVersions
+  /** Exact DSH versions that have completed the real-runtime scenario. */
   readonly verifiedVersions: readonly string[]
   readonly nodeRange: string
   readonly profile: DshProfileCompatibility
@@ -61,4 +70,11 @@ export interface DshCompatibility {
 export interface DshCompatibilityResolution {
   readonly compatibility: DshCompatibility
   readonly support: DshSupportStatus
+}
+
+export interface DshCompatibilityMatrixEntry {
+  readonly generation: string
+  readonly adapterId: string
+  readonly role: 'minimum' | 'latest'
+  readonly version: string
 }

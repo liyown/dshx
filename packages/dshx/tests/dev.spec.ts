@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import { RC8_COMPATIBILITY } from '../src/compat/index.js'
+import { DSH_0_1_COMPATIBILITY } from '../src/compat/index.js'
 import type { ResolvedDshxConfig } from '../src/config/index.js'
 import { startDevSession } from '../src/dev/index.js'
 import type { DevBuildEvent, DevChildProcess, DevEvent, DevWatcher } from '../src/dev/index.js'
@@ -72,10 +72,10 @@ function prepared(projectValue: ResolvedDshxConfig): PreparedProjectProfile {
       version: '0.1.0-rc.8',
       adapterId: 'dsh-0.1',
       protocolGeneration: '0.1',
-      supportedRange: '>=0.1.0-rc.8 <0.2.0',
+      supportedRange: '>=0.1.0-rc.8 <0.2.0-0',
       support: 'verified',
       diagnostics: [],
-      compatibility: RC8_COMPATIBILITY,
+      compatibility: DSH_0_1_COMPATIBILITY,
     },
   }
 }

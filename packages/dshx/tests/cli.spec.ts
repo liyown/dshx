@@ -53,14 +53,15 @@ function profile(projectValue: ResolvedDshxConfig): PreparedProjectProfile {
       version: '0.1.0-rc.8',
       adapterId: 'dsh-0.1',
       protocolGeneration: '0.1',
-      supportedRange: '>=0.1.0-rc.8 <0.2.0',
+      supportedRange: '>=0.1.0-rc.8 <0.2.0-0',
       support: 'verified',
       diagnostics: [],
       compatibility: {
         id: 'dsh-0.1',
         protocolGeneration: '0.1',
         version: '0.1.0-rc.8',
-        dshRange: '>=0.1.0-rc.8 <0.2.0',
+        dshRange: '>=0.1.0-rc.8 <0.2.0-0',
+        verified: { minimum: '0.1.0-rc.8', latest: '0.1.0-rc.8' },
         verifiedVersions: ['0.1.0-rc.8'],
         profile: { listCommand: 'plugin-list-json', addCommand: 'plugin-add' },
         inspect: { targets: ['slots', 'tools'], provider: 'unavailable' },
@@ -182,7 +183,7 @@ describe('CLI commands', () => {
     expect(ensure).not.toHaveBeenCalled()
     streams.out.end(); streams.err.end()
     const output = await text(streams.out)
-    expect(JSON.parse(output)).toMatchObject({ diagnostics: [{ code: 'DSHX4305', severity: 'error' }], dsh: { adapterId: 'dsh-0.1', protocolGeneration: '0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0' }, runtimePlugins: [], bridge: { state: 'disabled', metadata: null } })
+    expect(JSON.parse(output)).toMatchObject({ diagnostics: [{ code: 'DSHX4305', severity: 'error' }], dsh: { adapterId: 'dsh-0.1', protocolGeneration: '0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0-0' }, runtimePlugins: [], bridge: { state: 'disabled', metadata: null } })
   })
 
   it('supports check --fix dry-run with a machine-readable repair summary', async () => {

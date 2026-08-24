@@ -7,10 +7,40 @@ import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { apiChannel } from '../packages/dshx/dist/api/runtime.js'
+import { classifyCompatibility, DEFAULT_COMPATIBILITY } from '../packages/dshx/dist/compat/index.js'
 
 const workspace = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const rc2 = '0.1.1-rc.2'
 const timeoutMs = 120_000
+
+function parseDshVersion(argv, env) {
+  let cliVersion
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index]
+    if (argument === '--') continue
+    if (argument === '--help' || argument === '-h') {
+      console.log('Usage: pnpm smoke:dsh -- --version <dsh-version>\n\nDSH_VERSION may be used instead. Without either, the latest verified boundary is used.')
+      return undefined
+    }
+    if (argument === '--version') {
+      const value = argv[index + 1]
+      if (value === undefined || value.startsWith('-')) throw new Error('--version requires a semantic version')
+      cliVersion = value
+      index += 1
+      continue
+    }
+    if (argument.startsWith('--version=')) {
+      cliVersion = argument.slice('--version='.length)
+      continue
+    }
+    throw new Error(`Unknown smoke argument ${JSON.stringify(argument)}`)
+  }
+  const version = cliVersion ?? env.DSH_VERSION ?? DEFAULT_COMPATIBILITY.verified.latest
+  const resolution = classifyCompatibility(version)
+  if (resolution === undefined) {
+    throw new Error(`DSH ${version} has no compatibility-generation adapter in this DSHX build`)
+  }
+  return { version, resolution }
+}
 
 function commandLabel(command, args) {
   return [command, ...args].join(' ')
@@ -35,8 +65,12 @@ function run(command, args, options = {}) {
         rejectResult(error)
       }
     }, options.timeoutMs ?? timeoutMs)
-    child.stdout.on('data', chunk => { stdout += chunk.toString() })
-    child.stderr.on('data', chunk => { stderr += chunk.toString() })
+    child.stdout.on('data', chunk => {
+      stdout += chunk.toString()
+    })
+    child.stderr.on('data', chunk => {
+      stderr += chunk.toString()
+    })
     child.once('error', error => {
       clearTimeout(timer)
       if (!settled) {
@@ -82,7 +116,9 @@ async function expectFailureOneOf(command, args, codes, options = {}) {
 async function inspectMaybeAvailable(root, env, args) {
   const result = await run('pnpm', ['exec', 'dshx', ...args, '--json'], { cwd: root, env })
   let value
-  try { value = JSON.parse(result.stdout) } catch (error) {
+  try {
+    value = JSON.parse(result.stdout)
+  } catch (error) {
     error.cause = { stdout: result.stdout, stderr: result.stderr }
     throw error
   }
@@ -107,7 +143,7 @@ function setDependency(manifest, name, version) {
   manifest.devDependencies[name] = version
 }
 
-async function configureRc2(root, dshxTarball) {
+async function configureDsh(root, dshxTarball, dshVersion) {
   const manifest = await packageJson(root)
   setDependency(manifest, '@becomeopc/dshx', `file:${dshxTarball}`)
   for (const name of [
@@ -118,21 +154,22 @@ async function configureRc2(root, dshxTarball) {
     '@deepseek-ai/dsh-tools',
     '@deepseek-ai/dsh-client-ui-slots',
     '@deepseek-ai/dsh-client-ui-sidebar',
-  ]) setDependency(manifest, name, rc2)
+  ])
+    setDependency(manifest, name, dshVersion)
   manifest.peerDependencies ??= {}
-  manifest.peerDependencies['@deepseek-ai/dsh-tools'] = rc2
+  manifest.peerDependencies['@deepseek-ai/dsh-tools'] = dshVersion
   await writePackageJson(root, manifest)
   // Reuse the local store when available, but allow a clean CI runner to resolve the
-  // pinned rc.2 packages from npm instead of assuming pre-populated metadata.
+  // selected generation boundary from npm instead of assuming pre-populated metadata.
   await expectSuccess('pnpm', ['install', '--prefer-offline', '--no-frozen-lockfile'], { cwd: root })
   const version = await expectSuccess('pnpm', ['exec', 'dsh', '--version'], { cwd: root })
-  if (version.stdout.trim() !== rc2) throw new Error(`Expected DSH ${rc2}, got ${version.stdout.trim()}`)
+  if (version.stdout.trim() !== dshVersion) throw new Error(`Expected DSH ${dshVersion}, got ${version.stdout.trim()}`)
 }
 
-async function createProject(parent, name, dshxTarball) {
+async function createProject(parent, name, dshxTarball, dshVersion) {
   await expectSuccess('node', [join(workspace, 'packages/create-dshx/dist/cli.js'), name, '--cwd', parent, '--no-install', '--yes'])
   const root = join(parent, name)
-  await configureRc2(root, dshxTarball)
+  await configureDsh(root, dshxTarball, dshVersion)
   return root
 }
 
@@ -149,7 +186,10 @@ async function removeClient(root) {
 async function removeHost(root) {
   const manifest = await packageJson(root)
   await writePackageJson(root, manifest)
-  await writeFile(join(root, 'dshx.config.ts'), `import { defineConfig } from '@becomeopc/dshx/config'\n\nexport default defineConfig({ profile: 'web', host: false })\n`)
+  await writeFile(
+    join(root, 'dshx.config.ts'),
+    `import { defineConfig } from '@becomeopc/dshx/config'\n\nexport default defineConfig({ profile: 'web', host: false })\n`,
+  )
   await rm(join(root, 'src/host.ts'), { force: true })
 }
 
@@ -227,7 +267,9 @@ async function verifyGeneratedCommand(webUrl, projectRoot) {
 
 async function jsonCommand(root, env, args) {
   const result = await expectSuccess('pnpm', ['exec', 'dshx', ...args, '--json'], { cwd: root, env })
-  try { return JSON.parse(result.stdout) } catch (error) {
+  try {
+    return JSON.parse(result.stdout)
+  } catch (error) {
     error.cause = { stdout: result.stdout, stderr: result.stderr }
     throw error
   }
@@ -256,7 +298,10 @@ async function startDev(root, env) {
   let exited = false
   let resolveReady
   let rejectReady
-  const readyPromise = new Promise((resolveResult, rejectResult) => { resolveReady = resolveResult; rejectReady = rejectResult })
+  const readyPromise = new Promise((resolveResult, rejectResult) => {
+    resolveReady = resolveResult
+    rejectReady = rejectResult
+  })
   const maybeReady = () => {
     if (sessionReady && dshReady) {
       clearTimeout(timer)
@@ -274,11 +319,19 @@ async function startDev(root, env) {
     }
     maybeReady()
   })
-  child.stderr.on('data', chunk => { stderr += chunk.toString() })
-  child.once('error', error => { clearTimeout(timer); rejectReady(error) })
+  child.stderr.on('data', chunk => {
+    stderr += chunk.toString()
+  })
+  child.once('error', error => {
+    clearTimeout(timer)
+    rejectReady(error)
+  })
   child.once('close', (code, signal) => {
     exited = true
-    if (!sessionReady || !dshReady) { clearTimeout(timer); rejectReady(new Error(`dshx dev exited before ready: ${code ?? signal}\n${stdout}\n${stderr}`)) }
+    if (!sessionReady || !dshReady) {
+      clearTimeout(timer)
+      rejectReady(new Error(`dshx dev exited before ready: ${code ?? signal}\n${stdout}\n${stderr}`))
+    }
   })
   await readyPromise
   if (webUrl === undefined) throw new Error(`dshx dev did not report a Web URL\n${stdout}\n${stderr}`)
@@ -292,21 +345,28 @@ async function startDev(root, env) {
       const stderrStart = stderr.length
       const deadline = Date.now() + timeoutMs
       while (Date.now() < deadline) {
-        if (
-          stdout.slice(stdoutStart).includes(text) ||
-          stderr.slice(stderrStart).includes(text)
-        ) return
+        if (stdout.slice(stdoutStart).includes(text) || stderr.slice(stderrStart).includes(text)) return
         if (exited) throw new Error(`dshx dev exited before emitting ${text}\n${stdout}\n${stderr}`)
         await new Promise(resolveResult => setTimeout(resolveResult, 100))
       }
       throw new Error(`dshx dev did not emit ${text}\n${stdout}\n${stderr}`)
     },
-    close: () => new Promise(resolveResult => {
-      if (exited) { resolveResult(); return }
-      const timer = setTimeout(() => { child.kill('SIGKILL'); resolveResult() }, 10_000)
-      child.once('close', () => { clearTimeout(timer); resolveResult() })
-      child.kill('SIGTERM')
-    }),
+    close: () =>
+      new Promise(resolveResult => {
+        if (exited) {
+          resolveResult()
+          return
+        }
+        const timer = setTimeout(() => {
+          child.kill('SIGKILL')
+          resolveResult()
+        }, 10_000)
+        child.once('close', () => {
+          clearTimeout(timer)
+          resolveResult()
+        })
+        child.kill('SIGTERM')
+      }),
   }
 }
 
@@ -320,24 +380,27 @@ async function packDshx(destination) {
 }
 
 async function main() {
+  const selected = parseDshVersion(process.argv.slice(2), process.env)
+  if (selected === undefined) return
+  const { version: dshVersion, resolution } = selected
   await access(join(workspace, 'packages/dshx/dist/cli/bin.js'))
   await access(join(workspace, 'packages/create-dshx/dist/cli.js'))
-  const root = await mkdtemp(join(tmpdir(), 'dshx-rc2-matrix-'))
+  const root = await mkdtemp(join(tmpdir(), `dshx-dsh-${dshVersion.replaceAll(/[^0-9A-Za-z.-]/g, '-')}-`))
   const dshHome = join(root, 'dsh-home')
   const tarballDir = join(root, 'tarballs')
   await (await import('node:fs/promises')).mkdir(tarballDir, { recursive: true })
   const dshxTarball = await packDshx(tarballDir)
   const projects = {}
   try {
-    projects.fullA = await createProject(root, 'plugin-full-a', dshxTarball)
+    projects.fullA = await createProject(root, 'plugin-full-a', dshxTarball, dshVersion)
     await useAutomaticHostRestart(projects.fullA)
     await expectSuccess('pnpm', ['exec', 'dshx', 'add', 'command', '--name', 'dshx-status', '--description', 'Return DSHX status.'], { cwd: projects.fullA })
-    projects.fullB = await createProject(root, 'plugin-full-b', dshxTarball)
-    projects.hostOnly = await createProject(root, 'plugin-host-only', dshxTarball)
+    projects.fullB = await createProject(root, 'plugin-full-b', dshxTarball, dshVersion)
+    projects.hostOnly = await createProject(root, 'plugin-host-only', dshxTarball, dshVersion)
     await removeClient(projects.hostOnly)
-    projects.clientOnly = await createProject(root, 'plugin-client-only', dshxTarball)
+    projects.clientOnly = await createProject(root, 'plugin-client-only', dshxTarball, dshVersion)
     await removeHost(projects.clientOnly)
-    projects.native = await createProject(root, 'plugin-native', dshxTarball)
+    projects.native = await createProject(root, 'plugin-native', dshxTarball, dshVersion)
     await makeNativeHost(projects.native)
 
     for (const [name, project] of Object.entries(projects)) {
@@ -345,8 +408,14 @@ async function main() {
       await expectFailure('pnpm', ['exec', 'dshx', 'check', '--json'], 'DSHX4305', { cwd: project, env: { DSH_HOME: join(dshHome, name) } })
     }
 
-    await expectFailure('pnpm', ['exec', 'dshx', 'add', 'tool', '--name', 'native.status'], 'DSHX6204', { cwd: projects.native, env: { DSH_HOME: join(dshHome, 'native') } })
-    await expectFailure('pnpm', ['exec', 'dshx', 'add', 'tool', '--name', 'disabled.status'], 'DSHX6203', { cwd: projects.clientOnly, env: { DSH_HOME: join(dshHome, 'clientOnly') } })
+    await expectFailure('pnpm', ['exec', 'dshx', 'add', 'tool', '--name', 'native.status'], 'DSHX6204', {
+      cwd: projects.native,
+      env: { DSH_HOME: join(dshHome, 'native') },
+    })
+    await expectFailure('pnpm', ['exec', 'dshx', 'add', 'tool', '--name', 'disabled.status'], 'DSHX6203', {
+      cwd: projects.clientOnly,
+      env: { DSH_HOME: join(dshHome, 'clientOnly') },
+    })
 
     const hostDev = await startDev(projects.hostOnly, { DSH_HOME: join(dshHome, 'host-only') })
     try {
@@ -355,9 +424,20 @@ async function main() {
       const hostServices = await jsonCommand(projects.hostOnly, { DSH_HOME: join(dshHome, 'host-only') }, ['inspect', 'services'])
       const hostEvents = await jsonCommand(projects.hostOnly, { DSH_HOME: join(dshHome, 'host-only') }, ['inspect', 'events'])
       if (hostServices.source !== 'runtime' || hostEvents.source !== 'runtime') throw new Error('Host-only Inspect did not return runtime data')
-      await expectFailureOneOf('pnpm', ['exec', 'dshx', 'add', 'ui', '--slot', 'sidebar.footer.action', '--provider', '@deepseek-ai/dsh-client-ui-sidebar', '--dry-run', '--json'], ['DSHX6102', 'DSHX3202'], { cwd: projects.hostOnly, env: { DSH_HOME: join(dshHome, 'host-only') } })
-      await expectSuccess('pnpm', ['exec', 'dshx', 'add', 'tool', '--name', 'host.status'], { cwd: projects.hostOnly, env: { DSH_HOME: join(dshHome, 'host-only') } })
-      await expectSuccess('pnpm', ['exec', 'dshx', 'add', 'hook', '--event', 'session.created'], { cwd: projects.hostOnly, env: { DSH_HOME: join(dshHome, 'host-only') } })
+      await expectFailureOneOf(
+        'pnpm',
+        ['exec', 'dshx', 'add', 'ui', '--slot', 'sidebar.footer.action', '--provider', '@deepseek-ai/dsh-client-ui-sidebar', '--dry-run', '--json'],
+        ['DSHX6102', 'DSHX3202'],
+        { cwd: projects.hostOnly, env: { DSH_HOME: join(dshHome, 'host-only') } },
+      )
+      await expectSuccess('pnpm', ['exec', 'dshx', 'add', 'tool', '--name', 'host.status'], {
+        cwd: projects.hostOnly,
+        env: { DSH_HOME: join(dshHome, 'host-only') },
+      })
+      await expectSuccess('pnpm', ['exec', 'dshx', 'add', 'hook', '--event', 'session.created'], {
+        cwd: projects.hostOnly,
+        env: { DSH_HOME: join(dshHome, 'host-only') },
+      })
       await expectSuccess('pnpm', ['exec', 'dshx', 'build'], { cwd: projects.hostOnly, env: { DSH_HOME: join(dshHome, 'host-only') } })
     } finally {
       await hostDev.close()
@@ -367,13 +447,19 @@ async function main() {
     try {
       const check = await jsonCommand(projects.clientOnly, { DSH_HOME: join(dshHome, 'client-only') }, ['check'])
       if (check.diagnostics.some(item => item.severity === 'error')) throw new Error('Client-only check failed after dev link')
-      await expectFailure('pnpm', ['exec', 'dshx', 'inspect', 'services', '--json'], 'DSHX3201', { cwd: projects.clientOnly, env: { DSH_HOME: join(dshHome, 'client-only') } })
+      await expectFailure('pnpm', ['exec', 'dshx', 'inspect', 'services', '--json'], 'DSHX3201', {
+        cwd: projects.clientOnly,
+        env: { DSH_HOME: join(dshHome, 'client-only') },
+      })
     } finally {
       await clientDev.close()
     }
 
     for (const name of ['fullB', 'hostOnly', 'clientOnly', 'native']) {
-      await expectSuccess('pnpm', ['exec', 'dsh', 'plugin', '--profile', 'web', 'add', projects[name]], { cwd: projects.fullA, env: { DSH_HOME: join(dshHome, 'multi') } })
+      await expectSuccess('pnpm', ['exec', 'dsh', 'plugin', '--profile', 'web', 'add', projects[name]], {
+        cwd: projects.fullA,
+        env: { DSH_HOME: join(dshHome, 'multi') },
+      })
     }
     const fullDev = await startDev(projects.fullA, { DSH_HOME: join(dshHome, 'multi') })
     try {
@@ -409,26 +495,37 @@ async function main() {
       const exact = await inspectMaybeAvailable(projects.fullA, inspectEnv, ['inspect', 'slots', '--root', 'sidebar.footer.action'])
       const services = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['inspect', 'services'])
       const events = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['inspect', 'events'])
-      console.log(JSON.stringify({
-        rc2,
-        projects: Object.fromEntries(Object.entries(projects).map(([name, project]) => [name, project])),
-        inspect: [slots, exact, services, events].map(summarizeInspect),
-        api: { unary: 'verified', versionMismatch: 'verified', hostRestart: 'verified' },
-        command: { scaffold: 'verified', parser: 'verified', hostRestart: 'verified' },
-        profile: 'linked',
-        bridge: 'running',
-      }, null, 2))
+      console.log(
+        JSON.stringify(
+          {
+            dsh: {
+              version: dshVersion,
+              generation: resolution.compatibility.protocolGeneration,
+              adapterId: resolution.compatibility.id,
+              support: resolution.support,
+            },
+            projects: Object.fromEntries(Object.entries(projects).map(([name, project]) => [name, project])),
+            inspect: [slots, exact, services, events].map(summarizeInspect),
+            api: { unary: 'verified', versionMismatch: 'verified', hostRestart: 'verified' },
+            command: { scaffold: 'verified', parser: 'verified', hostRestart: 'verified' },
+            profile: 'linked',
+            bridge: 'running',
+          },
+          null,
+          2,
+        ),
+      )
     } finally {
       await fullDev.close()
     }
     console.log(JSON.stringify({ cleanup: 'verified', dshHome }, null, 2))
   } finally {
     if (process.env.DSHX_KEEP_SMOKE !== '1') await rm(root, { recursive: true, force: true })
-    else console.error(`Kept rc.2 smoke root at ${root}`)
+    else console.error(`Kept DSH ${dshVersion} smoke root at ${root}`)
   }
 }
 
 main().catch(error => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error))
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error))
   process.exitCode = 1
 })

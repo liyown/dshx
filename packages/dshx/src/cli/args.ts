@@ -172,23 +172,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   let command: CliCommand | undefined
   let inspectTarget: CliInspectTarget | undefined
   let addTarget: CliAddTarget | undefined
-  let cwd: string | undefined
-  let root: string | undefined
-  let verbose = false
-  let json = false
-  let open = false
-  let slot: string | undefined
-  let name: string | undefined
-  let description: string | undefined
-  let event: string | undefined
-  let provider: string | undefined
-  let file: string | undefined
-  let id: string | undefined
   let order: number | undefined
-  let dryRun = false
-  let fix = false
-  let help = false
-  let version = false
 
   for (const token of parsed._) {
     if (token === undefined) continue
@@ -210,22 +194,22 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     throw new CliUsageError(`Unknown argument ${JSON.stringify(token)}.`)
   }
 
-  cwd = parsed.cwd
-  root = parsed.root
-  verbose = parsed.verbose ?? false
-  json = parsed.json ?? false
-  open = parsed.open ?? false
-  slot = parsed.slot
-  name = parsed.name
-  description = parsed.description
-  event = parsed.event
-  provider = parsed.provider
-  file = parsed.file
-  id = parsed.id
-  dryRun = parsed.dryRun ?? false
-  fix = parsed.fix ?? false
-  help = parsed.help ?? false
-  version = parsed.version ?? false
+  const cwd = parsed.cwd
+  const root = parsed.root
+  const verbose = parsed.verbose ?? false
+  const json = parsed.json ?? false
+  const open = parsed.open ?? false
+  const slot = parsed.slot
+  const name = parsed.name
+  const description = parsed.description
+  const event = parsed.event
+  const provider = parsed.provider
+  const file = parsed.file
+  const id = parsed.id
+  const dryRun = parsed.dryRun ?? false
+  const fix = parsed.fix ?? false
+  const help = parsed.help ?? false
+  const version = parsed.version ?? false
   if (parsed.order !== undefined) {
     const value = Number(parsed.order)
     if (!Number.isInteger(value)) throw new CliUsageError('--order requires an integer value.')
@@ -235,17 +219,20 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   if (json && command !== undefined && command !== 'check' && command !== 'inspect' && command !== 'add')
     throw new CliUsageError('--json is only valid with check, inspect, or add.')
   if (open && command !== undefined && command !== 'dev') throw new CliUsageError('--open is only valid with dev.')
-  if (dryRun && command !== 'add' && !(command === 'check' && fix)) throw new CliUsageError('DSHX4147: --dry-run is only valid with add commands or check --fix.')
+  if (dryRun && command !== 'add' && !(command === 'check' && fix))
+    throw new CliUsageError('DSHX4147: --dry-run is only valid with add commands or check --fix.')
   if (fix && command !== 'check') throw new CliUsageError('DSHX4147: --fix is only valid with check.')
   if ((slot !== undefined || provider !== undefined || id !== undefined || order !== undefined) && command !== 'add')
     throw new CliUsageError('add ui options are only valid with add ui.')
-  if ((name !== undefined || description !== undefined) && command !== 'add') throw new CliUsageError('add name options are only valid with add tool or add command.')
+  if ((name !== undefined || description !== undefined) && command !== 'add')
+    throw new CliUsageError('add name options are only valid with add tool or add command.')
   if (event !== undefined && command !== 'add') throw new CliUsageError('--event is only valid with add hook.')
   if (root !== undefined && (command !== 'inspect' || inspectTarget !== 'slots')) throw new CliUsageError('--root is only valid with inspect slots.')
   if ((json || open) && command === undefined) throw new CliUsageError('An option requires a command.')
   if (command !== 'inspect' && inspectTarget !== undefined) throw new CliUsageError('Inspect targets are only valid with the inspect command.')
   if (command !== 'add' && addTarget !== undefined) throw new CliUsageError('Add targets are only valid with the add command.')
-  if (command === 'inspect' && inspectTarget === undefined && !help && !version) throw new CliUsageError('Inspect requires a target: slots, tools, services, or events.')
+  if (command === 'inspect' && inspectTarget === undefined && !help && !version)
+    throw new CliUsageError('Inspect requires a target: slots, tools, services, or events.')
   if (command === 'add' && addTarget === undefined && !help && !version) throw new CliUsageError('Add requires a target: ui, tool, command, or hook.')
   if (command === 'add' && addTarget !== 'ui' && addTarget !== 'tool' && addTarget !== 'command' && addTarget !== 'hook')
     throw new CliUsageError('Only add ui, add tool, add command, and add hook are supported.')

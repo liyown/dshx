@@ -35,12 +35,7 @@ export interface CreatedHostPlugin {
   apply(ctx: Context, config?: unknown): unknown
 }
 
-function fail(
-  code: 'DSHX2001' | 'DSHX2002',
-  message: string,
-  metadata: HostPluginMetadata,
-  hint: string,
-): never {
+function fail(code: 'DSHX2001' | 'DSHX2002', message: string, metadata: HostPluginMetadata, hint: string): never {
   throw new DshxError(code, message, {
     ...(metadata.sourceFile === undefined ? {} : { file: metadata.sourceFile }),
     hint,
@@ -64,17 +59,10 @@ async function startHostRuntime(ctx: Context, metadata: HostPluginMetadata): Pro
 }
 
 function normalizeApis(definition: HostDefinition): readonly import('../api/types.js').ApiHostRegistration[] {
-  return [
-    ...(definition.api === undefined ? [] : [definition.api]),
-    ...(definition.apis ?? []),
-  ]
+  return [...(definition.api === undefined ? [] : [definition.api]), ...(definition.apis ?? [])]
 }
 
-function withRuntime(
-  ctx: Context,
-  result: unknown,
-  metadata: HostPluginMetadata,
-): unknown {
+function withRuntime(ctx: Context, result: unknown, metadata: HostPluginMetadata): unknown {
   if (!inspectBridgeEnabled() && (metadata.compatibility?.runtimePlugins?.length ?? 0) === 0) return result
   return Promise.resolve(result).then(async value => {
     try {
@@ -112,19 +100,37 @@ function validateDefinition(value: unknown, metadata: HostPluginMetadata): HostD
   }
   if (source.inject !== undefined) {
     if (!Array.isArray(source.inject) || source.inject.some(item => typeof item !== 'string' || item.trim() === '')) {
-      fail('DSHX2002', 'Host definition inject must be an array of non-empty service names.', metadata, 'Use inject: ["serviceName"] or remove inject when no service is required.')
+      fail(
+        'DSHX2002',
+        'Host definition inject must be an array of non-empty service names.',
+        metadata,
+        'Use inject: ["serviceName"] or remove inject when no service is required.',
+      )
     }
   }
   if (source.tools !== undefined && !Array.isArray(source.tools)) {
-    fail('DSHX2002', 'Host definition tools must be an array of official ToolDefinition values.', metadata, 'Use tools: [tool] or remove tools when this Host registers no tools.')
+    fail(
+      'DSHX2002',
+      'Host definition tools must be an array of official ToolDefinition values.',
+      metadata,
+      'Use tools: [tool] or remove tools when this Host registers no tools.',
+    )
   }
   if (source.commands !== undefined && !Array.isArray(source.commands)) {
-    fail('DSHX2002', 'Host definition commands must be an array of official CommandDefinition values.', metadata, 'Use commands: [command] or remove commands when this Host registers no commands.')
+    fail(
+      'DSHX2002',
+      'Host definition commands must be an array of official CommandDefinition values.',
+      metadata,
+      'Use commands: [command] or remove commands when this Host registers no commands.',
+    )
   }
   if (source.api !== undefined && (typeof source.api !== 'object' || source.api === null || Array.isArray(source.api))) {
     fail('DSHX2002', 'Host api must be a value returned by api.host().', metadata, 'Use api: contract.host({ method() { ... } }) or remove api.')
   }
-  if (source.apis !== undefined && (!Array.isArray(source.apis) || source.apis.some(item => typeof item !== 'object' || item === null || Array.isArray(item)))) {
+  if (
+    source.apis !== undefined &&
+    (!Array.isArray(source.apis) || source.apis.some(item => typeof item !== 'object' || item === null || Array.isArray(item)))
+  ) {
     fail('DSHX2002', 'Host apis must be an array of values returned by api.host().', metadata, 'Use apis: [contract.host({ ... })] or remove apis.')
   }
   if (source.setup !== undefined && typeof source.setup !== 'function') {
@@ -149,7 +155,11 @@ export function createHostPlugin(value: unknown, metadata: HostPluginMetadata): 
       for (const command of definition.commands ?? []) ctx.commands.register(command)
       if (apis.length === 0) return withRuntime(ctx, definition.setup?.(ctx), metadata)
       const apiSetup = Promise.all(apis.map(api => registerApi(ctx, metadata.packageId, api)))
-      return withRuntime(ctx, apiSetup.then(() => definition.setup?.(ctx)), metadata)
+      return withRuntime(
+        ctx,
+        apiSetup.then(() => definition.setup?.(ctx)),
+        metadata,
+      )
     },
   }
 }

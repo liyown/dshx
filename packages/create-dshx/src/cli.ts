@@ -162,7 +162,7 @@ export async function runCreate(argv = process.argv.slice(2), io: CreateIO = {})
     ...(args.packageManager === undefined ? {} : { packageManager: args.packageManager }),
   })
   for (const item of result.diagnostics) writeError(`${item.code} [${item.severity}] ${item.message}\n  file: ${item.file}\n  hint: ${item.hint}\n`)
-  if (result.diagnostics.some((item) => item.severity === 'error')) return 1
+  if (result.diagnostics.some(item => item.severity === 'error')) return 1
   output.write(`Created ${result.packageId} in ${result.root}\n`)
   if (!result.installed) output.write(`Run your package manager's install command in ${result.root}.\n`)
   return 0

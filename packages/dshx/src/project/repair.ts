@@ -31,13 +31,7 @@ function issue(code: string, severity: 'error' | 'warning', message: string, fil
 function repairDiff(file: string, before: string, after: string): string {
   const oldLines = before.split('\n')
   const newLines = after.split('\n')
-  return [
-    `--- ${file}`,
-    `+++ ${file}`,
-    ...oldLines.map(line => `-${line}`),
-    ...newLines.map(line => `+${line}`),
-    '',
-  ].join('\n')
+  return [`--- ${file}`, `+++ ${file}`, ...oldLines.map(line => `-${line}`), ...newLines.map(line => `+${line}`), ''].join('\n')
 }
 
 function addMissing(record: Record<string, unknown>, key: string, value: unknown): boolean {
@@ -47,10 +41,7 @@ function addMissing(record: Record<string, unknown>, key: string, value: unknown
 }
 
 /** Build a plan for fields whose desired value is completely determined by the adapter. */
-export async function createManifestRepairPlan(
-  config: ResolvedDshxConfig,
-  options: ManifestRepairOptions = {},
-): Promise<ManifestRepairPlan> {
+export async function createManifestRepairPlan(config: ResolvedDshxConfig, options: ManifestRepairOptions = {}): Promise<ManifestRepairPlan> {
   const compatibility = options.compatibility ?? DEFAULT_COMPATIBILITY
   let source: string
   try {
@@ -60,7 +51,15 @@ export async function createManifestRepairPlan(
       root: config.root,
       files: [],
       changedFiles: [],
-      diagnostics: [issue('DSHX4101', 'error', `Cannot read package.json: ${error instanceof Error ? error.message : String(error)}`, config.packageFile, 'Restore a readable package.json before creating a repair plan.')],
+      diagnostics: [
+        issue(
+          'DSHX4101',
+          'error',
+          `Cannot read package.json: ${error instanceof Error ? error.message : String(error)}`,
+          config.packageFile,
+          'Restore a readable package.json before creating a repair plan.',
+        ),
+      ],
       diff: '',
     }
   }
@@ -72,7 +71,15 @@ export async function createManifestRepairPlan(
       root: config.root,
       files: [],
       changedFiles: [],
-      diagnostics: [issue('DSHX4101', 'error', `package.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`, config.packageFile, 'Fix the JSON syntax before creating a repair plan.')],
+      diagnostics: [
+        issue(
+          'DSHX4101',
+          'error',
+          `package.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+          config.packageFile,
+          'Fix the JSON syntax before creating a repair plan.',
+        ),
+      ],
       diff: '',
     }
   }
@@ -81,7 +88,9 @@ export async function createManifestRepairPlan(
       root: config.root,
       files: [],
       changedFiles: [],
-      diagnostics: [issue('DSHX4101', 'error', 'package.json must contain a JSON object.', config.packageFile, 'Replace the document root with a package metadata object.')],
+      diagnostics: [
+        issue('DSHX4101', 'error', 'package.json must contain a JSON object.', config.packageFile, 'Replace the document root with a package metadata object.'),
+      ],
       diff: '',
     }
   }
@@ -97,7 +106,15 @@ export async function createManifestRepairPlan(
   } else if (isObject(manifest.exports)) {
     exportsField = manifest.exports
   } else {
-    diagnostics.push(issue('DSHX4141', 'warning', 'package.json exports is not a plain object; DSHX will not rewrite it automatically.', config.packageFile, 'Convert exports to an object and add the required entries manually.'))
+    diagnostics.push(
+      issue(
+        'DSHX4141',
+        'warning',
+        'package.json exports is not a plain object; DSHX will not rewrite it automatically.',
+        config.packageFile,
+        'Convert exports to an object and add the required entries manually.',
+      ),
+    )
     exportsField = {}
   }
   changed = addMissing(exportsField, '.', './dist/index.js') || changed
@@ -113,7 +130,15 @@ export async function createManifestRepairPlan(
   } else if (isObject(manifest.dsh)) {
     dsh = manifest.dsh
   } else {
-    diagnostics.push(issue('DSHX4141', 'warning', 'package.json dsh is not a plain object; DSHX will not rewrite it automatically.', config.packageFile, 'Convert dsh to an object and add the required metadata manually.'))
+    diagnostics.push(
+      issue(
+        'DSHX4141',
+        'warning',
+        'package.json dsh is not a plain object; DSHX will not rewrite it automatically.',
+        config.packageFile,
+        'Convert dsh to an object and add the required metadata manually.',
+      ),
+    )
     dsh = {}
   }
   let bundle: Record<string, unknown>
@@ -124,14 +149,42 @@ export async function createManifestRepairPlan(
   } else if (isObject(dsh.bundle)) {
     bundle = dsh.bundle
   } else {
-    diagnostics.push(issue('DSHX4141', 'warning', 'package.json dsh.bundle is not a plain object; DSHX will not rewrite it automatically.', config.packageFile, 'Convert dsh.bundle to an object and add patch metadata manually.'))
+    diagnostics.push(
+      issue(
+        'DSHX4141',
+        'warning',
+        'package.json dsh.bundle is not a plain object; DSHX will not rewrite it automatically.',
+        config.packageFile,
+        'Convert dsh.bundle to an object and add patch metadata manually.',
+      ),
+    )
     bundle = {}
   }
   const patchFile = resolve(config.root, 'cordis.patch.yml')
-  const patchExists = await readFile(patchFile, 'utf8').then(() => true).catch(() => false)
+  const patchExists = await readFile(patchFile, 'utf8')
+    .then(() => true)
+    .catch(() => false)
   if (bundle.patch === undefined && patchExists) changed = addMissing(bundle, 'patch', './cordis.patch.yml') || changed
-  else if (bundle.patch !== undefined && bundle.patch !== './cordis.patch.yml') diagnostics.push(issue('DSHX4142', 'warning', 'dsh.bundle.patch is present but does not match the project patch file; DSHX will not overwrite it.', config.packageFile, 'Review dsh.bundle.patch manually before applying a repair.'))
-  else if (bundle.patch === undefined && !patchExists) diagnostics.push(issue('DSHX4143', 'warning', 'cordis.patch.yml is missing, so dsh.bundle.patch cannot be inferred safely.', patchFile, 'Create and validate cordis.patch.yml before repairing package metadata.'))
+  else if (bundle.patch !== undefined && bundle.patch !== './cordis.patch.yml')
+    diagnostics.push(
+      issue(
+        'DSHX4142',
+        'warning',
+        'dsh.bundle.patch is present but does not match the project patch file; DSHX will not overwrite it.',
+        config.packageFile,
+        'Review dsh.bundle.patch manually before applying a repair.',
+      ),
+    )
+  else if (bundle.patch === undefined && !patchExists)
+    diagnostics.push(
+      issue(
+        'DSHX4143',
+        'warning',
+        'cordis.patch.yml is missing, so dsh.bundle.patch cannot be inferred safely.',
+        patchFile,
+        'Create and validate cordis.patch.yml before repairing package metadata.',
+      ),
+    )
 
   if (config.clientEntry !== undefined) {
     let client: Record<string, unknown>
@@ -142,7 +195,15 @@ export async function createManifestRepairPlan(
     } else if (isObject(dsh.client)) {
       client = dsh.client
     } else {
-      diagnostics.push(issue('DSHX4141', 'warning', 'package.json dsh.client is not a plain object; DSHX will not rewrite it automatically.', config.packageFile, 'Convert dsh.client to an object and add client metadata manually.'))
+      diagnostics.push(
+        issue(
+          'DSHX4141',
+          'warning',
+          'package.json dsh.client is not a plain object; DSHX will not rewrite it automatically.',
+          config.packageFile,
+          'Convert dsh.client to an object and add client metadata manually.',
+        ),
+      )
       client = {}
     }
     changed = addMissing(client, 'platform', compatibility.client.manifest.platform) || changed

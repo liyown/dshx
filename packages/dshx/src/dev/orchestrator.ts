@@ -6,25 +6,12 @@ import { startHostWatcher } from '../compiler/host/build.js'
 import { DshxError } from '../diagnostics.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 import { ensureProjectProfile } from '../profile/orchestrator.js'
-import type {
-  DevBuildEvent,
-  DevChildProcess,
-  DevEvent,
-  DevSession,
-  DevSessionOptions,
-  DevState,
-  DevWatcher,
-} from './types.js'
+import type { DevBuildEvent, DevChildProcess, DevEvent, DevSession, DevSessionOptions, DevState, DevWatcher } from './types.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 
 const DEFAULT_STOP_TIMEOUT_MS = 3_000
 
-function diagnostic(
-  code: string,
-  message: string,
-  file: string,
-  hint: string,
-): DshxDiagnostic {
+function diagnostic(code: string, message: string, file: string, hint: string): DshxDiagnostic {
   return { code, severity: 'error', message, file, hint }
 }
 
@@ -58,57 +45,62 @@ function childFromExeca(
   })
   const child = subprocess.nodeChildProcess
   if (child === undefined) {
-    return Promise.reject(new DshxError('DSHX4401', 'Failed to start the DSH process.', {
-      file: project.packageFile,
-      hint: 'Install @deepseek-ai/dsh in the project or make the official dsh command available on PATH, then retry.',
-    }))
+    return Promise.reject(
+      new DshxError('DSHX4401', 'Failed to start the DSH process.', {
+        file: project.packageFile,
+        hint: 'Install @deepseek-ai/dsh in the project or make the official dsh command available on PATH, then retry.',
+      }),
+    )
   }
   void subprocess.catch(() => undefined)
   return Promise.resolve(child as unknown as DevChildProcess)
 }
 
-function buildOptions(project: ResolvedDshxConfig, compatibility: import('../compat/types.js').DshCompatibility): {
+function buildOptions(
+  project: ResolvedDshxConfig,
+  compatibility: import('../compat/types.js').DshCompatibility,
+): {
   host?: BuildHostOptions
   client?: BuildClientOptions
 } {
   return {
-    ...(project.hostEntry === undefined ? {} : {
-      host: {
-        packageId: project.packageId,
-        logicalName: project.name,
-        root: project.root,
-        entry: project.hostEntry,
-        outDir: project.outDir,
-        sourcemap: project.build.sourcemap,
-        watch: true,
-        compatibility,
-      },
-    }),
-    ...(project.clientEntry === undefined ? {} : {
-      client: {
-        packageId: project.packageId,
-        logicalName: project.name,
-        root: project.root,
-        entry: project.clientEntry,
-        outDir: project.outDir,
-        sourcemap: project.build.sourcemap,
-        watch: true,
-        external: clientExternals(project),
-        compatibility,
-      },
-    }),
+    ...(project.hostEntry === undefined
+      ? {}
+      : {
+          host: {
+            packageId: project.packageId,
+            logicalName: project.name,
+            root: project.root,
+            entry: project.hostEntry,
+            outDir: project.outDir,
+            sourcemap: project.build.sourcemap,
+            watch: true,
+            compatibility,
+          },
+        }),
+    ...(project.clientEntry === undefined
+      ? {}
+      : {
+          client: {
+            packageId: project.packageId,
+            logicalName: project.name,
+            root: project.root,
+            entry: project.clientEntry,
+            outDir: project.outDir,
+            sourcemap: project.build.sourcemap,
+            watch: true,
+            external: clientExternals(project),
+            compatibility,
+          },
+        }),
   }
 }
 
 /** Start a coordinated Host/Client watch build and selected DSH process. */
-export async function startDevSession(
-  project: ResolvedDshxConfig,
-  options: DevSessionOptions = {},
-): Promise<DevSession> {
+export async function startDevSession(project: ResolvedDshxConfig, options: DevSessionOptions = {}): Promise<DevSession> {
   const environment = { ...process.env, ...options.profile?.env, ...options.env }
   const profileOptions = { ...options.profile, env: environment }
-  const profile = options.preparedProfile
-    ?? await (options.ensureProfile ?? ensureProjectProfile)(project, profileOptions)
+  const profile = options.preparedProfile ?? (await (options.ensureProfile ?? ensureProjectProfile)(project, profileOptions))
   const buildPaths = buildOptions(project, profile.dsh.compatibility)
   const listeners = new Set<(event: DevEvent) => void>()
   const diagnostics: DshxDiagnostic[] = [...profile.diagnostics]
@@ -151,7 +143,9 @@ export async function startDevSession(
     let timer: ReturnType<typeof setTimeout> | undefined
     const didExit = await Promise.race([
       exited.then(() => true),
-      new Promise<false>(resolve => { timer = setTimeout(() => resolve(false), timeout) }),
+      new Promise<false>(resolve => {
+        timer = setTimeout(() => resolve(false), timeout)
+      }),
     ])
     if (timer !== undefined) clearTimeout(timer)
     if (!didExit) target.kill('SIGKILL')
@@ -170,16 +164,10 @@ export async function startDevSession(
       ...(profile.profile === 'web' && !requestedDshArgs.includes('--open') && !forwardedDshArgs.includes('--no-open') ? ['--no-open'] : []),
       ...forwardedDshArgs,
     ]
-    const childEnvironment = options.inspectBridge === true
-      ? { ...environment, DSHX_INSPECT_BRIDGE: '1' }
-      : environment
+    const childEnvironment = options.inspectBridge === true ? { ...environment, DSHX_INSPECT_BRIDGE: '1' } : environment
     try {
-      const childFactory = options.child ?? ((childProject, childArgs, childEnv) => childFromExeca(
-        childProject,
-        childArgs,
-        childEnv,
-        profile.dsh.executable ?? 'local',
-      ))
+      const childFactory =
+        options.child ?? ((childProject, childArgs, childEnv) => childFromExeca(childProject, childArgs, childEnv, profile.dsh.executable ?? 'local'))
       const started = await childFactory(project, args, childEnvironment)
       if (closed) {
         await stopChild(started)
@@ -190,7 +178,12 @@ export async function startDevSession(
         if (ignoredExit.has(started as object) || observedExit.has(started as object)) return
         ignoredExit.add(started as object)
         if (child === started) child = undefined
-        const item = diagnostic(restarting ? 'DSHX4404' : 'DSHX4401', `DSH process failed to start: ${errorMessage(error)}`, project.packageFile, 'Install DSH locally or make the official dsh command available on PATH, then retry.')
+        const item = diagnostic(
+          restarting ? 'DSHX4404' : 'DSHX4401',
+          `DSH process failed to start: ${errorMessage(error)}`,
+          project.packageFile,
+          'Install DSH locally or make the official dsh command available on PATH, then retry.',
+        )
         setState({ dshProcess: 'failed' })
         emitDiagnostic(item)
       })
@@ -214,7 +207,12 @@ export async function startDevSession(
       })
       setState({ dshProcess: 'running' })
     } catch (error) {
-      const item = diagnostic(restarting ? 'DSHX4404' : 'DSHX4401', `Failed to start DSH process: ${errorMessage(error)}`, project.packageFile, 'Install DSH locally or make the official dsh command available on PATH, then retry.')
+      const item = diagnostic(
+        restarting ? 'DSHX4404' : 'DSHX4401',
+        `Failed to start DSH process: ${errorMessage(error)}`,
+        project.packageFile,
+        'Install DSH locally or make the official dsh command available on PATH, then retry.',
+      )
       setState({ dshProcess: 'failed' })
       emitDiagnostic(item)
     }
@@ -225,8 +223,12 @@ export async function startDevSession(
     const operation = startChildNow(restarting)
     childStart = operation
     void operation.then(
-      () => { if (childStart === operation) childStart = undefined },
-      () => { if (childStart === operation) childStart = undefined },
+      () => {
+        if (childStart === operation) childStart = undefined
+      },
+      () => {
+        if (childStart === operation) childStart = undefined
+      },
     )
     return operation
   }
@@ -268,7 +270,12 @@ export async function startDevSession(
     }
     if (event.code === 'ERROR') {
       const file = face === 'host' ? (project.hostEntry ?? project.packageFile) : (project.clientEntry ?? project.packageFile)
-      const item = diagnostic('DSHX4406', `${face === 'host' ? 'Host' : 'Client'} build failed: ${errorMessage(event.error)}`, file, 'Fix the source error; the watcher remains active and will retry on the next change.')
+      const item = diagnostic(
+        'DSHX4406',
+        `${face === 'host' ? 'Host' : 'Client'} build failed: ${errorMessage(event.error)}`,
+        file,
+        'Fix the source error; the watcher remains active and will retry on the next change.',
+      )
       setState({ [face === 'host' ? 'hostBuild' : 'clientBuild']: 'error' })
       emit({ type: 'build-error', face, error: event.error, diagnostic: item })
       emitDiagnostic(item)
@@ -299,47 +306,80 @@ export async function startDevSession(
 
   const attachWatcher = async (face: 'host' | 'client'): Promise<void> => {
     try {
-      const created = face === 'host'
-        ? await (options.hostWatcher ?? (async (opts: BuildHostOptions): Promise<DevWatcher> => startHostWatcher({ ...opts, watch: true } as BuildHostOptions)))(buildPaths.host!)
-        : await (options.clientWatcher ?? (async (opts: BuildClientOptions): Promise<DevWatcher> => startClientWatcher({ ...opts, watch: true } as BuildClientOptions)))(buildPaths.client!)
+      const created =
+        face === 'host'
+          ? await (
+              options.hostWatcher ?? (async (opts: BuildHostOptions): Promise<DevWatcher> => startHostWatcher({ ...opts, watch: true } as BuildHostOptions))
+            )(buildPaths.host!)
+          : await (
+              options.clientWatcher ??
+              (async (opts: BuildClientOptions): Promise<DevWatcher> => startClientWatcher({ ...opts, watch: true } as BuildClientOptions))
+            )(buildPaths.client!)
       watchers[face] = created
-      created.on('event', event => { void handleBuildEvent(face, event).catch(error => {
-        const item = diagnostic('DSHX4405', `${face} watcher failed: ${errorMessage(error)}`, project.packageFile, 'Close and restart the development session.')
-        emitDiagnostic(item)
-      }) })
+      created.on('event', event => {
+        void handleBuildEvent(face, event).catch(error => {
+          const item = diagnostic(
+            'DSHX4405',
+            `${face} watcher failed: ${errorMessage(error)}`,
+            project.packageFile,
+            'Close and restart the development session.',
+          )
+          emitDiagnostic(item)
+        })
+      })
     } catch (error) {
-      const item = diagnostic('DSHX4405', `Failed to start ${face} watcher: ${errorMessage(error)}`, project.packageFile, 'Fix the compiler configuration, then restart the development session.')
+      const item = diagnostic(
+        'DSHX4405',
+        `Failed to start ${face} watcher: ${errorMessage(error)}`,
+        project.packageFile,
+        'Fix the compiler configuration, then restart the development session.',
+      )
       emitDiagnostic(item)
       throw new DshxError(item.code, item.message, { cause: error, file: item.file, hint: item.hint })
     }
   }
 
   const session: DevSession = {
-    get state() { return state },
-    get diagnostics() { return diagnostics },
-    on<T extends DevEvent['type']>(
-      eventOrListener: T | ((event: DevEvent) => void),
-      typedListener?: (event: Extract<DevEvent, { type: T }>) => void,
-    ) {
-      const listener = typeof eventOrListener === 'function'
-        ? eventOrListener
-        : (event: DevEvent): void => {
-            if (event.type === eventOrListener) typedListener?.(event as Extract<DevEvent, { type: T }>)
-          }
+    get state() {
+      return state
+    },
+    get diagnostics() {
+      return diagnostics
+    },
+    on<T extends DevEvent['type']>(eventOrListener: T | ((event: DevEvent) => void), typedListener?: (event: Extract<DevEvent, { type: T }>) => void) {
+      const listener =
+        typeof eventOrListener === 'function'
+          ? eventOrListener
+          : (event: DevEvent): void => {
+              if (event.type === eventOrListener) typedListener?.(event as Extract<DevEvent, { type: T }>)
+            }
       listeners.add(listener)
-      return () => { listeners.delete(listener) }
+      return () => {
+        listeners.delete(listener)
+      }
     },
     restart,
     async close() {
       if (closed) return
       closed = true
-      await Promise.all(Object.values(watchers).filter((watcher): watcher is DevWatcher => watcher !== undefined).map(async watcher => {
-        try {
-          await watcher.close()
-        } catch (error) {
-          emitDiagnostic(diagnostic('DSHX4405', `Failed to close a ${watcher === watchers.host ? 'Host' : 'Client'} watcher: ${errorMessage(error)}`, project.packageFile, 'Check for stale file watchers and restart the session.'))
-        }
-      }))
+      await Promise.all(
+        Object.values(watchers)
+          .filter((watcher): watcher is DevWatcher => watcher !== undefined)
+          .map(async watcher => {
+            try {
+              await watcher.close()
+            } catch (error) {
+              emitDiagnostic(
+                diagnostic(
+                  'DSHX4405',
+                  `Failed to close a ${watcher === watchers.host ? 'Host' : 'Client'} watcher: ${errorMessage(error)}`,
+                  project.packageFile,
+                  'Check for stale file watchers and restart the session.',
+                ),
+              )
+            }
+          }),
+      )
       await stopDsh()
       await childStart?.catch(() => undefined)
       await restartChain.catch(() => undefined)

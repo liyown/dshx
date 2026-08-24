@@ -32,14 +32,7 @@ export interface HostInspectBridgeHandle {
 
 interface InspectRegistry {
   list(): readonly { id?: unknown }[]
-  query(
-    platform: 'host' | 'client',
-    provider: string,
-    method: string,
-    input: unknown,
-    agent: unknown,
-    signal: AbortSignal,
-  ): Promise<unknown>
+  query(platform: 'host' | 'client', provider: string, method: string, input: unknown, agent: unknown, signal: AbortSignal): Promise<unknown>
 }
 
 interface AgentRegistry {
@@ -65,7 +58,10 @@ interface BridgeResponse {
 }
 
 class BridgeFailure extends Error {
-  constructor(readonly code: string, message: string) {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
     super(message)
   }
 }
@@ -90,9 +86,8 @@ function paths(packageId: string): { directory: string; socketPath: string; meta
   const regularSocket = join(directory, `${name}.sock`)
   // macOS limits AF_UNIX paths to roughly 104 bytes. Keep metadata in DSH_HOME
   // but use a deterministic short socket path when an isolated home is deep.
-  const socketPath = regularSocket.length > 90
-    ? join(tmpdir(), `dshx-${createHash('sha256').update(`${home}:${packageId}`).digest('hex').slice(0, 24)}.sock`)
-    : regularSocket
+  const socketPath =
+    regularSocket.length > 90 ? join(tmpdir(), `dshx-${createHash('sha256').update(`${home}:${packageId}`).digest('hex').slice(0, 24)}.sock`) : regularSocket
   return { directory, socketPath, metadataPath: join(directory, `${name}.json`) }
 }
 
@@ -140,9 +135,14 @@ function parseRequest(text: string, token: string): { requestId: string; target:
   if (request.operation !== 'list' || (request.target !== 'services' && request.target !== 'events' && request.target !== 'slots')) {
     throw new BridgeFailure('DSHX3204', 'Inspect bridge only supports list operations for services, events, and slots.')
   }
-  if (request.target !== 'slots' && request.input !== undefined) throw new BridgeFailure('DSHX3204', 'Inspect bridge input is only supported for Slot tree queries.')
+  if (request.target !== 'slots' && request.input !== undefined)
+    throw new BridgeFailure('DSHX3204', 'Inspect bridge input is only supported for Slot tree queries.')
   if (request.target === 'slots' && request.input !== undefined) {
-    if (!isRecord(request.input) || Object.keys(request.input).some(key => key !== 'root') || (request.input.root !== undefined && (typeof request.input.root !== 'string' || request.input.root.trim() === ''))) {
+    if (
+      !isRecord(request.input) ||
+      Object.keys(request.input).some(key => key !== 'root') ||
+      (request.input.root !== undefined && (typeof request.input.root !== 'string' || request.input.root.trim() === ''))
+    ) {
       throw new BridgeFailure('DSHX3203', 'Slot Inspect input must be an object containing an optional non-empty root string.')
     }
     return { requestId: request.requestId, target: request.target, input: request.input }
@@ -155,15 +155,18 @@ function catalogItems(target: HostInspectTarget, value: unknown): readonly Recor
   const field = target === 'services' ? 'services' : 'events'
   const entries = value[field]
   if (!Array.isArray(entries)) throw new BridgeFailure('DSHX3203', `Inspect provider catalog is missing ${field}.`)
-  return entries.map((entry) => {
+  return entries.map(entry => {
     if (!isRecord(entry)) throw new BridgeFailure('DSHX3203', `Inspect provider returned an invalid ${field} item.`)
     const key = target === 'services' ? entry.key : entry.name
-    if (typeof key !== 'string' || key.trim() === '') throw new BridgeFailure('DSHX3203', `Inspect provider returned an item without a valid ${target === 'services' ? 'key' : 'name'}.`)
+    if (typeof key !== 'string' || key.trim() === '')
+      throw new BridgeFailure('DSHX3203', `Inspect provider returned an item without a valid ${target === 'services' ? 'key' : 'name'}.`)
     const { key: _key, name: _name, metadata: nestedMetadata, ...metadata } = entry
-    let combinedMetadata: Record<string, unknown> = isRecord(nestedMetadata) ? { ...nestedMetadata, ...metadata } : {
-      ...metadata,
-      ...(nestedMetadata === undefined ? {} : { metadata: nestedMetadata }),
-    }
+    let combinedMetadata: Record<string, unknown> = isRecord(nestedMetadata)
+      ? { ...nestedMetadata, ...metadata }
+      : {
+          ...metadata,
+          ...(nestedMetadata === undefined ? {} : { metadata: nestedMetadata }),
+        }
     while (Object.keys(combinedMetadata).length === 1 && isRecord(combinedMetadata.metadata)) {
       combinedMetadata = combinedMetadata.metadata
     }
@@ -176,13 +179,18 @@ function catalogItems(target: HostInspectTarget, value: unknown): readonly Recor
 }
 
 function slotNode(node: unknown): Record<string, unknown> {
-  if (!isRecord(node) || typeof node.name !== 'string' || node.name.trim() === '' || typeof node.kind !== 'string' || node.kind.trim() === '' || typeof node.scope !== 'string' || node.scope.trim() === '') {
+  if (
+    !isRecord(node) ||
+    typeof node.name !== 'string' ||
+    node.name.trim() === '' ||
+    typeof node.kind !== 'string' ||
+    node.kind.trim() === '' ||
+    typeof node.scope !== 'string' ||
+    node.scope.trim() === ''
+  ) {
     throw new BridgeFailure('DSHX3203', 'Slot Inspect returned a tree item without valid name, kind, and scope fields.')
   }
-  if (
-    node.children !== undefined
-    && (!Array.isArray(node.children) || node.children.some(child => !isRecord(child)))
-  ) {
+  if (node.children !== undefined && (!Array.isArray(node.children) || node.children.some(child => !isRecord(child)))) {
     throw new BridgeFailure('DSHX3203', 'Slot Inspect returned an invalid children tree.')
   }
   const { name, kind, scope, ...rest } = node
@@ -197,7 +205,10 @@ function slotNode(node: unknown): Record<string, unknown> {
 function slotItems(value: unknown): readonly Record<string, unknown>[] {
   if (!isRecord(value) || !Array.isArray(value.trees)) throw new BridgeFailure('DSHX3203', 'Slot Inspect provider returned a response without a trees array.')
   const requestedRoot = value.requestedRoot
-  if (requestedRoot !== undefined && (!isRecord(requestedRoot) || typeof requestedRoot.name !== 'string' || requestedRoot.name.trim() === '' || typeof requestedRoot.available !== 'boolean')) {
+  if (
+    requestedRoot !== undefined &&
+    (!isRecord(requestedRoot) || typeof requestedRoot.name !== 'string' || requestedRoot.name.trim() === '' || typeof requestedRoot.available !== 'boolean')
+  ) {
     throw new BridgeFailure('DSHX3203', 'Slot Inspect returned an invalid requestedRoot descriptor.')
   }
   if (requestedRoot !== undefined) {
@@ -207,7 +218,8 @@ function slotItems(value: unknown): readonly Record<string, unknown>[] {
       return []
     }
     if (selected === undefined) throw new BridgeFailure('DSHX3203', 'Slot Inspect returned an available root without a selected contract.')
-    if (!isRecord(selected) || selected.name !== requestedRoot.name) throw new BridgeFailure('DSHX3203', 'Slot Inspect selected contract does not match requestedRoot.')
+    if (!isRecord(selected) || selected.name !== requestedRoot.name)
+      throw new BridgeFailure('DSHX3203', 'Slot Inspect selected contract does not match requestedRoot.')
     return [slotNode(selected)]
   }
   const output: Record<string, unknown>[] = []
@@ -220,10 +232,16 @@ function slotItems(value: unknown): readonly Record<string, unknown>[] {
   return output
 }
 
-async function queryComposition(ctx: Context, metadata: HostInspectBridgeMetadata, target: HostInspectTarget, input?: Record<string, unknown>): Promise<readonly Record<string, unknown>[]> {
+async function queryComposition(
+  ctx: Context,
+  metadata: HostInspectBridgeMetadata,
+  target: HostInspectTarget,
+  input?: Record<string, unknown>,
+): Promise<readonly Record<string, unknown>[]> {
   const registry = ctx.get('cordisInspect') as InspectRegistry | undefined
   const agents = ctx.get('agents') as AgentRegistry | undefined
-  if (registry === undefined || agents === undefined) throw new BridgeFailure('DSHX3201', 'The official Cordis Inspect registry or Agent factory is unavailable.')
+  if (registry === undefined || agents === undefined)
+    throw new BridgeFailure('DSHX3201', 'The official Cordis Inspect registry or Agent factory is unavailable.')
   const provider = target === 'services' ? 'Service' : target === 'events' ? 'Event' : 'Slots'
   const method = target === 'services' ? 'listService' : target === 'events' ? 'listEvents' : 'listSubTree'
   const platform = target === 'slots' ? 'client' : 'host'
@@ -231,23 +249,30 @@ async function queryComposition(ctx: Context, metadata: HostInspectBridgeMetadat
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(new Error('Inspect provider request timed out.')), REQUEST_TIMEOUT_MS)
   let handle: { agent: unknown; dispose(): Promise<void> } | undefined
+  let items: readonly Record<string, unknown>[] | undefined
+  let failure: unknown
+  let failed = false
   try {
     handle = await agents.create({ sessionId: `dshx-inspect-${randomUUID()}`, meta: { cwd: metadata.root } })
     const result = await registry.query(platform, provider, method, input, handle.agent, controller.signal)
-    return target === 'slots' ? slotItems(result) : catalogItems(target, result)
+    items = target === 'slots' ? slotItems(result) : catalogItems(target, result)
   } catch (error) {
-    if (error instanceof BridgeFailure) throw error
-    throw new BridgeFailure('DSHX3202', `Official Inspect query failed: ${errorMessage(error)}`)
-  } finally {
-    clearTimeout(timer)
-    if (handle !== undefined) {
-      try {
-        await handle.dispose()
-      } catch (error) {
-        if (!controller.signal.aborted) throw new BridgeFailure('DSHX3202', `Temporary Inspect Agent cleanup failed: ${errorMessage(error)}`)
+    failed = true
+    failure = error instanceof BridgeFailure ? error : new BridgeFailure('DSHX3202', `Official Inspect query failed: ${errorMessage(error)}`)
+  }
+  clearTimeout(timer)
+  if (handle !== undefined) {
+    try {
+      await handle.dispose()
+    } catch (error) {
+      if (!controller.signal.aborted && !failed) {
+        failed = true
+        failure = new BridgeFailure('DSHX3202', `Temporary Inspect Agent cleanup failed: ${errorMessage(error)}`)
       }
     }
   }
+  if (failed) throw failure
+  return items ?? []
 }
 
 function writeResponse(socket: Socket, response: BridgeResponse): void {
@@ -290,7 +315,9 @@ export async function startHostInspectBridge(ctx: Context, metadata: HostInspect
         target = request.target
         void queryComposition(ctx, metadata, target, request.input)
           .then(items => writeResponse(socket, { version: PROTOCOL_VERSION, requestId, ok: true, target, items }))
-          .catch(error => writeResponse(socket, responseError(requestId, target, error instanceof BridgeFailure ? error.code : 'DSHX3202', errorMessage(error))))
+          .catch(error =>
+            writeResponse(socket, responseError(requestId, target, error instanceof BridgeFailure ? error.code : 'DSHX3202', errorMessage(error))),
+          )
       } catch (error) {
         writeResponse(socket, responseError(requestId, target, error instanceof BridgeFailure ? error.code : 'DSHX3203', errorMessage(error)))
       }
@@ -306,7 +333,11 @@ export async function startHostInspectBridge(ctx: Context, metadata: HostInspect
       })
     })
     await chmod(location.socketPath, 0o600)
-    await writeFile(location.metadataPath, JSON.stringify({ version: PROTOCOL_VERSION, ...metadata, pid: runtimeProcess()?.pid ?? 0, socketPath: location.socketPath, token }) + '\n', { mode: 0o600 })
+    await writeFile(
+      location.metadataPath,
+      JSON.stringify({ version: PROTOCOL_VERSION, ...metadata, pid: runtimeProcess()?.pid ?? 0, socketPath: location.socketPath, token }) + '\n',
+      { mode: 0o600 },
+    )
     await chmod(location.metadataPath, 0o600)
   } catch (error) {
     await new Promise<void>(resolve => server.close(() => resolve())).catch(() => undefined)

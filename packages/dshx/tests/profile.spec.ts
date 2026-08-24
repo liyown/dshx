@@ -125,11 +125,17 @@ describe('DSH installation resolution', () => {
     })
   })
 
-  it('continues with a warning for an unverified version inside the supported range', async () => {
+  it('continues experimentally for an unverified prerelease inside the supported generation', async () => {
     const project = await temporaryProject()
     const installation = await resolveDshInstallation(project, { runner: queuedRunner([success('0.1.0-rc.9')]) })
-    expect(installation).toMatchObject({ support: 'compatible-range', adapterId: 'dsh-0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0' })
+    expect(installation).toMatchObject({ support: 'experimental', adapterId: 'dsh-0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0-0' })
     expect(installation.diagnostics).toEqual([expect.objectContaining({ code: 'DSHX5101', severity: 'warning', file: project.packageFile })])
+  })
+
+  it('continues compatibly for an unverified stable version inside the supported generation', async () => {
+    const project = await temporaryProject()
+    const installation = await resolveDshInstallation(project, { runner: queuedRunner([success('0.1.2')]) })
+    expect(installation).toMatchObject({ support: 'compatible', adapterId: 'dsh-0.1' })
   })
 
   it('blocks a new protocol generation by default', async () => {

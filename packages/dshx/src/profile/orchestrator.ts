@@ -39,10 +39,12 @@ function commandDetail(result: DshCommandResult): string {
 }
 
 function isDshMissing(result: DshCommandResult): boolean {
-  return result.failureCode === 'ENOENT'
-    || (result.exitCode === undefined && result.stdout.trim() === '' && result.stderr.trim() === '')
-    || DSH_NOT_FOUND_PATTERN.test(result.stderr)
-    || DSH_NOT_FOUND_PATTERN.test(result.stdout)
+  return (
+    result.failureCode === 'ENOENT' ||
+    (result.exitCode === undefined && result.stdout.trim() === '' && result.stderr.trim() === '') ||
+    DSH_NOT_FOUND_PATTERN.test(result.stderr) ||
+    DSH_NOT_FOUND_PATTERN.test(result.stdout)
+  )
 }
 
 function validateProfileName(project: ProfileProject): void {
@@ -55,12 +57,7 @@ function validateProfileName(project: ProfileProject): void {
   }
 }
 
-async function runDsh(
-  project: ProfileProject,
-  args: readonly string[],
-  timeoutMs: number,
-  options: ProfileOrchestratorOptions,
-): Promise<DshCommandResult> {
+async function runDsh(project: ProfileProject, args: readonly string[], timeoutMs: number, options: ProfileOrchestratorOptions): Promise<DshCommandResult> {
   try {
     return await runnerOf(options)(args, {
       cwd: project.root,
@@ -74,10 +71,7 @@ async function runDsh(
 }
 
 /** Detect the project-local DSH CLI and select the compatibility adapter. */
-export async function resolveDshInstallation(
-  project: ProfileProject,
-  options: ProfileOrchestratorOptions = {},
-): Promise<ResolvedDshInstallation> {
+export async function resolveDshInstallation(project: ProfileProject, options: ProfileOrchestratorOptions = {}): Promise<ResolvedDshInstallation> {
   const result = await runDsh(project, ['--version'], VERSION_TIMEOUT_MS, options)
   if (result.exitCode !== 0) {
     if (isDshMissing(result)) {
@@ -114,18 +108,21 @@ export async function resolveDshInstallation(
       diagnostics: [],
     }
   }
-  if (resolution?.support === 'compatible-range') {
+  if (resolution?.support === 'compatible' || resolution?.support === 'experimental') {
+    const experimental = resolution.support === 'experimental'
     const diagnostic: DshxDiagnostic = {
       code: 'DSHX5101',
       severity: 'warning',
-      message: `DSH ${version} is within the ${resolution.compatibility.protocolGeneration} compatibility range but has not been verified by DSHX; continuing with the ${resolution.compatibility.id} adapter.`,
+      message: experimental
+        ? `DSH ${version} is an unverified prerelease in the ${resolution.compatibility.protocolGeneration} compatibility generation; continuing experimentally with the ${resolution.compatibility.id} adapter.`
+        : `DSH ${version} is within the ${resolution.compatibility.protocolGeneration} compatibility generation but has not been verified by DSHX; continuing with the ${resolution.compatibility.id} adapter.`,
       file: project.packageFile,
-      hint: `Run the DSHX compatibility smoke tests for ${version}; use ${resolution.compatibility.verifiedVersions.join(', ')} for verified behavior.`,
+      hint: `Run the DSHX real-runtime smoke for ${version}; verified boundaries are ${resolution.compatibility.verified.minimum} and ${resolution.compatibility.verified.latest}.`,
     }
     return {
       version,
       executable: result.executable ?? 'local',
-      support: 'compatible-range',
+      support: resolution.support,
       adapterId: resolution.compatibility.id,
       protocolGeneration: resolution.compatibility.protocolGeneration,
       supportedRange: resolution.compatibility.dshRange,
@@ -144,7 +141,7 @@ export async function resolveDshInstallation(
     severity: 'warning',
     message: `DSH ${version} is outside the supported range ${DEFAULT_COMPATIBILITY.dshRange}; DSHX is continuing with the ${DEFAULT_COMPATIBILITY.id} adapter.`,
     file: project.packageFile,
-    hint: `Use a DSH version in ${DEFAULT_COMPATIBILITY.dshRange} for verified behavior.`,
+    hint: `Use a verified DSH boundary (${DEFAULT_COMPATIBILITY.verified.minimum} or ${DEFAULT_COMPATIBILITY.verified.latest}) for verified behavior.`,
   }
   return {
     version,
@@ -162,10 +159,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-async function parseDependencies(
-  project: ProfileProject,
-  source: string,
-): Promise<InstalledDependency[]> {
+async function parseDependencies(project: ProfileProject, source: string): Promise<InstalledDependency[]> {
   let value: unknown
   try {
     value = JSON.parse(source)
@@ -190,29 +184,28 @@ async function parseDependencies(
       hint: `Repair the profile through "pnpm exec dsh plugin --profile ${project.profile}" commands.`,
     })
   }
-  return Promise.all(Object.entries(rawDependencies).map(async ([packageId, raw]) => {
-    if (!isObject(raw) || typeof raw.path !== 'string' || raw.path.trim() === '' || !isAbsolute(raw.path)) {
-      throw new DshxError('DSHX4302', `Profile dependency ${JSON.stringify(packageId)} has no valid resolved path.`, {
-        file: project.packageFile,
-        hint: `Remove and reinstall ${packageId} through the official dsh plugin command.`,
+  return Promise.all(
+    Object.entries(rawDependencies).map(async ([packageId, raw]) => {
+      if (!isObject(raw) || typeof raw.path !== 'string' || raw.path.trim() === '' || !isAbsolute(raw.path)) {
+        throw new DshxError('DSHX4302', `Profile dependency ${JSON.stringify(packageId)} has no valid resolved path.`, {
+          file: project.packageFile,
+          hint: `Remove and reinstall ${packageId} through the official dsh plugin command.`,
+        })
+      }
+      const path = await realpath(raw.path).catch((cause: unknown) => {
+        throw new DshxError('DSHX4302', `Profile dependency ${JSON.stringify(packageId)} points to a missing path: ${raw.path}`, {
+          cause,
+          file: project.packageFile,
+          hint: `Remove and reinstall ${packageId} through the official dsh plugin command.`,
+        })
       })
-    }
-    const path = await realpath(raw.path).catch((cause: unknown) => {
-      throw new DshxError('DSHX4302', `Profile dependency ${JSON.stringify(packageId)} points to a missing path: ${raw.path}`, {
-        cause,
-        file: project.packageFile,
-        hint: `Remove and reinstall ${packageId} through the official dsh plugin command.`,
-      })
-    })
-    return { packageId, path }
-  }))
+      return { packageId, path }
+    }),
+  )
 }
 
 /** Inspect whether this exact package id and real project path are linked. */
-export async function inspectProjectProfile(
-  project: ProfileProject,
-  options: ProfileOrchestratorOptions = {},
-): Promise<ProjectProfileLink> {
+export async function inspectProjectProfile(project: ProfileProject, options: ProfileOrchestratorOptions = {}): Promise<ProjectProfileLink> {
   validateProfileName(project)
   const compatibility = options.compatibility ?? DEFAULT_COMPATIBILITY
   if (compatibility.profile.listCommand !== 'plugin-list-json') {
@@ -234,25 +227,17 @@ export async function inspectProjectProfile(
   const desired = dependencies.find(dependency => dependency.packageId === project.packageId)
   const aliases = dependencies.filter(dependency => dependency.packageId !== project.packageId && dependency.path === project.root)
   if (desired !== undefined && desired.path !== project.root) {
-    throw new DshxError(
-      'DSHX4303',
-      `Package ${JSON.stringify(project.packageId)} is already installed from another path: ${desired.path}`,
-      {
-        file: project.packageFile,
-        hint: `Run "pnpm exec dsh plugin --profile ${project.profile} remove ${project.packageId}", then retry from this project.`,
-      },
-    )
+    throw new DshxError('DSHX4303', `Package ${JSON.stringify(project.packageId)} is already installed from another path: ${desired.path}`, {
+      file: project.packageFile,
+      hint: `Run "pnpm exec dsh plugin --profile ${project.profile} remove ${project.packageId}", then retry from this project.`,
+    })
   }
   if (aliases.length > 0) {
     const oldNames = aliases.map(dependency => dependency.packageId)
-    throw new DshxError(
-      'DSHX4303',
-      `This project path is already linked under a different package name: ${oldNames.join(', ')}.`,
-      {
-        file: project.packageFile,
-        hint: `Run "pnpm exec dsh plugin --profile ${project.profile} remove ${oldNames.join(' ')}", then retry.`,
-      },
-    )
+    throw new DshxError('DSHX4303', `This project path is already linked under a different package name: ${oldNames.join(', ')}.`, {
+      file: project.packageFile,
+      hint: `Run "pnpm exec dsh plugin --profile ${project.profile} remove ${oldNames.join(' ')}", then retry.`,
+    })
   }
   return {
     state: desired === undefined ? 'absent' : 'linked',
@@ -263,10 +248,7 @@ export async function inspectProjectProfile(
 }
 
 /** Ensure the project is linked once through the official DSH profile command. */
-export async function ensureProjectProfile(
-  project: ProfileProject,
-  options: ProfileOrchestratorOptions = {},
-): Promise<PreparedProjectProfile> {
+export async function ensureProjectProfile(project: ProfileProject, options: ProfileOrchestratorOptions = {}): Promise<PreparedProjectProfile> {
   validateProfileName(project)
   const dsh = await resolveDshInstallation(project, options)
   const existing = await inspectProjectProfile(project, {
@@ -284,12 +266,7 @@ export async function ensureProjectProfile(
       diagnostics: dsh.diagnostics,
     }
   }
-  const result = await runDsh(
-    project,
-    ['plugin', '--profile', project.profile, 'add', project.root],
-    ADD_TIMEOUT_MS,
-    options,
-  )
+  const result = await runDsh(project, ['plugin', '--profile', project.profile, 'add', project.root], ADD_TIMEOUT_MS, options)
   if (result.exitCode !== 0) {
     throw new DshxError('DSHX4304', `Failed to link the project into DSH profile ${JSON.stringify(project.profile)}: ${commandDetail(result)}`, {
       cause: result.cause,

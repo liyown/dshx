@@ -16,7 +16,11 @@ export interface CreateIO {
   readonly readLine?: (question: string, defaultValue?: string) => Promise<string>
   readonly confirm?: (question: string, defaultValue: boolean) => Promise<boolean>
 }
-export interface CommandResult { readonly exitCode: number; readonly stdout?: string; readonly stderr?: string }
+export interface CommandResult {
+  readonly exitCode: number
+  readonly stdout?: string
+  readonly stderr?: string
+}
 export type CommandRunner = (command: string, args: readonly string[], options: { readonly cwd: string }) => Promise<CommandResult>
 export interface FileSystem {
   readonly exists: (path: string) => Promise<boolean>

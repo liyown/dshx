@@ -20,7 +20,9 @@ export function packageVersion(): string {
   try {
     const manifest = require('../package.json') as { version?: unknown }
     if (typeof manifest.version === 'string' && manifest.version !== '') return manifest.version
-  } catch { /* package metadata may be unavailable in source-only environments */ }
+  } catch {
+    /* package metadata may be unavailable in source-only environments */
+  }
   return '0.1.1'
 }
 
@@ -30,7 +32,12 @@ function diagnostic(code: `DSHX${number}`, message: string, file: string, hint: 
 
 export function validateProjectName(name: string): CreateDiagnostic | undefined {
   if (!NAME_RE.test(name) || name.length > 214 || name.startsWith('.') || name.endsWith('.')) {
-    return diagnostic('DSHX6001', `Invalid project name ${JSON.stringify(name)}.`, name, 'Use a non-scoped npm package name containing lowercase letters, numbers, dots, hyphens, or underscores.')
+    return diagnostic(
+      'DSHX6001',
+      `Invalid project name ${JSON.stringify(name)}.`,
+      name,
+      'Use a non-scoped npm package name containing lowercase letters, numbers, dots, hyphens, or underscores.',
+    )
   }
   return undefined
 }
@@ -55,12 +62,18 @@ async function packageManagerFromProject(root: string, fs: FileSystem): Promise<
         const manager = parsed.packageManager.split('@')[0]
         if (manager === 'pnpm' || manager === 'yarn' || manager === 'npm') return manager
       }
-    } catch { /* the generated project has no metadata yet */ }
+    } catch {
+      /* the generated project has no metadata yet */
+    }
   }
   return undefined
 }
 
-export async function detectPackageManager(root: string, fs: FileSystem = defaultFileSystem, runner: CommandRunner = defaultCommandRunner): Promise<PackageManager | undefined> {
+export async function detectPackageManager(
+  root: string,
+  fs: FileSystem = defaultFileSystem,
+  runner: CommandRunner = defaultCommandRunner,
+): Promise<PackageManager | undefined> {
   const projectManager = await packageManagerFromProject(root, fs)
   if (projectManager !== undefined) return projectManager
   for (const manager of ['pnpm', 'yarn', 'npm'] as const) {
@@ -76,7 +89,20 @@ export async function createProject(options: CreateProjectOptions, dependencies:
   const nameError = validateProjectName(options.name)
   if (nameError !== undefined) return { root, packageId: options.name, files: [], installed: false, diagnostics: [nameError] }
   if (await fs.exists(root)) {
-    return { root, packageId: options.name, files: [], installed: false, diagnostics: [diagnostic('DSHX6002', `Target directory already exists: ${root}.`, root, 'Choose a new directory or remove the existing project before creating a new one.')] }
+    return {
+      root,
+      packageId: options.name,
+      files: [],
+      installed: false,
+      diagnostics: [
+        diagnostic(
+          'DSHX6002',
+          `Target directory already exists: ${root}.`,
+          root,
+          'Choose a new directory or remove the existing project before creating a new one.',
+        ),
+      ],
+    }
   }
 
   const context = {
@@ -94,14 +120,52 @@ export async function createProject(options: CreateProjectOptions, dependencies:
       files.push(target)
     }
   } catch (error) {
-    return { root, packageId: options.name, files, installed: false, diagnostics: [diagnostic('DSHX6003', error instanceof Error ? error.message : String(error), root, 'Fix filesystem permissions and run the generator again in a new directory.', error)] }
+    return {
+      root,
+      packageId: options.name,
+      files,
+      installed: false,
+      diagnostics: [
+        diagnostic(
+          'DSHX6003',
+          error instanceof Error ? error.message : String(error),
+          root,
+          'Fix filesystem permissions and run the generator again in a new directory.',
+          error,
+        ),
+      ],
+    }
   }
 
   if (options.install === false) return { root, packageId: options.name, files, installed: false, diagnostics: [] }
-  const manager = options.packageManager ?? await detectPackageManager(root, fs, runner)
-  if (manager === undefined) return { root, packageId: options.name, files, installed: false, diagnostics: [diagnostic('DSHX6005', 'No supported package manager was found.', root, 'Install pnpm, yarn, or npm, then run the install command in the generated project.')] }
+  const manager = options.packageManager ?? (await detectPackageManager(root, fs, runner))
+  if (manager === undefined)
+    return {
+      root,
+      packageId: options.name,
+      files,
+      installed: false,
+      diagnostics: [
+        diagnostic(
+          'DSHX6005',
+          'No supported package manager was found.',
+          root,
+          'Install pnpm, yarn, or npm, then run the install command in the generated project.',
+        ),
+      ],
+    }
   const command = installCommand(manager)
   const result = await runner(command.command, command.args, { cwd: root })
-  if (result.exitCode !== 0) return { root, packageId: options.name, files, packageManager: manager, installed: false, diagnostics: [diagnostic('DSHX6004', `Dependency installation failed with ${manager}.`, root, `Run "${manager} install" in the generated project and retry.`, result)] }
+  if (result.exitCode !== 0)
+    return {
+      root,
+      packageId: options.name,
+      files,
+      packageManager: manager,
+      installed: false,
+      diagnostics: [
+        diagnostic('DSHX6004', `Dependency installation failed with ${manager}.`, root, `Run "${manager} install" in the generated project and retry.`, result),
+      ],
+    }
   return { root, packageId: options.name, files, packageManager: manager, installed: true, diagnostics: [] }
 }

@@ -16,12 +16,7 @@ function stableStyleId(projectRoot: string, file: string): string {
   return projectPath.startsWith('../') ? basename(file) : projectPath
 }
 
-function injectionModule(
-  packageId: string,
-  styleId: string,
-  css: string,
-  classMap?: Readonly<Record<string, string>>,
-): string {
+function injectionModule(packageId: string, styleId: string, css: string, classMap?: Readonly<Record<string, string>>): string {
   const tagId = `${packageId}/${styleId}`
   const lines = [
     `const css = ${JSON.stringify(css)};`,
@@ -71,12 +66,7 @@ export function clientCssPlugin(packageId: string, projectRoot: string): Plugin 
       for (const [local, value] of Object.entries(result.exports ?? {}).sort(([left], [right]) => left.localeCompare(right))) {
         classMap[local] = value.name
       }
-      return injectionModule(
-        packageId,
-        stableStyleId(projectRoot, file),
-        result.code.toString(),
-        isModule ? classMap : undefined,
-      )
+      return injectionModule(packageId, stableStyleId(projectRoot, file), result.code.toString(), isModule ? classMap : undefined)
     },
   }
 }
