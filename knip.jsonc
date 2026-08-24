@@ -1,0 +1,28 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "include": [
+    "files",
+    "dependencies",
+    "unlisted",
+    "binaries",
+    "unresolved",
+    "catalog",
+    "catalogReferences"
+  ],
+  "ignoreBinaries": ["dshx", "secret-tool"],
+  "workspaces": {
+    "packages/dshx": {
+      "entry": [
+        "src/index.ts",
+        "src/cli/bin.ts",
+        "src/cli/index.ts",
+        "src/compiler/host/index.ts"
+      ],
+      "ignoreDependencies": ["@deepseek-ai/dsh"]
+    },
+    "fixtures/phase-a": {
+      "entry": ["src/host.ts"],
+      "ignoreDependencies": ["@deepseek-ai/dsh"]
+    }
+  }
+}

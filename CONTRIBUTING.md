@@ -8,8 +8,14 @@ Use Node `^22.19.0` or `>=24` and pnpm `10.24.0`.
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm lint
+pnpm format:check
+pnpm deps:check
+pnpm audit:prod
 pnpm check:all
 ```
+
+Use maintained ecosystem packages for generic infrastructure when they meet the repository's Node.js, ESM, security, and testability constraints. Keep custom code for DSH-specific product contracts rather than recreating the runtime. Read the [dependency policy](docs/dependency-policy.md) before adding a new helper or package.
 
 Hub-only work can use `pnpm hub:check`. The Cloudflare preview uses a development-only database outside `.output`:
 

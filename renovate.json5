@@ -1,0 +1,58 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    ":dependencyDashboard",
+    "helpers:pinGitHubActionDigests",
+  ],
+  timezone: "Asia/Shanghai",
+  schedule: ["before 6am on Monday"],
+  minimumReleaseAge: "3 days",
+  prConcurrentLimit: 5,
+  rangeStrategy: "replace",
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 5am on Monday"],
+  },
+  vulnerabilityAlerts: {
+    enabled: true,
+    schedule: ["at any time"],
+    minimumReleaseAge: null,
+    labels: ["security"],
+  },
+  packageRules: [
+    {
+      description: "Keep DeepSeek Harness updates behind compatibility review",
+      matchPackageNames: ["@deepseek-ai/**"],
+      groupName: "DeepSeek Harness compatibility",
+      dependencyDashboardApproval: true,
+      minimumReleaseAge: null,
+      automerge: false,
+    },
+    {
+      description: "Keep the Nitro beta isolated",
+      matchPackageNames: ["nitro"],
+      groupName: "Nitro beta",
+      dependencyDashboardApproval: true,
+      automerge: false,
+    },
+    {
+      description: "Update the TanStack stack together",
+      matchPackageNames: ["@tanstack/**"],
+      groupName: "TanStack stack",
+      automerge: false,
+    },
+    {
+      description: "Require explicit approval for major updates",
+      matchUpdateTypes: ["major"],
+      dependencyDashboardApproval: true,
+      automerge: false,
+    },
+    {
+      description: "Group routine patch and minor updates",
+      matchUpdateTypes: ["patch", "minor"],
+      groupName: "safe dependency updates",
+      automerge: false,
+    },
+  ],
+}

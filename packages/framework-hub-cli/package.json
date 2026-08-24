@@ -34,14 +34,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "tar": "7.5.11",
-    "yaml": "2.8.1",
-    "zod": "4.4.3"
+    "tar": "7.5.22",
+    "yaml": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "22.19.20",
-    "prettier": "3.7.4",
-    "typescript": "5.9.3",
-    "vitest": "4.1.8"
+    "@types/node": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

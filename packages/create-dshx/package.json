@@ -39,11 +39,11 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "execa": "10.0.0"
+    "execa": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "22.19.20",
-    "typescript": "5.9.3",
-    "vitest": "4.1.8"
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
