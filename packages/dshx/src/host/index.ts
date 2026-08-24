@@ -1,3 +1,5 @@
-export { defineHost } from './define.js'
+export { defineCommand, defineHost } from './define.js'
 export { defineTool } from '@deepseek-ai/dsh-tools'
 export type { HostDefinition } from './types.js'
+export type { CommandDefinition, CommandInvocation } from '@deepseek-ai/dsh-commands'
+export type { CommandResult } from '@deepseek-ai/dsh-commands/types'

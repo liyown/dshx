@@ -1,7 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis'
+import type { CommandDefinition } from '@deepseek-ai/dsh-commands'
 import { defineTool as officialDefineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { defineHost, defineTool } from '../src/host/index.js'
+import { defineCommand, defineHost, defineTool } from '../src/host/index.js'
 import { createHostModule, createHostPlugin } from '../src/host/runtime.js'
 
 function tool(name: string): ToolDefinition {
@@ -60,6 +61,19 @@ describe('defineHost', () => {
       },
     })
     expectTypeOf(definition.tools).toEqualTypeOf<readonly [ToolDefinition]>()
+  })
+
+  it('preserves the official Command definition and invocation types', () => {
+    const command = defineCommand({
+      name: 'status',
+      description: 'Return status.',
+      handler(invocation) {
+        expectTypeOf(invocation).toMatchTypeOf<Parameters<CommandDefinition['handler']>[0]>()
+        return { kind: 'success', text: invocation.rawInput }
+      },
+    })
+    const official: CommandDefinition = command
+    expect(official).toBe(command)
   })
 
   it('rejects unknown definition fields at compile time', () => {
@@ -123,6 +137,30 @@ describe('Host runtime adapter', () => {
     expect(register).toHaveBeenCalledTimes(2)
   })
 
+  it('registers Commands in declaration order and delegates collision and disposal to DSH', () => {
+    const calls: string[] = []
+    const first = defineCommand({ name: 'first', description: 'First.', handler: () => ({ kind: 'success' }) })
+    const second = defineCommand({ name: 'second', description: 'Second.', handler: () => ({ kind: 'success' }) })
+    const commandDisposers = [vi.fn(), vi.fn()]
+    const plugin = createHostPlugin({
+      inject: ['commands', 'commands'],
+      commands: [first, second],
+      setup() { calls.push('setup') },
+    }, { packageId: '@test/plugin' })
+    expect(plugin.inject).toEqual(['commands'])
+    plugin.apply({
+      commands: {
+        register(command: CommandDefinition) {
+          calls.push(`command:${command.name}`)
+          return commandDisposers[calls.length - 1]
+        },
+      },
+    } as unknown as Context)
+    expect(calls).toEqual(['command:first', 'command:second', 'setup'])
+    expect(commandDisposers[0]).not.toHaveBeenCalled()
+    expect(commandDisposers[1]).not.toHaveBeenCalled()
+  })
+
   it('preserves native Host name, inject, Config, apply and config argument', () => {
     const Config = { validate: true }
     const apply = vi.fn(() => 'native-result')
@@ -141,6 +179,7 @@ describe('Host runtime adapter', () => {
     ['empty name', { name: '' }, 'DSHX2002'],
     ['invalid inject', { inject: [''] }, 'DSHX2002'],
     ['invalid tools', { tools: {} }, 'DSHX2002'],
+    ['invalid commands', { commands: {} }, 'DSHX2002'],
     ['invalid setup', { setup: true }, 'DSHX2002'],
   ])('rejects a %s with a stable diagnostic', (_label, definition, code) => {
     expect(() => createHostPlugin(definition, {

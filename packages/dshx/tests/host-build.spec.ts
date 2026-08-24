@@ -101,6 +101,41 @@ describe('host compiler', () => {
     expect(registered).toHaveLength(1)
   })
 
+  it('embeds the same API contract validation as the public source module', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/host.ts'), [
+      "import { defineApi, method } from '@becomeopc/dshx/api'",
+      "import { defineHost } from '@becomeopc/dshx/host'",
+      "const invalid = defineApi({ id: 'invalid/id', version: 1, methods: { get: method() } })",
+      'export default defineHost({ api: invalid.host({ get() {} }) })',
+      '',
+    ].join('\n'))
+    await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist' })
+    const output = resolve(root, 'dist/index.js')
+    await expect(import(`${pathToFileURL(output).href}?test=${Date.now()}`)).rejects.toThrow('Invalid API id')
+    expect(await readFile(output, 'utf8')).not.toContain('@becomeopc/dshx/api')
+  })
+
+  it('inlines defineCommand and registers official definitions through ctx.commands', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/host.ts'), [
+      "import { defineCommand, defineHost } from '@becomeopc/dshx/host'",
+      "const status = defineCommand({ name: 'status', description: 'Return status.', handler: () => ({ kind: 'success', text: 'ready' }) })",
+      'export default defineHost({ commands: [status] })',
+      '',
+    ].join('\n'))
+    await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist' })
+    const output = resolve(root, 'dist/index.js')
+    const code = await readFile(output, 'utf8')
+    expect(code).not.toContain('@becomeopc/dshx/host')
+    expect(code).not.toContain('@deepseek-ai/dsh-commands')
+    const plugin = await import(`${pathToFileURL(output).href}?test=${Date.now()}`) as { inject: string[]; apply(ctx: unknown): void }
+    const registered: unknown[] = []
+    plugin.apply({ commands: { register(command: unknown) { registered.push(command); return () => undefined } } })
+    expect(plugin.inject).toEqual(['commands'])
+    expect(registered).toHaveLength(1)
+  })
+
   it('emits a Node ESM entry with a sourcemap and preserves package imports', async () => {
     const root = await temporaryProject()
     await writeFile(resolve(root, 'src/host.ts'), [

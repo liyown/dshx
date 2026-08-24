@@ -1,6 +1,6 @@
 export type CliCommand = 'build' | 'check' | 'dev' | 'inspect' | 'add'
 export type CliInspectTarget = 'slots' | 'tools' | 'services' | 'events'
-export type CliAddTarget = 'ui' | 'tool' | 'hook'
+export type CliAddTarget = 'ui' | 'tool' | 'command' | 'hook'
 
 export interface CliArgs {
   readonly command?: CliCommand
@@ -111,7 +111,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
       inspectTarget = token
       continue
     }
-    if (token === 'ui' || token === 'tool' || token === 'hook') {
+    if (token === 'ui' || token === 'tool' || token === 'command' || token === 'hook') {
       if (addTarget !== undefined) throw new CliUsageError('Only one add target may be specified.')
       addTarget = token
       continue
@@ -124,17 +124,17 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   if (dryRun && command !== 'add' && !(command === 'check' && fix)) throw new CliUsageError('DSHX4147: --dry-run is only valid with add commands or check --fix.')
   if (fix && command !== 'check') throw new CliUsageError('DSHX4147: --fix is only valid with check.')
   if ((slot !== undefined || provider !== undefined || id !== undefined || order !== undefined) && command !== 'add') throw new CliUsageError('add ui options are only valid with add ui.')
-  if ((name !== undefined || description !== undefined) && command !== 'add') throw new CliUsageError('add tool options are only valid with add tool.')
+  if ((name !== undefined || description !== undefined) && command !== 'add') throw new CliUsageError('add name options are only valid with add tool or add command.')
   if (event !== undefined && command !== 'add') throw new CliUsageError('--event is only valid with add hook.')
   if (root !== undefined && (command !== 'inspect' || inspectTarget !== 'slots')) throw new CliUsageError('--root is only valid with inspect slots.')
   if ((json || open) && command === undefined) throw new CliUsageError('An option requires a command.')
   if (command !== 'inspect' && inspectTarget !== undefined) throw new CliUsageError('Inspect targets are only valid with the inspect command.')
   if (command !== 'add' && addTarget !== undefined) throw new CliUsageError('Add targets are only valid with the add command.')
   if (command === 'inspect' && inspectTarget === undefined && !help && !version) throw new CliUsageError('Inspect requires a target: slots, tools, services, or events.')
-  if (command === 'add' && addTarget === undefined && !help && !version) throw new CliUsageError('Add requires a target: ui, tool, or hook.')
-  if (command === 'add' && addTarget !== 'ui' && addTarget !== 'tool' && addTarget !== 'hook') throw new CliUsageError('Only add ui, add tool, and add hook are supported.')
+  if (command === 'add' && addTarget === undefined && !help && !version) throw new CliUsageError('Add requires a target: ui, tool, command, or hook.')
+  if (command === 'add' && addTarget !== 'ui' && addTarget !== 'tool' && addTarget !== 'command' && addTarget !== 'hook') throw new CliUsageError('Only add ui, add tool, add command, and add hook are supported.')
   if (command === 'add' && addTarget !== 'ui' && (slot !== undefined || provider !== undefined || id !== undefined || order !== undefined)) throw new CliUsageError('Slot options are only valid with add ui.')
-  if (command === 'add' && addTarget !== 'tool' && (name !== undefined || description !== undefined)) throw new CliUsageError('Tool options are only valid with add tool.')
+  if (command === 'add' && addTarget !== 'tool' && addTarget !== 'command' && (name !== undefined || description !== undefined)) throw new CliUsageError('Name and description options are only valid with add tool or add command.')
   if (command === 'add' && addTarget !== 'hook' && event !== undefined) throw new CliUsageError('--event is only valid with add hook.')
   if (help || version) return {
     ...(command === undefined ? {} : { command }),

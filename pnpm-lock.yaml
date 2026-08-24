@@ -332,6 +332,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: '>=0.1.0-rc.8 <0.2.0'
         version: 0.1.0-rc.8(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.8(@deepseek-ai/cordis@4.0.1))
+      '@deepseek-ai/dsh-commands':
+        specifier: '>=0.1.0-rc.8 <0.2.0'
+        version: 0.1.0-rc.8(72bbe6fdb3741b872b5fbe4132676802)
       '@deepseek-ai/dsh-cordis-host-runner':
         specifier: '>=0.1.0-rc.8 <0.2.0'
         version: 0.1.0-rc.8(03e01c9faefddc38a366243748f7c4c9)
