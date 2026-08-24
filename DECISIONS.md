@@ -204,3 +204,11 @@ The real-runtime scenario is version-parameterized and receives either `--versio
 `verified` means the exact version passed this scenario. An unverified stable version inside a known generation is `compatible`; an unverified prerelease is `experimental`; a version outside every adapter is `unsupported`. Semver intersection alone can select an adapter for builds, but cannot claim real-runtime verification. A new adapter is justified only by a contract or runtime seam change.
 
 GitHub maintains Changesets version pull requests but has no npm publish command or OIDC permission. Package publication, git tag pushing, and post-publication checks are explicit developer-machine operations. CI remains responsible for verification, not release authority.
+
+## 2026-08-24: Critical Hub email is a best-effort projection of the approval ledger
+
+DSHX Hub sends only critical approval decisions and registered-effect failures through Resend. The existing D1 notification event remains the authoritative record and supplies the stable idempotency key; email is a localized delivery projection for verified account addresses, not a second notification model. Marketing, bulk mail, authentication mail, success follow-ups, inbound replies and user-level email preferences remain out of scope.
+
+The Cloudflare Worker schedules delivery with `waitUntil`, so provider failure cannot change the approval transaction or API response. A successful server approval produces one final decision email, an Agent approval explains that execution is pending, and only effect failure produces a follow-up. The first implementation deliberately avoids a Queue, outbox table and webhook because the event ledger already preserves the durable state and the message volume is bounded. Provider errors are logged without recipient addresses or message content.
+
+`mail.dshx.io` is the sending-only domain. The domain-restricted Resend key lives only in the Worker `RESEND_API_KEY` secret; `EMAIL_FROM` is non-secret configuration. Templates use the maintained `@react-email/render` package plus standard React table markup and shared mail components. The deprecated `@react-email/components` aggregate is not a production dependency, while the pinned React Email CLI and UI are development-only tools for local visual preview.

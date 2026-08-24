@@ -64,6 +64,7 @@ pnpm exec wrangler secret put GITHUB_CLIENT_ID
 pnpm exec wrangler secret put GITHUB_CLIENT_SECRET
 pnpm exec wrangler secret put GITHUB_TOKEN
 pnpm exec wrangler secret put TURNSTILE_SECRET_KEY
+pnpm exec wrangler secret put RESEND_API_KEY
 ```
 
 `GITHUB_TOKEN` is an optional fine-grained read-only token used only by the
@@ -77,6 +78,29 @@ sign-in becomes the bootstrap administrator. Hub CLI tokens are distinct from
 GitHub API credentials, expire after 180 days, are stored only as hashes in D1,
 and can be revoked. The public Wrangler config never contains the Turnstile
 secret; `cf:preview` injects Cloudflare's local test pair only.
+
+## Transactional email
+
+Critical approval decisions and registered-effect failures are delivered through
+Resend from `DSHX Hub <no-reply@mail.dshx.io>`. Configure `mail.dshx.io` as a
+sending-only Resend domain with SPF, DKIM and DMARC, create a domain-restricted
+sending key, and store it only in the `RESEND_API_KEY` Worker secret. Disable
+open and click tracking for this transactional domain.
+
+Only verified account addresses receive email. Delivery runs under the
+Cloudflare request `waitUntil` lifecycle and never changes an approval API
+response; the D1-backed in-app notification is the authoritative record. Email
+uses the notification ID as its Resend idempotency key, and replies are not
+monitored.
+
+Preview the bilingual templates locally with the pinned React Email development
+server. Its UI stays in `devDependencies` and is not bundled into the Worker:
+
+```bash
+pnpm email:preview
+```
+
+Automated tests inject a fake delivery client and never send real email.
 
 ## Catalog operations
 

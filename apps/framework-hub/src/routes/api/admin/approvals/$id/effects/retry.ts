@@ -4,7 +4,8 @@ import { approvalRetrySchema } from "@/lib/approvals/contracts";
 import { retryApprovedEffect } from "@/lib/approvals/service.server";
 import { requireAdminSession, requireSameOrigin } from "@/lib/auth/auth.server";
 import { requireD1 } from "@/lib/db/client";
-import { jsonError, readJson } from "@/lib/http";
+import { scheduleCriticalApprovalEmail } from "@/lib/email/delivery.server";
+import { HttpError, jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/admin/approvals/$id/effects/retry")({
   server: {
@@ -23,6 +24,9 @@ export const Route = createFileRoute("/api/admin/approvals/$id/effects/retry")({
             ),
           );
         } catch (error) {
+          if (error instanceof HttpError && error.code === "approval_effect_failed") {
+            scheduleCriticalApprovalEmail(context, params.id, "approval.effect_failed");
+          }
           return jsonError(error);
         }
       },

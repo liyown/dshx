@@ -10,6 +10,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "email:preview": "email dev --dir src/lib/email/previews",
     "cf:preview": "pnpm run build && pnpm run db:migrate:preview && pnpm run db:seed:preview && wrangler dev --config .output/server/wrangler.json --persist-to .wrangler/preview-state --var SITE_URL:http://localhost:8787 --var BETTER_AUTH_SECRET:dshx-local-preview-secret-is-not-for-production --var TURNSTILE_SITE_KEY:1x00000000000000000000AA --var TURNSTILE_SECRET_KEY:1x0000000000000000000000000000000AA",
     "cf:typegen": "wrangler types",
     "deploy": "pnpm run build && pnpm run deploy:worker",
@@ -35,6 +36,7 @@
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
+    "@react-email/render": "2.1.0",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/react-query": "^5.101.1",
     "@tanstack/react-router": "1.170.18",
@@ -51,6 +53,7 @@
     "postprocessing": "^6.36.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "resend": "6.22.0",
     "sanitize-html": "2.17.7",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
@@ -62,6 +65,7 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "^2.15.0",
+    "@react-email/ui": "6.9.2",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
@@ -75,10 +79,11 @@
     "globals": "^15.15.0",
     "nitro": "3.0.260603-beta",
     "prettier": "catalog:",
+    "react-email": "6.9.2",
     "typescript": "catalog:",
     "typescript-eslint": "^8.56.1",
-    "vitest": "catalog:",
     "vite": "catalog:",
+    "vitest": "catalog:",
     "wrangler": "^4.125.0"
   }
 }

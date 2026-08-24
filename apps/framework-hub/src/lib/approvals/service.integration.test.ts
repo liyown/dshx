@@ -210,6 +210,52 @@ describe("approval ledger and registered effects with local D1", () => {
     ).toBe(true);
   });
 
+  it("records an in-app notification when an approved server effect fails", async () => {
+    const target = await user();
+    const admin = await user("admin");
+    const actor = await tokenActor(admin);
+    const request = await createApproval(
+      proxy.env.DB,
+      actor,
+      approvalCreateSchema.parse({
+        kind: "role_change",
+        risk: "critical",
+        subjectType: "user",
+        subjectId: target,
+        title: "Apply a server-side role change",
+        summary: "The effect failure must remain visible to the requesting operator.",
+        evidence: {},
+        effect: {
+          kind: "set_user_role",
+          executionMode: "server",
+          input: { userId: target, role: "operator" },
+        },
+        preconditions: { role: "member" },
+        policyVersion: "test-1",
+        idempotencyKey: `server-failure:${target}`,
+      }),
+    );
+    let batches = 0;
+    const failingBinding = {
+      prepare: proxy.env.DB.prepare.bind(proxy.env.DB),
+      batch: async (statements: D1PreparedStatement[]) => {
+        batches += 1;
+        if (batches === 2) throw new Error("simulated domain write failure");
+        return proxy.env.DB.batch(statements);
+      },
+    } as unknown as D1Database;
+
+    await expect(
+      decideApproval(failingBinding, request.id!, admin, { action: "approve" }),
+    ).rejects.toThrow("Approved effect failed");
+    const notification = await proxy.env.DB.prepare(
+      "select kind from notification_events where subject_type='approval' and subject_id=? order by created_at desc limit 1",
+    )
+      .bind(request.id)
+      .first<{ kind: string }>();
+    expect(notification?.kind).toBe("approval.effect_failed");
+  });
+
   it("checks Agent drift and requires an administrator to authorize a failed retry", async () => {
     const target = await user();
     const admin = await user("admin");
