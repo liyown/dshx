@@ -6,6 +6,7 @@ GitHub maintains the Changesets version pull request, but it does not publish np
 
 - `@becomeopc/dshx` and `create-dshx` are a fixed Changesets group and always release together.
 - `@becomeopc/dshx-hub-cli` versions independently.
+- All public packages remain on `0.1.x` until an explicit release-policy decision changes the line. Every changeset is `patch` during this period, including new features and breaking development changes; release notes must call out any breaking behavior.
 - Node.js support remains `^22.19.0 || >=24.0.0` until a deliberate compatibility release changes it.
 
 The serialized `release.yml` workflow has only repository write permissions and opens or updates the Changesets version PR. It has no npm token, OIDC permission, or publish command. Do not configure `release.yml` as an npm Trusted Publisher while this local-publication policy is active.

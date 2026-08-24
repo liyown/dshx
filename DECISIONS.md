@@ -212,3 +212,9 @@ DSHX Hub sends only critical approval decisions and registered-effect failures t
 The Cloudflare Worker schedules delivery with `waitUntil`, so provider failure cannot change the approval transaction or API response. A successful server approval produces one final decision email, an Agent approval explains that execution is pending, and only effect failure produces a follow-up. The first implementation deliberately avoids a Queue, outbox table and webhook because the event ledger already preserves the durable state and the message volume is bounded. Provider errors are logged without recipient addresses or message content.
 
 `mail.dshx.io` is the sending-only domain. The domain-restricted Resend key lives only in the Worker `RESEND_API_KEY` secret; `EMAIL_FROM` is non-secret configuration. Templates use the maintained `@react-email/render` package plus standard React table markup and shared mail components. The deprecated `@react-email/components` aggregate is not a production dependency, while the pinned React Email CLI and UI are development-only tools for local visual preview.
+
+## 2026-08-24: public packages remain on the 0.1 release line
+
+`@becomeopc/dshx`, `create-dshx`, and `@becomeopc/dshx-hub-cli` remain on `0.1.x` until an explicit release-policy decision opens a later line. Changesets use patch bumps for fixes, features, and breaking development changes during this period; breaking behavior must still be called out in release notes. Framework and `create-dshx` remain a fixed group, while the Hub CLI versions independently within the same `0.1.x` line.
+
+The repository checks both current package versions and pending changeset bump types before CI or the Changesets version action proceeds. This prevents an ordinary `minor` changeset from silently producing `0.2.0` or `0.3.0`. GitHub continues to prepare version pull requests only; publication remains a local developer operation.
