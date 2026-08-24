@@ -5,10 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "test": "pnpm db:migrate:local && vitest run --no-file-parallelism",
     "typecheck": "tsc --noEmit",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "cf:preview": "pnpm run build && pnpm run db:migrate:preview && pnpm run db:seed:preview && wrangler dev --config .output/server/wrangler.json --persist-to .wrangler/preview-state --var SITE_URL:http://localhost:8787 --var BETTER_AUTH_SECRET:dshx-local-preview-secret-is-not-for-production --var TURNSTILE_SITE_KEY:1x00000000000000000000AA --var TURNSTILE_SECRET_KEY:1x0000000000000000000000000000000AA",
+    "cf:typegen": "wrangler types",
+    "deploy": "pnpm run build && pnpm run deploy:worker",
+    "deploy:worker": "wrangler deploy --config .output/server/wrangler.json",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply dshx-framework-hub --local",
+    "db:migrate:preview": "wrangler d1 migrations apply dshx-framework-hub --local --config wrangler.jsonc --persist-to .wrangler/preview-state",
+    "db:seed:preview": "wrangler d1 execute dshx-framework-hub --local --config wrangler.jsonc --persist-to .wrangler/preview-state --file seed/dev.sql",
+    "db:migrate:remote": "wrangler d1 migrations apply dshx-framework-hub --remote",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
@@ -48,10 +58,12 @@
     "@tanstack/react-router": "1.170.18",
     "@tanstack/react-start": "1.168.32",
     "@tanstack/router-plugin": "1.168.23",
+    "better-auth": "1.7.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "drizzle-orm": "^0.45.2",
     "embla-carousel-react": "^8.6.0",
     "gsap": "^3.15.0",
     "input-otp": "^1.4.2",
@@ -71,7 +83,7 @@
     "tw-animate-css": "^1.3.4",
     "vaul": "^1.1.2",
     "vite-tsconfig-paths": "^6.0.2",
-    "zod": "^3.24.2"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
@@ -80,6 +92,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.2.0",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",
@@ -90,6 +103,8 @@
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "8.1.5"
+    "vitest": "4.1.8",
+    "vite": "8.1.5",
+    "wrangler": "^4.125.0"
   }
 }
