@@ -60,7 +60,9 @@ See the [CLI reference](./docs/cli-reference.md) for command behavior and automa
 
 ## Compatibility
 
-DSHX manages DSH support by compatibility generation, not by creating an adapter for every release. The current `0.1` generation covers `>=0.1.0-rc.8 <0.2.0-0`; its real-runtime matrix is derived from the adapter's minimum and latest verified boundaries.
+DSHX manages DSH support by observable protocol generation, not by creating an adapter for every release or mirroring DSH semver. The current `protocol-1` adapter covers `>=0.1.0-rc.8 <0.2.0-0`; if a future DSH minor preserves the contract, that range can be extended without adding an adapter.
+
+A plugin declares its public DSH support in `peerDependencies`, installs one concrete DSH version in `devDependencies`, and versions DSHX independently. `build`, `dev`, and `check` select the adapter from the actually installed DSH version and reject a single artifact whose public range crosses incompatible protocol generations.
 
 | Status         | Meaning                                                                                 |
 | -------------- | --------------------------------------------------------------------------------------- |

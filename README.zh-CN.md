@@ -60,7 +60,9 @@ dshx add hook --event <event-name>
 
 ## 兼容性
 
-DSHX 按兼容代际管理 DSH 支持，不会为每次发布建立一个 adapter。当前 `0.1` 代际覆盖 `>=0.1.0-rc.8 <0.2.0-0`，真实运行时矩阵由 adapter 中的最小与最新已验证边界派生。
+DSHX 按可观察的协议代际管理 DSH 支持，不会为每次发布建立 adapter，也不会把 DSH semver 机械映射成协议代际。当前 `protocol-1` adapter 覆盖 `>=0.1.0-rc.8 <0.2.0-0`；未来 DSH minor 若保持合约不变，只需扩展同一范围。
+
+插件通过 `peerDependencies` 声明公开 DSH 支持范围，在 `devDependencies` 安装一个具体 DSH 版本，DSHX 自身版本独立演进。`build`、`dev` 与 `check` 根据实际安装的 DSH 选择 adapter；若单个产物的公开范围跨越不兼容协议代际，会在编译前拒绝。
 
 | 状态           | 含义                                                                 |
 | -------------- | -------------------------------------------------------------------- |

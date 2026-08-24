@@ -89,7 +89,7 @@ Settings use Standard Schema rather than a mandatory schema library. Before stab
 
 ### Stage 1: Harden the current API
 
-Status: complete for the current DSH 0.1 Connection seam. Artifact/source parity, JSON transformation, channel disposal, version-mismatch classification, cancellation, and reconnect-aware query scheduling are covered. The parameterized generation smoke verifies real unary calls, Host restart, API re-registration, and Client HMR at representative boundaries; the browser fixture additionally verified `useQuery`, AbortSignal propagation, and reconnect recovery.
+Status: complete for the current `protocol-1` Connection seam at the verified DSH boundaries. Artifact/source parity, JSON transformation, channel disposal, version-mismatch classification, cancellation, and reconnect-aware query scheduling are covered. The parameterized generation smoke verifies real unary calls, Host restart, API re-registration, and Client HMR at representative boundaries; the browser fixture additionally verified `useQuery`, AbortSignal propagation, and reconnect recovery.
 
 - Keep `defineApi`/`method` compatible with the official Connection API.
 - Verify Host and Client lifecycle, API version mismatch, reconnect, AbortSignal, and HMR behavior against real DSH fixtures.
@@ -98,12 +98,12 @@ Status: complete for the current DSH 0.1 Connection seam. Artifact/source parity
 
 ### Stage 2: Command Contribution
 
-Status: complete for the current DSH 0.1 Command seam. `defineCommand` preserves the official `CommandDefinition`, Host definitions register commands in declaration order through `ctx.commands.register()`, and Cordis retains collision, scope, cancellation, and Fiber disposal ownership. `dshx add command` is a transactional source scaffold. The parameterized generation smoke verifies the generated Command through the official registry and `commands/execute` parser before and after an automatic Host restart.
+Status: complete for the current `protocol-1` Command seam at the verified DSH boundaries. `defineCommand` preserves the official `CommandDefinition`, Host definitions register commands in declaration order through `ctx.commands.register()`, and Cordis retains collision, scope, cancellation, and Fiber disposal ownership. `dshx add command` is a transactional source scaffold. The parameterized generation smoke verifies the generated Command through the official registry and `commands/execute` parser before and after an automatic Host restart.
 
 - Keep `defineCommand` as a typed identity helper over the official Command object.
 - Keep command scope, parsing, collisions, lifecycle events, cancellation, and disposal in DSH.
 - Keep `dshx add command` local, idempotent, rollback-safe, and independent of Runtime Inspect or Profile mutation.
-- Do not route slash commands through `session.prompt`; the verified DSH 0.1 seam is the official Connection `commands/execute` Remote.
+- Do not route slash commands through `session.prompt`; the verified `protocol-1` seam is the official Connection `commands/execute` Remote.
 
 ### Stage 3: Prompt Contributions
 

@@ -8,7 +8,7 @@ cd my-plugin
 pnpm dev
 ```
 
-The initializer refuses to overwrite an existing non-empty directory, generates a minimal Host Tool and Client Slot, pins the matching DSHX release, and declares the compatible DSH `0.1` range.
+The initializer refuses to overwrite an existing non-empty directory, generates a minimal Host Tool and Client Slot, pins the matching DSHX release, installs the latest verified DSH boundary for local development, and declares the full `protocol-1` DSH range as a peer dependency.
 
 ## Automation
 
