@@ -944,6 +944,10 @@ export async function executeServerEffect(
           JSON.stringify({ error: message }),
           finishedAt,
         ),
+      requesterNotification(binding, request, "approval.effect_failed", {
+        id,
+        error: message,
+      }),
     ]);
     throw new HttpError(
       500,

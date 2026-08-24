@@ -147,9 +147,17 @@ export function EmailEvidence({
 
 export function EmailButton({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a href={href} style={buttonStyle}>
-      {children}
-    </a>
+    <table role="presentation" width="100%" cellPadding="0" cellSpacing="0">
+      <tbody>
+        <tr>
+          <td style={buttonRowStyle}>
+            <a href={href} style={buttonStyle}>
+              {children}
+            </a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   );
 }
 
@@ -291,7 +299,6 @@ const evidenceReasonStyle: CSSProperties = {
 
 const buttonStyle: CSSProperties = {
   display: "inline-block",
-  marginTop: "28px",
   borderRadius: "10px",
   backgroundColor: emailTheme.foreground,
   color: "#ffffff",
@@ -301,6 +308,10 @@ const buttonStyle: CSSProperties = {
   lineHeight: "20px",
   padding: "12px 18px",
   textDecoration: "none",
+};
+
+const buttonRowStyle: CSSProperties = {
+  padding: "28px 0 32px",
 };
 
 const footerStyle: CSSProperties = {

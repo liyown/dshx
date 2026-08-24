@@ -19,10 +19,10 @@ const base: CriticalApprovalEmailProps = {
 
 describe("critical approval email", () => {
   it.each<[CriticalApprovalEmailStatus, string]>([
-    ["approved", "Your approval request was approved"],
-    ["rejected", "Your approval request was rejected"],
-    ["changes_requested", "Your approval request needs changes"],
-    ["effect_failed", "An approved effect could not be completed"],
+    ["approved", "Approval passed"],
+    ["rejected", "Approval not passed"],
+    ["changes_requested", "Please add more information"],
+    ["effect_failed", "The approved change could not be completed"],
   ])("renders the %s state", async (status, heading) => {
     const rendered = await renderCriticalApprovalEmail({ ...base, status });
     expect(rendered.html).toContain(heading);
@@ -40,8 +40,8 @@ describe("critical approval email", () => {
       reason: '<script>alert("unsafe")</script>',
       actionUrl: "https://dshx.io/zh/account/notifications",
     });
-    expect(rendered.subject).toBe("需要修改 · 确认插件维护者身份");
-    expect(rendered.html).toContain("你的审批申请需要补充修改");
+    expect(rendered.subject).toBe("需要补充信息：确认插件维护者身份");
+    expect(rendered.html).toContain("请补充相关信息");
     expect(rendered.html).not.toContain('<script>alert("unsafe")</script>');
     expect(rendered.html).toContain("&lt;script&gt;");
     expect(rendered.text).toContain("https://dshx.io/zh/account/notifications");
@@ -54,6 +54,6 @@ describe("critical approval email", () => {
       approvalId: "a".repeat(180),
     });
     expect(rendered.text).toContain("a".repeat(180));
-    expect(rendered.text).not.toContain("Decision note");
+    expect(rendered.text).not.toContain("Note:");
   });
 });

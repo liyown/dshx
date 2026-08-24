@@ -76,7 +76,7 @@ describe("critical approval email delivery", () => {
     expect(payload).toMatchObject({
       from: "DSHX Hub <no-reply@mail.dshx.io>",
       to: "maintainer@example.test",
-      subject: "审批通过 · 确认插件维护者身份",
+      subject: "审批通过：确认插件维护者身份",
     });
     expect(payload.html).toContain("https://dshx.io/zh/account/notifications");
     expect(payload.text).toContain("Evidence verified");

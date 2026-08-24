@@ -40,107 +40,101 @@ type StatusCopy = {
 
 const copy = {
   en: {
-    preheader: "A critical DSHX Hub approval has changed state.",
-    intro: "This is a critical operational update from the DSHX Hub approval ledger.",
-    request: "Request",
+    preheader: "Your DSHX Hub approval has been updated.",
+    request: "Item",
     status: "Status",
-    execution: "Execution",
-    approvalId: "Approval ID",
-    reason: "Decision note",
-    open: "Open notifications",
+    execution: "Progress",
+    approvalId: "Reference",
+    reason: "Note",
+    open: "View details",
     executionValues: {
-      succeeded: "Applied",
-      awaiting_agent: "Awaiting Agent execution",
+      succeeded: "Completed",
+      awaiting_agent: "Waiting to be processed",
       failed: "Failed",
-      other: "Recorded in the approval ledger",
+      other: "Not processed",
     },
     footer:
-      "This operational email was sent because your account requested the approval. Replies are not monitored; continue in DSHX Hub.",
+      "You received this email because this approval is linked to your DSHX Hub account. This address does not accept replies.",
     statuses: {
       approved: {
-        subject: (title: string) => `Approved · ${title}`,
+        subject: (title: string) => `Approved: ${title}`,
         label: "Approved",
-        heading: "Your approval request was approved",
+        heading: "Approval passed",
         description: (props: CriticalApprovalEmailProps) =>
           props.executionMode === "agent"
-            ? "The decision is final. The requesting Agent can now continue the registered effect."
-            : "The decision is final and the registered server effect has been applied.",
+            ? "The request was approved and is waiting to be processed."
+            : "The requested change has been completed.",
         tone: "success",
       },
       rejected: {
-        subject: (title: string) => `Rejected · ${title}`,
+        subject: (title: string) => `Not approved: ${title}`,
         label: "Rejected",
-        heading: "Your approval request was rejected",
-        description: () =>
-          "No registered effect will run. Review the decision note and approval evidence in the Hub.",
+        heading: "Approval not passed",
+        description: () => "No changes were made. You can view the reason below.",
         tone: "danger",
       },
       changes_requested: {
-        subject: (title: string) => `Changes requested · ${title}`,
-        label: "Changes requested",
-        heading: "Your approval request needs changes",
-        description: () =>
-          "Update the immutable request evidence, then submit a new version for administrator review.",
+        subject: (title: string) => `More information needed: ${title}`,
+        label: "More information needed",
+        heading: "Please add more information",
+        description: () => "Update the request based on the note below, then submit it again.",
         tone: "warning",
       },
       effect_failed: {
-        subject: (title: string) => `Execution failed · ${title}`,
-        label: "Execution failed",
-        heading: "An approved effect could not be completed",
+        subject: (title: string) => `Could not complete: ${title}`,
+        label: "Could not complete",
+        heading: "The approved change could not be completed",
         description: () =>
-          "The approval remains recorded, but its registered effect failed. An administrator must authorize any retry.",
+          "No retry has started. An administrator can review the issue and try again.",
         tone: "danger",
       },
     } satisfies Record<CriticalApprovalEmailStatus, StatusCopy>,
   },
   zh: {
-    preheader: "一项 DSHX Hub 关键审批的状态发生了变化。",
-    intro: "这是来自 DSHX Hub 审批账本的关键操作通知。",
-    request: "审批事项",
+    preheader: "你的 DSHX Hub 审批有新进展。",
+    request: "事项",
     status: "当前状态",
-    execution: "执行状态",
-    approvalId: "审批 ID",
-    reason: "处理说明",
-    open: "打开站内通知",
+    execution: "处理进度",
+    approvalId: "记录编号",
+    reason: "说明",
+    open: "查看详情",
     executionValues: {
-      succeeded: "已执行",
-      awaiting_agent: "等待 Agent 执行",
+      succeeded: "已完成",
+      awaiting_agent: "等待处理",
       failed: "执行失败",
-      other: "已记录到审批账本",
+      other: "尚未处理",
     },
-    footer:
-      "你的账号发起了这项审批，因此收到此关键操作邮件。本邮箱不接收回复，请前往 DSHX Hub 继续处理。",
+    footer: "这项审批与你的 DSHX Hub 账号有关，因此你收到了这封邮件。本邮箱不接收回复。",
     statuses: {
       approved: {
-        subject: (title: string) => `审批通过 · ${title}`,
+        subject: (title: string) => `审批通过：${title}`,
         label: "审批通过",
-        heading: "你的审批申请已通过",
+        heading: "审批已通过",
         description: (props: CriticalApprovalEmailProps) =>
           props.executionMode === "agent"
-            ? "审批决定已生效，发起请求的 Agent 现在可以继续执行已登记的操作。"
-            : "审批决定已生效，已登记的服务端操作已经执行。",
+            ? "申请已经通过，目前正在等待处理。"
+            : "申请的变更已经完成。",
         tone: "success",
       },
       rejected: {
-        subject: (title: string) => `审批拒绝 · ${title}`,
-        label: "审批拒绝",
-        heading: "你的审批申请未通过",
-        description: () => "系统不会执行对应操作。请在 Hub 中查看处理说明与审批证据。",
+        subject: (title: string) => `审批未通过：${title}`,
+        label: "未通过",
+        heading: "审批未通过",
+        description: () => "本次没有产生变更，你可以在下方查看原因。",
         tone: "danger",
       },
       changes_requested: {
-        subject: (title: string) => `需要修改 · ${title}`,
-        label: "需要修改",
-        heading: "你的审批申请需要补充修改",
-        description: () => "请更新不可变请求证据，然后提交新版本供管理员重新审核。",
+        subject: (title: string) => `需要补充信息：${title}`,
+        label: "需要补充信息",
+        heading: "请补充相关信息",
+        description: () => "请根据下方说明更新申请，然后重新提交。",
         tone: "warning",
       },
       effect_failed: {
-        subject: (title: string) => `执行失败 · ${title}`,
-        label: "执行失败",
-        heading: "已批准的操作未能完成",
-        description: () =>
-          "审批决定仍被保留，但已登记的操作执行失败；任何重试都需要管理员明确授权。",
+        subject: (title: string) => `处理失败：${title}`,
+        label: "处理失败",
+        heading: "审批后的操作没有完成",
+        description: () => "系统还没有重试。管理员可以查看问题并重新处理。",
         tone: "danger",
       },
     } satisfies Record<CriticalApprovalEmailStatus, StatusCopy>,
@@ -163,7 +157,6 @@ export function CriticalApprovalEmail(props: CriticalApprovalEmailProps) {
           <EmailStatus label={status.label} tone={status.tone} />
           <h1 style={headingStyle}>{status.heading}</h1>
           <p style={introStyle}>{status.description(props)}</p>
-          <p style={contextStyle}>{messages.intro}</p>
         </div>
 
         <table
@@ -251,12 +244,4 @@ const introStyle: CSSProperties = {
   fontFamily: "'Inter Tight', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   fontSize: "15px",
   lineHeight: "24px",
-};
-
-const contextStyle: CSSProperties = {
-  margin: "10px 0 0",
-  color: emailTheme.muted,
-  fontFamily: "'Inter Tight', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  fontSize: "13px",
-  lineHeight: "21px",
 };
