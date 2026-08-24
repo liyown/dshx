@@ -78,7 +78,7 @@ function withSecurityHeaders(response: Response) {
   headers.set("x-frame-options", "SAMEORIGIN");
   headers.set(
     "content-security-policy",
-    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://api.github.com https://registry.npmjs.org https://api.npmjs.org https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com",
+    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://registry.npmjs.org https://api.npmjs.org https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com",
   );
   return new Response(response.body, {
     status: response.status,

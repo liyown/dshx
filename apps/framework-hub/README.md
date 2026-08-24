@@ -62,8 +62,14 @@ committing them:
 pnpm exec wrangler secret put BETTER_AUTH_SECRET
 pnpm exec wrangler secret put GITHUB_CLIENT_ID
 pnpm exec wrangler secret put GITHUB_CLIENT_SECRET
+pnpm exec wrangler secret put GITHUB_TOKEN
 pnpm exec wrangler secret put TURNSTILE_SECRET_KEY
 ```
+
+`GITHUB_TOKEN` is an optional fine-grained read-only token used only by the
+server-side, edge-cached repository metadata endpoint. Without it the star
+counter still degrades safely to GitHub's anonymous public API and then to a
+plain Star action if that upstream quota is unavailable.
 
 Set `SITE_URL`, `TURNSTILE_SITE_KEY`, and the comma-separated GitHub numeric ID
 allowlist `HUB_ADMIN_GITHUB_IDS` in the Cloudflare environment. A matching first

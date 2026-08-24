@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 
 const repositoryUrl = "https://github.com/liyown/dshx";
-const repositoryApiUrl = "https://api.github.com/repos/liyown/dshx";
+const repositoryApiUrl = "/api/github-stars";
 const cacheKey = "dshx:github-stars";
 const cacheTtlMs = 6 * 60 * 60 * 1_000;
 
@@ -79,12 +79,12 @@ export function GitHubStarLink({ compact = false }: { compact?: boolean }) {
     })
       .then((response) => {
         if (!response.ok) throw new Error(`GitHub responded with ${response.status}`);
-        return response.json() as Promise<{ stargazers_count?: unknown }>;
+        return response.json() as Promise<{ count?: unknown }>;
       })
       .then((result) => {
-        if (typeof result.stargazers_count !== "number") return;
-        setStars(result.stargazers_count);
-        writeCachedStars(result.stargazers_count);
+        if (typeof result.count !== "number") return;
+        setStars(result.count);
+        writeCachedStars(result.count);
       })
       .catch(() => undefined);
 

@@ -17,6 +17,7 @@ import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
 import { Route as LocaleDocsRouteImport } from './routes/$locale/docs'
 import { Route as LocaleExamplesRouteImport } from './routes/$locale/examples'
 import { Route as ApiConfigRouteImport } from './routes/api/config'
+import { Route as ApiGithubStarsRouteImport } from './routes/api/github-stars'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as LocaleAccountIndexRouteImport } from './routes/$locale/account/index'
 import { Route as LocaleAccountAppealsRouteImport } from './routes/$locale/account/appeals'
@@ -130,6 +131,11 @@ const LocaleExamplesRoute = LocaleExamplesRouteImport.update({
 const ApiConfigRoute = ApiConfigRouteImport.update({
   id: '/api/config',
   path: '/api/config',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGithubStarsRoute = ApiGithubStarsRouteImport.update({
+  id: '/api/github-stars',
+  path: '/api/github-stars',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -532,6 +538,7 @@ export interface FileRoutesByFullPath {
   '/$locale/docs': typeof LocaleDocsRoute
   '/$locale/examples': typeof LocaleExamplesRoute
   '/api/config': typeof ApiConfigRoute
+  '/api/github-stars': typeof ApiGithubStarsRoute
   '/api/health': typeof ApiHealthRoute
   '/$locale/': typeof LocaleIndexRoute
   '/$locale/account/appeals': typeof LocaleAccountAppealsRoute
@@ -615,6 +622,7 @@ export interface FileRoutesByTo {
   '/$locale/docs': typeof LocaleDocsRoute
   '/$locale/examples': typeof LocaleExamplesRoute
   '/api/config': typeof ApiConfigRoute
+  '/api/github-stars': typeof ApiGithubStarsRoute
   '/api/health': typeof ApiHealthRoute
   '/$locale': typeof LocaleIndexRoute
   '/$locale/account/appeals': typeof LocaleAccountAppealsRoute
@@ -700,6 +708,7 @@ export interface FileRoutesById {
   '/$locale/docs': typeof LocaleDocsRoute
   '/$locale/examples': typeof LocaleExamplesRoute
   '/api/config': typeof ApiConfigRoute
+  '/api/github-stars': typeof ApiGithubStarsRoute
   '/api/health': typeof ApiHealthRoute
   '/$locale/': typeof LocaleIndexRoute
   '/$locale/account/appeals': typeof LocaleAccountAppealsRoute
@@ -786,6 +795,7 @@ export interface FileRouteTypes {
     | '/$locale/docs'
     | '/$locale/examples'
     | '/api/config'
+    | '/api/github-stars'
     | '/api/health'
     | '/$locale/'
     | '/$locale/account/appeals'
@@ -869,6 +879,7 @@ export interface FileRouteTypes {
     | '/$locale/docs'
     | '/$locale/examples'
     | '/api/config'
+    | '/api/github-stars'
     | '/api/health'
     | '/$locale'
     | '/$locale/account/appeals'
@@ -953,6 +964,7 @@ export interface FileRouteTypes {
     | '/$locale/docs'
     | '/$locale/examples'
     | '/api/config'
+    | '/api/github-stars'
     | '/api/health'
     | '/$locale/'
     | '/$locale/account/appeals'
@@ -1036,6 +1048,7 @@ export interface RootRouteChildren {
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiConfigRoute: typeof ApiConfigRoute
+  ApiGithubStarsRoute: typeof ApiGithubStarsRoute
   ApiHealthRoute: typeof ApiHealthRoute
   AdminApprovalsIdRoute: typeof AdminApprovalsIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -1142,6 +1155,13 @@ declare module '@tanstack/react-router' {
       path: '/api/config'
       fullPath: '/api/config'
       preLoaderRoute: typeof ApiConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/github-stars': {
+      id: '/api/github-stars'
+      path: '/api/github-stars'
+      fullPath: '/api/github-stars'
+      preLoaderRoute: typeof ApiGithubStarsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -1785,6 +1805,7 @@ const rootRouteChildren: RootRouteChildren = {
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiConfigRoute: ApiConfigRoute,
+  ApiGithubStarsRoute: ApiGithubStarsRoute,
   ApiHealthRoute: ApiHealthRoute,
   AdminApprovalsIdRoute: AdminApprovalsIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
