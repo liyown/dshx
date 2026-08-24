@@ -2,28 +2,33 @@
   "name": "@becomeopc/dshx-hub-cli",
   "version": "0.2.0",
   "description": "Deterministic local verification and operations protocol for DSHX Hub.",
+  "keywords": ["deepseek", "deepseek-harness", "plugins", "verification", "catalog", "cli"],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/liyown/dshx.git",
+    "url": "https://github.com/liyown/dshx.git",
     "directory": "packages/framework-hub-cli"
   },
   "bugs": {
     "url": "https://github.com/liyown/dshx/issues"
   },
   "homepage": "https://dshx.io",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "dshx-hub": "./dist/index.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": ["dist", "README.md", "LICENSE"],
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
     "lint": "prettier --check src test",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"

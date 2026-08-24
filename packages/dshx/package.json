@@ -2,19 +2,23 @@
   "name": "@becomeopc/dshx",
   "version": "0.1.1",
   "description": "Build and debug DeepSeek Harness Host and Client plugins.",
+  "keywords": ["deepseek", "deepseek-harness", "plugins", "typescript", "vite", "developer-tools"],
   "license": "MIT",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/liyown/dshx.git",
+    "url": "https://github.com/liyown/dshx.git",
     "directory": "packages/dshx"
   },
   "bugs": {
     "url": "https://github.com/liyown/dshx/issues"
   },
-  "homepage": "https://github.com/liyown/dshx#readme",
+  "homepage": "https://dshx.io/docs",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -57,10 +61,12 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
