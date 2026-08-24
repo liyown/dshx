@@ -123,7 +123,7 @@ const en = {
   "examples.hooks.tag": "Agent",
   "examples.hooks.description": "Direct Cordis context access for lifecycle events.",
   "plugins.label": "Community registry",
-  "plugins.title": "DSH plugins, built with DSHX.",
+  "plugins.title": "The community marketplace for DSH plugins.",
   "plugins.intro":
     "A verified community market for the DSH runtime, with real versions, compatibility, maintainers, metrics and reviews.",
   "plugins.search": "Search DSH plugins…",
@@ -325,7 +325,7 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     "examples.hooks.tag": "Agent",
     "examples.hooks.description": "直接访问 Cordis Context 处理生命周期事件。",
     "plugins.label": "社区市场",
-    "plugins.title": "使用 DSHX 构建的 DSH 插件。",
+    "plugins.title": "面向所有 DSH 插件的社区市场。",
     "plugins.intro": "面向 DSH Runtime 的可信社区市场，展示真实版本、兼容性、维护者、指标与评价。",
     "plugins.search": "搜索 DSH 插件……",
     "plugins.results": "{count} 个结果",
