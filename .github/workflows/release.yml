@@ -1,4 +1,4 @@
-name: Release packages
+name: Version packages
 
 on:
   push:
@@ -6,18 +6,17 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: npm-release-main
+  group: changesets-version-main
   cancel-in-progress: false
 
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
 
 jobs:
-  release:
+  version:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -26,20 +25,8 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
-      - name: Use an npm CLI with trusted publishing support
-        run: npm install --global npm@^11.5.1
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm format:check
-      - run: pnpm deps:check
-      - run: pnpm audit:prod
-      - run: pnpm check:all
-      - run: pnpm smoke:packages
-      - name: Open release PR or publish through npm trusted publishing
+      - name: Open or update the Changesets version PR
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
-        with:
-          publish: pnpm release
-          createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "true"

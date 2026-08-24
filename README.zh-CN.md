@@ -60,14 +60,14 @@ dshx add hook --event <event-name>
 
 ## 兼容性
 
-DSHX `0.1.x` 面向 DSH `0.1` 协议代际。
+DSHX 按兼容代际管理 DSH 支持，不会为每次发布建立一个 adapter。当前 `0.1` 代际覆盖 `>=0.1.0-rc.8 <0.2.0-0`，真实运行时矩阵由 adapter 中的最小与最新已验证边界派生。
 
-| DSH 版本           | 状态       | 验证范围                                                              |
-| ------------------ | ---------- | --------------------------------------------------------------------- |
-| `0.1.0-rc.8`       | 已验证     | Phase A fixture、浏览器 Client、Inspect 与 HMR                        |
-| `0.1.1-rc.2`       | 已验证     | 冷启动矩阵、Profile linking、API、Command、Inspect、重启与 Client HMR |
-| 后续兼容的 `0.1.x` | 警告后允许 | 通过真实 smoke 前不会标记为已验证                                     |
-| `0.1.x` 之外       | 默认拒绝   | 需要显式兼容覆盖                                                      |
+| 状态           | 含义                                                                 |
+| -------------- | -------------------------------------------------------------------- |
+| `verified`     | 这个具体 DSH 版本已经通过真实运行时 smoke。                          |
+| `compatible`   | 稳定版本落在已知代际内、共用同一合约，但没有单独执行 real smoke。    |
+| `experimental` | 未验证的预发布版本使用已知代际 adapter，并明确警告。                 |
+| `unsupported`  | 没有 adapter 覆盖该版本；除非显式使用现有 override，否则 DSHX 拒绝。 |
 
 修改 DSH 版本范围或适配器前，请阅读[兼容与验证](./docs/compatibility.md)。
 
@@ -97,7 +97,7 @@ pnpm install --frozen-lockfile
 pnpm check:all
 ```
 
-真实 DSH 浏览器/HMR smoke 始终是发布门禁，单元测试或模拟 loader 不能替代它。Framework Hub 生产部署只允许在本地执行，不由 GitHub Actions 触发。
+通用真实 DSH smoke 始终是 CI 门禁，单元测试或模拟 loader 不能替代它。npm 包发布与 Framework Hub 生产部署都只允许在本地执行，不由 GitHub Actions 触发。
 
 提交改动前请阅读[贡献指南](./CONTRIBUTING.md)、[依赖政策](./docs/dependency-policy.md)和[安全政策](./SECURITY.md)。产品方向和未完成能力门禁继续以[技术路线图](./ROADMAP.md)为准。
 

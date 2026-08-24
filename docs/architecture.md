@@ -22,11 +22,15 @@ Public DSHX helpers are thin declarations over official contracts. Native named 
 
 ## Build and runtime flow
 
-1. DSHX resolves the nearest plugin project and selects a compatible adapter.
+1. DSHX resolves the nearest plugin project and selects the adapter for its DSH compatibility generation.
 2. The compiler validates the manifest and builds whichever Host or Client entries are enabled.
 3. Generated helpers are inlined; official runtime packages remain external and are resolved by DSH.
 4. `dshx dev` links the project through the official Profile CLI, starts watchers, and launches DSH only after enabled entries have built successfully.
 5. Client rebuilds use native DSH HMR. Host rebuild behavior follows the configured restart policy.
+
+## Compatibility registry
+
+One adapter represents one DSH contract generation, not one published version. Its non-overlapping semver range, protocol capabilities, and real-smoke verification boundaries live together under `packages/dshx/src/compat`. Stable in-range versions may be compatible without being verified; unverified prereleases are experimental. CI derives representative minimum/latest jobs from the same registry and runs one version-parameterized scenario.
 
 ## Inspect boundary
 

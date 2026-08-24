@@ -1388,8 +1388,9 @@ Smoke parser 验证：
 
 ```text
 compat/
+├── dsh-0.1.ts
 ├── index.ts
-└── 0.1.0-rc.8.ts
+└── types.ts
 ```
 
 解析：
@@ -1402,11 +1403,12 @@ resolveCompatibility(installedDshVersion)
 
 ```text
 verified
-compatible-range
+compatible
+experimental
 unsupported
 ```
 
-RC 阶段默认只对明确验证版本标 `verified`。
+只有通过通用真实运行时 smoke 的具体版本标记为 `verified`。已知 generation 内未单独验证的稳定版本为 `compatible`，未验证的预发布版本为 `experimental`。range 使用下一代 `-0` 上界排除未来 generation 的 prerelease；adapter 由 contract seam 变化驱动，不随 patch/minor 发布线性增加。
 
 每个 adapter 需要测试：
 
