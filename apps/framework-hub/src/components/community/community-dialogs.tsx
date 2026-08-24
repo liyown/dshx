@@ -264,9 +264,11 @@ export function ClaimPluginDialog({ slug }: { slug: string }) {
           </DialogDescription>
         </DialogHeader>
         {result ? (
-          <div className="space-y-3">
-            <div className="font-mono text-xs text-muted-foreground">{result.file.path}</div>
-            <pre className="overflow-x-auto rounded-lg bg-ink p-4 font-mono text-xs text-ink-foreground">
+          <div className="min-w-0 space-y-3">
+            <div className="break-all font-mono text-xs text-muted-foreground">
+              {result.file.path}
+            </div>
+            <pre className="max-w-full min-w-0 overflow-x-auto overscroll-x-contain rounded-lg bg-ink p-4 font-mono text-xs text-ink-foreground">
               {JSON.stringify(result.file.body, null, 2)}
             </pre>
           </div>
