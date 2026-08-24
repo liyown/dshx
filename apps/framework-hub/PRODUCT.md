@@ -28,8 +28,8 @@ The public site runs on Cloudflare Workers with D1 and R2. A local Agent uses `d
 ## Capabilities and Constraints
 
 - Stable ASCII plugin slugs, English and Chinese catalog content, locale-specific SEO, cursor search, real installation targets, releases, dependencies, metrics, media, and provenance.
-- GitHub OAuth accounts, public profiles, public bookmarks, public or private collections, plugin/publisher follows, in-app notifications, submissions, claims, reviews, first-level replies, reports, blocks, and appeals.
-- No direct third-party installation, arbitrary approval scripts, arbitrary webhooks, email notifications, direct messages, user follows, or production fixture data.
+- GitHub OAuth accounts, public profiles, public bookmarks, public or private collections, plugin/publisher follows, in-app notifications, critical approval email, submissions, claims, reviews, first-level replies, reports, blocks, and appeals.
+- No direct third-party installation, arbitrary approval scripts, arbitrary webhooks, marketing or bulk email, direct messages, user follows, or production fixture data.
 - CLI and Skill own deterministic operations; the web administration surface is approval-only and cannot become a parallel catalog editor.
 - High-risk effects are allowlisted, schema-validated, idempotent, stale-aware, and executed by the server or resumed by the requesting Agent.
 

@@ -21,6 +21,10 @@ const documents = {
           "Deletion",
           "Account deletion revokes sessions and tokens, removes private data, and anonymizes public contributions. Immutable approval and moderation evidence is retained for security and accountability.",
         ],
+        [
+          "Operational email",
+          "Approval results and processing failures are sent to verified account addresses through Resend. DSHX Hub does not use this channel for marketing. You can always find the same information in your account notifications.",
+        ],
       ],
     },
     zh: {
@@ -35,6 +39,10 @@ const documents = {
         [
           "账号删除",
           "删除账号会撤销会话与令牌、移除私有数据，并匿名保留公开贡献。审批和审核证据为了安全与责任审计会永久保留。",
+        ],
+        [
+          "操作邮件",
+          "审批结果和处理失败通知会通过 Resend 发送到已验证的账号邮箱。DSHX Hub 不使用该通道发送营销邮件，你也可以随时在账号通知中查看相同信息。",
         ],
       ],
     },
@@ -147,7 +155,7 @@ function LegalPage() {
           ))}
         </div>
         <p className="mt-8 font-mono text-xs text-muted-foreground">
-          Effective 2026-08-23 · contact security@dshx.io
+          Effective 2026-08-24 · contact security@dshx.io
         </p>
       </Container>
     </main>
