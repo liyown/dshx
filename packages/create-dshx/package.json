@@ -2,6 +2,7 @@
   "name": "create-dshx",
   "version": "0.1.1",
   "description": "Create a DeepSeek Harness plugin project.",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/liyown/dshx.git",

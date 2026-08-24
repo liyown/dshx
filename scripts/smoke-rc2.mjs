@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
@@ -207,6 +207,20 @@ async function startDev(root, env) {
   return {
     child,
     output: () => ({ stdout, stderr }),
+    waitForOutput: async text => {
+      const stdoutStart = stdout.length
+      const stderrStart = stderr.length
+      const deadline = Date.now() + timeoutMs
+      while (Date.now() < deadline) {
+        if (
+          stdout.slice(stdoutStart).includes(text) ||
+          stderr.slice(stderrStart).includes(text)
+        ) return
+        if (exited) throw new Error(`dshx dev exited before emitting ${text}\n${stdout}\n${stderr}`)
+        await new Promise(resolveResult => setTimeout(resolveResult, 100))
+      }
+      throw new Error(`dshx dev did not emit ${text}\n${stdout}\n${stderr}`)
+    },
     close: () => new Promise(resolveResult => {
       if (exited) { resolveResult(); return }
       const timer = setTimeout(() => { child.kill('SIGKILL'); resolveResult() }, 10_000)
@@ -281,6 +295,9 @@ async function main() {
     }
     const fullDev = await startDev(projects.fullA, { DSH_HOME: join(dshHome, 'multi') })
     try {
+      const hmr = fullDev.waitForOutput('client rebuilt')
+      await appendFile(join(projects.fullA, 'src/client.tsx'), `\n// HMR smoke ${Date.now()}\n`)
+      await hmr
       const check = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['check'])
       if (check.diagnostics.some(item => item.severity === 'error')) throw new Error('Full plugin check failed after dev link')
       const inspectEnv = { DSH_HOME: join(dshHome, 'multi') }
