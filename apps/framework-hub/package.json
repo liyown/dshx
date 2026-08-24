@@ -13,6 +13,7 @@
     "cf:preview": "pnpm run build && pnpm run db:migrate:preview && pnpm run db:seed:preview && wrangler dev --config .output/server/wrangler.json --persist-to .wrangler/preview-state --var SITE_URL:http://localhost:8787 --var BETTER_AUTH_SECRET:dshx-local-preview-secret-is-not-for-production --var TURNSTILE_SITE_KEY:1x00000000000000000000AA --var TURNSTILE_SECRET_KEY:1x0000000000000000000000000000000AA",
     "cf:typegen": "wrangler types",
     "deploy": "pnpm run build && pnpm run deploy:worker",
+    "deploy:check": "pnpm run build && wrangler deploy --dry-run --config .output/server/wrangler.json",
     "deploy:worker": "wrangler deploy --config .output/server/wrangler.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply dshx-framework-hub --local",

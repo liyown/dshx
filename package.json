@@ -25,7 +25,9 @@
     "hub-cli:build": "pnpm --filter @becomeopc/dshx-hub-cli build",
     "hub-cli:test": "pnpm --filter @becomeopc/dshx-hub-cli test",
     "hub:check": "pnpm --filter @becomeopc/dshx-framework-hub typecheck && pnpm --filter @becomeopc/dshx-framework-hub lint && pnpm --filter @becomeopc/dshx-framework-hub test && pnpm --filter @becomeopc/dshx-framework-hub build && pnpm --filter @becomeopc/dshx-hub-cli typecheck && pnpm --filter @becomeopc/dshx-hub-cli lint && pnpm --filter @becomeopc/dshx-hub-cli test && pnpm --filter @becomeopc/dshx-hub-cli build",
-    "hub:deploy": "pnpm run check:all && pnpm --filter @becomeopc/dshx-framework-hub db:migrate:remote && pnpm --filter @becomeopc/dshx-framework-hub deploy:worker && node scripts/smoke-hub.mjs https://dshx.io",
+    "hub:deploy:check": "pnpm run check:all && pnpm --filter @becomeopc/dshx-framework-hub deploy:check",
+    "hub:deploy": "pnpm run hub:deploy:check && pnpm --filter @becomeopc/dshx-framework-hub db:migrate:remote && pnpm --filter @becomeopc/dshx-framework-hub deploy:worker && node scripts/smoke-hub.mjs https://dshx.io",
+    "smoke:packages": "node scripts/smoke-packages.mjs",
     "test": "pnpm --filter @becomeopc/dshx test",
     "typecheck": "pnpm --filter @becomeopc/dshx typecheck",
     "smoke:rc2": "pnpm run build && node scripts/smoke-rc2.mjs"

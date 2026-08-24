@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import { realpathSync } from 'node:fs'
 import { stdin, stdout, stderr } from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { confirm as clackConfirm, isCancel, text as clackText } from '@clack/prompts'
 import { defineCommand, parseArgs as parseCittyArgs } from 'citty'
 import { createProject, packageVersion } from './create.js'
@@ -166,4 +168,4 @@ export async function runCreate(argv = process.argv.slice(2), io: CreateIO = {})
   return 0
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) process.exitCode = await runCreate()
+if (process.argv[1] !== undefined && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await runCreate()
