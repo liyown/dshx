@@ -37,7 +37,10 @@ export interface CreateProjectOptions {
   readonly install?: boolean
   readonly packageManager?: PackageManager
   readonly dshxVersion?: string
+  /** Exact DSH version installed for local development. */
   readonly dshVersion?: string
+  /** Public DSH support range written to peerDependencies. */
+  readonly dshRange?: string
 }
 export interface CreateProjectResult {
   readonly root: string

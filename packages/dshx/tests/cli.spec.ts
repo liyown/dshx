@@ -22,7 +22,7 @@ function project(): ResolvedDshxConfig {
     dev: { hostRestart: 'manual' },
     build: { sourcemap: true },
     compatibility: { allowUnsupported: false },
-    manifest: { name: '@test/plugin', type: 'module' },
+    manifest: { name: '@test/plugin', type: 'module', devDependencies: { '@deepseek-ai/dsh': '0.1.0-rc.8' }, peerDependencies: { '@deepseek-ai/dsh': '>=0.1.0-rc.8 <0.2.0-0' } },
   }
 }
 
@@ -51,14 +51,15 @@ function profile(projectValue: ResolvedDshxConfig): PreparedProjectProfile {
     diagnostics: [],
     dsh: {
       version: '0.1.0-rc.8',
-      adapterId: 'dsh-0.1',
-      protocolGeneration: '0.1',
+      adapterId: 'protocol-1',
+      protocolGeneration: 'protocol-1',
       supportedRange: '>=0.1.0-rc.8 <0.2.0-0',
       support: 'verified',
       diagnostics: [],
       compatibility: {
-        id: 'dsh-0.1',
-        protocolGeneration: '0.1',
+        id: 'protocol-1',
+        protocolGeneration: 'protocol-1',
+        lifecycle: 'active',
         version: '0.1.0-rc.8',
         dshRange: '>=0.1.0-rc.8 <0.2.0-0',
         verified: { minimum: '0.1.0-rc.8', latest: '0.1.0-rc.8' },
@@ -124,7 +125,6 @@ describe('CLI argument parser', () => {
     expect(parseCliArgs(['add', 'tool', '--name', 'status', '--description', 'Status', '--dry-run', '--json'])).toMatchObject({ command: 'add', addTarget: 'tool', name: 'status', description: 'Status', dryRun: true, json: true })
   })
 })
-
 describe('CLI commands', () => {
   it('builds enabled faces in parallel and does not touch Profile APIs', async () => {
     const streams = io()
@@ -165,12 +165,35 @@ describe('CLI commands', () => {
     expect(calls).toEqual(['host:stub', 'client'])
   })
 
+  it('rejects a public peer range that extends beyond one artifact generation', async () => {
+    const streams = io()
+    const value = project()
+    const invalid = {
+      ...value,
+      manifest: {
+        ...value.manifest,
+        peerDependencies: { '@deepseek-ai/dsh': '>=0.1.0-rc.8 <0.3.0-0' },
+      },
+    }
+    const buildHost = vi.fn()
+    const code = await runCli(['build'], {
+      io: streams,
+      runtime: { resolveConfig: async () => invalid, checkManifest: async () => [], buildHost },
+    })
+    expect(code).toBe(1)
+    expect(buildHost).not.toHaveBeenCalled()
+    streams.out.end()
+    streams.err.end()
+    expect(await text(streams.err)).toContain('DSHX5106')
+  })
+
   it('check emits JSON and reports absent Profile links without adding them', async () => {
     const streams = io()
     const value = project()
     const ensure = vi.fn()
     const code = await runCli(['check', '--json'], {
       io: streams,
+      version: 'test-version',
       runtime: {
         resolveConfig: async () => value,
         checkManifest: async () => [],
@@ -181,9 +204,57 @@ describe('CLI commands', () => {
     })
     expect(code).toBe(1)
     expect(ensure).not.toHaveBeenCalled()
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     const output = await text(streams.out)
-    expect(JSON.parse(output)).toMatchObject({ diagnostics: [{ code: 'DSHX4305', severity: 'error' }], dsh: { adapterId: 'dsh-0.1', protocolGeneration: '0.1', supportedRange: '>=0.1.0-rc.8 <0.2.0-0' }, runtimePlugins: [], bridge: { state: 'disabled', metadata: null } })
+    expect(JSON.parse(output)).toMatchObject({
+      diagnostics: [{ code: 'DSHX4305', severity: 'error' }],
+      compatibility: {
+        dshxVersion: 'test-version',
+        declaredRange: '>=0.1.0-rc.8 <0.2.0-0',
+        installedVersion: '0.1.0-rc.8',
+        rangeStatus: 'single-generation',
+        support: 'verified',
+        adapterId: 'protocol-1',
+        protocolGeneration: 'protocol-1',
+      },
+      dsh: { adapterId: 'protocol-1', protocolGeneration: 'protocol-1', supportedRange: '>=0.1.0-rc.8 <0.2.0-0' },
+      bridge: { state: 'disabled', metadata: null },
+    })
+  })
+
+  it('check rejects an installed DSH version outside the plugin peer range', async () => {
+    const streams = io()
+    const value = project()
+    const narrow = {
+      ...value,
+      manifest: { ...value.manifest, peerDependencies: { '@deepseek-ai/dsh': '0.1.0-rc.8' } },
+    }
+    const installed = {
+      ...profile(value).dsh,
+      version: '0.1.1-rc.2',
+      support: 'verified' as const,
+    }
+    const code = await runCli(['check', '--json'], {
+      io: streams,
+      runtime: {
+        resolveConfig: async () => narrow,
+        checkManifest: async () => [],
+        resolveDsh: async () => installed,
+        inspectProfile: async () => ({ state: 'linked', profile: value.profile, packageId: value.packageId, root: value.root }),
+        inspectRuntimePlugins: () => ({ plugins: [], diagnostics: [] }),
+        inspectBridgeStatus: async () => ({ state: 'disabled' as const, diagnostics: [] }),
+      },
+    })
+    expect(code).toBe(1)
+    streams.out.end()
+    streams.err.end()
+    const output = JSON.parse(await text(streams.out)) as {
+      diagnostics: unknown[]
+      compatibility: Record<string, unknown>
+    }
+    expect(output.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'DSHX5108', severity: 'error' })]))
+    expect(output.compatibility).toMatchObject({ installedVersion: '0.1.1-rc.2', installedWithinDeclaredRange: false })
   })
 
   it('supports check --fix dry-run with a machine-readable repair summary', async () => {
@@ -313,7 +384,14 @@ describe('CLI commands', () => {
       diagnostics: [],
       on(listenerOrEvent: string | ((event: DevEvent) => void), listener?: (event: DevEvent) => void) {
         const handler = typeof listenerOrEvent === 'function' ? listenerOrEvent : listener!
-        queueMicrotask(() => handler({ type: 'dsh-exit', code: 1, signal: null, diagnostic: { code: 'DSHX4402', severity: 'error', message: 'exit', file: value.packageFile, hint: 'restart' } }))
+        queueMicrotask(() =>
+          handler({
+            type: 'dsh-exit',
+            code: 1,
+            signal: null,
+            diagnostic: { code: 'DSHX4402', severity: 'error', message: 'exit', file: value.packageFile, hint: 'restart' },
+          }),
+        )
         return () => undefined
       },
       restart: async () => undefined,
@@ -322,15 +400,25 @@ describe('CLI commands', () => {
     const prepared = profile(value)
     const code = await runCli(['dev'], {
       io: streams,
+      version: 'test-version',
       runtime: {
         resolveConfig: async () => value,
         checkManifest: async () => [],
         ensureProfile: async () => prepared,
-        startDev: async (_project, options) => { received = options?.preparedProfile; return fakeSession },
+        startDev: async (_project, options) => {
+          received = options?.preparedProfile
+          return fakeSession
+        },
       },
     })
     expect(code).toBe(1)
     expect(received).toBe(prepared)
+    streams.out.end()
+    streams.err.end()
+    const output = await text(streams.out)
+    expect(output).toContain('DSHX: test-version')
+    expect(output).toContain('Installed DSH: 0.1.0-rc.8 (verified)')
+    expect(output).toContain('Plugin peer range: >=0.1.0-rc.8 <0.2.0-0')
   })
 
   it('inspects runtime slots as clean JSON without linking the Profile', async () => {

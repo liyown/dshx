@@ -1,6 +1,9 @@
 /** Compatibility confidence for an installed DSH CLI. */
 export type DshSupportStatus = 'verified' | 'compatible' | 'experimental' | 'unsupported'
 
+/** Maintenance state for a compatibility generation in this DSHX release. */
+export type DshCompatibilityLifecycle = 'active' | 'maintenance' | 'end-of-life'
+
 /** Representative real-runtime verification boundaries for one compatibility generation. */
 export interface DshVerifiedVersions {
   readonly minimum: string
@@ -45,6 +48,7 @@ export interface DshConnectionCompatibility {
 export interface DshCompatibility {
   readonly id: string
   readonly protocolGeneration: string
+  readonly lifecycle: DshCompatibilityLifecycle
   /** DSH version whose contract originally defined this adapter. */
   readonly version: string
   readonly dshRange: string
@@ -65,6 +69,28 @@ export interface DshCompatibility {
       readonly packageEdgesField: 'inject'
     }
   }
+}
+
+/** How one public plugin peer range relates to the adapters in this DSHX release. */
+export type DshDeclaredRangeStatus = 'single-generation' | 'spans-generations' | 'partially-supported' | 'unsupported' | 'invalid'
+
+export interface DshDeclaredRangeAnalysis {
+  readonly range: string
+  readonly status: DshDeclaredRangeStatus
+  readonly compatibilities: readonly DshCompatibility[]
+  readonly compatibility?: DshCompatibility
+}
+
+/** Project-level compatibility facts shared by build, dev, and check. */
+export interface DshProjectCompatibilityAssessment {
+  readonly declaredRange?: string
+  readonly developmentSpecifier?: string
+  readonly rangeAnalysis?: DshDeclaredRangeAnalysis
+  readonly installedVersion?: string
+  readonly installedWithinDeclaredRange?: boolean
+  readonly resolution?: DshCompatibilityResolution
+  readonly compatibility: DshCompatibility
+  readonly capabilities: readonly string[]
 }
 
 export interface DshCompatibilityResolution {

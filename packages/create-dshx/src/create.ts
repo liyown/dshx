@@ -11,10 +11,17 @@ export interface CreateDependencies {
   readonly runner?: CommandRunner
   readonly dshxVersion?: string
   readonly dshVersion?: string
+  readonly dshRange?: string
 }
 
 const NAME_RE = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9_-])?$/
 const require = createRequire(import.meta.url)
+
+/** Concrete real-smoke boundary used by newly generated repositories. */
+export const DEFAULT_DSH_VERSION = '0.1.1-rc.2'
+
+/** Public DSH range owned by the current protocol generation. */
+export const DEFAULT_DSH_RANGE = '>=0.1.0-rc.8 <0.2.0-0'
 
 export function packageVersion(): string {
   try {
@@ -108,7 +115,8 @@ export async function createProject(options: CreateProjectOptions, dependencies:
   const context = {
     packageId: options.name,
     dshxVersion: dependencies.dshxVersion ?? options.dshxVersion ?? packageVersion(),
-    dshVersion: dependencies.dshVersion ?? options.dshVersion ?? '>=0.1.0-rc.8 <0.2.0',
+    dshVersion: dependencies.dshVersion ?? options.dshVersion ?? DEFAULT_DSH_VERSION,
+    dshRange: dependencies.dshRange ?? options.dshRange ?? DEFAULT_DSH_RANGE,
   }
   const files: string[] = []
   try {

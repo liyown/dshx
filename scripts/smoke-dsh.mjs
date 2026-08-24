@@ -144,6 +144,8 @@ function setDependency(manifest, name, version) {
 }
 
 async function configureDsh(root, dshxTarball, dshVersion) {
+  const compatibility = classifyCompatibility(dshVersion)?.compatibility
+  if (compatibility === undefined) throw new Error(`No adapter can configure DSH ${dshVersion}`)
   const manifest = await packageJson(root)
   setDependency(manifest, '@becomeopc/dshx', `file:${dshxTarball}`)
   for (const name of [
@@ -157,6 +159,7 @@ async function configureDsh(root, dshxTarball, dshVersion) {
   ])
     setDependency(manifest, name, dshVersion)
   manifest.peerDependencies ??= {}
+  manifest.peerDependencies['@deepseek-ai/dsh'] = compatibility.dshRange
   manifest.peerDependencies['@deepseek-ai/dsh-tools'] = dshVersion
   await writePackageJson(root, manifest)
   // Reuse the local store when available, but allow a clean CI runner to resolve the

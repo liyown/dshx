@@ -1,18 +1,19 @@
 import type { DshCompatibility } from './types.js'
 
-const VERIFIED_DSH_0_1_VERSIONS = ['0.1.0-rc.8', '0.1.1-rc.2'] as const
+const VERIFIED_PROTOCOL_1_VERSIONS = ['0.1.0-rc.8', '0.1.1-rc.2'] as const
 
-/** Adapter for the DSH 0.1 contract generation. */
-export const DSH_0_1_COMPATIBILITY: DshCompatibility = {
-  id: 'dsh-0.1',
-  protocolGeneration: '0.1',
+/** Adapter for the first observable DSH contract generation. */
+export const PROTOCOL_1_COMPATIBILITY: DshCompatibility = {
+  id: 'protocol-1',
+  protocolGeneration: 'protocol-1',
+  lifecycle: 'active',
   version: '0.1.0-rc.8',
   dshRange: '>=0.1.0-rc.8 <0.2.0-0',
   verified: {
-    minimum: VERIFIED_DSH_0_1_VERSIONS[0],
-    latest: VERIFIED_DSH_0_1_VERSIONS[1],
+    minimum: VERIFIED_PROTOCOL_1_VERSIONS[0],
+    latest: VERIFIED_PROTOCOL_1_VERSIONS[1],
   },
-  verifiedVersions: VERIFIED_DSH_0_1_VERSIONS,
+  verifiedVersions: VERIFIED_PROTOCOL_1_VERSIONS,
   nodeRange: '^22.19.0 || >=24.0.0',
   profile: { listCommand: 'plugin-list-json', addCommand: 'plugin-add' },
   runtimePlugins: [
@@ -73,5 +74,8 @@ export const DSH_0_1_COMPATIBILITY: DshCompatibility = {
   },
 }
 
-/** @deprecated Use the generation-named adapter. */
-export const RC8_COMPATIBILITY = DSH_0_1_COMPATIBILITY
+/** @deprecated Use PROTOCOL_1_COMPATIBILITY. */
+export const DSH_0_1_COMPATIBILITY = PROTOCOL_1_COMPATIBILITY
+
+/** @deprecated Use PROTOCOL_1_COMPATIBILITY. */
+export const RC8_COMPATIBILITY = PROTOCOL_1_COMPATIBILITY

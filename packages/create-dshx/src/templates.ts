@@ -2,6 +2,7 @@ export interface TemplateContext {
   readonly packageId: string
   readonly dshxVersion: string
   readonly dshVersion: string
+  readonly dshRange: string
 }
 
 export const TEMPLATE_FILES = [
@@ -368,17 +369,20 @@ export default defineConfig({
           '@becomeopc/dshx': context.dshxVersion,
           '@deepseek-ai/dsh': context.dshVersion,
           '@deepseek-ai/cordis': '^4.0.1',
-          '@deepseek-ai/dsh-cordis-host-runner': '>=0.1.0-rc.8 <0.2.0',
-          '@deepseek-ai/dsh-tool-cordis': '>=0.1.0-rc.8 <0.2.0',
-          '@deepseek-ai/dsh-tools': '>=0.1.0-rc.8 <0.2.0',
-          '@deepseek-ai/dsh-client-ui-slots': '>=0.1.0-rc.8 <0.2.0',
-          '@deepseek-ai/dsh-client-ui-sidebar': '>=0.1.0-rc.8 <0.2.0',
+          '@deepseek-ai/dsh-cordis-host-runner': context.dshVersion,
+          '@deepseek-ai/dsh-tool-cordis': context.dshVersion,
+          '@deepseek-ai/dsh-tools': context.dshVersion,
+          '@deepseek-ai/dsh-client-ui-slots': context.dshVersion,
+          '@deepseek-ai/dsh-client-ui-sidebar': context.dshVersion,
           '@types/node': '^22.19.0',
           '@types/react': '~18.3.31',
           react: '^18.3.1',
           typescript: '^5.9.3',
         },
-        peerDependencies: { '@deepseek-ai/dsh-tools': '>=0.1.0-rc.8 <0.2.0' },
+        peerDependencies: {
+          '@deepseek-ai/dsh': context.dshRange,
+          '@deepseek-ai/dsh-tools': context.dshRange,
+        },
       },
       null,
       2,

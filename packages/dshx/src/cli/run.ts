@@ -28,7 +28,8 @@ import type {
   AddUiOptions,
   AddUiResult,
 } from '../scaffold/index.js'
-import { DEFAULT_COMPATIBILITY, detectInstalledDshVersion, resolveDeclaredCompatibility, classifyCompatibility } from '../compat/index.js'
+import { assessProjectCompatibility, detectInstalledDshVersion, projectCompatibilityDiagnostics } from '../compat/index.js'
+import type { DshProjectCompatibilityAssessment } from '../compat/index.js'
 import { CliUsageError, parseCliArgs, type CliArgs } from './args.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 import type { RuntimePluginStatus } from '../host/runtime-plugins.js'
@@ -189,13 +190,42 @@ function installationSummary(dsh: ResolvedDshInstallation | undefined): Record<s
   }
 }
 
+function compatibilitySummary(assessment: DshProjectCompatibilityAssessment, dshxVersion: string): Record<string, unknown> {
+  const support = assessment.installedVersion === undefined ? null : (assessment.resolution?.support ?? 'unsupported')
+  return {
+    dshxVersion,
+    declaredRange: assessment.declaredRange ?? null,
+    developmentSpecifier: assessment.developmentSpecifier ?? null,
+    installedVersion: assessment.installedVersion ?? null,
+    installedWithinDeclaredRange: assessment.installedWithinDeclaredRange ?? null,
+    rangeStatus: assessment.rangeAnalysis?.status ?? 'missing',
+    support,
+    adapterId: assessment.compatibility.id,
+    protocolGeneration: assessment.compatibility.protocolGeneration,
+    lifecycle: assessment.compatibility.lifecycle,
+    supportedRange: assessment.compatibility.dshRange,
+    capabilities: assessment.capabilities,
+  }
+}
+
+function printCompatibilitySummary(io: CliIO, assessment: DshProjectCompatibilityAssessment, dshxVersion: string): void {
+  const status = assessment.installedVersion === undefined ? 'not detected' : (assessment.resolution?.support ?? 'unsupported')
+  write(io.stdout, 'DSH compatibility\n')
+  write(io.stdout, `  DSHX: ${dshxVersion}\n`)
+  write(io.stdout, `  Plugin peer range: ${assessment.declaredRange ?? 'not declared'}\n`)
+  write(io.stdout, `  Installed DSH: ${assessment.installedVersion ?? 'not detected'}${assessment.installedVersion === undefined ? '' : ` (${status})`}\n`)
+  write(io.stdout, `  Adapter: ${assessment.compatibility.id} / ${assessment.compatibility.protocolGeneration} (${assessment.compatibility.lifecycle})\n`)
+  write(io.stdout, `  Capabilities: ${assessment.capabilities.join(', ')}\n`)
+}
+
 async function runBuild(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
   const io = options.io ?? defaultIO()
   const runtime = options.runtime ?? {}
   const installed = detectInstalledDshVersion(project.packageFile)
-  const installedResolution = installed === undefined ? undefined : classifyCompatibility(installed)
-  const compatibility = installedResolution?.compatibility ?? resolveDeclaredCompatibility(project.manifest)?.compatibility ?? DEFAULT_COMPATIBILITY
-  const versionDiagnostics: DshxDiagnostic[] = []
+  const assessment = assessProjectCompatibility(project.manifest, installed)
+  const installedResolution = assessment.resolution
+  const compatibility = assessment.compatibility
+  const versionDiagnostics: DshxDiagnostic[] = [...projectCompatibilityDiagnostics(assessment, project.packageFile, project.compatibility)]
   if (installed === undefined) {
     versionDiagnostics.push({
       code: 'DSHX5101',
@@ -212,7 +242,7 @@ async function runBuild(args: CliArgs, options: CliRunOptions, project: Resolved
       message: `Installed DSH ${installed} is outside the supported compatibility ranges.`,
       file: project.packageFile,
       hint: project.compatibility.allowUnsupported
-        ? 'The default adapter will be used at your own risk.'
+        ? `The ${compatibility.id} adapter will be used at your own risk.`
         : 'Install a DSH version supported by this DSHX release or set compatibility.allowUnsupported to true for a temporary override.',
     })
   } else if (installedResolution.support === 'compatible' || installedResolution.support === 'experimental') {
@@ -299,6 +329,7 @@ interface CheckResult {
   readonly runtimePlugins: RuntimePluginReport
   readonly bridge: InspectBridgeStatus
   readonly connection: ConnectionReport
+  readonly compatibility: DshProjectCompatibilityAssessment
 }
 
 interface ConnectionReport {
@@ -340,7 +371,9 @@ async function collectCheck(options: CliRunOptions, project: ResolvedDshxConfig)
   } catch (error) {
     diagnostics.push(diagnosticFromError(error, project.packageFile))
   }
-  const compatibility = dsh?.compatibility ?? resolveDeclaredCompatibility(project.manifest)?.compatibility ?? DEFAULT_COMPATIBILITY
+  const compatibilityAssessment = assessProjectCompatibility(project.manifest, dsh?.version)
+  diagnostics.push(...projectCompatibilityDiagnostics(compatibilityAssessment, project.packageFile, project.compatibility))
+  const compatibility = compatibilityAssessment.compatibility
   const connectionSpec = compatibility.connection
   const connection: ConnectionReport =
     connectionSpec === undefined
@@ -363,6 +396,7 @@ async function collectCheck(options: CliRunOptions, project: ResolvedDshxConfig)
     runtimePlugins,
     bridge,
     connection,
+    compatibility: compatibilityAssessment,
   }
   return result
 }
@@ -385,7 +419,7 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
   let fix: CheckFixResult = { requested: args.fix, dryRun: args.dryRun, applied: false, changedFiles: [], diff: '', diagnostics: [] }
 
   if (args.fix) {
-    const compatibility = result.dsh?.compatibility ?? resolveDeclaredCompatibility(project.manifest)?.compatibility ?? DEFAULT_COMPATIBILITY
+    const compatibility = result.compatibility.compatibility
     const plan = await (runtime.createRepairPlan ?? createManifestRepairPlan)(project, { compatibility })
     const fixDiagnostics: DshxDiagnostic[] = [...plan.diagnostics]
     if (plan.diagnostics.some(item => item.severity === 'error')) {
@@ -458,10 +492,11 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
   if (args.json) {
     write(
       io.stdout,
-      `${JSON.stringify({ project: projectSummary(result.project), diagnostics, dsh: installationSummary(result.dsh), profile: result.profile ?? null, runtimePlugins: result.runtimePlugins.plugins, bridge: { state: result.bridge.state, metadata: result.bridge.metadata ?? null }, connection: result.connection, fix: fixSummary(fix) }, null, 2)}\n`,
+      `${JSON.stringify({ project: projectSummary(result.project), diagnostics, compatibility: compatibilitySummary(result.compatibility, options.version ?? VERSION), dsh: installationSummary(result.dsh), profile: result.profile ?? null, runtimePlugins: result.runtimePlugins.plugins, bridge: { state: result.bridge.state, metadata: result.bridge.metadata ?? null }, connection: result.connection, fix: fixSummary(fix) }, null, 2)}\n`,
     )
   } else {
     for (const item of diagnostics) printDiagnostic(io, item)
+    printCompatibilitySummary(io, result.compatibility, options.version ?? VERSION)
     if (args.fix && fix.diff !== '') {
       write(io.stdout, `${fix.applied ? 'Applied' : 'Planned'} manifest repair:\n${fix.diff}`)
     }
@@ -820,13 +855,15 @@ async function runDev(args: CliArgs, options: CliRunOptions, project: ResolvedDs
   const io = options.io ?? defaultIO()
   const runtime = options.runtime ?? {}
   const installed = detectInstalledDshVersion(project.packageFile)
-  const compatibility =
-    (installed === undefined ? undefined : classifyCompatibility(installed)?.compatibility) ??
-    resolveDeclaredCompatibility(project.manifest)?.compatibility ??
-    DEFAULT_COMPATIBILITY
-  const diagnostics = await (runtime.checkManifest ?? checkProjectManifest)(project, { compatibility })
-  for (const item of diagnostics) printDiagnostic(io, item)
-  if (hasErrors(diagnostics)) return 1
+  const initialAssessment = assessProjectCompatibility(project.manifest, installed)
+  const diagnostics = [
+    ...projectCompatibilityDiagnostics(initialAssessment, project.packageFile, project.compatibility),
+    ...(await (runtime.checkManifest ?? checkProjectManifest)(project, { compatibility: initialAssessment.compatibility })),
+  ]
+  if (hasErrors(diagnostics)) {
+    for (const item of diagnostics) printDiagnostic(io, item)
+    return 1
+  }
   let profile: PreparedProjectProfile
   try {
     profile = await (runtime.ensureProfile ?? ensureProjectProfile)(project)
@@ -835,7 +872,15 @@ async function runDev(args: CliArgs, options: CliRunOptions, project: ResolvedDs
     printDiagnostic(io, item)
     return 1
   }
-  for (const item of profile.diagnostics) printDiagnostic(io, item)
+  const assessment = assessProjectCompatibility(project.manifest, profile.dsh.version)
+  const finalDiagnostics = [
+    ...projectCompatibilityDiagnostics(assessment, project.packageFile, project.compatibility),
+    ...(await (runtime.checkManifest ?? checkProjectManifest)(project, { compatibility: assessment.compatibility })),
+    ...profile.diagnostics,
+  ]
+  for (const item of finalDiagnostics) printDiagnostic(io, item)
+  if (hasErrors(finalDiagnostics)) return 1
+  printCompatibilitySummary(io, assessment, options.version ?? VERSION)
   let session: DevSession
   try {
     session = await (runtime.startDev ?? startDevSession)(project, {
