@@ -80,11 +80,13 @@
   "dependencies": {
     "@clack/prompts": "1.7.0",
     "citty": "0.2.2",
+    "diff": "9.0.0",
     "execa": "catalog:",
     "lightningcss": "1.33.0",
     "semver": "7.8.5",
     "typescript": "catalog:",
     "vite": "catalog:",
+    "write-file-atomic": "7.0.0",
     "yaml": "catalog:"
   },
   "devDependencies": {
@@ -96,6 +98,7 @@
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.8 <0.2.0",
     "@types/react": "~18.3.31",
     "@types/semver": "^7.7.1",
+    "@types/write-file-atomic": "4.0.3",
     "react": "^18.3.1"
   },
   "peerDependencies": {
