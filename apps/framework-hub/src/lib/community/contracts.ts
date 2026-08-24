@@ -1,4 +1,5 @@
 import { z } from "zod";
+import sanitizeHtml from "sanitize-html";
 
 const writeProof = {
   turnstileToken: z.string().min(1).max(2_048),
@@ -56,12 +57,13 @@ export const notificationReadSchema = z.object(writeProof);
 export function sanitizeUserText(value: string | null | undefined) {
   if (value == null) return null;
   return (
-    value
-      .normalize("NFC")
+    sanitizeHtml(value.normalize("NFC"), {
+      allowedTags: [],
+      allowedAttributes: {},
+    })
       // The marketplace rejects C0 controls while preserving tabs and newlines in user text.
       // eslint-disable-next-line no-control-regex
       .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
-      .replace(/<\/?(?:script|style|iframe|object|embed|form|input|button)[^>]*>/gi, "")
       .trim()
   );
 }

@@ -122,7 +122,9 @@ async function configureRc2(root, dshxTarball) {
   manifest.peerDependencies ??= {}
   manifest.peerDependencies['@deepseek-ai/dsh-tools'] = rc2
   await writePackageJson(root, manifest)
-  await expectSuccess('pnpm', ['install', '--offline', '--no-frozen-lockfile'], { cwd: root })
+  // Reuse the local store when available, but allow a clean CI runner to resolve the
+  // pinned rc.2 packages from npm instead of assuming pre-populated metadata.
+  await expectSuccess('pnpm', ['install', '--prefer-offline', '--no-frozen-lockfile'], { cwd: root })
   const version = await expectSuccess('pnpm', ['exec', 'dsh', '--version'], { cwd: root })
   if (version.stdout.trim() !== rc2) throw new Error(`Expected DSH ${rc2}, got ${version.stdout.trim()}`)
 }

@@ -223,6 +223,15 @@ describe('host compiler', () => {
     const events: string[] = []
     result.on('event', event => { events.push(event.code) })
 
+    const waitForEvent = async (code: string): Promise<void> => {
+      const deadline = Date.now() + 10_000
+      while (Date.now() < deadline) {
+        if (events.includes(code)) return
+        await new Promise(resolveTimer => setTimeout(resolveTimer, 20))
+      }
+      throw new Error(`timed out waiting for watcher event ${code}; events: ${events.join(', ')}`)
+    }
+
     const waitForArtifact = async (predicate: (code: string) => boolean): Promise<string> => {
       const deadline = Date.now() + 10_000
       while (Date.now() < deadline) {
@@ -238,9 +247,14 @@ describe('host compiler', () => {
     }
 
     try {
+      // Wait until the watcher's own initial build is idle. Writing while that build is
+      // running can be coalesced into it on fast filesystems and never trigger a rebuild.
+      await waitForEvent('END')
       const first = await waitForArtifact(code => code.includes('Phase A has no Host behavior'))
+      events.length = 0
       const source = await readFile(sourcePath, 'utf8')
       await writeFile(sourcePath, source.replace('Phase A has no Host behavior', 'Phase A Host rebuilt'))
+      await waitForEvent('END')
       const second = await waitForArtifact(code => code.includes('Phase A Host rebuilt'))
       expect(first).not.toBe(second)
     } finally {
