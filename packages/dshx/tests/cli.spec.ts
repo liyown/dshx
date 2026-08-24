@@ -76,6 +76,21 @@ describe('CLI argument parser', () => {
     expect(parseCliArgs(['build', '--cwd', '/tmp/project', '--verbose'])).toMatchObject({ command: 'build', cwd: '/tmp/project', verbose: true })
     expect(parseCliArgs(['check', '--json'])).toMatchObject({ command: 'check', json: true })
     expect(parseCliArgs(['dev', '--open'])).toMatchObject({ command: 'dev', open: true })
+    expect(parseCliArgs(['add', 'hook', '--event', 'agent.ready', '--file', 'src/ready.ts', '--dry-run', '--json'])).toMatchInlineSnapshot(`
+      {
+        "addTarget": "hook",
+        "command": "add",
+        "dryRun": true,
+        "event": "agent.ready",
+        "file": "src/ready.ts",
+        "fix": false,
+        "help": false,
+        "json": true,
+        "open": false,
+        "verbose": false,
+        "version": false,
+      }
+    `)
   })
 
   it('rejects unknown arguments and invalid option combinations', () => {
@@ -103,6 +118,7 @@ describe('CLI argument parser', () => {
     })
     expect(() => parseCliArgs(['add'])).toThrow('requires a target')
     expect(parseCliArgs(['add', 'tool'])).toMatchObject({ command: 'add', addTarget: 'tool' })
+    expect(parseCliArgs(['add', 'command', '--name', 'status', '--description', 'Status'])).toMatchObject({ command: 'add', addTarget: 'command', name: 'status', description: 'Status' })
     expect(() => parseCliArgs(['add', 'ui', '--order', 'nope'])).toThrow('integer')
     expect(parseCliArgs(['add', 'tool', '--name', 'status', '--description', 'Status', '--dry-run', '--json'])).toMatchObject({ command: 'add', addTarget: 'tool', name: 'status', description: 'Status', dryRun: true, json: true })
   })
@@ -435,5 +451,16 @@ describe('CLI commands', () => {
     expect(addTool).not.toHaveBeenCalled()
     streams.out.end(); streams.err.end()
     expect(await text(streams.err)).toContain('DSHX6201')
+  })
+
+  it('requires a Command name in non-TTY add command mode without invoking the generator', async () => {
+    const streams = io()
+    const value = project()
+    const addCommand = vi.fn()
+    const code = await runCli(['add', 'command'], { io: streams, runtime: { resolveConfig: async () => value, addCommand } })
+    expect(code).toBe(2)
+    expect(addCommand).not.toHaveBeenCalled()
+    streams.out.end(); streams.err.end()
+    expect(await text(streams.err)).toContain('DSHX6501')
   })
 })

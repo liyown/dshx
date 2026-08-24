@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
+import { apiChannel } from '../packages/dshx/dist/api/runtime.js'
 
 const workspace = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const rc2 = '0.1.1-rc.2'
@@ -110,6 +112,7 @@ async function configureRc2(root, dshxTarball) {
   setDependency(manifest, '@becomeopc/dshx', `file:${dshxTarball}`)
   for (const name of [
     '@deepseek-ai/dsh',
+    '@deepseek-ai/dsh-commands',
     '@deepseek-ai/dsh-cordis-host-runner',
     '@deepseek-ai/dsh-tool-cordis',
     '@deepseek-ai/dsh-tools',
@@ -119,7 +122,9 @@ async function configureRc2(root, dshxTarball) {
   manifest.peerDependencies ??= {}
   manifest.peerDependencies['@deepseek-ai/dsh-tools'] = rc2
   await writePackageJson(root, manifest)
-  await expectSuccess('pnpm', ['install', '--no-frozen-lockfile'], { cwd: root })
+  // Reuse the local store when available, but allow a clean CI runner to resolve the
+  // pinned rc.2 packages from npm instead of assuming pre-populated metadata.
+  await expectSuccess('pnpm', ['install', '--prefer-offline', '--no-frozen-lockfile'], { cwd: root })
   const version = await expectSuccess('pnpm', ['exec', 'dsh', '--version'], { cwd: root })
   if (version.stdout.trim() !== rc2) throw new Error(`Expected DSH ${rc2}, got ${version.stdout.trim()}`)
 }
@@ -152,6 +157,74 @@ async function makeNativeHost(root) {
   await writeFile(join(root, 'src/host.ts'), `export const name = 'native-plugin'\n\nexport function apply() {\n  // Native Host boundary smoke fixture.\n}\n`)
 }
 
+async function useAutomaticHostRestart(root) {
+  const file = join(root, 'dshx.config.ts')
+  const source = await readFile(file, 'utf8')
+  await writeFile(file, source.replace("hostRestart: 'manual'", "hostRestart: 'auto'"))
+}
+
+async function callDshxApi(webUrl, packageId, method, version, input) {
+  const rpcId = randomUUID()
+  const response = await fetch(new URL(`${apiChannel(packageId, 'status')}/${method}`, webUrl), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      type: 'client-request',
+      rpcId,
+      method,
+      payload: { version, input },
+    }),
+  })
+  if (!response.ok) throw new Error(`DSHX API ${method} returned HTTP ${response.status}`)
+  const body = await response.json()
+  if (body.rpcId !== rpcId) throw new Error(`DSHX API ${method} returned mismatched rpcId ${String(body.rpcId)}`)
+  return body.result
+}
+
+async function callOfficialApi(webUrl, method, payload) {
+  const rpcId = randomUUID()
+  const response = await fetch(new URL(`/api/${method}`, webUrl), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type: 'client-request', rpcId, method, payload }),
+  })
+  if (!response.ok) throw new Error(`Official API ${method} returned HTTP ${response.status}`)
+  const body = await response.json()
+  if (body.rpcId !== rpcId) throw new Error(`Official API ${method} returned mismatched rpcId ${String(body.rpcId)}`)
+  return body.result
+}
+
+async function callConnectionRpc(webUrl, endpoint, payload) {
+  const rpcId = randomUUID()
+  const response = await fetch(new URL(`/api/${endpoint}`, webUrl), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type: 'client-request', rpcId, method: endpoint, payload }),
+  })
+  if (!response.ok) throw new Error(`Connection RPC ${endpoint} returned HTTP ${response.status}`)
+  const body = await response.json()
+  if (body.rpcId !== rpcId) throw new Error(`Connection RPC ${endpoint} returned mismatched rpcId ${String(body.rpcId)}`)
+  return body.result
+}
+
+async function verifyGeneratedCommand(webUrl, projectRoot) {
+  const created = await callOfficialApi(webUrl, 'session.create', { cwd: projectRoot })
+  const sessionId = created.ok ? created.value?.sessionId : undefined
+  if (typeof sessionId !== 'string') throw new Error(`Could not create Command smoke session: ${JSON.stringify(created)}`)
+  const listed = await callConnectionRpc(webUrl, 'commands/list', {
+    args: { agentId: sessionId },
+  })
+  if (!listed.ok || !listed.value?.some?.(item => item?.name === 'dshx-status')) {
+    throw new Error(`Generated Command was not visible through the official registry: ${JSON.stringify(listed)}`)
+  }
+  const executed = await callConnectionRpc(webUrl, 'commands/execute', {
+    args: { agentId: sessionId, line: '/dshx-status', images: [] },
+  })
+  if (!executed.ok || executed.value?.result?.kind !== 'success' || executed.value?.result?.text !== 'Implement /dshx-status') {
+    throw new Error(`Generated Command did not execute through the official parser: ${JSON.stringify(executed)}`)
+  }
+}
+
 async function jsonCommand(root, env, args) {
   const result = await expectSuccess('pnpm', ['exec', 'dshx', ...args, '--json'], { cwd: root, env })
   try { return JSON.parse(result.stdout) } catch (error) {
@@ -179,6 +252,7 @@ async function startDev(root, env) {
   let stderr = ''
   let sessionReady = false
   let dshReady = false
+  let webUrl
   let exited = false
   let resolveReady
   let rejectReady
@@ -193,7 +267,11 @@ async function startDev(root, env) {
   child.stdout.on('data', chunk => {
     stdout += chunk.toString()
     if (stdout.includes('Dev session started')) sessionReady = true
-    if (stdout.includes('dsh web:')) dshReady = true
+    const urls = [...stdout.matchAll(/dsh web:\s+(https?:\/\/\S+)/g)]
+    if (urls.length > 0) {
+      webUrl = urls.at(-1)?.[1]
+      dshReady = true
+    }
     maybeReady()
   })
   child.stderr.on('data', chunk => { stderr += chunk.toString() })
@@ -203,10 +281,26 @@ async function startDev(root, env) {
     if (!sessionReady || !dshReady) { clearTimeout(timer); rejectReady(new Error(`dshx dev exited before ready: ${code ?? signal}\n${stdout}\n${stderr}`)) }
   })
   await readyPromise
+  if (webUrl === undefined) throw new Error(`dshx dev did not report a Web URL\n${stdout}\n${stderr}`)
   await new Promise(resolveResult => setTimeout(resolveResult, 750))
   return {
     child,
+    webUrl: () => webUrl,
     output: () => ({ stdout, stderr }),
+    waitForOutput: async text => {
+      const stdoutStart = stdout.length
+      const stderrStart = stderr.length
+      const deadline = Date.now() + timeoutMs
+      while (Date.now() < deadline) {
+        if (
+          stdout.slice(stdoutStart).includes(text) ||
+          stderr.slice(stderrStart).includes(text)
+        ) return
+        if (exited) throw new Error(`dshx dev exited before emitting ${text}\n${stdout}\n${stderr}`)
+        await new Promise(resolveResult => setTimeout(resolveResult, 100))
+      }
+      throw new Error(`dshx dev did not emit ${text}\n${stdout}\n${stderr}`)
+    },
     close: () => new Promise(resolveResult => {
       if (exited) { resolveResult(); return }
       const timer = setTimeout(() => { child.kill('SIGKILL'); resolveResult() }, 10_000)
@@ -236,6 +330,8 @@ async function main() {
   const projects = {}
   try {
     projects.fullA = await createProject(root, 'plugin-full-a', dshxTarball)
+    await useAutomaticHostRestart(projects.fullA)
+    await expectSuccess('pnpm', ['exec', 'dshx', 'add', 'command', '--name', 'dshx-status', '--description', 'Return DSHX status.'], { cwd: projects.fullA })
     projects.fullB = await createProject(root, 'plugin-full-b', dshxTarball)
     projects.hostOnly = await createProject(root, 'plugin-host-only', dshxTarball)
     await removeClient(projects.hostOnly)
@@ -281,6 +377,31 @@ async function main() {
     }
     const fullDev = await startDev(projects.fullA, { DSH_HOME: join(dshHome, 'multi') })
     try {
+      const initialApi = await callDshxApi(fullDev.webUrl(), 'plugin-full-a', 'get', 1)
+      if (!initialApi.ok || initialApi.value?.version !== 1 || initialApi.value?.output?.project !== 'plugin-full-a') {
+        throw new Error(`Full plugin API did not return its Host status: ${JSON.stringify(initialApi)}`)
+      }
+      const refreshedApi = await callDshxApi(fullDev.webUrl(), 'plugin-full-a', 'refresh', 1, { force: true })
+      if (!refreshedApi.ok || refreshedApi.value?.output?.project !== 'plugin-full-a (refreshed)') {
+        throw new Error(`Full plugin API refresh failed: ${JSON.stringify(refreshedApi)}`)
+      }
+      const incompatibleApi = await callDshxApi(fullDev.webUrl(), 'plugin-full-a', 'get', 2)
+      if (incompatibleApi.ok || incompatibleApi.error?.code !== 'DSHX6401') {
+        throw new Error(`Full plugin API accepted a mismatched version: ${JSON.stringify(incompatibleApi)}`)
+      }
+      await verifyGeneratedCommand(fullDev.webUrl(), projects.fullA)
+      const hmr = fullDev.waitForOutput('client rebuilt')
+      await appendFile(join(projects.fullA, 'src/client.tsx'), `\n// HMR smoke ${Date.now()}\n`)
+      await hmr
+      const restarted = fullDev.waitForOutput('dsh web:')
+      await appendFile(join(projects.fullA, 'src/host.ts'), `\n// Host lifecycle smoke ${Date.now()}\n`)
+      await restarted
+      await new Promise(resolveResult => setTimeout(resolveResult, 750))
+      const afterRestart = await callDshxApi(fullDev.webUrl(), 'plugin-full-a', 'get', 1)
+      if (!afterRestart.ok || afterRestart.value?.output?.requestCount !== 1) {
+        throw new Error(`Full plugin API did not recover after Host restart: ${JSON.stringify(afterRestart)}`)
+      }
+      await verifyGeneratedCommand(fullDev.webUrl(), projects.fullA)
       const check = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['check'])
       if (check.diagnostics.some(item => item.severity === 'error')) throw new Error('Full plugin check failed after dev link')
       const inspectEnv = { DSH_HOME: join(dshHome, 'multi') }
@@ -292,6 +413,8 @@ async function main() {
         rc2,
         projects: Object.fromEntries(Object.entries(projects).map(([name, project]) => [name, project])),
         inspect: [slots, exact, services, events].map(summarizeInspect),
+        api: { unary: 'verified', versionMismatch: 'verified', hostRestart: 'verified' },
+        command: { scaffold: 'verified', parser: 'verified', hostRestart: 'verified' },
         profile: 'linked',
         bridge: 'running',
       }, null, 2))

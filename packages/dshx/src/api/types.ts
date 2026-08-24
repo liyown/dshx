@@ -68,11 +68,11 @@ export type ApiCallOptions = {
 }
 
 export type ApiMethodClient<M> = ApiInput<M> extends void
-  ? (options?: ApiCallOptions) => Promise<ApiOutput<M>>
+  ? (input?: undefined, options?: ApiCallOptions) => Promise<ApiOutput<M>>
   : (input: ApiInput<M>, options?: ApiCallOptions) => Promise<ApiOutput<M>>
 
 export type ApiSafeMethodClient<M> = ApiInput<M> extends void
-  ? (options?: ApiCallOptions) => Promise<ApiCallResult<ApiOutput<M>>>
+  ? (input?: undefined, options?: ApiCallOptions) => Promise<ApiCallResult<ApiOutput<M>>>
   : (input: ApiInput<M>, options?: ApiCallOptions) => Promise<ApiCallResult<ApiOutput<M>>>
 
 export type ApiClient<Methods extends Record<string, ApiMethodDefinition<any, any>> = Record<string, ApiMethodDefinition<any, any>>> = {

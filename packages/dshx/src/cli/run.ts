@@ -1,7 +1,7 @@
 import type { Readable, Writable } from 'node:stream'
-import { createInterface } from 'node:readline'
 import { createRequire } from 'node:module'
 import { resolve as resolvePath } from 'node:path'
+import { isCancel, select, text } from '@clack/prompts'
 import { buildClient, buildHost } from '../compiler/index.js'
 import { resolveDshxConfig } from '../config/index.js'
 import { startDevSession } from '../dev/index.js'
@@ -17,8 +17,8 @@ import { inspectBridgeStatus } from '../inspect/bridge.js'
 import type { InspectBridgeStatus } from '../inspect/bridge.js'
 import { inspectRuntimePlugins } from '../runtime-status.js'
 import type { RuntimePluginReport } from '../runtime-status.js'
-import { createHookScaffold, createToolScaffold, createUiScaffold } from '../scaffold/index.js'
-import type { AddHookOptions, AddHookResult, AddToolOptions, AddToolResult, AddUiOptions, AddUiResult } from '../scaffold/index.js'
+import { createCommandScaffold, createHookScaffold, createToolScaffold, createUiScaffold } from '../scaffold/index.js'
+import type { AddCommandOptions, AddCommandResult, AddHookOptions, AddHookResult, AddToolOptions, AddToolResult, AddUiOptions, AddUiResult } from '../scaffold/index.js'
 import { DEFAULT_COMPATIBILITY, detectInstalledDshVersion, resolveDeclaredCompatibility, classifyCompatibility } from '../compat/index.js'
 import { CliUsageError, parseCliArgs, type CliArgs } from './args.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
@@ -47,6 +47,7 @@ export interface CliRuntime {
   readonly rollbackRepairPlan?: typeof rollbackManifestRepairPlan
   readonly addUi?: (options: AddUiOptions) => Promise<AddUiResult>
   readonly addTool?: (options: AddToolOptions) => Promise<AddToolResult>
+  readonly addCommand?: (options: AddCommandOptions) => Promise<AddCommandResult>
   readonly addHook?: (options: AddHookOptions) => Promise<AddHookResult>
 }
 
@@ -474,16 +475,13 @@ async function runInspect(args: CliArgs, options: CliRunOptions, project: Resolv
 
 async function selectSlotInteractively(io: CliIO, items: readonly { readonly name: string }[]): Promise<string | undefined> {
   if (items.length === 0) return undefined
-  write(io.stdout, 'Available Slots:\n')
-  items.forEach((item, index) => write(io.stdout, `  ${index + 1}. ${item.name}\n`))
-  const prompt = createInterface({ input: io.stdin, output: io.stdout })
-  try {
-    const answer = await new Promise<string>(resolve => prompt.question('Select a Slot number: ', resolve))
-    const index = Number(answer.trim())
-    return Number.isInteger(index) && index >= 1 && index <= items.length ? items[index - 1]?.name : undefined
-  } finally {
-    prompt.close()
-  }
+  const answer = await select({
+    message: 'Select a Slot',
+    options: items.map(item => ({ value: item.name, label: item.name })),
+    input: io.stdin,
+    output: io.stdout,
+  })
+  return isCancel(answer) ? undefined : answer
 }
 
 function addSummary(project: ResolvedDshxConfig, result: AddUiResult): Record<string, unknown> {
@@ -558,12 +556,8 @@ function toolSummary(project: ResolvedDshxConfig, result: AddToolResult): Record
 }
 
 async function promptLine(io: CliIO, question: string): Promise<string> {
-  const prompt = createInterface({ input: io.stdin, output: io.stdout })
-  try {
-    return await new Promise<string>(resolve => prompt.question(question, resolve))
-  } finally {
-    prompt.close()
-  }
+  const answer = await text({ message: question.replace(/:\s*$/, ''), input: io.stdin, output: io.stdout })
+  return isCancel(answer) ? '' : answer
 }
 
 async function runAddTool(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
@@ -601,6 +595,48 @@ async function runAddTool(args: CliArgs, options: CliRunOptions, project: Resolv
     for (const item of result.diagnostics) printDiagnostic(io, item)
     if (!result.diagnostics.some(item => item.severity === 'error')) {
       write(io.stdout, `${result.dryRun ? 'Planned' : 'Generated'} Tool ${result.name}\n`)
+      for (const file of result.changedFiles) write(io.stdout, `  ${file}\n`)
+      if (result.diff !== undefined) write(io.stdout, result.diff)
+    }
+  }
+  return result.diagnostics.some(item => item.severity === 'error') ? 1 : 0
+}
+
+async function runAddCommand(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
+  const io = options.io ?? defaultIO()
+  const runtime = options.runtime ?? {}
+  let name = args.name
+  if (name === undefined && io.stdin.isTTY && !args.json) name = (await promptLine(io, 'Command name: ')).trim()
+  if (name === undefined || name === '') {
+    const item = { code: 'DSHX6501', severity: 'error' as const, message: 'A Command name is required.', file: project.packageFile, hint: 'Pass --name <name>, or run in a TTY and enter a Command name.' }
+    if (args.json) write(io.stdout, `${JSON.stringify({ project: projectSummary(project), name: null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`)
+    else printDiagnostic(io, item)
+    return 2
+  }
+  const commandOptions: AddCommandOptions = {
+    project,
+    name,
+    ...(args.description === undefined ? {} : { description: args.description }),
+    ...(args.file === undefined ? {} : { file: args.file }),
+    dryRun: args.dryRun,
+  }
+  let result: AddCommandResult
+  try {
+    result = runtime.addCommand === undefined
+      ? await createCommandScaffold(commandOptions, { ...(runtime.checkManifest === undefined ? {} : { checkManifest: runtime.checkManifest }) })
+      : await runtime.addCommand(commandOptions)
+  } catch (error) {
+    const item = diagnosticFromError(error, project.packageFile)
+    if (args.json) write(io.stdout, `${JSON.stringify({ project: projectSummary(project), name, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`)
+    else printDiagnostic(io, item)
+    if (args.verbose) printVerboseCause(io, error)
+    return 1
+  }
+  if (args.json) write(io.stdout, `${JSON.stringify(toolSummary(project, result), null, 2)}\n`)
+  else {
+    for (const item of result.diagnostics) printDiagnostic(io, item)
+    if (!result.diagnostics.some(item => item.severity === 'error')) {
+      write(io.stdout, `${result.dryRun ? 'Planned' : 'Generated'} Command ${result.name}\n`)
       for (const file of result.changedFiles) write(io.stdout, `  ${file}\n`)
       if (result.diff !== undefined) write(io.stdout, result.diff)
     }
@@ -748,7 +784,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     return 2
   }
   if (args.help) {
-    write(io.stdout, 'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ncheck: --fix --dry-run\ndev: --open\ninspect targets: slots, tools, services, events\ninspect slots: --root <slot-name>\nadd targets: ui, tool, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n')
+    write(io.stdout, 'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ncheck: --fix --dry-run\ndev: --open\ninspect targets: slots, tools, services, events\ninspect slots: --root <slot-name>\nadd targets: ui, tool, command, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd command options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n')
     return 0
   }
   if (args.version) {
@@ -765,6 +801,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     if (args.command === 'inspect') return await runInspect(args, options, project)
     if (args.command === 'add') {
       if (args.addTarget === 'tool') return await runAddTool(args, options, project)
+      if (args.addTarget === 'command') return await runAddCommand(args, options, project)
       if (args.addTarget === 'hook') return await runAddHook(args, options, project)
       return await runAddUi(args, options, project)
     }
@@ -775,7 +812,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
       write(io.stdout, `${JSON.stringify(args.command === 'inspect'
         ? { project: null, target: args.inspectTarget ?? null, source: 'runtime', items: [], diagnostics: [item] }
         : args.command === 'add'
-          ? args.addTarget === 'tool'
+          ? args.addTarget === 'tool' || args.addTarget === 'command'
             ? { project: null, name: args.name ?? null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }
             : args.addTarget === 'hook'
               ? { project: null, event: args.event ?? null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }

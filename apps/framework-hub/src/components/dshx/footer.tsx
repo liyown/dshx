@@ -11,20 +11,22 @@ const groups: {
     items: [
       { key: "nav.plugins", to: "/plugins" },
       { key: "nav.docs", to: "/docs" },
+      { key: "footer.compatibility", to: "/docs" },
     ],
   },
   {
     title: "footer.community",
     items: [
-      { key: "nav.github", href: "https://github.com" },
-      { key: "footer.discussions", href: "https://github.com" },
+      { key: "nav.github", href: "https://github.com/liyown/dshx" },
+      { key: "footer.discussions", href: "https://github.com/liyown/dshx/discussions" },
     ],
   },
   {
-    title: "footer.resources",
+    title: "footer.legal",
     items: [
-      { key: "nav.changelog", to: "/changelog" },
-      { key: "footer.compatibility", to: "/changelog" },
+      { key: "footer.privacy", to: "/legal/privacy" },
+      { key: "footer.terms", to: "/legal/terms" },
+      { key: "footer.communityPolicy", to: "/legal/community" },
     ],
   },
 ];

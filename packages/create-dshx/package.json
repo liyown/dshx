@@ -2,15 +2,27 @@
   "name": "create-dshx",
   "version": "0.1.1",
   "description": "Create a DeepSeek Harness plugin project.",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "plugins",
+    "scaffold",
+    "cli",
+    "typescript"
+  ],
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/liyown/dshx.git",
+    "url": "https://github.com/liyown/dshx.git",
     "directory": "packages/create-dshx"
   },
   "bugs": {
     "url": "https://github.com/liyown/dshx/issues"
   },
-  "homepage": "https://github.com/liyown/dshx#readme",
+  "homepage": "https://dshx.io/docs",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "create-dshx": "./dist/cli.js"
@@ -23,21 +35,29 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "execa": "10.0.0"
+    "@clack/prompts": "1.7.0",
+    "citty": "0.2.2",
+    "execa": "catalog:",
+    "package-manager-detector": "1.8.0"
   },
   "devDependencies": {
-    "@types/node": "22.19.20",
-    "typescript": "5.9.3",
-    "vitest": "4.1.8"
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

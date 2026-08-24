@@ -5,6 +5,7 @@ Design a premium official website for “DSHX”, a modern TypeScript + React de
 This is an open-source developer framework today, but the website must be designed from the beginning to evolve into a full DSH plugin ecosystem and community in the future.
 
 The future product will include:
+
 - plugin discovery
 - plugin marketplace / registry
 - plugin detail pages
@@ -18,6 +19,80 @@ The future product will include:
 - GitHub metadata
 - publishing plugins
 
+## Backend foundation
+
+The Hub targets Cloudflare Workers with Cloudflare D1 and Drizzle ORM. The
+source schema lives in `src/lib/db/schema.ts`; generated SQL migrations are
+committed under `drizzle/`.
+
+```bash
+# Generate SQL after changing the Drizzle schema
+pnpm db:generate
+
+# Apply migrations to the local D1 database
+pnpm db:migrate:local
+
+# Run Vite with a local Wrangler binding proxy
+pnpm dev
+
+# Build and preview the Worker with its local D1 binding
+pnpm cf:preview
+```
+
+`GET /api/health` performs a real `select 1` through Drizzle and returns `503`
+when the `DB` binding is absent or unreachable. Public catalog pages and
+`/api/plugins` read D1 directly; synthetic plugin records only exist inside the
+integration tests and are never seeded into production.
+
+Before the first remote deployment, create the D1 database and replace the
+all-zero `database_id` in `wrangler.jsonc` with the ID returned by Cloudflare:
+
+```bash
+pnpm exec wrangler d1 create dshx-framework-hub
+pnpm exec wrangler r2 bucket create dshx-plugin-media
+pnpm db:migrate:remote
+pnpm deploy
+```
+
+Configure the GitHub OAuth callback as
+`https://<hub-origin>/api/auth/callback/github`, then set secrets without
+committing them:
+
+```bash
+pnpm exec wrangler secret put BETTER_AUTH_SECRET
+pnpm exec wrangler secret put GITHUB_CLIENT_ID
+pnpm exec wrangler secret put GITHUB_CLIENT_SECRET
+pnpm exec wrangler secret put TURNSTILE_SECRET_KEY
+```
+
+Set `SITE_URL`, `TURNSTILE_SITE_KEY`, and the comma-separated GitHub numeric ID
+allowlist `HUB_ADMIN_GITHUB_IDS` in the Cloudflare environment. A matching first
+sign-in becomes the bootstrap administrator. Hub CLI tokens are distinct from
+GitHub API credentials, expire after 180 days, are stored only as hashes in D1,
+and can be revoked. The public Wrangler config never contains the Turnstile
+secret; `cf:preview` injects Cloudflare's local test pair only.
+
+## Catalog operations
+
+The workspace package `@becomeopc/dshx-hub-cli` installs the `dshx-hub`
+command. It performs topic discovery, deterministic archive validation,
+worklist exchange, staged upload, atomic publication and moderation. GitHub
+reads use `GITHUB_TOKEN` or `gh auth token`; validation never runs third-party
+install or lifecycle scripts.
+
+```bash
+pnpm --filter @becomeopc/dshx-hub-cli build
+node ../../packages/framework-hub-cli/dist/index.js auth login --hub http://localhost:3000
+node ../../packages/framework-hub-cli/dist/index.js sync worklist --hub http://localhost:3000
+```
+
+The long-running operations Skill is maintained independently in the personal
+Skill Registry and is intentionally not bundled with the CLI package:
+
+```bash
+npx skills add liyown/SKILL --skill dshx-hub-ops
+```
+
 The current website should primarily introduce the DSHX framework, while the visual language, navigation and design system should already feel capable of supporting that future ecosystem.
 
 BRAND POSITIONING
@@ -28,6 +103,7 @@ DSHX is:
 It helps developers build DSH plugins using familiar TypeScript and React development patterns.
 
 Core product ideas:
+
 - TypeScript-first plugin authoring
 - React UI contributions
 - Host and Client development
@@ -54,6 +130,7 @@ Use a design language that combines:
 5. Precise micro-interactions
 
 The website should feel:
+
 - technical
 - calm
 - confident
@@ -64,6 +141,7 @@ The website should feel:
 - slightly experimental
 
 Avoid making it feel:
+
 - corporate SaaS
 - crypto
 - cyberpunk
@@ -88,6 +166,7 @@ Primary accent:
 a distinctive indigo / electric violet / blue-violet
 
 Use dark surfaces selectively for:
+
 - code examples
 - runtime diagrams
 - terminal output
@@ -107,6 +186,7 @@ TYPOGRAPHY
 Use a modern grotesk / neo-grotesk sans-serif for interface and editorial content.
 
 Use a precise monospace font for:
+
 - code
 - commands
 - runtime state
@@ -128,9 +208,9 @@ The Hub uses URL-prefixed locales:
 
 The root URL negotiates the initial locale from Accept-Language; an explicit locale
 in the URL always wins. Shared UI copy is kept in the typed locale catalog under
-src/lib/i18n, while plugin records remain placeholder data until a content API is
-introduced. Future API responses should return already-localized domain fields so
-the browser does not choose a language per record.
+`src/lib/i18n`. Plugin localizations are stored independently in D1; missing
+locale content may fall back for readers but is marked `noindex` and excluded
+from that locale's Sitemap and hreflang declarations.
 
 BRAND MOTIF — THE X
 
@@ -146,6 +226,7 @@ Developer ↔ DSH
 Use intersecting thin lines as a recurring visual motif.
 
 The X can appear as:
+
 - logo detail
 - runtime connection
 - section divider
@@ -170,7 +251,7 @@ Center/right:
 Docs
 Plugins
 Examples
-Changelog
+Release notes
 
 Secondary:
 GitHub
@@ -211,17 +292,17 @@ Create an animated runtime composition diagram.
 Example visual structure:
 
 src/host.ts
-      \
-       \
-        DSHX
-       /    \
- Host        Client
-  |            |
- Tool         React Slot
- API          useQuery
-   \           /
-      DSH Runtime
-          ● ready
+\
+\
+DSHX
+/ \
+Host Client
+| |
+Tool React Slot
+API useQuery
+\ /
+DSH Runtime
+● ready
 
 Show subtle runtime events appearing over time:
 
@@ -249,11 +330,11 @@ simple developer code
 Example:
 
 export default defineClient({
-  slots: [
-    defineSlot('sidebar.footer.action', {
-      component: Status,
-    }),
-  ],
+slots: [
+defineSlot('sidebar.footer.action', {
+component: Status,
+}),
+],
 })
 
 Center:
@@ -280,15 +361,15 @@ Show Host and Client side-by-side.
 Host:
 
 defineHost({
-  tools: [searchTool],
-  api: statusApi.host(...)
+tools: [searchTool],
+api: statusApi.host(...)
 })
 
 Client:
 
 defineClient({
-  api: statusApi,
-  slots: [sidebarStatus]
+api: statusApi,
+slots: [sidebarStatus]
 })
 
 Connect them visually with a typed contract.
@@ -365,21 +446,21 @@ Show a simple plugin growing into an advanced plugin.
 Start:
 
 defineHost({
-  tools: [weather]
+tools: [weather]
 })
 
 Then progressively reveal:
 
 defineHost({
-  tools: [weather],
+tools: [weather],
 
-  commands: [refresh],
+commands: [refresh],
 
-  api: weatherApi.host(...),
+api: weatherApi.host(...),
 
-  setup(ctx) {
-    ctx.on('agent/pre-step', ...)
-  }
+setup(ctx) {
+ctx.on('agent/pre-step', ...)
+}
 })
 
 Headline:
@@ -539,7 +620,7 @@ README
 Versions
 Compatibility
 Dependencies
-Changelog
+Release notes
 
 Sidebar:
 
@@ -663,7 +744,7 @@ GitHub
 Discussions
 
 Resources
-Changelog
+Release notes
 Compatibility
 
 Keep the footer spacious and editorial.

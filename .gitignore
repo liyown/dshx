@@ -4,3 +4,5 @@ dist/
 coverage/
 .dshx/
 *.tsbuildinfo
+apps/framework-hub/bun.lock
+.playwright-cli/

@@ -3,23 +3,47 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.24.0",
+  "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
     "build": "pnpm --filter @becomeopc/dshx build && pnpm --filter create-dshx build",
+    "lint": "pnpm --filter @becomeopc/dshx-framework-hub lint && pnpm --filter @becomeopc/dshx-hub-cli lint",
+    "format:check": "prettier --check README.md README.zh-CN.md docs packages/*/README.md package.json pnpm-workspace.yaml .github renovate.json5",
+    "deps:check": "knip",
+    "audit:prod": "pnpm audit --prod --audit-level high",
     "check": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm --filter create-dshx typecheck && pnpm --filter create-dshx test && pnpm --filter create-dshx build",
+    "check:all": "pnpm run check && pnpm run hub:check && pnpm run smoke:rc2",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish",
     "phase-a:build": "pnpm run build && pnpm --filter @dshx/phase-a-fixture build",
     "framework-hub:dev": "pnpm --filter @becomeopc/dshx-framework-hub dev",
     "framework-hub:build": "pnpm --filter @becomeopc/dshx-framework-hub build",
+    "framework-hub:test": "pnpm --filter @becomeopc/dshx-framework-hub test",
+    "hub-cli:build": "pnpm --filter @becomeopc/dshx-hub-cli build",
+    "hub-cli:test": "pnpm --filter @becomeopc/dshx-hub-cli test",
+    "hub:check": "pnpm --filter @becomeopc/dshx-framework-hub typecheck && pnpm --filter @becomeopc/dshx-framework-hub lint && pnpm --filter @becomeopc/dshx-framework-hub test && pnpm --filter @becomeopc/dshx-framework-hub build && pnpm --filter @becomeopc/dshx-hub-cli typecheck && pnpm --filter @becomeopc/dshx-hub-cli lint && pnpm --filter @becomeopc/dshx-hub-cli test && pnpm --filter @becomeopc/dshx-hub-cli build",
+    "hub:deploy:check": "pnpm run check:all && pnpm --filter @becomeopc/dshx-framework-hub deploy:check",
+    "hub:deploy": "pnpm run hub:deploy:check && pnpm --filter @becomeopc/dshx-framework-hub db:migrate:remote && pnpm --filter @becomeopc/dshx-framework-hub deploy:worker && node scripts/smoke-hub.mjs https://dshx.io",
+    "smoke:packages": "node scripts/smoke-packages.mjs",
     "test": "pnpm --filter @becomeopc/dshx test",
     "typecheck": "pnpm --filter @becomeopc/dshx typecheck",
     "smoke:rc2": "pnpm run build && node scripts/smoke-rc2.mjs"
   },
   "devDependencies": {
-    "@types/node": "22.19.20",
-    "typescript": "5.9.3",
-    "vitest": "4.1.8"
+    "@changesets/cli": "^3.0.1",
+    "@types/node": "catalog:",
+    "knip": "6.32.2",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "pnpm": {
+    "overrides": {
+      "@esbuild-kit/core-utils>esbuild": "0.25.12",
+      "postcss>nanoid": "3.3.18"
+    }
   }
 }

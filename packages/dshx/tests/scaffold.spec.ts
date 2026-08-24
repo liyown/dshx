@@ -98,6 +98,8 @@ describe('add ui scaffold', () => {
     try {
       const dry = await createUiScaffold({ project: value.project, slot: 'sidebar.footer.action', dryRun: true }, { compatibility, inspectComposition: async () => inspectResult(), resolveProvider: async () => true, checkManifest: async () => [] })
       expect(dry.diff).toContain('sidebar.footer.action.tsx')
+      expect(dry.diff).toContain('@@')
+      expect(dry.diff).toContain('-export default defineClient({ setup() {} })')
       await expect(readFile(resolve(value.root, 'src/slots/sidebar.footer.action.tsx'), 'utf8')).rejects.toThrow()
       const failed = await createUiScaffold({ project: value.project, slot: 'sidebar.footer.action' }, { inspectComposition: async () => inspectResult(), resolveProvider: async () => false })
       expect(failed.diagnostics[0]?.code).toBe('DSHX6104')
@@ -122,6 +124,30 @@ describe('add ui scaffold', () => {
       await expect(readFile(resolve(value.root, 'src/client.tsx'), 'utf8')).rejects.toThrow()
       await expect(readFile(resolve(value.root, 'src/slots/sidebar.footer.action.tsx'), 'utf8')).rejects.toThrow()
       expect(await readFile(resolve(value.root, 'package.json'), 'utf8')).toBe(before)
+    } finally { await value.cleanup() }
+  })
+
+  it('rolls back earlier files when an atomic write fails midway', async () => {
+    const value = await setup(true)
+    try {
+      const clientBefore = await readFile(resolve(value.root, 'src/client.tsx'), 'utf8')
+      let writes = 0
+      const result = await createUiScaffold({ project: value.project, slot: 'sidebar.footer.action' }, {
+        compatibility,
+        inspectComposition: async () => inspectResult(),
+        resolveProvider: async () => true,
+        checkManifest: async () => [],
+        fs: {
+          writeFileAtomic: async (file, data) => {
+            writes += 1
+            if (writes === 2) throw new Error('injected write failure')
+            await writeFile(file, data, 'utf8')
+          },
+        },
+      })
+      expect(result.diagnostics[0]?.code).toBe('DSHX6107')
+      await expect(readFile(resolve(value.root, 'src/slots/sidebar.footer.action.tsx'), 'utf8')).rejects.toThrow()
+      expect(await readFile(resolve(value.root, 'src/client.tsx'), 'utf8')).toBe(clientBefore)
     } finally { await value.cleanup() }
   })
 

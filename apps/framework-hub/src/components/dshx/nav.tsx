@@ -3,11 +3,12 @@ import { useEffect, useState } from "react";
 import { Container, Wordmark, XMark, ButtonLink } from "./primitives";
 import { cn } from "@/lib/utils";
 import { localizedPath, useI18n } from "@/lib/i18n";
+import { MobileSessionLink, SessionLink } from "@/components/community/auth-controls";
+import { GitHubStarLink } from "./github-star-link";
 
 const links = [
   { key: "nav.plugins", to: "/plugins" },
   { key: "nav.docs", to: "/docs" },
-  { key: "nav.changelog", to: "/changelog" },
 ] as const;
 
 export function Nav() {
@@ -54,14 +55,8 @@ export function Nav() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <a
-            href="https://github.com"
-            target="_blank"
-            rel="noreferrer"
-            className="hidden px-2.5 py-1.5 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground sm:block"
-          >
-            {t("nav.github")}
-          </a>
+          <GitHubStarLink />
+          <SessionLink />
           <ButtonLink to="/docs" variant="primary" className="h-9">
             {t("nav.getStarted")}
           </ButtonLink>
@@ -98,6 +93,9 @@ export function Nav() {
                 {t(link.key)}
               </Link>
             ))}
+            <div className="py-2.5">
+              <GitHubStarLink compact />
+            </div>
             <a
               href={alternateHref}
               onClick={() => setOpen(false)}
@@ -105,6 +103,9 @@ export function Nav() {
             >
               {locale === "en" ? t("nav.switchToChinese") : t("nav.switchToEnglish")}
             </a>
+            <div className="py-2.5">
+              <MobileSessionLink locale={locale} />
+            </div>
           </Container>
         </div>
       )}

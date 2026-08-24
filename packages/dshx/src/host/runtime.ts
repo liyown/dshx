@@ -1,9 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import process from 'node:process'
+import type { CommandRuntime } from '@deepseek-ai/dsh-commands'
 import type { ToolRuntime } from '@deepseek-ai/dsh-tools'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
+    commands: CommandRuntime
     tools: ToolRuntime
   }
 }
@@ -14,7 +16,7 @@ import { loadRuntimePlugins } from './runtime-plugins.js'
 import { inspectBridgeEnabled, ownHostInspectBridge, startHostInspectBridge } from './inspect-bridge.js'
 import { registerApi } from '../api/runtime.js'
 
-const HOST_DEFINITION_KEYS = new Set(['name', 'inject', 'tools', 'api', 'apis', 'setup'])
+const HOST_DEFINITION_KEYS = new Set(['name', 'inject', 'tools', 'commands', 'api', 'apis', 'setup'])
 
 /** Project identity embedded by the Host compiler. */
 export interface HostPluginMetadata {
@@ -116,6 +118,9 @@ function validateDefinition(value: unknown, metadata: HostPluginMetadata): HostD
   if (source.tools !== undefined && !Array.isArray(source.tools)) {
     fail('DSHX2002', 'Host definition tools must be an array of official ToolDefinition values.', metadata, 'Use tools: [tool] or remove tools when this Host registers no tools.')
   }
+  if (source.commands !== undefined && !Array.isArray(source.commands)) {
+    fail('DSHX2002', 'Host definition commands must be an array of official CommandDefinition values.', metadata, 'Use commands: [command] or remove commands when this Host registers no commands.')
+  }
   if (source.api !== undefined && (typeof source.api !== 'object' || source.api === null || Array.isArray(source.api))) {
     fail('DSHX2002', 'Host api must be a value returned by api.host().', metadata, 'Use api: contract.host({ method() { ... } }) or remove api.')
   }
@@ -133,6 +138,7 @@ export function createHostPlugin(value: unknown, metadata: HostPluginMetadata): 
   const definition = validateDefinition(value, metadata)
   const inject = [...new Set(definition.inject ?? [])]
   if ((definition.tools?.length ?? 0) > 0 && !inject.includes('tools')) inject.push('tools')
+  if ((definition.commands?.length ?? 0) > 0 && !inject.includes('commands')) inject.push('commands')
   const apis = normalizeApis(definition)
   if (apis.length > 0 && !inject.includes('connection')) inject.push('connection')
   return {
@@ -140,6 +146,7 @@ export function createHostPlugin(value: unknown, metadata: HostPluginMetadata): 
     inject,
     apply(ctx) {
       for (const tool of definition.tools ?? []) ctx.tools.register(tool)
+      for (const command of definition.commands ?? []) ctx.commands.register(command)
       if (apis.length === 0) return withRuntime(ctx, definition.setup?.(ctx), metadata)
       const apiSetup = Promise.all(apis.map(api => registerApi(ctx, metadata.packageId, api)))
       return withRuntime(ctx, apiSetup.then(() => definition.setup?.(ctx)), metadata)

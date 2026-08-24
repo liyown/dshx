@@ -657,7 +657,7 @@ function Docs() {
                   {content.plugins} →
                 </a>
                 <a
-                  href="https://github.com"
+                  href="https://github.com/liyown/dshx"
                   target="_blank"
                   rel="noreferrer"
                   className="text-foreground hover:underline"

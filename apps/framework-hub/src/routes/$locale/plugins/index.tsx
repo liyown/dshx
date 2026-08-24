@@ -1,55 +1,84 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Container, SectionLabel, Chip } from "@/components/dshx/primitives";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { ArrowRight, LayoutGrid, List, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+
 import { PluginCard, PluginRow } from "@/components/dshx/plugin-card";
-import { categories, plugins } from "@/lib/plugins";
-import { cn } from "@/lib/utils";
+import { Chip, Container, SectionLabel } from "@/components/dshx/primitives";
+import { loadCatalog } from "@/lib/catalog/functions";
 import { createTranslator, parseLocale, useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
+
+const sortValues = ["featured", "trending", "updated", "new", "stars", "downloads"] as const;
+type CatalogSort = (typeof sortValues)[number];
+
+function isCatalogSort(value: unknown): value is CatalogSort {
+  return typeof value === "string" && sortValues.includes(value as CatalogSort);
+}
 
 export const Route = createFileRoute("/$locale/plugins/")({
-  head: ({ params }) => {
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search["q"] === "string" ? search["q"].slice(0, 80) : "",
+    category: typeof search["category"] === "string" ? search["category"] : "",
+    sort: isCatalogSort(search["sort"]) ? search["sort"] : ("featured" as CatalogSort),
+    cursor: typeof search["cursor"] === "string" ? search["cursor"] : "",
+  }),
+  loaderDeps: ({ search }) => search,
+  loader: ({ params, deps }) =>
+    loadCatalog({
+      data: {
+        locale: parseLocale(params.locale),
+        q: deps.q,
+        sort: deps.sort,
+        limit: 24,
+        ...(deps.category ? { category: deps.category } : {}),
+        ...(deps.cursor ? { cursor: deps.cursor } : {}),
+      },
+    }),
+  head: ({ params, match }) => {
     const t = createTranslator(parseLocale(params.locale));
+    const hasIndexVariant = Object.values(match.search).some(
+      (value) => Boolean(value) && value !== "featured",
+    );
     return {
-    meta: [
-      { title: t("plugins.title") },
-      {
-        name: "description",
-        content: t("plugins.intro"),
-      },
-      { property: "og:title", content: t("plugins.title") },
-      {
-        property: "og:description",
-        content: t("plugins.intro"),
-      },
-    ],
+      meta: [
+        { title: t("plugins.title") },
+        { name: "description", content: t("plugins.intro") },
+        { property: "og:title", content: t("plugins.title") },
+        { property: "og:description", content: t("plugins.intro") },
+        { name: "robots", content: hasIndexVariant ? "noindex,follow" : "index,follow" },
+      ],
+      links: [
+        { rel: "canonical", href: `https://dshx.io/${params.locale}/plugins` },
+        { rel: "alternate", hrefLang: "en", href: "https://dshx.io/en/plugins" },
+        { rel: "alternate", hrefLang: "zh", href: "https://dshx.io/zh/plugins" },
+        { rel: "alternate", hrefLang: "x-default", href: "https://dshx.io/en/plugins" },
+      ],
     };
   },
   component: PluginsPage,
 });
 
-const tabs = ["Featured", "Trending", "Recently Updated", "New"] as const;
-
 function PluginsPage() {
+  const catalog = Route.useLoaderData();
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: "/$locale/plugins/" });
   const { t } = useI18n();
-  const [query, setQuery] = useState("");
-  const [cat, setCat] = useState<string | null>(null);
-  const [activeTab, setTab] = useState<(typeof tabs)[number]>("Featured");
+  const [query, setQuery] = useState(search.q);
   const [view, setView] = useState<"grid" | "list">("grid");
 
-  const results = useMemo(() => {
-    let list = plugins.filter(
-      (p) =>
-        (!cat || p.category === cat) &&
-        (query.trim() === "" ||
-          `${p.name} ${p.scope} ${p.description} ${p.author}`
-            .toLowerCase()
-            .includes(query.toLowerCase())),
-    );
-    if (activeTab === "Featured") list = [...list].sort((a, b) => Number(!!b.featured) - Number(!!a.featured));
-    if (activeTab === "Trending") list = list.filter((p) => p.trending || !cat).sort((a, b) => b.stars - a.stars);
-    if (activeTab === "New") list = [...list].sort((a, b) => Number(!!b.isNew) - Number(!!a.isNew));
-    return list;
-  }, [query, cat, activeTab]);
+  useEffect(() => setQuery(search.q), [search.q]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (query.trim() === search.q) return;
+      void navigate({ search: (old) => ({ ...old, q: query.trim(), cursor: "" }), replace: true });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [navigate, query, search.q]);
+
+  function updateSearch(next: Partial<typeof search>) {
+    void navigate({ search: (old) => ({ ...old, ...next, cursor: "" }) });
+  }
 
   return (
     <main>
@@ -62,82 +91,92 @@ function PluginsPage() {
           {t("plugins.intro")}
         </p>
 
-        <div className="mt-10 flex items-center gap-3 rounded-xl border border-border-strong bg-surface px-4 py-3 transition-colors focus-within:border-accent">
-          <span className="font-mono text-[13px] text-accent">⌕</span>
+        <label className="mt-10 flex items-center gap-3 rounded-xl border border-border-strong bg-surface px-4 py-3 transition-colors focus-within:border-accent">
+          <Search className="size-4 text-accent" aria-hidden="true" />
+          <span className="sr-only">{t("plugins.search")}</span>
           <input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(event) => setQuery(event.target.value)}
             placeholder={t("plugins.search")}
             className="w-full bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
           />
           <Chip className="shrink-0 whitespace-nowrap">
-            {t("plugins.results", { count: results.length })}
+            {t("plugins.results", { count: catalog.items.length })}
           </Chip>
-        </div>
+        </label>
 
         <div className="mt-5 flex flex-wrap gap-1.5">
           <button
-            onClick={() => setCat(null)}
+            onClick={() => updateSearch({ category: "" })}
             className={cn(
               "rounded-md border px-2.5 py-1 font-mono text-[11.5px] transition-colors",
-              cat === null
+              !search.category
                 ? "border-accent/40 bg-accent-soft text-accent"
                 : "border-border text-muted-foreground hover:text-foreground",
             )}
           >
             {t("plugins.all")}
           </button>
-          {categories.map((c) => (
+          {catalog.categories.map((category) => (
             <button
-              key={c}
-              onClick={() => setCat(c === cat ? null : c)}
+              key={category.slug}
+              onClick={() =>
+                updateSearch({ category: category.slug === search.category ? "" : category.slug })
+              }
               className={cn(
                 "rounded-md border px-2.5 py-1 font-mono text-[11.5px] transition-colors",
-                cat === c
+                search.category === category.slug
                   ? "border-accent/40 bg-accent-soft text-accent"
                   : "border-border text-muted-foreground hover:text-foreground",
               )}
             >
-              {c}
+              {category.name}
             </button>
           ))}
         </div>
 
-        <div className="mt-10 flex items-center justify-between border-b border-border pb-3">
-          <div className="flex gap-4">
-            {tabs.map((tab) => (
+        <div className="mt-10 flex items-end justify-between gap-5 border-b border-border">
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {sortValues.map((sort) => (
               <button
-                key={tab}
-                onClick={() => setTab(tab)}
+                key={sort}
+                onClick={() => updateSearch({ sort })}
                 className={cn(
                   "relative pb-3 text-[13.5px] transition-colors",
-                  activeTab === tab ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                  search.sort === sort
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {tab === "Featured"
+                {sort === "featured"
                   ? t("plugins.featured")
-                  : tab === "Trending"
+                  : sort === "trending"
                     ? t("plugins.trending")
-                    : tab === "Recently Updated"
+                    : sort === "updated"
                       ? t("plugins.recentlyUpdated")
-                      : t("plugins.new")}
-                {activeTab === tab && (
+                      : sort === "new"
+                        ? t("plugins.new")
+                        : sort === "stars"
+                          ? "Most starred"
+                          : "Most downloaded"}
+                {search.sort === sort ? (
                   <span className="absolute -bottom-px left-0 h-px w-full bg-accent" />
-                )}
+                ) : null}
               </button>
             ))}
           </div>
-          <div className="flex gap-1 font-mono text-[11px]">
-            {(["grid", "list"] as const).map((v) => (
+          <div className="mb-2 flex gap-1">
+            {(["grid", "list"] as const).map((value) => (
               <button
-                key={v}
-                onClick={() => setView(v)}
+                key={value}
+                onClick={() => setView(value)}
+                aria-label={`${value} view`}
                 className={cn(
-                  "rounded-md px-2 py-1 transition-colors",
-                  view === v ? "bg-surface-2 text-foreground" : "text-muted-foreground",
+                  "rounded-md p-2 transition-colors",
+                  view === value ? "bg-surface-2 text-foreground" : "text-muted-foreground",
                 )}
               >
-                {v}
+                {value === "grid" ? <LayoutGrid className="size-4" /> : <List className="size-4" />}
               </button>
             ))}
           </div>
@@ -145,23 +184,36 @@ function PluginsPage() {
 
         {view === "grid" ? (
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {results.map((p) => (
-              <PluginCard key={p.slug} plugin={p} />
+            {catalog.items.map((plugin) => (
+              <PluginCard key={plugin.slug} plugin={plugin} />
             ))}
           </div>
         ) : (
           <div className="mt-8 overflow-hidden rounded-xl border border-border bg-surface">
-            {results.map((p) => (
-              <PluginRow key={p.slug} plugin={p} />
+            {catalog.items.map((plugin) => (
+              <PluginRow key={plugin.slug} plugin={plugin} />
             ))}
           </div>
         )}
 
-        {results.length === 0 && (
+        {catalog.items.length === 0 ? (
           <p className="mt-10 font-mono text-[12.5px] text-muted-foreground">
             {t("plugins.noMatches")}
           </p>
-        )}
+        ) : null}
+
+        {catalog.nextCursor ? (
+          <div className="mt-10 flex justify-center">
+            <button
+              onClick={() =>
+                void navigate({ search: (old) => ({ ...old, cursor: catalog.nextCursor ?? "" }) })
+              }
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-border-strong bg-surface px-4 text-sm transition-colors hover:bg-surface-2"
+            >
+              Load next page <ArrowRight className="size-4" data-icon="inline-end" />
+            </button>
+          </div>
+        ) : null}
 
         <div className="mt-16 rounded-xl border border-dashed border-border-strong p-6">
           <span className="mono-label">{t("plugins.publishing")}</span>

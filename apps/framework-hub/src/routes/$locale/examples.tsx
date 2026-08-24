@@ -7,18 +7,18 @@ export const Route = createFileRoute("/$locale/examples")({
   head: ({ params }) => {
     const t = createTranslator(parseLocale(params.locale));
     return {
-    meta: [
-      { title: t("examples.title") + " — DSHX" },
-      {
-        name: "description",
-        content: t("examples.title"),
-      },
-      { property: "og:title", content: t("examples.title") + " — DSHX" },
-      {
-        property: "og:description",
-        content: t("examples.title"),
-      },
-    ],
+      meta: [
+        { title: t("examples.title") + " — DSHX" },
+        {
+          name: "description",
+          content: t("examples.title"),
+        },
+        { property: "og:title", content: t("examples.title") + " — DSHX" },
+        {
+          property: "og:description",
+          content: t("examples.title"),
+        },
+      ],
     };
   },
   component: Examples,
@@ -103,9 +103,7 @@ function Examples() {
                 <span className="font-mono text-[13.5px]">
                   {t(exampleCopy[e.name as keyof typeof exampleCopy].title)}
                 </span>
-                <Chip tone="accent">
-                  {t(exampleCopy[e.name as keyof typeof exampleCopy].tag)}
-                </Chip>
+                <Chip tone="accent">{t(exampleCopy[e.name as keyof typeof exampleCopy].tag)}</Chip>
               </div>
               <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
                 {t(exampleCopy[e.name as keyof typeof exampleCopy].description)}

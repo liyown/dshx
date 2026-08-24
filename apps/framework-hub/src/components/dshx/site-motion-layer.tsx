@@ -22,6 +22,8 @@ function getMajorSurfaces() {
 
 export function SiteMotionLayer() {
   const sceneRef = useRef(0);
+  const [mounted, setMounted] = useState(false);
+  const [desktopEffects, setDesktopEffects] = useState(false);
   const [scene, setScene] = useState<SceneState>({ index: 0, count: 1 });
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const reduceMotion = useHydratedReducedMotion();
@@ -35,6 +37,15 @@ export function SiteMotionLayer() {
   const progressPosition = useTransform(railProgress, (value) => `${value * 100}%`);
   const fieldY = useTransform(progress, [0, 1], ["-6vh", "6vh"]);
   const glowY = useTransform(progress, [0, 1], ["-14vh", "58vh"]);
+
+  useEffect(() => {
+    setMounted(true);
+    const query = window.matchMedia("(min-width: 768px)");
+    const update = () => setDesktopEffects(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     sceneRef.current = scene.index;
@@ -93,7 +104,7 @@ export function SiteMotionLayer() {
           y: reduceMotion ? 0 : fieldY,
         }}
       >
-        {reduceMotion ? null : (
+        {!mounted || reduceMotion || !desktopEffects ? null : (
           <Suspense fallback={null}>
             <PixelBlast
               className="site-pixel-blast-field"

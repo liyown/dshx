@@ -11,12 +11,85 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LocaleRouteImport } from './routes/$locale'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
-import { Route as LocaleChangelogRouteImport } from './routes/$locale/changelog'
 import { Route as LocaleDocsRouteImport } from './routes/$locale/docs'
 import { Route as LocaleExamplesRouteImport } from './routes/$locale/examples'
+import { Route as ApiConfigRouteImport } from './routes/api/config'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as LocaleAccountIndexRouteImport } from './routes/$locale/account/index'
+import { Route as LocaleAccountAppealsRouteImport } from './routes/$locale/account/appeals'
+import { Route as LocaleAccountCollectionsRouteImport } from './routes/$locale/account/collections'
+import { Route as LocaleAccountNotificationsRouteImport } from './routes/$locale/account/notifications'
+import { Route as LocaleAccountSettingsRouteImport } from './routes/$locale/account/settings'
+import { Route as LocaleAccountSubmissionsRouteImport } from './routes/$locale/account/submissions'
+import { Route as LocaleAuthCliRouteImport } from './routes/$locale/auth/cli'
+import { Route as LocaleCategoriesSlugRouteImport } from './routes/$locale/categories/$slug'
+import { Route as LocaleCollectionsIdRouteImport } from './routes/$locale/collections/$id'
+import { Route as LocaleLegalDocumentRouteImport } from './routes/$locale/legal/$document'
 import { Route as LocalePluginsIndexRouteImport } from './routes/$locale/plugins/index'
 import { Route as LocalePluginsSlugRouteImport } from './routes/$locale/plugins/$slug'
+import { Route as LocalePublishersLoginRouteImport } from './routes/$locale/publishers/$login'
+import { Route as LocaleUsersLoginRouteImport } from './routes/$locale/users/$login'
+import { Route as AdminApprovalsIndexRouteImport } from './routes/admin/approvals/index'
+import { Route as AdminApprovalsIdRouteImport } from './routes/admin/approvals/$id'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiCliTokenRouteImport } from './routes/api/cli/token'
+import { Route as ApiCollectionsIdRouteImport } from './routes/api/collections/$id'
+import { Route as ApiMeAccountRouteImport } from './routes/api/me/account'
+import { Route as ApiMeProfileRouteImport } from './routes/api/me/profile'
+import { Route as ApiMeRelationshipsRouteImport } from './routes/api/me/relationships'
+import { Route as ApiMediaIdRouteImport } from './routes/api/media/$id'
+import { Route as ApiOpsMediaRouteImport } from './routes/api/ops/media'
+import { Route as ApiOpsMetricsRouteImport } from './routes/api/ops/metrics'
+import { Route as ApiOpsWorkItemsRouteImport } from './routes/api/ops/work-items'
+import { Route as ApiPluginsIndexRouteImport } from './routes/api/plugins/index'
+import { Route as ApiPluginsSlugRouteImport } from './routes/api/plugins/$slug'
+import { Route as ApiPublishersLoginRouteImport } from './routes/api/publishers/$login'
+import { Route as ApiRepliesIdRouteImport } from './routes/api/replies/$id'
+import { Route as ApiReportsIndexRouteImport } from './routes/api/reports/index'
+import { Route as ApiUsersLoginRouteImport } from './routes/api/users/$login'
+import { Route as ApiAdminApprovalsIndexRouteImport } from './routes/api/admin/approvals/index'
+import { Route as ApiAdminApprovalsIdRouteImport } from './routes/api/admin/approvals/$id'
+import { Route as ApiClaimsIdVerifyRouteImport } from './routes/api/claims/$id/verify'
+import { Route as ApiCliAuthorizationsIndexRouteImport } from './routes/api/cli/authorizations/index'
+import { Route as ApiMeAppealsIndexRouteImport } from './routes/api/me/appeals/index'
+import { Route as ApiMeBlocksUserIdRouteImport } from './routes/api/me/blocks/$userId'
+import { Route as ApiMeCollectionsIndexRouteImport } from './routes/api/me/collections/index'
+import { Route as ApiMeCollectionsIdRouteImport } from './routes/api/me/collections/$id'
+import { Route as ApiMeNotificationsIndexRouteImport } from './routes/api/me/notifications/index'
+import { Route as ApiMeSubmissionsIndexRouteImport } from './routes/api/me/submissions/index'
+import { Route as ApiOpsApprovalsIndexRouteImport } from './routes/api/ops/approvals/index'
+import { Route as ApiOpsApprovalsIdRouteImport } from './routes/api/ops/approvals/$id'
+import { Route as ApiOpsCatalogInventoryRouteImport } from './routes/api/ops/catalog/inventory'
+import { Route as ApiOpsCatalogSubmissionsRouteImport } from './routes/api/ops/catalog/submissions'
+import { Route as ApiOpsCatalogVerificationRouteImport } from './routes/api/ops/catalog/verification'
+import { Route as ApiOpsContractsKindRouteImport } from './routes/api/ops/contracts/$kind'
+import { Route as ApiOpsMaintenanceAuditRouteImport } from './routes/api/ops/maintenance/audit'
+import { Route as ApiOpsModerationActionsRouteImport } from './routes/api/ops/moderation/actions'
+import { Route as ApiOpsModerationQueueRouteImport } from './routes/api/ops/moderation/queue'
+import { Route as ApiPluginsSlugClaimsRouteImport } from './routes/api/plugins/$slug/claims'
+import { Route as ApiPluginsSlugReviewRouteImport } from './routes/api/plugins/$slug/review'
+import { Route as ApiPluginsSlugReviewsRouteImport } from './routes/api/plugins/$slug/reviews'
+import { Route as ApiReviewsIdRepliesRouteImport } from './routes/api/reviews/$id/replies'
+import { Route as ApiAdminApprovalsIdDecisionsRouteImport } from './routes/api/admin/approvals/$id/decisions'
+import { Route as ApiCliAuthorizationsIdApproveRouteImport } from './routes/api/cli/authorizations/$id/approve'
+import { Route as ApiMeNotificationsIdReadRouteImport } from './routes/api/me/notifications/$id/read'
+import { Route as ApiMePluginsPluginIdBookmarkRouteImport } from './routes/api/me/plugins/$pluginId/bookmark'
+import { Route as ApiMePluginsPluginIdFollowRouteImport } from './routes/api/me/plugins/$pluginId/follow'
+import { Route as ApiMePublishersPublisherIdFollowRouteImport } from './routes/api/me/publishers/$publisherId/follow'
+import { Route as ApiOpsApprovalsIdRevisionsRouteImport } from './routes/api/ops/approvals/$id/revisions'
+import { Route as ApiOpsCatalogRunsIndexRouteImport } from './routes/api/ops/catalog/runs/index'
+import { Route as ApiOpsCatalogRunsIdRouteImport } from './routes/api/ops/catalog/runs/$id'
+import { Route as ApiOpsUsersIdRoleRouteImport } from './routes/api/ops/users/$id/role'
+import { Route as ApiAdminApprovalsIdEffectsRetryRouteImport } from './routes/api/admin/approvals/$id/effects/retry'
+import { Route as ApiMeCollectionsIdPluginsPluginIdRouteImport } from './routes/api/me/collections/$id/plugins/$pluginId'
+import { Route as ApiOpsApprovalsIdEffectsClaimRouteImport } from './routes/api/ops/approvals/$id/effects/claim'
+import { Route as ApiOpsApprovalsIdEffectsResultRouteImport } from './routes/api/ops/approvals/$id/effects/result'
+import { Route as ApiOpsCatalogRunsIdAbortRouteImport } from './routes/api/ops/catalog/runs/$id/abort'
+import { Route as ApiOpsCatalogRunsIdCommitRouteImport } from './routes/api/ops/catalog/runs/$id/commit'
+import { Route as ApiOpsCatalogRunsIdItemsRouteImport } from './routes/api/ops/catalog/runs/$id/items'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,14 +101,19 @@ const LocaleRoute = LocaleRouteImport.update({
   path: '/$locale',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LocaleIndexRoute = LocaleIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => LocaleRoute,
-} as any)
-const LocaleChangelogRoute = LocaleChangelogRouteImport.update({
-  id: '/changelog',
-  path: '/changelog',
   getParentRoute: () => LocaleRoute,
 } as any)
 const LocaleDocsRoute = LocaleDocsRouteImport.update({
@@ -48,6 +126,69 @@ const LocaleExamplesRoute = LocaleExamplesRouteImport.update({
   path: '/examples',
   getParentRoute: () => LocaleRoute,
 } as any)
+const ApiConfigRoute = ApiConfigRouteImport.update({
+  id: '/api/config',
+  path: '/api/config',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocaleAccountIndexRoute = LocaleAccountIndexRouteImport.update({
+  id: '/account/',
+  path: '/account/',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleAccountAppealsRoute = LocaleAccountAppealsRouteImport.update({
+  id: '/account/appeals',
+  path: '/account/appeals',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleAccountCollectionsRoute =
+  LocaleAccountCollectionsRouteImport.update({
+    id: '/account/collections',
+    path: '/account/collections',
+    getParentRoute: () => LocaleRoute,
+  } as any)
+const LocaleAccountNotificationsRoute =
+  LocaleAccountNotificationsRouteImport.update({
+    id: '/account/notifications',
+    path: '/account/notifications',
+    getParentRoute: () => LocaleRoute,
+  } as any)
+const LocaleAccountSettingsRoute = LocaleAccountSettingsRouteImport.update({
+  id: '/account/settings',
+  path: '/account/settings',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleAccountSubmissionsRoute =
+  LocaleAccountSubmissionsRouteImport.update({
+    id: '/account/submissions',
+    path: '/account/submissions',
+    getParentRoute: () => LocaleRoute,
+  } as any)
+const LocaleAuthCliRoute = LocaleAuthCliRouteImport.update({
+  id: '/auth/cli',
+  path: '/auth/cli',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleCategoriesSlugRoute = LocaleCategoriesSlugRouteImport.update({
+  id: '/categories/$slug',
+  path: '/categories/$slug',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleCollectionsIdRoute = LocaleCollectionsIdRouteImport.update({
+  id: '/collections/$id',
+  path: '/collections/$id',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleLegalDocumentRoute = LocaleLegalDocumentRouteImport.update({
+  id: '/legal/$document',
+  path: '/legal/$document',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocalePluginsIndexRoute = LocalePluginsIndexRouteImport.update({
   id: '/plugins/',
   path: '/plugins/',
@@ -58,72 +199,877 @@ const LocalePluginsSlugRoute = LocalePluginsSlugRouteImport.update({
   path: '/plugins/$slug',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocalePublishersLoginRoute = LocalePublishersLoginRouteImport.update({
+  id: '/publishers/$login',
+  path: '/publishers/$login',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleUsersLoginRoute = LocaleUsersLoginRouteImport.update({
+  id: '/users/$login',
+  path: '/users/$login',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const AdminApprovalsIndexRoute = AdminApprovalsIndexRouteImport.update({
+  id: '/admin/approvals/',
+  path: '/admin/approvals/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminApprovalsIdRoute = AdminApprovalsIdRouteImport.update({
+  id: '/admin/approvals/$id',
+  path: '/admin/approvals/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCliTokenRoute = ApiCliTokenRouteImport.update({
+  id: '/api/cli/token',
+  path: '/api/cli/token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCollectionsIdRoute = ApiCollectionsIdRouteImport.update({
+  id: '/api/collections/$id',
+  path: '/api/collections/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMeAccountRoute = ApiMeAccountRouteImport.update({
+  id: '/api/me/account',
+  path: '/api/me/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMeProfileRoute = ApiMeProfileRouteImport.update({
+  id: '/api/me/profile',
+  path: '/api/me/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMeRelationshipsRoute = ApiMeRelationshipsRouteImport.update({
+  id: '/api/me/relationships',
+  path: '/api/me/relationships',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMediaIdRoute = ApiMediaIdRouteImport.update({
+  id: '/api/media/$id',
+  path: '/api/media/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsMediaRoute = ApiOpsMediaRouteImport.update({
+  id: '/api/ops/media',
+  path: '/api/ops/media',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsMetricsRoute = ApiOpsMetricsRouteImport.update({
+  id: '/api/ops/metrics',
+  path: '/api/ops/metrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsWorkItemsRoute = ApiOpsWorkItemsRouteImport.update({
+  id: '/api/ops/work-items',
+  path: '/api/ops/work-items',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPluginsIndexRoute = ApiPluginsIndexRouteImport.update({
+  id: '/api/plugins/',
+  path: '/api/plugins/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPluginsSlugRoute = ApiPluginsSlugRouteImport.update({
+  id: '/api/plugins/$slug',
+  path: '/api/plugins/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublishersLoginRoute = ApiPublishersLoginRouteImport.update({
+  id: '/api/publishers/$login',
+  path: '/api/publishers/$login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRepliesIdRoute = ApiRepliesIdRouteImport.update({
+  id: '/api/replies/$id',
+  path: '/api/replies/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReportsIndexRoute = ApiReportsIndexRouteImport.update({
+  id: '/api/reports/',
+  path: '/api/reports/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiUsersLoginRoute = ApiUsersLoginRouteImport.update({
+  id: '/api/users/$login',
+  path: '/api/users/$login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminApprovalsIndexRoute = ApiAdminApprovalsIndexRouteImport.update({
+  id: '/api/admin/approvals/',
+  path: '/api/admin/approvals/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminApprovalsIdRoute = ApiAdminApprovalsIdRouteImport.update({
+  id: '/api/admin/approvals/$id',
+  path: '/api/admin/approvals/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiClaimsIdVerifyRoute = ApiClaimsIdVerifyRouteImport.update({
+  id: '/api/claims/$id/verify',
+  path: '/api/claims/$id/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCliAuthorizationsIndexRoute =
+  ApiCliAuthorizationsIndexRouteImport.update({
+    id: '/api/cli/authorizations/',
+    path: '/api/cli/authorizations/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiMeAppealsIndexRoute = ApiMeAppealsIndexRouteImport.update({
+  id: '/api/me/appeals/',
+  path: '/api/me/appeals/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMeBlocksUserIdRoute = ApiMeBlocksUserIdRouteImport.update({
+  id: '/api/me/blocks/$userId',
+  path: '/api/me/blocks/$userId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMeCollectionsIndexRoute = ApiMeCollectionsIndexRouteImport.update({
+  id: '/api/me/collections/',
+  path: '/api/me/collections/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMeCollectionsIdRoute = ApiMeCollectionsIdRouteImport.update({
+  id: '/api/me/collections/$id',
+  path: '/api/me/collections/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMeNotificationsIndexRoute = ApiMeNotificationsIndexRouteImport.update({
+  id: '/api/me/notifications/',
+  path: '/api/me/notifications/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMeSubmissionsIndexRoute = ApiMeSubmissionsIndexRouteImport.update({
+  id: '/api/me/submissions/',
+  path: '/api/me/submissions/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsApprovalsIndexRoute = ApiOpsApprovalsIndexRouteImport.update({
+  id: '/api/ops/approvals/',
+  path: '/api/ops/approvals/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsApprovalsIdRoute = ApiOpsApprovalsIdRouteImport.update({
+  id: '/api/ops/approvals/$id',
+  path: '/api/ops/approvals/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsCatalogInventoryRoute = ApiOpsCatalogInventoryRouteImport.update({
+  id: '/api/ops/catalog/inventory',
+  path: '/api/ops/catalog/inventory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsCatalogSubmissionsRoute =
+  ApiOpsCatalogSubmissionsRouteImport.update({
+    id: '/api/ops/catalog/submissions',
+    path: '/api/ops/catalog/submissions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiOpsCatalogVerificationRoute =
+  ApiOpsCatalogVerificationRouteImport.update({
+    id: '/api/ops/catalog/verification',
+    path: '/api/ops/catalog/verification',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiOpsContractsKindRoute = ApiOpsContractsKindRouteImport.update({
+  id: '/api/ops/contracts/$kind',
+  path: '/api/ops/contracts/$kind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsMaintenanceAuditRoute = ApiOpsMaintenanceAuditRouteImport.update({
+  id: '/api/ops/maintenance/audit',
+  path: '/api/ops/maintenance/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsModerationActionsRoute = ApiOpsModerationActionsRouteImport.update({
+  id: '/api/ops/moderation/actions',
+  path: '/api/ops/moderation/actions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsModerationQueueRoute = ApiOpsModerationQueueRouteImport.update({
+  id: '/api/ops/moderation/queue',
+  path: '/api/ops/moderation/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPluginsSlugClaimsRoute = ApiPluginsSlugClaimsRouteImport.update({
+  id: '/claims',
+  path: '/claims',
+  getParentRoute: () => ApiPluginsSlugRoute,
+} as any)
+const ApiPluginsSlugReviewRoute = ApiPluginsSlugReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => ApiPluginsSlugRoute,
+} as any)
+const ApiPluginsSlugReviewsRoute = ApiPluginsSlugReviewsRouteImport.update({
+  id: '/reviews',
+  path: '/reviews',
+  getParentRoute: () => ApiPluginsSlugRoute,
+} as any)
+const ApiReviewsIdRepliesRoute = ApiReviewsIdRepliesRouteImport.update({
+  id: '/api/reviews/$id/replies',
+  path: '/api/reviews/$id/replies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminApprovalsIdDecisionsRoute =
+  ApiAdminApprovalsIdDecisionsRouteImport.update({
+    id: '/decisions',
+    path: '/decisions',
+    getParentRoute: () => ApiAdminApprovalsIdRoute,
+  } as any)
+const ApiCliAuthorizationsIdApproveRoute =
+  ApiCliAuthorizationsIdApproveRouteImport.update({
+    id: '/api/cli/authorizations/$id/approve',
+    path: '/api/cli/authorizations/$id/approve',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiMeNotificationsIdReadRoute =
+  ApiMeNotificationsIdReadRouteImport.update({
+    id: '/api/me/notifications/$id/read',
+    path: '/api/me/notifications/$id/read',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiMePluginsPluginIdBookmarkRoute =
+  ApiMePluginsPluginIdBookmarkRouteImport.update({
+    id: '/api/me/plugins/$pluginId/bookmark',
+    path: '/api/me/plugins/$pluginId/bookmark',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiMePluginsPluginIdFollowRoute =
+  ApiMePluginsPluginIdFollowRouteImport.update({
+    id: '/api/me/plugins/$pluginId/follow',
+    path: '/api/me/plugins/$pluginId/follow',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiMePublishersPublisherIdFollowRoute =
+  ApiMePublishersPublisherIdFollowRouteImport.update({
+    id: '/api/me/publishers/$publisherId/follow',
+    path: '/api/me/publishers/$publisherId/follow',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiOpsApprovalsIdRevisionsRoute =
+  ApiOpsApprovalsIdRevisionsRouteImport.update({
+    id: '/revisions',
+    path: '/revisions',
+    getParentRoute: () => ApiOpsApprovalsIdRoute,
+  } as any)
+const ApiOpsCatalogRunsIndexRoute = ApiOpsCatalogRunsIndexRouteImport.update({
+  id: '/api/ops/catalog/runs/',
+  path: '/api/ops/catalog/runs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsCatalogRunsIdRoute = ApiOpsCatalogRunsIdRouteImport.update({
+  id: '/api/ops/catalog/runs/$id',
+  path: '/api/ops/catalog/runs/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsUsersIdRoleRoute = ApiOpsUsersIdRoleRouteImport.update({
+  id: '/api/ops/users/$id/role',
+  path: '/api/ops/users/$id/role',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminApprovalsIdEffectsRetryRoute =
+  ApiAdminApprovalsIdEffectsRetryRouteImport.update({
+    id: '/effects/retry',
+    path: '/effects/retry',
+    getParentRoute: () => ApiAdminApprovalsIdRoute,
+  } as any)
+const ApiMeCollectionsIdPluginsPluginIdRoute =
+  ApiMeCollectionsIdPluginsPluginIdRouteImport.update({
+    id: '/plugins/$pluginId',
+    path: '/plugins/$pluginId',
+    getParentRoute: () => ApiMeCollectionsIdRoute,
+  } as any)
+const ApiOpsApprovalsIdEffectsClaimRoute =
+  ApiOpsApprovalsIdEffectsClaimRouteImport.update({
+    id: '/effects/claim',
+    path: '/effects/claim',
+    getParentRoute: () => ApiOpsApprovalsIdRoute,
+  } as any)
+const ApiOpsApprovalsIdEffectsResultRoute =
+  ApiOpsApprovalsIdEffectsResultRouteImport.update({
+    id: '/effects/result',
+    path: '/effects/result',
+    getParentRoute: () => ApiOpsApprovalsIdRoute,
+  } as any)
+const ApiOpsCatalogRunsIdAbortRoute =
+  ApiOpsCatalogRunsIdAbortRouteImport.update({
+    id: '/abort',
+    path: '/abort',
+    getParentRoute: () => ApiOpsCatalogRunsIdRoute,
+  } as any)
+const ApiOpsCatalogRunsIdCommitRoute =
+  ApiOpsCatalogRunsIdCommitRouteImport.update({
+    id: '/commit',
+    path: '/commit',
+    getParentRoute: () => ApiOpsCatalogRunsIdRoute,
+  } as any)
+const ApiOpsCatalogRunsIdItemsRoute =
+  ApiOpsCatalogRunsIdItemsRouteImport.update({
+    id: '/items',
+    path: '/items',
+    getParentRoute: () => ApiOpsCatalogRunsIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
-  '/$locale/changelog': typeof LocaleChangelogRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$locale/docs': typeof LocaleDocsRoute
   '/$locale/examples': typeof LocaleExamplesRoute
+  '/api/config': typeof ApiConfigRoute
+  '/api/health': typeof ApiHealthRoute
   '/$locale/': typeof LocaleIndexRoute
+  '/$locale/account/appeals': typeof LocaleAccountAppealsRoute
+  '/$locale/account/collections': typeof LocaleAccountCollectionsRoute
+  '/$locale/account/notifications': typeof LocaleAccountNotificationsRoute
+  '/$locale/account/settings': typeof LocaleAccountSettingsRoute
+  '/$locale/account/submissions': typeof LocaleAccountSubmissionsRoute
+  '/$locale/auth/cli': typeof LocaleAuthCliRoute
+  '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
+  '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
+  '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
+  '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
+  '/$locale/users/$login': typeof LocaleUsersLoginRoute
+  '/admin/approvals/$id': typeof AdminApprovalsIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cli/token': typeof ApiCliTokenRoute
+  '/api/collections/$id': typeof ApiCollectionsIdRoute
+  '/api/me/account': typeof ApiMeAccountRoute
+  '/api/me/profile': typeof ApiMeProfileRoute
+  '/api/me/relationships': typeof ApiMeRelationshipsRoute
+  '/api/media/$id': typeof ApiMediaIdRoute
+  '/api/ops/media': typeof ApiOpsMediaRoute
+  '/api/ops/metrics': typeof ApiOpsMetricsRoute
+  '/api/ops/work-items': typeof ApiOpsWorkItemsRoute
+  '/api/plugins/$slug': typeof ApiPluginsSlugRouteWithChildren
+  '/api/publishers/$login': typeof ApiPublishersLoginRoute
+  '/api/replies/$id': typeof ApiRepliesIdRoute
+  '/api/users/$login': typeof ApiUsersLoginRoute
+  '/$locale/account/': typeof LocaleAccountIndexRoute
   '/$locale/plugins/': typeof LocalePluginsIndexRoute
+  '/admin/approvals/': typeof AdminApprovalsIndexRoute
+  '/api/plugins/': typeof ApiPluginsIndexRoute
+  '/api/reports/': typeof ApiReportsIndexRoute
+  '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
+  '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
+  '/api/me/blocks/$userId': typeof ApiMeBlocksUserIdRoute
+  '/api/me/collections/$id': typeof ApiMeCollectionsIdRouteWithChildren
+  '/api/ops/approvals/$id': typeof ApiOpsApprovalsIdRouteWithChildren
+  '/api/ops/catalog/inventory': typeof ApiOpsCatalogInventoryRoute
+  '/api/ops/catalog/submissions': typeof ApiOpsCatalogSubmissionsRoute
+  '/api/ops/catalog/verification': typeof ApiOpsCatalogVerificationRoute
+  '/api/ops/contracts/$kind': typeof ApiOpsContractsKindRoute
+  '/api/ops/maintenance/audit': typeof ApiOpsMaintenanceAuditRoute
+  '/api/ops/moderation/actions': typeof ApiOpsModerationActionsRoute
+  '/api/ops/moderation/queue': typeof ApiOpsModerationQueueRoute
+  '/api/plugins/$slug/claims': typeof ApiPluginsSlugClaimsRoute
+  '/api/plugins/$slug/review': typeof ApiPluginsSlugReviewRoute
+  '/api/plugins/$slug/reviews': typeof ApiPluginsSlugReviewsRoute
+  '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
+  '/api/admin/approvals/': typeof ApiAdminApprovalsIndexRoute
+  '/api/cli/authorizations/': typeof ApiCliAuthorizationsIndexRoute
+  '/api/me/appeals/': typeof ApiMeAppealsIndexRoute
+  '/api/me/collections/': typeof ApiMeCollectionsIndexRoute
+  '/api/me/notifications/': typeof ApiMeNotificationsIndexRoute
+  '/api/me/submissions/': typeof ApiMeSubmissionsIndexRoute
+  '/api/ops/approvals/': typeof ApiOpsApprovalsIndexRoute
+  '/api/admin/approvals/$id/decisions': typeof ApiAdminApprovalsIdDecisionsRoute
+  '/api/cli/authorizations/$id/approve': typeof ApiCliAuthorizationsIdApproveRoute
+  '/api/me/notifications/$id/read': typeof ApiMeNotificationsIdReadRoute
+  '/api/me/plugins/$pluginId/bookmark': typeof ApiMePluginsPluginIdBookmarkRoute
+  '/api/me/plugins/$pluginId/follow': typeof ApiMePluginsPluginIdFollowRoute
+  '/api/me/publishers/$publisherId/follow': typeof ApiMePublishersPublisherIdFollowRoute
+  '/api/ops/approvals/$id/revisions': typeof ApiOpsApprovalsIdRevisionsRoute
+  '/api/ops/catalog/runs/$id': typeof ApiOpsCatalogRunsIdRouteWithChildren
+  '/api/ops/users/$id/role': typeof ApiOpsUsersIdRoleRoute
+  '/api/ops/catalog/runs/': typeof ApiOpsCatalogRunsIndexRoute
+  '/api/admin/approvals/$id/effects/retry': typeof ApiAdminApprovalsIdEffectsRetryRoute
+  '/api/me/collections/$id/plugins/$pluginId': typeof ApiMeCollectionsIdPluginsPluginIdRoute
+  '/api/ops/approvals/$id/effects/claim': typeof ApiOpsApprovalsIdEffectsClaimRoute
+  '/api/ops/approvals/$id/effects/result': typeof ApiOpsApprovalsIdEffectsResultRoute
+  '/api/ops/catalog/runs/$id/abort': typeof ApiOpsCatalogRunsIdAbortRoute
+  '/api/ops/catalog/runs/$id/commit': typeof ApiOpsCatalogRunsIdCommitRoute
+  '/api/ops/catalog/runs/$id/items': typeof ApiOpsCatalogRunsIdItemsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/$locale/changelog': typeof LocaleChangelogRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$locale/docs': typeof LocaleDocsRoute
   '/$locale/examples': typeof LocaleExamplesRoute
+  '/api/config': typeof ApiConfigRoute
+  '/api/health': typeof ApiHealthRoute
   '/$locale': typeof LocaleIndexRoute
+  '/$locale/account/appeals': typeof LocaleAccountAppealsRoute
+  '/$locale/account/collections': typeof LocaleAccountCollectionsRoute
+  '/$locale/account/notifications': typeof LocaleAccountNotificationsRoute
+  '/$locale/account/settings': typeof LocaleAccountSettingsRoute
+  '/$locale/account/submissions': typeof LocaleAccountSubmissionsRoute
+  '/$locale/auth/cli': typeof LocaleAuthCliRoute
+  '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
+  '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
+  '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
+  '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
+  '/$locale/users/$login': typeof LocaleUsersLoginRoute
+  '/admin/approvals/$id': typeof AdminApprovalsIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cli/token': typeof ApiCliTokenRoute
+  '/api/collections/$id': typeof ApiCollectionsIdRoute
+  '/api/me/account': typeof ApiMeAccountRoute
+  '/api/me/profile': typeof ApiMeProfileRoute
+  '/api/me/relationships': typeof ApiMeRelationshipsRoute
+  '/api/media/$id': typeof ApiMediaIdRoute
+  '/api/ops/media': typeof ApiOpsMediaRoute
+  '/api/ops/metrics': typeof ApiOpsMetricsRoute
+  '/api/ops/work-items': typeof ApiOpsWorkItemsRoute
+  '/api/plugins/$slug': typeof ApiPluginsSlugRouteWithChildren
+  '/api/publishers/$login': typeof ApiPublishersLoginRoute
+  '/api/replies/$id': typeof ApiRepliesIdRoute
+  '/api/users/$login': typeof ApiUsersLoginRoute
+  '/$locale/account': typeof LocaleAccountIndexRoute
   '/$locale/plugins': typeof LocalePluginsIndexRoute
+  '/admin/approvals': typeof AdminApprovalsIndexRoute
+  '/api/plugins': typeof ApiPluginsIndexRoute
+  '/api/reports': typeof ApiReportsIndexRoute
+  '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
+  '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
+  '/api/me/blocks/$userId': typeof ApiMeBlocksUserIdRoute
+  '/api/me/collections/$id': typeof ApiMeCollectionsIdRouteWithChildren
+  '/api/ops/approvals/$id': typeof ApiOpsApprovalsIdRouteWithChildren
+  '/api/ops/catalog/inventory': typeof ApiOpsCatalogInventoryRoute
+  '/api/ops/catalog/submissions': typeof ApiOpsCatalogSubmissionsRoute
+  '/api/ops/catalog/verification': typeof ApiOpsCatalogVerificationRoute
+  '/api/ops/contracts/$kind': typeof ApiOpsContractsKindRoute
+  '/api/ops/maintenance/audit': typeof ApiOpsMaintenanceAuditRoute
+  '/api/ops/moderation/actions': typeof ApiOpsModerationActionsRoute
+  '/api/ops/moderation/queue': typeof ApiOpsModerationQueueRoute
+  '/api/plugins/$slug/claims': typeof ApiPluginsSlugClaimsRoute
+  '/api/plugins/$slug/review': typeof ApiPluginsSlugReviewRoute
+  '/api/plugins/$slug/reviews': typeof ApiPluginsSlugReviewsRoute
+  '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
+  '/api/admin/approvals': typeof ApiAdminApprovalsIndexRoute
+  '/api/cli/authorizations': typeof ApiCliAuthorizationsIndexRoute
+  '/api/me/appeals': typeof ApiMeAppealsIndexRoute
+  '/api/me/collections': typeof ApiMeCollectionsIndexRoute
+  '/api/me/notifications': typeof ApiMeNotificationsIndexRoute
+  '/api/me/submissions': typeof ApiMeSubmissionsIndexRoute
+  '/api/ops/approvals': typeof ApiOpsApprovalsIndexRoute
+  '/api/admin/approvals/$id/decisions': typeof ApiAdminApprovalsIdDecisionsRoute
+  '/api/cli/authorizations/$id/approve': typeof ApiCliAuthorizationsIdApproveRoute
+  '/api/me/notifications/$id/read': typeof ApiMeNotificationsIdReadRoute
+  '/api/me/plugins/$pluginId/bookmark': typeof ApiMePluginsPluginIdBookmarkRoute
+  '/api/me/plugins/$pluginId/follow': typeof ApiMePluginsPluginIdFollowRoute
+  '/api/me/publishers/$publisherId/follow': typeof ApiMePublishersPublisherIdFollowRoute
+  '/api/ops/approvals/$id/revisions': typeof ApiOpsApprovalsIdRevisionsRoute
+  '/api/ops/catalog/runs/$id': typeof ApiOpsCatalogRunsIdRouteWithChildren
+  '/api/ops/users/$id/role': typeof ApiOpsUsersIdRoleRoute
+  '/api/ops/catalog/runs': typeof ApiOpsCatalogRunsIndexRoute
+  '/api/admin/approvals/$id/effects/retry': typeof ApiAdminApprovalsIdEffectsRetryRoute
+  '/api/me/collections/$id/plugins/$pluginId': typeof ApiMeCollectionsIdPluginsPluginIdRoute
+  '/api/ops/approvals/$id/effects/claim': typeof ApiOpsApprovalsIdEffectsClaimRoute
+  '/api/ops/approvals/$id/effects/result': typeof ApiOpsApprovalsIdEffectsResultRoute
+  '/api/ops/catalog/runs/$id/abort': typeof ApiOpsCatalogRunsIdAbortRoute
+  '/api/ops/catalog/runs/$id/commit': typeof ApiOpsCatalogRunsIdCommitRoute
+  '/api/ops/catalog/runs/$id/items': typeof ApiOpsCatalogRunsIdItemsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
-  '/$locale/changelog': typeof LocaleChangelogRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$locale/docs': typeof LocaleDocsRoute
   '/$locale/examples': typeof LocaleExamplesRoute
+  '/api/config': typeof ApiConfigRoute
+  '/api/health': typeof ApiHealthRoute
   '/$locale/': typeof LocaleIndexRoute
+  '/$locale/account/appeals': typeof LocaleAccountAppealsRoute
+  '/$locale/account/collections': typeof LocaleAccountCollectionsRoute
+  '/$locale/account/notifications': typeof LocaleAccountNotificationsRoute
+  '/$locale/account/settings': typeof LocaleAccountSettingsRoute
+  '/$locale/account/submissions': typeof LocaleAccountSubmissionsRoute
+  '/$locale/auth/cli': typeof LocaleAuthCliRoute
+  '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
+  '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
+  '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
+  '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
+  '/$locale/users/$login': typeof LocaleUsersLoginRoute
+  '/admin/approvals/$id': typeof AdminApprovalsIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cli/token': typeof ApiCliTokenRoute
+  '/api/collections/$id': typeof ApiCollectionsIdRoute
+  '/api/me/account': typeof ApiMeAccountRoute
+  '/api/me/profile': typeof ApiMeProfileRoute
+  '/api/me/relationships': typeof ApiMeRelationshipsRoute
+  '/api/media/$id': typeof ApiMediaIdRoute
+  '/api/ops/media': typeof ApiOpsMediaRoute
+  '/api/ops/metrics': typeof ApiOpsMetricsRoute
+  '/api/ops/work-items': typeof ApiOpsWorkItemsRoute
+  '/api/plugins/$slug': typeof ApiPluginsSlugRouteWithChildren
+  '/api/publishers/$login': typeof ApiPublishersLoginRoute
+  '/api/replies/$id': typeof ApiRepliesIdRoute
+  '/api/users/$login': typeof ApiUsersLoginRoute
+  '/$locale/account/': typeof LocaleAccountIndexRoute
   '/$locale/plugins/': typeof LocalePluginsIndexRoute
+  '/admin/approvals/': typeof AdminApprovalsIndexRoute
+  '/api/plugins/': typeof ApiPluginsIndexRoute
+  '/api/reports/': typeof ApiReportsIndexRoute
+  '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
+  '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
+  '/api/me/blocks/$userId': typeof ApiMeBlocksUserIdRoute
+  '/api/me/collections/$id': typeof ApiMeCollectionsIdRouteWithChildren
+  '/api/ops/approvals/$id': typeof ApiOpsApprovalsIdRouteWithChildren
+  '/api/ops/catalog/inventory': typeof ApiOpsCatalogInventoryRoute
+  '/api/ops/catalog/submissions': typeof ApiOpsCatalogSubmissionsRoute
+  '/api/ops/catalog/verification': typeof ApiOpsCatalogVerificationRoute
+  '/api/ops/contracts/$kind': typeof ApiOpsContractsKindRoute
+  '/api/ops/maintenance/audit': typeof ApiOpsMaintenanceAuditRoute
+  '/api/ops/moderation/actions': typeof ApiOpsModerationActionsRoute
+  '/api/ops/moderation/queue': typeof ApiOpsModerationQueueRoute
+  '/api/plugins/$slug/claims': typeof ApiPluginsSlugClaimsRoute
+  '/api/plugins/$slug/review': typeof ApiPluginsSlugReviewRoute
+  '/api/plugins/$slug/reviews': typeof ApiPluginsSlugReviewsRoute
+  '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
+  '/api/admin/approvals/': typeof ApiAdminApprovalsIndexRoute
+  '/api/cli/authorizations/': typeof ApiCliAuthorizationsIndexRoute
+  '/api/me/appeals/': typeof ApiMeAppealsIndexRoute
+  '/api/me/collections/': typeof ApiMeCollectionsIndexRoute
+  '/api/me/notifications/': typeof ApiMeNotificationsIndexRoute
+  '/api/me/submissions/': typeof ApiMeSubmissionsIndexRoute
+  '/api/ops/approvals/': typeof ApiOpsApprovalsIndexRoute
+  '/api/admin/approvals/$id/decisions': typeof ApiAdminApprovalsIdDecisionsRoute
+  '/api/cli/authorizations/$id/approve': typeof ApiCliAuthorizationsIdApproveRoute
+  '/api/me/notifications/$id/read': typeof ApiMeNotificationsIdReadRoute
+  '/api/me/plugins/$pluginId/bookmark': typeof ApiMePluginsPluginIdBookmarkRoute
+  '/api/me/plugins/$pluginId/follow': typeof ApiMePluginsPluginIdFollowRoute
+  '/api/me/publishers/$publisherId/follow': typeof ApiMePublishersPublisherIdFollowRoute
+  '/api/ops/approvals/$id/revisions': typeof ApiOpsApprovalsIdRevisionsRoute
+  '/api/ops/catalog/runs/$id': typeof ApiOpsCatalogRunsIdRouteWithChildren
+  '/api/ops/users/$id/role': typeof ApiOpsUsersIdRoleRoute
+  '/api/ops/catalog/runs/': typeof ApiOpsCatalogRunsIndexRoute
+  '/api/admin/approvals/$id/effects/retry': typeof ApiAdminApprovalsIdEffectsRetryRoute
+  '/api/me/collections/$id/plugins/$pluginId': typeof ApiMeCollectionsIdPluginsPluginIdRoute
+  '/api/ops/approvals/$id/effects/claim': typeof ApiOpsApprovalsIdEffectsClaimRoute
+  '/api/ops/approvals/$id/effects/result': typeof ApiOpsApprovalsIdEffectsResultRoute
+  '/api/ops/catalog/runs/$id/abort': typeof ApiOpsCatalogRunsIdAbortRoute
+  '/api/ops/catalog/runs/$id/commit': typeof ApiOpsCatalogRunsIdCommitRoute
+  '/api/ops/catalog/runs/$id/items': typeof ApiOpsCatalogRunsIdItemsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/$locale'
-    | '/$locale/changelog'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/$locale/docs'
     | '/$locale/examples'
+    | '/api/config'
+    | '/api/health'
     | '/$locale/'
+    | '/$locale/account/appeals'
+    | '/$locale/account/collections'
+    | '/$locale/account/notifications'
+    | '/$locale/account/settings'
+    | '/$locale/account/submissions'
+    | '/$locale/auth/cli'
+    | '/$locale/categories/$slug'
+    | '/$locale/collections/$id'
+    | '/$locale/legal/$document'
     | '/$locale/plugins/$slug'
+    | '/$locale/publishers/$login'
+    | '/$locale/users/$login'
+    | '/admin/approvals/$id'
+    | '/api/auth/$'
+    | '/api/cli/token'
+    | '/api/collections/$id'
+    | '/api/me/account'
+    | '/api/me/profile'
+    | '/api/me/relationships'
+    | '/api/media/$id'
+    | '/api/ops/media'
+    | '/api/ops/metrics'
+    | '/api/ops/work-items'
+    | '/api/plugins/$slug'
+    | '/api/publishers/$login'
+    | '/api/replies/$id'
+    | '/api/users/$login'
+    | '/$locale/account/'
     | '/$locale/plugins/'
+    | '/admin/approvals/'
+    | '/api/plugins/'
+    | '/api/reports/'
+    | '/api/admin/approvals/$id'
+    | '/api/claims/$id/verify'
+    | '/api/me/blocks/$userId'
+    | '/api/me/collections/$id'
+    | '/api/ops/approvals/$id'
+    | '/api/ops/catalog/inventory'
+    | '/api/ops/catalog/submissions'
+    | '/api/ops/catalog/verification'
+    | '/api/ops/contracts/$kind'
+    | '/api/ops/maintenance/audit'
+    | '/api/ops/moderation/actions'
+    | '/api/ops/moderation/queue'
+    | '/api/plugins/$slug/claims'
+    | '/api/plugins/$slug/review'
+    | '/api/plugins/$slug/reviews'
+    | '/api/reviews/$id/replies'
+    | '/api/admin/approvals/'
+    | '/api/cli/authorizations/'
+    | '/api/me/appeals/'
+    | '/api/me/collections/'
+    | '/api/me/notifications/'
+    | '/api/me/submissions/'
+    | '/api/ops/approvals/'
+    | '/api/admin/approvals/$id/decisions'
+    | '/api/cli/authorizations/$id/approve'
+    | '/api/me/notifications/$id/read'
+    | '/api/me/plugins/$pluginId/bookmark'
+    | '/api/me/plugins/$pluginId/follow'
+    | '/api/me/publishers/$publisherId/follow'
+    | '/api/ops/approvals/$id/revisions'
+    | '/api/ops/catalog/runs/$id'
+    | '/api/ops/users/$id/role'
+    | '/api/ops/catalog/runs/'
+    | '/api/admin/approvals/$id/effects/retry'
+    | '/api/me/collections/$id/plugins/$pluginId'
+    | '/api/ops/approvals/$id/effects/claim'
+    | '/api/ops/approvals/$id/effects/result'
+    | '/api/ops/catalog/runs/$id/abort'
+    | '/api/ops/catalog/runs/$id/commit'
+    | '/api/ops/catalog/runs/$id/items'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/$locale/changelog'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/$locale/docs'
     | '/$locale/examples'
+    | '/api/config'
+    | '/api/health'
     | '/$locale'
+    | '/$locale/account/appeals'
+    | '/$locale/account/collections'
+    | '/$locale/account/notifications'
+    | '/$locale/account/settings'
+    | '/$locale/account/submissions'
+    | '/$locale/auth/cli'
+    | '/$locale/categories/$slug'
+    | '/$locale/collections/$id'
+    | '/$locale/legal/$document'
     | '/$locale/plugins/$slug'
+    | '/$locale/publishers/$login'
+    | '/$locale/users/$login'
+    | '/admin/approvals/$id'
+    | '/api/auth/$'
+    | '/api/cli/token'
+    | '/api/collections/$id'
+    | '/api/me/account'
+    | '/api/me/profile'
+    | '/api/me/relationships'
+    | '/api/media/$id'
+    | '/api/ops/media'
+    | '/api/ops/metrics'
+    | '/api/ops/work-items'
+    | '/api/plugins/$slug'
+    | '/api/publishers/$login'
+    | '/api/replies/$id'
+    | '/api/users/$login'
+    | '/$locale/account'
     | '/$locale/plugins'
+    | '/admin/approvals'
+    | '/api/plugins'
+    | '/api/reports'
+    | '/api/admin/approvals/$id'
+    | '/api/claims/$id/verify'
+    | '/api/me/blocks/$userId'
+    | '/api/me/collections/$id'
+    | '/api/ops/approvals/$id'
+    | '/api/ops/catalog/inventory'
+    | '/api/ops/catalog/submissions'
+    | '/api/ops/catalog/verification'
+    | '/api/ops/contracts/$kind'
+    | '/api/ops/maintenance/audit'
+    | '/api/ops/moderation/actions'
+    | '/api/ops/moderation/queue'
+    | '/api/plugins/$slug/claims'
+    | '/api/plugins/$slug/review'
+    | '/api/plugins/$slug/reviews'
+    | '/api/reviews/$id/replies'
+    | '/api/admin/approvals'
+    | '/api/cli/authorizations'
+    | '/api/me/appeals'
+    | '/api/me/collections'
+    | '/api/me/notifications'
+    | '/api/me/submissions'
+    | '/api/ops/approvals'
+    | '/api/admin/approvals/$id/decisions'
+    | '/api/cli/authorizations/$id/approve'
+    | '/api/me/notifications/$id/read'
+    | '/api/me/plugins/$pluginId/bookmark'
+    | '/api/me/plugins/$pluginId/follow'
+    | '/api/me/publishers/$publisherId/follow'
+    | '/api/ops/approvals/$id/revisions'
+    | '/api/ops/catalog/runs/$id'
+    | '/api/ops/users/$id/role'
+    | '/api/ops/catalog/runs'
+    | '/api/admin/approvals/$id/effects/retry'
+    | '/api/me/collections/$id/plugins/$pluginId'
+    | '/api/ops/approvals/$id/effects/claim'
+    | '/api/ops/approvals/$id/effects/result'
+    | '/api/ops/catalog/runs/$id/abort'
+    | '/api/ops/catalog/runs/$id/commit'
+    | '/api/ops/catalog/runs/$id/items'
   id:
     | '__root__'
     | '/'
     | '/$locale'
-    | '/$locale/changelog'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/$locale/docs'
     | '/$locale/examples'
+    | '/api/config'
+    | '/api/health'
     | '/$locale/'
+    | '/$locale/account/appeals'
+    | '/$locale/account/collections'
+    | '/$locale/account/notifications'
+    | '/$locale/account/settings'
+    | '/$locale/account/submissions'
+    | '/$locale/auth/cli'
+    | '/$locale/categories/$slug'
+    | '/$locale/collections/$id'
+    | '/$locale/legal/$document'
     | '/$locale/plugins/$slug'
+    | '/$locale/publishers/$login'
+    | '/$locale/users/$login'
+    | '/admin/approvals/$id'
+    | '/api/auth/$'
+    | '/api/cli/token'
+    | '/api/collections/$id'
+    | '/api/me/account'
+    | '/api/me/profile'
+    | '/api/me/relationships'
+    | '/api/media/$id'
+    | '/api/ops/media'
+    | '/api/ops/metrics'
+    | '/api/ops/work-items'
+    | '/api/plugins/$slug'
+    | '/api/publishers/$login'
+    | '/api/replies/$id'
+    | '/api/users/$login'
+    | '/$locale/account/'
     | '/$locale/plugins/'
+    | '/admin/approvals/'
+    | '/api/plugins/'
+    | '/api/reports/'
+    | '/api/admin/approvals/$id'
+    | '/api/claims/$id/verify'
+    | '/api/me/blocks/$userId'
+    | '/api/me/collections/$id'
+    | '/api/ops/approvals/$id'
+    | '/api/ops/catalog/inventory'
+    | '/api/ops/catalog/submissions'
+    | '/api/ops/catalog/verification'
+    | '/api/ops/contracts/$kind'
+    | '/api/ops/maintenance/audit'
+    | '/api/ops/moderation/actions'
+    | '/api/ops/moderation/queue'
+    | '/api/plugins/$slug/claims'
+    | '/api/plugins/$slug/review'
+    | '/api/plugins/$slug/reviews'
+    | '/api/reviews/$id/replies'
+    | '/api/admin/approvals/'
+    | '/api/cli/authorizations/'
+    | '/api/me/appeals/'
+    | '/api/me/collections/'
+    | '/api/me/notifications/'
+    | '/api/me/submissions/'
+    | '/api/ops/approvals/'
+    | '/api/admin/approvals/$id/decisions'
+    | '/api/cli/authorizations/$id/approve'
+    | '/api/me/notifications/$id/read'
+    | '/api/me/plugins/$pluginId/bookmark'
+    | '/api/me/plugins/$pluginId/follow'
+    | '/api/me/publishers/$publisherId/follow'
+    | '/api/ops/approvals/$id/revisions'
+    | '/api/ops/catalog/runs/$id'
+    | '/api/ops/users/$id/role'
+    | '/api/ops/catalog/runs/'
+    | '/api/admin/approvals/$id/effects/retry'
+    | '/api/me/collections/$id/plugins/$pluginId'
+    | '/api/ops/approvals/$id/effects/claim'
+    | '/api/ops/approvals/$id/effects/result'
+    | '/api/ops/catalog/runs/$id/abort'
+    | '/api/ops/catalog/runs/$id/commit'
+    | '/api/ops/catalog/runs/$id/items'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LocaleRoute: typeof LocaleRouteWithChildren
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiConfigRoute: typeof ApiConfigRoute
+  ApiHealthRoute: typeof ApiHealthRoute
+  AdminApprovalsIdRoute: typeof AdminApprovalsIdRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiCliTokenRoute: typeof ApiCliTokenRoute
+  ApiCollectionsIdRoute: typeof ApiCollectionsIdRoute
+  ApiMeAccountRoute: typeof ApiMeAccountRoute
+  ApiMeProfileRoute: typeof ApiMeProfileRoute
+  ApiMeRelationshipsRoute: typeof ApiMeRelationshipsRoute
+  ApiMediaIdRoute: typeof ApiMediaIdRoute
+  ApiOpsMediaRoute: typeof ApiOpsMediaRoute
+  ApiOpsMetricsRoute: typeof ApiOpsMetricsRoute
+  ApiOpsWorkItemsRoute: typeof ApiOpsWorkItemsRoute
+  ApiPluginsSlugRoute: typeof ApiPluginsSlugRouteWithChildren
+  ApiPublishersLoginRoute: typeof ApiPublishersLoginRoute
+  ApiRepliesIdRoute: typeof ApiRepliesIdRoute
+  ApiUsersLoginRoute: typeof ApiUsersLoginRoute
+  AdminApprovalsIndexRoute: typeof AdminApprovalsIndexRoute
+  ApiPluginsIndexRoute: typeof ApiPluginsIndexRoute
+  ApiReportsIndexRoute: typeof ApiReportsIndexRoute
+  ApiAdminApprovalsIdRoute: typeof ApiAdminApprovalsIdRouteWithChildren
+  ApiClaimsIdVerifyRoute: typeof ApiClaimsIdVerifyRoute
+  ApiMeBlocksUserIdRoute: typeof ApiMeBlocksUserIdRoute
+  ApiMeCollectionsIdRoute: typeof ApiMeCollectionsIdRouteWithChildren
+  ApiOpsApprovalsIdRoute: typeof ApiOpsApprovalsIdRouteWithChildren
+  ApiOpsCatalogInventoryRoute: typeof ApiOpsCatalogInventoryRoute
+  ApiOpsCatalogSubmissionsRoute: typeof ApiOpsCatalogSubmissionsRoute
+  ApiOpsCatalogVerificationRoute: typeof ApiOpsCatalogVerificationRoute
+  ApiOpsContractsKindRoute: typeof ApiOpsContractsKindRoute
+  ApiOpsMaintenanceAuditRoute: typeof ApiOpsMaintenanceAuditRoute
+  ApiOpsModerationActionsRoute: typeof ApiOpsModerationActionsRoute
+  ApiOpsModerationQueueRoute: typeof ApiOpsModerationQueueRoute
+  ApiReviewsIdRepliesRoute: typeof ApiReviewsIdRepliesRoute
+  ApiAdminApprovalsIndexRoute: typeof ApiAdminApprovalsIndexRoute
+  ApiCliAuthorizationsIndexRoute: typeof ApiCliAuthorizationsIndexRoute
+  ApiMeAppealsIndexRoute: typeof ApiMeAppealsIndexRoute
+  ApiMeCollectionsIndexRoute: typeof ApiMeCollectionsIndexRoute
+  ApiMeNotificationsIndexRoute: typeof ApiMeNotificationsIndexRoute
+  ApiMeSubmissionsIndexRoute: typeof ApiMeSubmissionsIndexRoute
+  ApiOpsApprovalsIndexRoute: typeof ApiOpsApprovalsIndexRoute
+  ApiCliAuthorizationsIdApproveRoute: typeof ApiCliAuthorizationsIdApproveRoute
+  ApiMeNotificationsIdReadRoute: typeof ApiMeNotificationsIdReadRoute
+  ApiMePluginsPluginIdBookmarkRoute: typeof ApiMePluginsPluginIdBookmarkRoute
+  ApiMePluginsPluginIdFollowRoute: typeof ApiMePluginsPluginIdFollowRoute
+  ApiMePublishersPublisherIdFollowRoute: typeof ApiMePublishersPublisherIdFollowRoute
+  ApiOpsCatalogRunsIdRoute: typeof ApiOpsCatalogRunsIdRouteWithChildren
+  ApiOpsUsersIdRoleRoute: typeof ApiOpsUsersIdRoleRoute
+  ApiOpsCatalogRunsIndexRoute: typeof ApiOpsCatalogRunsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -142,18 +1088,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$locale/': {
       id: '/$locale/'
       path: '/'
       fullPath: '/$locale/'
       preLoaderRoute: typeof LocaleIndexRouteImport
-      parentRoute: typeof LocaleRoute
-    }
-    '/$locale/changelog': {
-      id: '/$locale/changelog'
-      path: '/changelog'
-      fullPath: '/$locale/changelog'
-      preLoaderRoute: typeof LocaleChangelogRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/docs': {
@@ -170,6 +1123,90 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleExamplesRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/api/config': {
+      id: '/api/config'
+      path: '/api/config'
+      fullPath: '/api/config'
+      preLoaderRoute: typeof ApiConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/account/': {
+      id: '/$locale/account/'
+      path: '/account'
+      fullPath: '/$locale/account/'
+      preLoaderRoute: typeof LocaleAccountIndexRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/account/appeals': {
+      id: '/$locale/account/appeals'
+      path: '/account/appeals'
+      fullPath: '/$locale/account/appeals'
+      preLoaderRoute: typeof LocaleAccountAppealsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/account/collections': {
+      id: '/$locale/account/collections'
+      path: '/account/collections'
+      fullPath: '/$locale/account/collections'
+      preLoaderRoute: typeof LocaleAccountCollectionsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/account/notifications': {
+      id: '/$locale/account/notifications'
+      path: '/account/notifications'
+      fullPath: '/$locale/account/notifications'
+      preLoaderRoute: typeof LocaleAccountNotificationsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/account/settings': {
+      id: '/$locale/account/settings'
+      path: '/account/settings'
+      fullPath: '/$locale/account/settings'
+      preLoaderRoute: typeof LocaleAccountSettingsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/account/submissions': {
+      id: '/$locale/account/submissions'
+      path: '/account/submissions'
+      fullPath: '/$locale/account/submissions'
+      preLoaderRoute: typeof LocaleAccountSubmissionsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/auth/cli': {
+      id: '/$locale/auth/cli'
+      path: '/auth/cli'
+      fullPath: '/$locale/auth/cli'
+      preLoaderRoute: typeof LocaleAuthCliRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/categories/$slug': {
+      id: '/$locale/categories/$slug'
+      path: '/categories/$slug'
+      fullPath: '/$locale/categories/$slug'
+      preLoaderRoute: typeof LocaleCategoriesSlugRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/collections/$id': {
+      id: '/$locale/collections/$id'
+      path: '/collections/$id'
+      fullPath: '/$locale/collections/$id'
+      preLoaderRoute: typeof LocaleCollectionsIdRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/legal/$document': {
+      id: '/$locale/legal/$document'
+      path: '/legal/$document'
+      fullPath: '/$locale/legal/$document'
+      preLoaderRoute: typeof LocaleLegalDocumentRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/plugins/': {
       id: '/$locale/plugins/'
       path: '/plugins'
@@ -184,33 +1221,596 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocalePluginsSlugRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/publishers/$login': {
+      id: '/$locale/publishers/$login'
+      path: '/publishers/$login'
+      fullPath: '/$locale/publishers/$login'
+      preLoaderRoute: typeof LocalePublishersLoginRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/users/$login': {
+      id: '/$locale/users/$login'
+      path: '/users/$login'
+      fullPath: '/$locale/users/$login'
+      preLoaderRoute: typeof LocaleUsersLoginRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/admin/approvals/': {
+      id: '/admin/approvals/'
+      path: '/admin/approvals'
+      fullPath: '/admin/approvals/'
+      preLoaderRoute: typeof AdminApprovalsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/approvals/$id': {
+      id: '/admin/approvals/$id'
+      path: '/admin/approvals/$id'
+      fullPath: '/admin/approvals/$id'
+      preLoaderRoute: typeof AdminApprovalsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/token': {
+      id: '/api/cli/token'
+      path: '/api/cli/token'
+      fullPath: '/api/cli/token'
+      preLoaderRoute: typeof ApiCliTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/collections/$id': {
+      id: '/api/collections/$id'
+      path: '/api/collections/$id'
+      fullPath: '/api/collections/$id'
+      preLoaderRoute: typeof ApiCollectionsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/account': {
+      id: '/api/me/account'
+      path: '/api/me/account'
+      fullPath: '/api/me/account'
+      preLoaderRoute: typeof ApiMeAccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/profile': {
+      id: '/api/me/profile'
+      path: '/api/me/profile'
+      fullPath: '/api/me/profile'
+      preLoaderRoute: typeof ApiMeProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/relationships': {
+      id: '/api/me/relationships'
+      path: '/api/me/relationships'
+      fullPath: '/api/me/relationships'
+      preLoaderRoute: typeof ApiMeRelationshipsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/media/$id': {
+      id: '/api/media/$id'
+      path: '/api/media/$id'
+      fullPath: '/api/media/$id'
+      preLoaderRoute: typeof ApiMediaIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/media': {
+      id: '/api/ops/media'
+      path: '/api/ops/media'
+      fullPath: '/api/ops/media'
+      preLoaderRoute: typeof ApiOpsMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/metrics': {
+      id: '/api/ops/metrics'
+      path: '/api/ops/metrics'
+      fullPath: '/api/ops/metrics'
+      preLoaderRoute: typeof ApiOpsMetricsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/work-items': {
+      id: '/api/ops/work-items'
+      path: '/api/ops/work-items'
+      fullPath: '/api/ops/work-items'
+      preLoaderRoute: typeof ApiOpsWorkItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/plugins/': {
+      id: '/api/plugins/'
+      path: '/api/plugins'
+      fullPath: '/api/plugins/'
+      preLoaderRoute: typeof ApiPluginsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/plugins/$slug': {
+      id: '/api/plugins/$slug'
+      path: '/api/plugins/$slug'
+      fullPath: '/api/plugins/$slug'
+      preLoaderRoute: typeof ApiPluginsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/publishers/$login': {
+      id: '/api/publishers/$login'
+      path: '/api/publishers/$login'
+      fullPath: '/api/publishers/$login'
+      preLoaderRoute: typeof ApiPublishersLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/replies/$id': {
+      id: '/api/replies/$id'
+      path: '/api/replies/$id'
+      fullPath: '/api/replies/$id'
+      preLoaderRoute: typeof ApiRepliesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/reports/': {
+      id: '/api/reports/'
+      path: '/api/reports'
+      fullPath: '/api/reports/'
+      preLoaderRoute: typeof ApiReportsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/users/$login': {
+      id: '/api/users/$login'
+      path: '/api/users/$login'
+      fullPath: '/api/users/$login'
+      preLoaderRoute: typeof ApiUsersLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/approvals/': {
+      id: '/api/admin/approvals/'
+      path: '/api/admin/approvals'
+      fullPath: '/api/admin/approvals/'
+      preLoaderRoute: typeof ApiAdminApprovalsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/approvals/$id': {
+      id: '/api/admin/approvals/$id'
+      path: '/api/admin/approvals/$id'
+      fullPath: '/api/admin/approvals/$id'
+      preLoaderRoute: typeof ApiAdminApprovalsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/claims/$id/verify': {
+      id: '/api/claims/$id/verify'
+      path: '/api/claims/$id/verify'
+      fullPath: '/api/claims/$id/verify'
+      preLoaderRoute: typeof ApiClaimsIdVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/authorizations/': {
+      id: '/api/cli/authorizations/'
+      path: '/api/cli/authorizations'
+      fullPath: '/api/cli/authorizations/'
+      preLoaderRoute: typeof ApiCliAuthorizationsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/appeals/': {
+      id: '/api/me/appeals/'
+      path: '/api/me/appeals'
+      fullPath: '/api/me/appeals/'
+      preLoaderRoute: typeof ApiMeAppealsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/blocks/$userId': {
+      id: '/api/me/blocks/$userId'
+      path: '/api/me/blocks/$userId'
+      fullPath: '/api/me/blocks/$userId'
+      preLoaderRoute: typeof ApiMeBlocksUserIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/collections/': {
+      id: '/api/me/collections/'
+      path: '/api/me/collections'
+      fullPath: '/api/me/collections/'
+      preLoaderRoute: typeof ApiMeCollectionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/collections/$id': {
+      id: '/api/me/collections/$id'
+      path: '/api/me/collections/$id'
+      fullPath: '/api/me/collections/$id'
+      preLoaderRoute: typeof ApiMeCollectionsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/notifications/': {
+      id: '/api/me/notifications/'
+      path: '/api/me/notifications'
+      fullPath: '/api/me/notifications/'
+      preLoaderRoute: typeof ApiMeNotificationsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/submissions/': {
+      id: '/api/me/submissions/'
+      path: '/api/me/submissions'
+      fullPath: '/api/me/submissions/'
+      preLoaderRoute: typeof ApiMeSubmissionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/approvals/': {
+      id: '/api/ops/approvals/'
+      path: '/api/ops/approvals'
+      fullPath: '/api/ops/approvals/'
+      preLoaderRoute: typeof ApiOpsApprovalsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/approvals/$id': {
+      id: '/api/ops/approvals/$id'
+      path: '/api/ops/approvals/$id'
+      fullPath: '/api/ops/approvals/$id'
+      preLoaderRoute: typeof ApiOpsApprovalsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/catalog/inventory': {
+      id: '/api/ops/catalog/inventory'
+      path: '/api/ops/catalog/inventory'
+      fullPath: '/api/ops/catalog/inventory'
+      preLoaderRoute: typeof ApiOpsCatalogInventoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/catalog/submissions': {
+      id: '/api/ops/catalog/submissions'
+      path: '/api/ops/catalog/submissions'
+      fullPath: '/api/ops/catalog/submissions'
+      preLoaderRoute: typeof ApiOpsCatalogSubmissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/catalog/verification': {
+      id: '/api/ops/catalog/verification'
+      path: '/api/ops/catalog/verification'
+      fullPath: '/api/ops/catalog/verification'
+      preLoaderRoute: typeof ApiOpsCatalogVerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/contracts/$kind': {
+      id: '/api/ops/contracts/$kind'
+      path: '/api/ops/contracts/$kind'
+      fullPath: '/api/ops/contracts/$kind'
+      preLoaderRoute: typeof ApiOpsContractsKindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/maintenance/audit': {
+      id: '/api/ops/maintenance/audit'
+      path: '/api/ops/maintenance/audit'
+      fullPath: '/api/ops/maintenance/audit'
+      preLoaderRoute: typeof ApiOpsMaintenanceAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/moderation/actions': {
+      id: '/api/ops/moderation/actions'
+      path: '/api/ops/moderation/actions'
+      fullPath: '/api/ops/moderation/actions'
+      preLoaderRoute: typeof ApiOpsModerationActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/moderation/queue': {
+      id: '/api/ops/moderation/queue'
+      path: '/api/ops/moderation/queue'
+      fullPath: '/api/ops/moderation/queue'
+      preLoaderRoute: typeof ApiOpsModerationQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/plugins/$slug/claims': {
+      id: '/api/plugins/$slug/claims'
+      path: '/claims'
+      fullPath: '/api/plugins/$slug/claims'
+      preLoaderRoute: typeof ApiPluginsSlugClaimsRouteImport
+      parentRoute: typeof ApiPluginsSlugRoute
+    }
+    '/api/plugins/$slug/review': {
+      id: '/api/plugins/$slug/review'
+      path: '/review'
+      fullPath: '/api/plugins/$slug/review'
+      preLoaderRoute: typeof ApiPluginsSlugReviewRouteImport
+      parentRoute: typeof ApiPluginsSlugRoute
+    }
+    '/api/plugins/$slug/reviews': {
+      id: '/api/plugins/$slug/reviews'
+      path: '/reviews'
+      fullPath: '/api/plugins/$slug/reviews'
+      preLoaderRoute: typeof ApiPluginsSlugReviewsRouteImport
+      parentRoute: typeof ApiPluginsSlugRoute
+    }
+    '/api/reviews/$id/replies': {
+      id: '/api/reviews/$id/replies'
+      path: '/api/reviews/$id/replies'
+      fullPath: '/api/reviews/$id/replies'
+      preLoaderRoute: typeof ApiReviewsIdRepliesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/approvals/$id/decisions': {
+      id: '/api/admin/approvals/$id/decisions'
+      path: '/decisions'
+      fullPath: '/api/admin/approvals/$id/decisions'
+      preLoaderRoute: typeof ApiAdminApprovalsIdDecisionsRouteImport
+      parentRoute: typeof ApiAdminApprovalsIdRoute
+    }
+    '/api/cli/authorizations/$id/approve': {
+      id: '/api/cli/authorizations/$id/approve'
+      path: '/api/cli/authorizations/$id/approve'
+      fullPath: '/api/cli/authorizations/$id/approve'
+      preLoaderRoute: typeof ApiCliAuthorizationsIdApproveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/notifications/$id/read': {
+      id: '/api/me/notifications/$id/read'
+      path: '/api/me/notifications/$id/read'
+      fullPath: '/api/me/notifications/$id/read'
+      preLoaderRoute: typeof ApiMeNotificationsIdReadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/plugins/$pluginId/bookmark': {
+      id: '/api/me/plugins/$pluginId/bookmark'
+      path: '/api/me/plugins/$pluginId/bookmark'
+      fullPath: '/api/me/plugins/$pluginId/bookmark'
+      preLoaderRoute: typeof ApiMePluginsPluginIdBookmarkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/plugins/$pluginId/follow': {
+      id: '/api/me/plugins/$pluginId/follow'
+      path: '/api/me/plugins/$pluginId/follow'
+      fullPath: '/api/me/plugins/$pluginId/follow'
+      preLoaderRoute: typeof ApiMePluginsPluginIdFollowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me/publishers/$publisherId/follow': {
+      id: '/api/me/publishers/$publisherId/follow'
+      path: '/api/me/publishers/$publisherId/follow'
+      fullPath: '/api/me/publishers/$publisherId/follow'
+      preLoaderRoute: typeof ApiMePublishersPublisherIdFollowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/approvals/$id/revisions': {
+      id: '/api/ops/approvals/$id/revisions'
+      path: '/revisions'
+      fullPath: '/api/ops/approvals/$id/revisions'
+      preLoaderRoute: typeof ApiOpsApprovalsIdRevisionsRouteImport
+      parentRoute: typeof ApiOpsApprovalsIdRoute
+    }
+    '/api/ops/catalog/runs/': {
+      id: '/api/ops/catalog/runs/'
+      path: '/api/ops/catalog/runs'
+      fullPath: '/api/ops/catalog/runs/'
+      preLoaderRoute: typeof ApiOpsCatalogRunsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/catalog/runs/$id': {
+      id: '/api/ops/catalog/runs/$id'
+      path: '/api/ops/catalog/runs/$id'
+      fullPath: '/api/ops/catalog/runs/$id'
+      preLoaderRoute: typeof ApiOpsCatalogRunsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/users/$id/role': {
+      id: '/api/ops/users/$id/role'
+      path: '/api/ops/users/$id/role'
+      fullPath: '/api/ops/users/$id/role'
+      preLoaderRoute: typeof ApiOpsUsersIdRoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/approvals/$id/effects/retry': {
+      id: '/api/admin/approvals/$id/effects/retry'
+      path: '/effects/retry'
+      fullPath: '/api/admin/approvals/$id/effects/retry'
+      preLoaderRoute: typeof ApiAdminApprovalsIdEffectsRetryRouteImport
+      parentRoute: typeof ApiAdminApprovalsIdRoute
+    }
+    '/api/me/collections/$id/plugins/$pluginId': {
+      id: '/api/me/collections/$id/plugins/$pluginId'
+      path: '/plugins/$pluginId'
+      fullPath: '/api/me/collections/$id/plugins/$pluginId'
+      preLoaderRoute: typeof ApiMeCollectionsIdPluginsPluginIdRouteImport
+      parentRoute: typeof ApiMeCollectionsIdRoute
+    }
+    '/api/ops/approvals/$id/effects/claim': {
+      id: '/api/ops/approvals/$id/effects/claim'
+      path: '/effects/claim'
+      fullPath: '/api/ops/approvals/$id/effects/claim'
+      preLoaderRoute: typeof ApiOpsApprovalsIdEffectsClaimRouteImport
+      parentRoute: typeof ApiOpsApprovalsIdRoute
+    }
+    '/api/ops/approvals/$id/effects/result': {
+      id: '/api/ops/approvals/$id/effects/result'
+      path: '/effects/result'
+      fullPath: '/api/ops/approvals/$id/effects/result'
+      preLoaderRoute: typeof ApiOpsApprovalsIdEffectsResultRouteImport
+      parentRoute: typeof ApiOpsApprovalsIdRoute
+    }
+    '/api/ops/catalog/runs/$id/abort': {
+      id: '/api/ops/catalog/runs/$id/abort'
+      path: '/abort'
+      fullPath: '/api/ops/catalog/runs/$id/abort'
+      preLoaderRoute: typeof ApiOpsCatalogRunsIdAbortRouteImport
+      parentRoute: typeof ApiOpsCatalogRunsIdRoute
+    }
+    '/api/ops/catalog/runs/$id/commit': {
+      id: '/api/ops/catalog/runs/$id/commit'
+      path: '/commit'
+      fullPath: '/api/ops/catalog/runs/$id/commit'
+      preLoaderRoute: typeof ApiOpsCatalogRunsIdCommitRouteImport
+      parentRoute: typeof ApiOpsCatalogRunsIdRoute
+    }
+    '/api/ops/catalog/runs/$id/items': {
+      id: '/api/ops/catalog/runs/$id/items'
+      path: '/items'
+      fullPath: '/api/ops/catalog/runs/$id/items'
+      preLoaderRoute: typeof ApiOpsCatalogRunsIdItemsRouteImport
+      parentRoute: typeof ApiOpsCatalogRunsIdRoute
+    }
   }
 }
 
 interface LocaleRouteChildren {
-  LocaleChangelogRoute: typeof LocaleChangelogRoute
   LocaleDocsRoute: typeof LocaleDocsRoute
   LocaleExamplesRoute: typeof LocaleExamplesRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
+  LocaleAccountAppealsRoute: typeof LocaleAccountAppealsRoute
+  LocaleAccountCollectionsRoute: typeof LocaleAccountCollectionsRoute
+  LocaleAccountNotificationsRoute: typeof LocaleAccountNotificationsRoute
+  LocaleAccountSettingsRoute: typeof LocaleAccountSettingsRoute
+  LocaleAccountSubmissionsRoute: typeof LocaleAccountSubmissionsRoute
+  LocaleAuthCliRoute: typeof LocaleAuthCliRoute
+  LocaleCategoriesSlugRoute: typeof LocaleCategoriesSlugRoute
+  LocaleCollectionsIdRoute: typeof LocaleCollectionsIdRoute
+  LocaleLegalDocumentRoute: typeof LocaleLegalDocumentRoute
   LocalePluginsSlugRoute: typeof LocalePluginsSlugRoute
+  LocalePublishersLoginRoute: typeof LocalePublishersLoginRoute
+  LocaleUsersLoginRoute: typeof LocaleUsersLoginRoute
+  LocaleAccountIndexRoute: typeof LocaleAccountIndexRoute
   LocalePluginsIndexRoute: typeof LocalePluginsIndexRoute
 }
 
 const LocaleRouteChildren: LocaleRouteChildren = {
-  LocaleChangelogRoute: LocaleChangelogRoute,
   LocaleDocsRoute: LocaleDocsRoute,
   LocaleExamplesRoute: LocaleExamplesRoute,
   LocaleIndexRoute: LocaleIndexRoute,
+  LocaleAccountAppealsRoute: LocaleAccountAppealsRoute,
+  LocaleAccountCollectionsRoute: LocaleAccountCollectionsRoute,
+  LocaleAccountNotificationsRoute: LocaleAccountNotificationsRoute,
+  LocaleAccountSettingsRoute: LocaleAccountSettingsRoute,
+  LocaleAccountSubmissionsRoute: LocaleAccountSubmissionsRoute,
+  LocaleAuthCliRoute: LocaleAuthCliRoute,
+  LocaleCategoriesSlugRoute: LocaleCategoriesSlugRoute,
+  LocaleCollectionsIdRoute: LocaleCollectionsIdRoute,
+  LocaleLegalDocumentRoute: LocaleLegalDocumentRoute,
   LocalePluginsSlugRoute: LocalePluginsSlugRoute,
+  LocalePublishersLoginRoute: LocalePublishersLoginRoute,
+  LocaleUsersLoginRoute: LocaleUsersLoginRoute,
+  LocaleAccountIndexRoute: LocaleAccountIndexRoute,
   LocalePluginsIndexRoute: LocalePluginsIndexRoute,
 }
 
 const LocaleRouteWithChildren =
   LocaleRoute._addFileChildren(LocaleRouteChildren)
 
+interface ApiPluginsSlugRouteChildren {
+  ApiPluginsSlugClaimsRoute: typeof ApiPluginsSlugClaimsRoute
+  ApiPluginsSlugReviewRoute: typeof ApiPluginsSlugReviewRoute
+  ApiPluginsSlugReviewsRoute: typeof ApiPluginsSlugReviewsRoute
+}
+
+const ApiPluginsSlugRouteChildren: ApiPluginsSlugRouteChildren = {
+  ApiPluginsSlugClaimsRoute: ApiPluginsSlugClaimsRoute,
+  ApiPluginsSlugReviewRoute: ApiPluginsSlugReviewRoute,
+  ApiPluginsSlugReviewsRoute: ApiPluginsSlugReviewsRoute,
+}
+
+const ApiPluginsSlugRouteWithChildren = ApiPluginsSlugRoute._addFileChildren(
+  ApiPluginsSlugRouteChildren,
+)
+
+interface ApiAdminApprovalsIdRouteChildren {
+  ApiAdminApprovalsIdDecisionsRoute: typeof ApiAdminApprovalsIdDecisionsRoute
+  ApiAdminApprovalsIdEffectsRetryRoute: typeof ApiAdminApprovalsIdEffectsRetryRoute
+}
+
+const ApiAdminApprovalsIdRouteChildren: ApiAdminApprovalsIdRouteChildren = {
+  ApiAdminApprovalsIdDecisionsRoute: ApiAdminApprovalsIdDecisionsRoute,
+  ApiAdminApprovalsIdEffectsRetryRoute: ApiAdminApprovalsIdEffectsRetryRoute,
+}
+
+const ApiAdminApprovalsIdRouteWithChildren =
+  ApiAdminApprovalsIdRoute._addFileChildren(ApiAdminApprovalsIdRouteChildren)
+
+interface ApiMeCollectionsIdRouteChildren {
+  ApiMeCollectionsIdPluginsPluginIdRoute: typeof ApiMeCollectionsIdPluginsPluginIdRoute
+}
+
+const ApiMeCollectionsIdRouteChildren: ApiMeCollectionsIdRouteChildren = {
+  ApiMeCollectionsIdPluginsPluginIdRoute:
+    ApiMeCollectionsIdPluginsPluginIdRoute,
+}
+
+const ApiMeCollectionsIdRouteWithChildren =
+  ApiMeCollectionsIdRoute._addFileChildren(ApiMeCollectionsIdRouteChildren)
+
+interface ApiOpsApprovalsIdRouteChildren {
+  ApiOpsApprovalsIdRevisionsRoute: typeof ApiOpsApprovalsIdRevisionsRoute
+  ApiOpsApprovalsIdEffectsClaimRoute: typeof ApiOpsApprovalsIdEffectsClaimRoute
+  ApiOpsApprovalsIdEffectsResultRoute: typeof ApiOpsApprovalsIdEffectsResultRoute
+}
+
+const ApiOpsApprovalsIdRouteChildren: ApiOpsApprovalsIdRouteChildren = {
+  ApiOpsApprovalsIdRevisionsRoute: ApiOpsApprovalsIdRevisionsRoute,
+  ApiOpsApprovalsIdEffectsClaimRoute: ApiOpsApprovalsIdEffectsClaimRoute,
+  ApiOpsApprovalsIdEffectsResultRoute: ApiOpsApprovalsIdEffectsResultRoute,
+}
+
+const ApiOpsApprovalsIdRouteWithChildren =
+  ApiOpsApprovalsIdRoute._addFileChildren(ApiOpsApprovalsIdRouteChildren)
+
+interface ApiOpsCatalogRunsIdRouteChildren {
+  ApiOpsCatalogRunsIdAbortRoute: typeof ApiOpsCatalogRunsIdAbortRoute
+  ApiOpsCatalogRunsIdCommitRoute: typeof ApiOpsCatalogRunsIdCommitRoute
+  ApiOpsCatalogRunsIdItemsRoute: typeof ApiOpsCatalogRunsIdItemsRoute
+}
+
+const ApiOpsCatalogRunsIdRouteChildren: ApiOpsCatalogRunsIdRouteChildren = {
+  ApiOpsCatalogRunsIdAbortRoute: ApiOpsCatalogRunsIdAbortRoute,
+  ApiOpsCatalogRunsIdCommitRoute: ApiOpsCatalogRunsIdCommitRoute,
+  ApiOpsCatalogRunsIdItemsRoute: ApiOpsCatalogRunsIdItemsRoute,
+}
+
+const ApiOpsCatalogRunsIdRouteWithChildren =
+  ApiOpsCatalogRunsIdRoute._addFileChildren(ApiOpsCatalogRunsIdRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LocaleRoute: LocaleRouteWithChildren,
+  RobotsDottxtRoute: RobotsDottxtRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiConfigRoute: ApiConfigRoute,
+  ApiHealthRoute: ApiHealthRoute,
+  AdminApprovalsIdRoute: AdminApprovalsIdRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiCliTokenRoute: ApiCliTokenRoute,
+  ApiCollectionsIdRoute: ApiCollectionsIdRoute,
+  ApiMeAccountRoute: ApiMeAccountRoute,
+  ApiMeProfileRoute: ApiMeProfileRoute,
+  ApiMeRelationshipsRoute: ApiMeRelationshipsRoute,
+  ApiMediaIdRoute: ApiMediaIdRoute,
+  ApiOpsMediaRoute: ApiOpsMediaRoute,
+  ApiOpsMetricsRoute: ApiOpsMetricsRoute,
+  ApiOpsWorkItemsRoute: ApiOpsWorkItemsRoute,
+  ApiPluginsSlugRoute: ApiPluginsSlugRouteWithChildren,
+  ApiPublishersLoginRoute: ApiPublishersLoginRoute,
+  ApiRepliesIdRoute: ApiRepliesIdRoute,
+  ApiUsersLoginRoute: ApiUsersLoginRoute,
+  AdminApprovalsIndexRoute: AdminApprovalsIndexRoute,
+  ApiPluginsIndexRoute: ApiPluginsIndexRoute,
+  ApiReportsIndexRoute: ApiReportsIndexRoute,
+  ApiAdminApprovalsIdRoute: ApiAdminApprovalsIdRouteWithChildren,
+  ApiClaimsIdVerifyRoute: ApiClaimsIdVerifyRoute,
+  ApiMeBlocksUserIdRoute: ApiMeBlocksUserIdRoute,
+  ApiMeCollectionsIdRoute: ApiMeCollectionsIdRouteWithChildren,
+  ApiOpsApprovalsIdRoute: ApiOpsApprovalsIdRouteWithChildren,
+  ApiOpsCatalogInventoryRoute: ApiOpsCatalogInventoryRoute,
+  ApiOpsCatalogSubmissionsRoute: ApiOpsCatalogSubmissionsRoute,
+  ApiOpsCatalogVerificationRoute: ApiOpsCatalogVerificationRoute,
+  ApiOpsContractsKindRoute: ApiOpsContractsKindRoute,
+  ApiOpsMaintenanceAuditRoute: ApiOpsMaintenanceAuditRoute,
+  ApiOpsModerationActionsRoute: ApiOpsModerationActionsRoute,
+  ApiOpsModerationQueueRoute: ApiOpsModerationQueueRoute,
+  ApiReviewsIdRepliesRoute: ApiReviewsIdRepliesRoute,
+  ApiAdminApprovalsIndexRoute: ApiAdminApprovalsIndexRoute,
+  ApiCliAuthorizationsIndexRoute: ApiCliAuthorizationsIndexRoute,
+  ApiMeAppealsIndexRoute: ApiMeAppealsIndexRoute,
+  ApiMeCollectionsIndexRoute: ApiMeCollectionsIndexRoute,
+  ApiMeNotificationsIndexRoute: ApiMeNotificationsIndexRoute,
+  ApiMeSubmissionsIndexRoute: ApiMeSubmissionsIndexRoute,
+  ApiOpsApprovalsIndexRoute: ApiOpsApprovalsIndexRoute,
+  ApiCliAuthorizationsIdApproveRoute: ApiCliAuthorizationsIdApproveRoute,
+  ApiMeNotificationsIdReadRoute: ApiMeNotificationsIdReadRoute,
+  ApiMePluginsPluginIdBookmarkRoute: ApiMePluginsPluginIdBookmarkRoute,
+  ApiMePluginsPluginIdFollowRoute: ApiMePluginsPluginIdFollowRoute,
+  ApiMePublishersPublisherIdFollowRoute: ApiMePublishersPublisherIdFollowRoute,
+  ApiOpsCatalogRunsIdRoute: ApiOpsCatalogRunsIdRouteWithChildren,
+  ApiOpsUsersIdRoleRoute: ApiOpsUsersIdRoleRoute,
+  ApiOpsCatalogRunsIndexRoute: ApiOpsCatalogRunsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

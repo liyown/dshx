@@ -9,6 +9,7 @@ import type { DshxDiagnostic } from '../diagnostics.js'
 import { inspectProjectComposition } from '../inspect/index.js'
 import type { InspectOptions, InspectResult, SlotSummary } from '../inspect/index.js'
 import { checkProjectManifest } from '../project/index.js'
+import { applyFilePlanWithFileSystem, renderFileDiff, rollbackFilePlanWithFileSystem, writeFileAtomically } from './common.js'
 
 export interface AddUiOptions {
   readonly project: ResolvedDshxConfig
@@ -28,6 +29,7 @@ export interface ScaffoldFileSystem {
   readonly rename: (from: string, to: string) => Promise<void>
   readonly unlink: (file: string) => Promise<void>
   readonly access: (file: string) => Promise<void>
+  readonly writeFileAtomic?: (file: string, data: string) => Promise<void>
 }
 
 export interface AddUiDependencies {
@@ -56,14 +58,16 @@ interface PlannedFile {
   readonly after: string
 }
 
-const defaultFs: ScaffoldFileSystem = { readFile, writeFile, mkdir, rename, unlink, access }
+const defaultFs: ScaffoldFileSystem = { readFile, writeFile, mkdir, rename, unlink, access, writeFileAtomic: writeFileAtomically }
 
 function diagnostic(code: string, message: string, file: string, hint: string, severity: 'error' | 'warning' = 'error'): DshxDiagnostic {
   return { code, severity, message, file, hint }
 }
 
 function mergeFs(input: Partial<ScaffoldFileSystem> | undefined): ScaffoldFileSystem {
-  return { ...defaultFs, ...(input ?? {}) }
+  const merged = { ...defaultFs, ...(input ?? {}) }
+  if (input?.writeFileAtomic === undefined && (input?.writeFile !== undefined || input?.rename !== undefined)) delete merged.writeFileAtomic
+  return merged
 }
 
 function safeName(value: string): string {
@@ -253,49 +257,6 @@ function updateManifest(
   return { source: `${JSON.stringify(value, null, 2)}\n`, manifest: value }
 }
 
-function diffFor(plan: readonly PlannedFile[]): string {
-  return plan.map(item => `--- ${item.file}\n+++ ${item.file}\n${item.after.split('\n').map(line => `+${line}`).join('\n')}\n`).join('\n')
-}
-
-async function applyPlan(plan: readonly PlannedFile[], fs: ScaffoldFileSystem): Promise<void> {
-  const applied: PlannedFile[] = []
-  const temps: string[] = []
-  try {
-    for (let index = 0; index < plan.length; index += 1) {
-      const item = plan[index]!
-      await fs.mkdir(dirname(item.file), { recursive: true })
-      const temp = `${item.file}.dshx-tmp-${process.pid}-${index}`
-      temps.push(temp)
-      await fs.writeFile(temp, item.after, 'utf8')
-      await fs.rename(temp, item.file)
-      applied.push(item)
-    }
-  } catch (cause) {
-    for (const item of applied.reverse()) {
-      if (item.before === undefined) await fs.unlink(item.file).catch(() => undefined)
-      else {
-        const temp = `${item.file}.dshx-rollback-${process.pid}`
-        await fs.writeFile(temp, item.before, 'utf8').catch(() => undefined)
-        await fs.rename(temp, item.file).catch(() => undefined)
-      }
-    }
-    for (const temp of temps) await fs.unlink(temp).catch(() => undefined)
-    throw cause
-  }
-}
-
-async function rollbackPlan(plan: readonly PlannedFile[], fs: ScaffoldFileSystem): Promise<void> {
-  for (const item of [...plan].reverse()) {
-    if (item.before === undefined) {
-      await fs.unlink(item.file).catch(() => undefined)
-      continue
-    }
-    const temp = `${item.file}.dshx-rollback-${process.pid}`
-    await fs.writeFile(temp, item.before, 'utf8').catch(() => undefined)
-    await fs.rename(temp, item.file).catch(() => undefined)
-  }
-}
-
 async function readExisting(fs: ScaffoldFileSystem, file: string): Promise<string | undefined> {
   try { return await fs.readFile(file, 'utf8') } catch { return undefined }
 }
@@ -456,9 +417,9 @@ export async function createUiScaffold(options: AddUiOptions, dependencies: AddU
     ...(clientBefore === undefined ? [{ file: clientFile, after: clientAfter }] : [{ file: clientFile, before: clientBefore, after: clientAfter }]),
     ...(manifestAfter === undefined ? [] : [{ file: packageFile, before: packageBefore, after: manifestAfter }]),
   ]
-  if (options.dryRun) return result(project, slot, provider, [], plan, manifestChanged, diffFor(plan))
+  if (options.dryRun) return result(project, slot, provider, [], plan, manifestChanged, renderFileDiff(plan))
   try {
-    await applyPlan(plan, fs)
+    await applyFilePlanWithFileSystem(plan, fs)
   } catch (cause) {
     const item = diagnostic('DSHX6107', `Failed to write Slot scaffold: ${cause instanceof Error ? cause.message : String(cause)}`, targetFile, 'Fix filesystem permissions and retry; no partial changes were kept.')
     return result(project, slot, provider, [item], [], manifestChanged)
@@ -473,12 +434,12 @@ export async function createUiScaffold(options: AddUiOptions, dependencies: AddU
   try {
     postDiagnostics = await (dependencies.checkManifest ?? checkProjectManifest)(postProject, { compatibility })
   } catch (cause) {
-    await rollbackPlan(plan, fs)
+    await rollbackFilePlanWithFileSystem(plan, fs)
     const item = diagnostic('DSHX6108', `Generated Slot scaffold could not be validated: ${cause instanceof Error ? cause.message : String(cause)}`, packageFile, 'Fix the project manifest or compatibility adapter before generating a Slot.')
     return result(project, slot, provider, [item], [], manifestChanged)
   }
   if (postDiagnostics.some(item => item.severity === 'error')) {
-    await rollbackPlan(plan, fs)
+    await rollbackFilePlanWithFileSystem(plan, fs)
     const item = diagnostic('DSHX6108', 'Generated Slot scaffold failed Manifest Checker validation and was rolled back.', packageFile, 'Fix the project manifest or compatibility adapter before generating a Slot.')
     return result(project, slot, provider, [item, ...postDiagnostics], [], manifestChanged)
   }

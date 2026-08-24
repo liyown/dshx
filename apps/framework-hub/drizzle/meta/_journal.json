@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1787479570631,
+      "tag": "0000_eminent_quicksilver",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787482804564,
+      "tag": "0001_past_black_bird",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787483107202,
+      "tag": "0002_aromatic_mauler",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1787483509193,
+      "tag": "0003_spotty_iron_fist",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1787483925241,
+      "tag": "0004_sloppy_maria_hill",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1787493641652,
+      "tag": "0006_community_approvals",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1787502886008,
+      "tag": "0007_better_auth_account_issuer",
+      "breakpoints": true
+    }
+  ]
+}

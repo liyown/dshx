@@ -1,5 +1,6 @@
 import { join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
+import { detect } from 'package-manager-detector'
 import { defaultFileSystem } from './fs.js'
 import { commandAvailable, defaultCommandRunner, installCommand } from './command.js'
 import { renderTemplate, TEMPLATE_FILES } from './templates.js'
@@ -35,6 +36,15 @@ export function validateProjectName(name: string): CreateDiagnostic | undefined 
 }
 
 async function packageManagerFromProject(root: string, fs: FileSystem): Promise<PackageManager | undefined> {
+  if (fs === defaultFileSystem) {
+    const result = await detect({
+      cwd: root,
+      stopDir: root,
+      strategies: ['lockfile', 'packageManager-field'],
+    })
+    if (result?.name === 'pnpm' || result?.name === 'yarn' || result?.name === 'npm') return result.name
+    return undefined
+  }
   if (await fs.exists(join(root, 'pnpm-lock.yaml'))) return 'pnpm'
   if (await fs.exists(join(root, 'yarn.lock'))) return 'yarn'
   if (await fs.exists(join(root, 'package-lock.json'))) return 'npm'

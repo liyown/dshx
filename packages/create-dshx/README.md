@@ -1,11 +1,29 @@
 # create-dshx
 
-Create a DSHX plugin project with the standard Host and Client entry points.
+Create a reproducible DeepSeek Harness plugin project with typed Host and Client entry points.
 
 ```bash
 pnpm create dshx my-plugin
+cd my-plugin
+pnpm dev
 ```
 
-Use `--yes` for non-interactive generation. Add `--install` or `--no-install` to control dependency installation explicitly, and use `--package-manager pnpm|yarn|npm` when the package manager cannot be inferred from the target project.
+The initializer refuses to overwrite an existing non-empty directory, generates a minimal Host Tool and Client Slot, pins the matching DSHX release, and declares the compatible DSH `0.1` range.
 
-The generated project pins `@becomeopc/dshx` to the matching release version and declares the compatible DSH 0.1 protocol range. It includes a minimal Host Tool and Client Slot that can be built and inspected with `dshx`.
+## Automation
+
+```bash
+pnpm create dshx my-plugin --yes --no-install
+pnpm create dshx my-plugin --package-manager pnpm
+```
+
+- `--yes` disables interactive questions.
+- `--install` and `--no-install` explicitly control dependency installation.
+- `--package-manager pnpm|yarn|npm` overrides detection.
+- `--cwd <path>` selects the parent directory.
+
+Package-manager detection checks the explicit flag, existing lockfiles, the nearest `packageManager` declaration, and available commands on `PATH`, in that order.
+
+See the [DSHX documentation](https://dshx.io/docs) and [repository](https://github.com/liyown/dshx) for the full development workflow.
+
+MIT © DSHX contributors.

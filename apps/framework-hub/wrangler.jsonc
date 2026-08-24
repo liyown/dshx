@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dshx-framework-hub",
+  "compatibility_date": "2026-08-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+  },
+  "routes": [
+    {
+      "pattern": "dshx.io",
+      "custom_domain": true,
+    },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dshx-framework-hub",
+      "database_id": "b8737572-b974-4e83-970e-9cb7efd86b8d",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PLUGIN_MEDIA",
+      "bucket_name": "dshx-plugin-media",
+      "preview_bucket_name": "dshx-plugin-media-preview",
+    },
+  ],
+  "vars": {
+    "SITE_URL": "https://dshx.io",
+    "HUB_ADMIN_GITHUB_IDS": "55525531",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAEZWJA2y_lLvE9ZT",
+  },
+}

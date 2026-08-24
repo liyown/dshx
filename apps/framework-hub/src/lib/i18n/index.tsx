@@ -29,7 +29,9 @@ export function localeFromAcceptLanguage(header: string | null | undefined): Loc
     .filter((candidate) => candidate.q > 0)
     .sort((a, b) => b.q - a.q);
 
-  return candidates.some((candidate) => candidate.language === "zh" || candidate.language.startsWith("zh-"))
+  return candidates.some(
+    (candidate) => candidate.language === "zh" || candidate.language.startsWith("zh-"),
+  )
     ? "zh"
     : "en";
 }
@@ -64,7 +66,11 @@ type I18nContextValue = { locale: Locale; t: Translate };
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ locale, children }: { locale: Locale; children: ReactNode }) {
-  return <I18nContext.Provider value={{ locale, t: createTranslator(locale) }}>{children}</I18nContext.Provider>;
+  return (
+    <I18nContext.Provider value={{ locale, t: createTranslator(locale) }}>
+      {children}
+    </I18nContext.Provider>
+  );
 }
 
 export function useI18n(): I18nContextValue {
