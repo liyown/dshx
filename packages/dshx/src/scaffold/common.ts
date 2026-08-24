@@ -31,11 +31,17 @@ export function insideProject(root: string, target: string): boolean {
 }
 
 export async function readOptionalFile(file: string): Promise<string | undefined> {
-  try { return await readFile(file, 'utf8') } catch { return undefined }
+  try {
+    return await readFile(file, 'utf8')
+  } catch {
+    return undefined
+  }
 }
 
 export function renderFileDiff(plan: readonly FilePlan[]): string {
-  return plan.map(item => createTwoFilesPatch(item.file, item.file, item.before ?? '', item.after, item.before === undefined ? 'new file' : 'before', 'after')).join('\n')
+  return plan
+    .map(item => createTwoFilesPatch(item.file, item.file, item.before ?? '', item.after, item.before === undefined ? 'new file' : 'before', 'after'))
+    .join('\n')
 }
 
 async function atomicWrite(file: string, data: string, fs: FilePlanFileSystem, index: number): Promise<void> {

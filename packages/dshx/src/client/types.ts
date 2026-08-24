@@ -39,15 +39,7 @@ export type DshxSlotOptions<
   M = never,
   N extends (keyof LocaleNamespaceMap & string) | undefined = undefined,
 > = {
-  readonly component: SlotComponent<ComposedProps<
-    K,
-    EntryKey,
-    keyof D & keyof SlotMap & string,
-    H extends StoreDecl ? H : undefined,
-    I,
-    M,
-    N
-  >>
+  readonly component: SlotComponent<ComposedProps<K, EntryKey, keyof D & keyof SlotMap & string, H extends StoreDecl ? H : undefined, I, M, N>>
   readonly children?: D
   readonly store?: H
   readonly inject?: (...args: InjectParams<K, H>) => I
@@ -56,10 +48,7 @@ export type DshxSlotOptions<
 } & KindOptions<K, EntryKey, M>
 
 /** A declarative Slot contribution consumed by the Client adapter. */
-export interface SlotContribution<
-  K extends keyof SlotMap & string = keyof SlotMap & string,
-  O extends DshxSlotOptions<K> = DshxSlotOptions<K>,
-> {
+export interface SlotContribution<K extends keyof SlotMap & string = keyof SlotMap & string, O extends DshxSlotOptions<K> = DshxSlotOptions<K>> {
   readonly name: K
   readonly options: Omit<O, 'component'>
   readonly component: O['component']

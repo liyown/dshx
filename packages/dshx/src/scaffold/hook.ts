@@ -44,7 +44,13 @@ function importPath(from: string, to: string): string {
 
 function registerName(event: string): string {
   const value = event.replace(/[^a-zA-Z0-9_$]+/g, ' ').trim()
-  const identifier = value === '' ? 'Hook' : value.split(/\s+/).map(part => part.replace(/^([a-z])/, (_, first: string) => first.toUpperCase())).join('')
+  const identifier =
+    value === ''
+      ? 'Hook'
+      : value
+          .split(/\s+/)
+          .map(part => part.replace(/^([a-z])/, (_, first: string) => first.toUpperCase()))
+          .join('')
   return `register${identifier}Hook`
 }
 
@@ -108,7 +114,8 @@ function modifyHost(source: string, hostFile: string, hookFile: string, event: s
   if (hasHookRegistration(sourceFile, event)) return { duplicate: true, invalidSetup: false }
   const call = findHostCall(sourceFile)
   const argument = call?.arguments[0]
-  if (call === undefined || call.arguments.length !== 1 || argument === undefined || !ts.isObjectLiteralExpression(argument)) return { duplicate: false, invalidSetup: false }
+  if (call === undefined || call.arguments.length !== 1 || argument === undefined || !ts.isObjectLiteralExpression(argument))
+    return { duplicate: false, invalidSetup: false }
   const setup = objectProperty(argument, 'setup')
   const edits: Array<{ start: number; end: number; text: string }> = []
   const name = registerName(event)
@@ -120,9 +127,7 @@ function modifyHost(source: string, hostFile: string, hookFile: string, event: s
   } else {
     const body = findSetupBody(setup)
     if (body === undefined) return { duplicate: false, invalidSetup: true }
-    const contextName = body.parameter === undefined
-      ? 'ctx'
-      : ts.isIdentifier(body.parameter.name) ? body.parameter.name.text : undefined
+    const contextName = body.parameter === undefined ? 'ctx' : ts.isIdentifier(body.parameter.name) ? body.parameter.name.text : undefined
     if (contextName === undefined) return { duplicate: false, invalidSetup: true }
     if (body.parameter === undefined) {
       const open = setup.getStart(sourceFile)
@@ -153,7 +158,13 @@ function newHostSource(hostFile: string, hookFile: string, event: string): strin
   return `import { defineHost } from '@becomeopc/dshx/host'\nimport { ${registerName(event)} } from ${JSON.stringify(importPath(hostFile, hookFile))}\n\nexport default defineHost({\n  setup(ctx) {\n    ${registerName(event)}(ctx)\n  },\n})\n`
 }
 
-function makeResult(project: ResolvedDshxConfig, options: AddHookOptions, diagnostics: readonly DshxDiagnostic[], plan: readonly FilePlan[], diff?: string): AddHookResult {
+function makeResult(
+  project: ResolvedDshxConfig,
+  options: AddHookOptions,
+  diagnostics: readonly DshxDiagnostic[],
+  plan: readonly FilePlan[],
+  diff?: string,
+): AddHookResult {
   return {
     root: project.root,
     event: options.event,
@@ -174,30 +185,139 @@ export async function createHookScaffold(options: AddHookOptions, dependencies: 
   const { project } = options
   const packageFile = project.packageFile
   if (options.event.trim() === '' || /\s/.test(options.event) || options.event.includes('/') || options.event.includes('\\')) {
-    return makeResult(project, options, [diagnostic('DSHX6301', 'Hook event must be a non-empty event name without whitespace or path separators.', packageFile, 'Pass --event <event.name> using the official Cordis event name.')], [])
+    return makeResult(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6301',
+          'Hook event must be a non-empty event name without whitespace or path separators.',
+          packageFile,
+          'Pass --event <event.name> using the official Cordis event name.',
+        ),
+      ],
+      [],
+    )
   }
   const hookFile = resolve(project.root, options.file ?? `src/hooks/${safeFileName(options.event)}.ts`)
   if (!insideProject(project.root, hookFile) || !hookFile.endsWith('.ts')) {
-    return makeResult(project, options, [diagnostic('DSHX6302', `Hook file must be a .ts path inside the project root: ${hookFile}.`, packageFile, 'Use --file with a path such as src/hooks/before-request.ts.')], [])
+    return makeResult(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6302',
+          `Hook file must be a .ts path inside the project root: ${hookFile}.`,
+          packageFile,
+          'Use --file with a path such as src/hooks/before-request.ts.',
+        ),
+      ],
+      [],
+    )
   }
   const existingHook = await readOptionalFile(hookFile)
   if (existingHook !== undefined) {
     const ast = ts.createSourceFile(hookFile, existingHook, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-    if (hasHookRegistration(ast, options.event)) return makeResult(project, options, [diagnostic('DSHX6306', `Hook for ${JSON.stringify(options.event)} is already registered in ${hookFile}.`, hookFile, 'Keep the existing Hook; no files were changed.', 'warning')], [])
-    return makeResult(project, options, [diagnostic('DSHX6302', `Hook file already exists: ${hookFile}.`, hookFile, 'Choose another --file path or remove the existing file after reviewing it.')], [])
+    if (hasHookRegistration(ast, options.event))
+      return makeResult(
+        project,
+        options,
+        [
+          diagnostic(
+            'DSHX6306',
+            `Hook for ${JSON.stringify(options.event)} is already registered in ${hookFile}.`,
+            hookFile,
+            'Keep the existing Hook; no files were changed.',
+            'warning',
+          ),
+        ],
+        [],
+      )
+    return makeResult(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6302',
+          `Hook file already exists: ${hookFile}.`,
+          hookFile,
+          'Choose another --file path or remove the existing file after reviewing it.',
+        ),
+      ],
+      [],
+    )
   }
   const hostFile = project.hostEntry ?? resolve(project.root, 'src/host.ts')
-  if (!insideProject(project.root, hostFile)) return makeResult(project, options, [diagnostic('DSHX6302', `Host file must stay inside the project root: ${hostFile}.`, packageFile, 'Move the Host entry under the project root.')], [])
+  if (!insideProject(project.root, hostFile))
+    return makeResult(
+      project,
+      options,
+      [diagnostic('DSHX6302', `Host file must stay inside the project root: ${hostFile}.`, packageFile, 'Move the Host entry under the project root.')],
+      [],
+    )
   const configSource = project.configFile === undefined ? undefined : await readOptionalFile(project.configFile)
-  if (explicitHostDisabled(project, configSource)) return makeResult(project, options, [diagnostic('DSHX6303', 'Host is explicitly disabled for this project.', project.configFile ?? packageFile, 'Remove host: false or register hooks through a project with an enabled Host face.')], [])
+  if (explicitHostDisabled(project, configSource))
+    return makeResult(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6303',
+          'Host is explicitly disabled for this project.',
+          project.configFile ?? packageFile,
+          'Remove host: false or register hooks through a project with an enabled Host face.',
+        ),
+      ],
+      [],
+    )
   const hostBefore = await readOptionalFile(hostFile)
   let hostAfter: string
   if (hostBefore === undefined) hostAfter = newHostSource(hostFile, hookFile, options.event)
   else {
     const modified = modifyHost(hostBefore, hostFile, hookFile, options.event)
-    if (modified.duplicate) return makeResult(project, options, [diagnostic('DSHX6306', `Hook for ${JSON.stringify(options.event)} is already registered in ${hostFile}.`, hostFile, 'Keep the existing Hook; no files were changed.', 'warning')], [])
-    if (modified.invalidSetup) return makeResult(project, options, [diagnostic('DSHX6305', `Host setup in ${hostFile} is not a block function that can be safely extended.`, hostFile, 'Convert setup to setup(ctx) { ... } and run add hook again.')], [])
-    if (modified.source === undefined) return makeResult(project, options, [diagnostic('DSHX6304', `Host ${hostFile} is not a DSHX defineHost default export.`, hostFile, 'Export default defineHost({ setup(ctx) { ... } }) or register the Hook manually in native Host code.')], [])
+    if (modified.duplicate)
+      return makeResult(
+        project,
+        options,
+        [
+          diagnostic(
+            'DSHX6306',
+            `Hook for ${JSON.stringify(options.event)} is already registered in ${hostFile}.`,
+            hostFile,
+            'Keep the existing Hook; no files were changed.',
+            'warning',
+          ),
+        ],
+        [],
+      )
+    if (modified.invalidSetup)
+      return makeResult(
+        project,
+        options,
+        [
+          diagnostic(
+            'DSHX6305',
+            `Host setup in ${hostFile} is not a block function that can be safely extended.`,
+            hostFile,
+            'Convert setup to setup(ctx) { ... } and run add hook again.',
+          ),
+        ],
+        [],
+      )
+    if (modified.source === undefined)
+      return makeResult(
+        project,
+        options,
+        [
+          diagnostic(
+            'DSHX6304',
+            `Host ${hostFile} is not a DSHX defineHost default export.`,
+            hostFile,
+            'Export default defineHost({ setup(ctx) { ... } }) or register the Hook manually in native Host code.',
+          ),
+        ],
+        [],
+      )
     hostAfter = modified.source
   }
   const plan: FilePlan[] = [
@@ -205,18 +325,59 @@ export async function createHookScaffold(options: AddHookOptions, dependencies: 
     ...(hostBefore === undefined ? [{ file: hostFile, after: hostAfter }] : [{ file: hostFile, before: hostBefore, after: hostAfter }]),
   ]
   if (options.dryRun) return makeResult(project, options, [], plan, renderFileDiff(plan))
-  try { await applyFilePlan(plan) }
-  catch (cause) { return makeResult(project, options, [diagnostic('DSHX6307', `Failed to write Hook scaffold: ${cause instanceof Error ? cause.message : String(cause)}`, hookFile, 'Fix filesystem permissions and retry; no partial changes were kept.')], []) }
+  try {
+    await applyFilePlan(plan)
+  } catch (cause) {
+    return makeResult(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6307',
+          `Failed to write Hook scaffold: ${cause instanceof Error ? cause.message : String(cause)}`,
+          hookFile,
+          'Fix filesystem permissions and retry; no partial changes were kept.',
+        ),
+      ],
+      [],
+    )
+  }
   const postProject: ResolvedDshxConfig = { ...project, ...(hostBefore === undefined ? { hostEntry: hostFile } : {}) }
   let postDiagnostics: readonly DshxDiagnostic[]
-  try { postDiagnostics = await (dependencies.checkManifest ?? checkProjectManifest)(postProject) }
-  catch (cause) {
+  try {
+    postDiagnostics = await (dependencies.checkManifest ?? checkProjectManifest)(postProject)
+  } catch (cause) {
     await rollbackFilePlan(plan)
-    return makeResult(project, options, [diagnostic('DSHX6308', `Generated Hook scaffold could not be validated: ${cause instanceof Error ? cause.message : String(cause)}`, packageFile, 'Fix the project manifest before generating a Hook.')], [])
+    return makeResult(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6308',
+          `Generated Hook scaffold could not be validated: ${cause instanceof Error ? cause.message : String(cause)}`,
+          packageFile,
+          'Fix the project manifest before generating a Hook.',
+        ),
+      ],
+      [],
+    )
   }
   if (postDiagnostics.some(item => item.severity === 'error')) {
     await rollbackFilePlan(plan)
-    return makeResult(project, options, [diagnostic('DSHX6308', 'Generated Hook scaffold failed Manifest Checker validation and was rolled back.', packageFile, 'Fix the project manifest before generating a Hook.'), ...postDiagnostics], [])
+    return makeResult(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6308',
+          'Generated Hook scaffold failed Manifest Checker validation and was rolled back.',
+          packageFile,
+          'Fix the project manifest before generating a Hook.',
+        ),
+        ...postDiagnostics,
+      ],
+      [],
+    )
   }
   return makeResult(project, options, postDiagnostics, plan)
 }

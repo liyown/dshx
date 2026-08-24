@@ -28,9 +28,10 @@ async function execute(command: string, args: readonly string[], options: Parame
 /** Execute DSH with the project-local pnpm shim first, then the user's PATH. */
 export const runProjectDsh: DshCommandRunner = async (args, options) => {
   let localStderr = ''
-  const localBin = process.platform === 'win32'
-    ? [resolve(options.cwd, 'node_modules/.bin/dsh.cmd'), resolve(options.cwd, 'node_modules/.bin/dsh.CMD')]
-    : [resolve(options.cwd, 'node_modules/.bin/dsh')]
+  const localBin =
+    process.platform === 'win32'
+      ? [resolve(options.cwd, 'node_modules/.bin/dsh.cmd'), resolve(options.cwd, 'node_modules/.bin/dsh.CMD')]
+      : [resolve(options.cwd, 'node_modules/.bin/dsh')]
   if (options.executable !== 'global' && localBin.some(existsSync)) {
     const local = await execute('pnpm', ['exec', 'dsh', ...args], options)
     localStderr = local.stderr

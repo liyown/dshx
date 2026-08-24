@@ -21,10 +21,7 @@ export function singleHostChunkPlugin(): Plugin {
       }
       const unexpectedAssets = assets.filter(asset => !asset.fileName.endsWith('.js.map'))
       if (unexpectedAssets.length > 0) {
-        throw new DshxError(
-          'DSHX1303',
-          `A DSH Host build emitted unsupported assets: ${unexpectedAssets.map(asset => asset.fileName).join(', ')}.`,
-        )
+        throw new DshxError('DSHX1303', `A DSH Host build emitted unsupported assets: ${unexpectedAssets.map(asset => asset.fileName).join(', ')}.`)
       }
     },
   }

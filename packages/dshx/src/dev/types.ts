@@ -56,16 +56,9 @@ export interface DevSessionOptions {
   readonly dshArgs?: readonly string[]
   readonly profile?: ProfileOrchestratorOptions
   readonly preparedProfile?: PreparedProjectProfile
-  readonly ensureProfile?: (
-    project: ResolvedDshxConfig,
-    options: ProfileOrchestratorOptions,
-  ) => Promise<PreparedProjectProfile>
+  readonly ensureProfile?: (project: ResolvedDshxConfig, options: ProfileOrchestratorOptions) => Promise<PreparedProjectProfile>
   readonly hostWatcher?: (options: BuildHostOptions) => Promise<DevWatcher>
   readonly clientWatcher?: (options: BuildClientOptions) => Promise<DevWatcher>
-  readonly child?: (
-    project: ResolvedDshxConfig,
-    args: readonly string[],
-    env: NodeJS.ProcessEnv,
-  ) => Promise<DevChildProcess>
+  readonly child?: (project: ResolvedDshxConfig, args: readonly string[], env: NodeJS.ProcessEnv) => Promise<DevChildProcess>
   readonly stopTimeoutMs?: number
 }

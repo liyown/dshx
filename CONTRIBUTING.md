@@ -4,7 +4,7 @@ DSHX is a pnpm monorepo for the build-time framework, project creator, Hub websi
 
 ## Local checks
 
-Use Node `^22.19.0` or `>=24` and pnpm `10.24.0`.
+Use Node `^22.19.0` or `>=24` and pnpm `10.34.5`.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -30,7 +30,7 @@ Do not add production fixtures, execute third-party plugin lifecycle scripts, or
 - Add a Changeset for publishable Framework, `create-dshx`, or Hub CLI changes.
 - `@becomeopc/dshx` and `create-dshx` release as a fixed version group.
 - `@becomeopc/dshx-hub-cli` releases independently.
-- Follow the [trusted publishing and first-release runbook](docs/releasing.md); never add npm or Cloudflare production tokens to GitHub.
+- Follow the [local package publication runbook](docs/releasing.md); never add npm or Cloudflare production tokens to GitHub.
 - Website deployment is manual from a configured development machine; GitHub Actions never deploys Cloudflare resources.
 
 By participating, you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).

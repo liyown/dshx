@@ -108,10 +108,33 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @becomeopc/dshx-hub-cli test:keyring-load
 
-  rc2-smoke:
-    name: Real DSH rc.2 compatibility smoke
+  compatibility-matrix:
+    name: Derive DSH compatibility matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: matrix
+        run: pnpm compatibility:matrix -- --github-output
+
+  dsh-compatibility-smoke:
+    name: DSH ${{ matrix.generation }} / ${{ matrix.role }} / ${{ matrix.version }}
+    needs: compatibility-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.compatibility-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -122,4 +145,4 @@ jobs:
           node-version: 22.19.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm smoke:rc2
+      - run: pnpm smoke:dsh -- --version ${{ matrix.version }}

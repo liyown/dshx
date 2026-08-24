@@ -1,12 +1,26 @@
-export interface TemplateContext { readonly packageId: string; readonly dshxVersion: string; readonly dshVersion: string }
+export interface TemplateContext {
+  readonly packageId: string
+  readonly dshxVersion: string
+  readonly dshVersion: string
+  readonly dshRange: string
+}
 
 export const TEMPLATE_FILES = [
-  'src/api/status.ts', 'src/host.ts', 'src/client.tsx', 'src/css-modules.d.ts', 'src/Status.module.css',
-  'dshx.config.ts', 'package.json', 'tsconfig.json', 'cordis.patch.yml', 'README.md',
+  'src/api/status.ts',
+  'src/host.ts',
+  'src/client.tsx',
+  'src/css-modules.d.ts',
+  'src/Status.module.css',
+  'dshx.config.ts',
+  'package.json',
+  'tsconfig.json',
+  'cordis.patch.yml',
+  'README.md',
 ] as const
 
 export function renderTemplate(path: (typeof TEMPLATE_FILES)[number], context: TemplateContext): string {
-  if (path === 'src/api/status.ts') return `import { defineApi, method } from '@becomeopc/dshx/api'
+  if (path === 'src/api/status.ts')
+    return `import { defineApi, method } from '@becomeopc/dshx/api'
 
 export interface Status {
   readonly project: string
@@ -23,7 +37,8 @@ export const statusApi = defineApi({
   },
 })
 `
-  if (path === 'src/host.ts') return `import { defineHost, defineTool } from '@becomeopc/dshx/host'
+  if (path === 'src/host.ts')
+    return `import { defineHost, defineTool } from '@becomeopc/dshx/host'
 import { statusApi } from './api/status.js'
 
 const startedAt = new Date().toISOString()
@@ -59,7 +74,8 @@ export default defineHost({
   },
 })
 `
-  if (path === 'src/client.tsx') return `import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+  if (path === 'src/client.tsx')
+    return `import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { defineClient, defineSlot, useApi, useQuery } from '@becomeopc/dshx/client'
 import { statusApi } from './api/status.js'
@@ -114,12 +130,14 @@ const status = defineSlot('sidebar.footer.action', {
 
 export default defineClient({ api: statusApi, slots: [status] })
 `
-  if (path === 'src/css-modules.d.ts') return `declare module '*.module.css' {
+  if (path === 'src/css-modules.d.ts')
+    return `declare module '*.module.css' {
   const classes: Record<string, string>
   export default classes
 }
 `
-  if (path === 'src/Status.module.css') return `.deck {
+  if (path === 'src/Status.module.css')
+    return `.deck {
   width: min(252px, calc(100vw - 28px));
   overflow: hidden;
   color: #eff7f5;
@@ -319,37 +337,62 @@ export default defineClient({ api: statusApi, slots: [status] })
   }
 }
 `
-  if (path === 'dshx.config.ts') return `import { defineConfig } from '@becomeopc/dshx/config'
+  if (path === 'dshx.config.ts')
+    return `import { defineConfig } from '@becomeopc/dshx/config'
 
 export default defineConfig({
   profile: 'web',
   dev: { hostRestart: 'manual' },
 })
 `
-  if (path === 'package.json') return `${JSON.stringify({
-    name: context.packageId, version: '0.0.0', private: true, type: 'module',
-    main: './dist/index.js',
-    exports: {
-      '.': { types: './dist/index.d.ts', default: './dist/index.js' },
-      './client': { types: './dist/client.d.ts', default: './dist/client.js' },
-      './cordis.patch.yml': './cordis.patch.yml', './package.json': './package.json',
-    },
-    files: ['dist', 'cordis.patch.yml'],
-    dsh: { bundle: { patch: './cordis.patch.yml' }, client: { platform: 'web', inject: ['@deepseek-ai/dsh-client-connection', '@deepseek-ai/dsh-client-ui-sidebar'], external: [], immediately: false } },
-    scripts: { dev: 'dshx dev --open', build: 'dshx build', check: 'dshx check' },
-    devDependencies: {
-      '@becomeopc/dshx': context.dshxVersion, '@deepseek-ai/dsh': context.dshVersion,
-      '@deepseek-ai/cordis': '^4.0.1', '@deepseek-ai/dsh-cordis-host-runner': '>=0.1.0-rc.8 <0.2.0',
-      '@deepseek-ai/dsh-tool-cordis': '>=0.1.0-rc.8 <0.2.0', '@deepseek-ai/dsh-tools': '>=0.1.0-rc.8 <0.2.0',
-      '@deepseek-ai/dsh-client-ui-slots': '>=0.1.0-rc.8 <0.2.0', '@deepseek-ai/dsh-client-ui-sidebar': '>=0.1.0-rc.8 <0.2.0',
-      '@types/node': '^22.19.0', '@types/react': '~18.3.31', react: '^18.3.1', typescript: '^5.9.3',
-    },
-    peerDependencies: { '@deepseek-ai/dsh-tools': '>=0.1.0-rc.8 <0.2.0' },
-  }, null, 2)}
+  if (path === 'package.json')
+    return `${JSON.stringify(
+      {
+        name: context.packageId,
+        version: '0.0.0',
+        private: true,
+        type: 'module',
+        main: './dist/index.js',
+        exports: {
+          '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+          './client': { types: './dist/client.d.ts', default: './dist/client.js' },
+          './cordis.patch.yml': './cordis.patch.yml',
+          './package.json': './package.json',
+        },
+        files: ['dist', 'cordis.patch.yml'],
+        dsh: {
+          bundle: { patch: './cordis.patch.yml' },
+          client: { platform: 'web', inject: ['@deepseek-ai/dsh-client-connection', '@deepseek-ai/dsh-client-ui-sidebar'], external: [], immediately: false },
+        },
+        scripts: { dev: 'dshx dev --open', build: 'dshx build', check: 'dshx check' },
+        devDependencies: {
+          '@becomeopc/dshx': context.dshxVersion,
+          '@deepseek-ai/dsh': context.dshVersion,
+          '@deepseek-ai/cordis': '^4.0.1',
+          '@deepseek-ai/dsh-cordis-host-runner': context.dshVersion,
+          '@deepseek-ai/dsh-tool-cordis': context.dshVersion,
+          '@deepseek-ai/dsh-tools': context.dshVersion,
+          '@deepseek-ai/dsh-client-ui-slots': context.dshVersion,
+          '@deepseek-ai/dsh-client-ui-sidebar': context.dshVersion,
+          '@types/node': '^22.19.0',
+          '@types/react': '~18.3.31',
+          react: '^18.3.1',
+          typescript: '^5.9.3',
+        },
+        peerDependencies: {
+          '@deepseek-ai/dsh': context.dshRange,
+          '@deepseek-ai/dsh-tools': context.dshRange,
+        },
+      },
+      null,
+      2,
+    )}
 `
-  if (path === 'tsconfig.json') return `${JSON.stringify({ compilerOptions: { target: 'ES2024', module: 'NodeNext', moduleResolution: 'NodeNext', preserveSymlinks: true, jsx: 'react-jsx', strict: true, noEmit: true, skipLibCheck: true }, include: ['src/**/*.ts', 'src/**/*.tsx'] }, null, 2)}
+  if (path === 'tsconfig.json')
+    return `${JSON.stringify({ compilerOptions: { target: 'ES2024', module: 'NodeNext', moduleResolution: 'NodeNext', preserveSymlinks: true, jsx: 'react-jsx', strict: true, noEmit: true, skipLibCheck: true }, include: ['src/**/*.ts', 'src/**/*.tsx'] }, null, 2)}
 `
-  if (path === 'cordis.patch.yml') return `- insert:
+  if (path === 'cordis.patch.yml')
+    return `- insert:
     - id: ${context.packageId.replace(/[^a-zA-Z0-9_-]/g, '-')}
       name: "${context.packageId}"
 `

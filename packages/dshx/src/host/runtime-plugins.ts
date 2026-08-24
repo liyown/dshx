@@ -54,10 +54,7 @@ async function loadOfficialPlugin(packageName: string, load: DshxRuntimePluginSp
 }
 
 /** Mount adapter-approved runtime plugins without exposing arbitrary package loading. */
-export async function loadRuntimePlugins(
-  ctx: Context,
-  compatibility: DshCompatibility | undefined,
-): Promise<RuntimePluginState> {
+export async function loadRuntimePlugins(ctx: Context, compatibility: DshCompatibility | undefined): Promise<RuntimePluginState> {
   const specs = compatibility?.runtimePlugins ?? []
   const loaded: string[] = []
   const skipped: string[] = []

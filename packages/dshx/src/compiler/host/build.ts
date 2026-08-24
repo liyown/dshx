@@ -45,10 +45,7 @@ function isInside(parent: string, child: string): boolean {
   return path !== '' && !path.startsWith('..') && !isAbsolute(path)
 }
 
-function hostEntryPlugin(
-  paths: Awaited<ReturnType<typeof resolveOptions>>,
-  options: BuildHostOptions,
-): Plugin {
+function hostEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildHostOptions): Plugin {
   const name = options.logicalName ?? options.packageId
   return {
     name: 'dshx-host-entry',
@@ -106,18 +103,17 @@ async function resolveOptions(options: BuildHostOptions) {
   const root = await realpath(resolve(options.root ?? process.cwd()))
   const outDir = resolve(root, options.outDir)
   const configuredEntry = options.entry
-  const entry = configuredEntry === undefined
-    ? undefined
-    : await realpath(resolve(root, configuredEntry)).catch((cause: unknown) => {
-        const file = resolve(root, configuredEntry)
-        throw new DshxError('DSHX1301', `Host entry does not exist: ${file}`, { cause, file })
-      })
+  const entry =
+    configuredEntry === undefined
+      ? undefined
+      : await realpath(resolve(root, configuredEntry)).catch((cause: unknown) => {
+          const file = resolve(root, configuredEntry)
+          throw new DshxError('DSHX1301', `Host entry does not exist: ${file}`, { cause, file })
+        })
   if (outDir === root || (entry !== undefined && isInside(outDir, entry))) {
-    throw new DshxError(
-      'DSHX1003',
-      `Host output directory ${outDir} would overwrite project sources.`,
-      { hint: 'Choose a dedicated output directory such as dist.' },
-    )
+    throw new DshxError('DSHX1003', `Host output directory ${outDir} would overwrite project sources.`, {
+      hint: 'Choose a dedicated output directory such as dist.',
+    })
   }
   return { root, entry, outDir }
 }
@@ -167,10 +163,12 @@ function normalizeWatcher(result: Awaited<ReturnType<typeof build>>): DshxBuildW
 export async function startHostWatcher(options: BuildHostOptions): Promise<DshxBuildWatcher> {
   const paths = await resolveOptions(options)
   const config = hostConfig(paths, options)
-  return normalizeWatcher(await build({
-    ...config,
-    build: { ...config.build, watch: {} },
-  }))
+  return normalizeWatcher(
+    await build({
+      ...config,
+      build: { ...config.build, watch: {} },
+    }),
+  )
 }
 
 /** Build a DSH-compatible Host entry as one Node ESM file. */
@@ -180,7 +178,7 @@ export async function buildHost(options: BuildHostOptions): Promise<HostBuildRes
 
   if (options.watch === true) {
     await build(config)
-    return await startHostWatcher(options) as unknown as HostBuildResult
+    return (await startHostWatcher(options)) as unknown as HostBuildResult
   }
   return normalizeBuildResult(await build(config))
 }

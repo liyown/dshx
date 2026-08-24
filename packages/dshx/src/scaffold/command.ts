@@ -57,7 +57,8 @@ function findDefineHost(sourceFile: ts.SourceFile): ts.CallExpression | undefine
 }
 
 function property(object: ts.ObjectLiteralExpression, name: string): ts.PropertyAssignment | undefined {
-  return object.properties.find(item => ts.isPropertyAssignment(item) && ts.isIdentifier(item.name) && item.name.text === name) as ts.PropertyAssignment | undefined
+  return object.properties.find(item => ts.isPropertyAssignment(item) && ts.isIdentifier(item.name) && item.name.text === name) as
+    ts.PropertyAssignment | undefined
 }
 
 function hasCommand(sourceFile: ts.SourceFile, name: string): boolean {
@@ -88,23 +89,34 @@ function modifyHost(source: string, hostFile: string, commandFile: string, name:
   if (hasCommand(sourceFile, name)) return { duplicate: true, invalidCommands: false }
   const call = findDefineHost(sourceFile)
   const argument = call?.arguments[0]
-  if (call === undefined || call.arguments.length !== 1 || argument === undefined || !ts.isObjectLiteralExpression(argument)) return { duplicate: false, invalidCommands: false }
+  if (call === undefined || call.arguments.length !== 1 || argument === undefined || !ts.isObjectLiteralExpression(argument))
+    return { duplicate: false, invalidCommands: false }
   const commands = property(argument, 'commands')
   if (commands !== undefined && !ts.isArrayLiteralExpression(commands.initializer)) return { duplicate: false, invalidCommands: true }
   const identifier = commandIdentifier(name)
   const imports = sourceFile.statements.filter(ts.isImportDeclaration)
   const importEnd = imports.length === 0 ? 0 : imports[imports.length - 1]!.end
-  const edits: Array<{ start: number; end: number; text: string }> = [{
-    start: importEnd,
-    end: importEnd,
-    text: `${importEnd === 0 ? '' : '\n'}import { ${identifier} } from ${JSON.stringify(importPath(hostFile, commandFile))}\n`,
-  }]
+  const edits: Array<{ start: number; end: number; text: string }> = [
+    {
+      start: importEnd,
+      end: importEnd,
+      text: `${importEnd === 0 ? '' : '\n'}import { ${identifier} } from ${JSON.stringify(importPath(hostFile, commandFile))}\n`,
+    },
+  ]
   if (commands !== undefined && ts.isArrayLiteralExpression(commands.initializer)) {
-    edits.push({ start: commands.initializer.end - 1, end: commands.initializer.end - 1, text: `${commands.initializer.elements.length > 0 ? ', ' : ''}${identifier}` })
+    edits.push({
+      start: commands.initializer.end - 1,
+      end: commands.initializer.end - 1,
+      text: `${commands.initializer.elements.length > 0 ? ', ' : ''}${identifier}`,
+    })
   } else {
     const objectText = source.slice(argument.getStart(sourceFile), argument.getEnd())
     const openBrace = argument.getStart(sourceFile) + objectText.indexOf('{') + 1
-    edits.push({ start: openBrace, end: openBrace, text: `${argument.properties.length > 0 ? '\n' : ''}  commands: [${identifier}],${argument.properties.length > 0 ? '' : '\n'}` })
+    edits.push({
+      start: openBrace,
+      end: openBrace,
+      text: `${argument.properties.length > 0 ? '\n' : ''}  commands: [${identifier}],${argument.properties.length > 0 ? '' : '\n'}`,
+    })
   }
   edits.sort((a, b) => b.start - a.start)
   let result = source
@@ -116,7 +128,13 @@ function newHostSource(commandFile: string, hostFile: string, name: string): str
   return `import { defineHost } from '@becomeopc/dshx/host'\nimport { ${commandIdentifier(name)} } from ${JSON.stringify(importPath(hostFile, commandFile))}\n\nexport default defineHost({\n  commands: [${commandIdentifier(name)}],\n})\n`
 }
 
-function result(project: ResolvedDshxConfig, options: AddCommandOptions, diagnostics: readonly DshxDiagnostic[], plan: readonly FilePlan[], diff?: string): AddCommandResult {
+function result(
+  project: ResolvedDshxConfig,
+  options: AddCommandOptions,
+  diagnostics: readonly DshxDiagnostic[],
+  plan: readonly FilePlan[],
+  diff?: string,
+): AddCommandResult {
   return {
     root: project.root,
     name: options.name,
@@ -137,33 +155,136 @@ export async function createCommandScaffold(options: AddCommandOptions, dependen
   const { project } = options
   const file = project.packageFile
   if (!/^[a-z][a-z0-9_-]*$/.test(options.name)) {
-    return result(project, options, [diagnostic('DSHX6501', `Invalid Command name ${JSON.stringify(options.name)}.`, file, 'Use a lowercase command name beginning with a letter and containing only letters, numbers, hyphens, or underscores.')], [])
+    return result(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6501',
+          `Invalid Command name ${JSON.stringify(options.name)}.`,
+          file,
+          'Use a lowercase command name beginning with a letter and containing only letters, numbers, hyphens, or underscores.',
+        ),
+      ],
+      [],
+    )
   }
   const description = options.description ?? 'Generated DSHX command.'
-  if (description.trim() === '') return result(project, options, [diagnostic('DSHX6501', 'Command description must not be empty.', file, 'Pass a non-empty --description value.')], [])
+  if (description.trim() === '')
+    return result(project, options, [diagnostic('DSHX6501', 'Command description must not be empty.', file, 'Pass a non-empty --description value.')], [])
   const commandFile = resolve(project.root, options.file ?? `src/commands/${options.name}.ts`)
   if (!insideProject(project.root, commandFile) || !commandFile.endsWith('.ts')) {
-    return result(project, options, [diagnostic('DSHX6502', `Command file must be a .ts path inside the project root: ${commandFile}.`, file, 'Use --file with a path such as src/commands/status.ts.')], [])
+    return result(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6502',
+          `Command file must be a .ts path inside the project root: ${commandFile}.`,
+          file,
+          'Use --file with a path such as src/commands/status.ts.',
+        ),
+      ],
+      [],
+    )
   }
   const existingCommandFile = await readOptionalFile(commandFile)
   if (existingCommandFile !== undefined) {
     const ast = ts.createSourceFile(commandFile, existingCommandFile, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-    if (hasCommand(ast, options.name)) return result(project, options, [diagnostic('DSHX6506', `Command ${JSON.stringify(options.name)} is already defined in ${commandFile}.`, commandFile, 'Keep the existing Command; no files were changed.', 'warning')], [])
-    return result(project, options, [diagnostic('DSHX6502', `Command file already exists: ${commandFile}.`, commandFile, 'Choose another --file path or remove the existing file after reviewing it.')], [])
+    if (hasCommand(ast, options.name))
+      return result(
+        project,
+        options,
+        [
+          diagnostic(
+            'DSHX6506',
+            `Command ${JSON.stringify(options.name)} is already defined in ${commandFile}.`,
+            commandFile,
+            'Keep the existing Command; no files were changed.',
+            'warning',
+          ),
+        ],
+        [],
+      )
+    return result(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6502',
+          `Command file already exists: ${commandFile}.`,
+          commandFile,
+          'Choose another --file path or remove the existing file after reviewing it.',
+        ),
+      ],
+      [],
+    )
   }
   const hostFile = project.hostEntry ?? resolve(project.root, 'src/host.ts')
-  if (!insideProject(project.root, hostFile)) return result(project, options, [diagnostic('DSHX6502', `Host file must stay inside the project root: ${hostFile}.`, file, 'Move the Host entry under the project root.')], [])
+  if (!insideProject(project.root, hostFile))
+    return result(
+      project,
+      options,
+      [diagnostic('DSHX6502', `Host file must stay inside the project root: ${hostFile}.`, file, 'Move the Host entry under the project root.')],
+      [],
+    )
   const configSource = project.configFile === undefined ? undefined : await readOptionalFile(project.configFile)
-  if (explicitHostDisabled(project, configSource)) return result(project, options, [diagnostic('DSHX6503', 'Host is explicitly disabled for this project.', project.configFile ?? file, 'Remove host: false or use a project with an enabled Host face.')], [])
+  if (explicitHostDisabled(project, configSource))
+    return result(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6503',
+          'Host is explicitly disabled for this project.',
+          project.configFile ?? file,
+          'Remove host: false or use a project with an enabled Host face.',
+        ),
+      ],
+      [],
+    )
   const hostBefore = await readOptionalFile(hostFile)
   const commandAfter = sourceForCommand(options.name, description)
   let hostAfter: string
   if (hostBefore === undefined) hostAfter = newHostSource(commandFile, hostFile, options.name)
   else {
     const modified = modifyHost(hostBefore, hostFile, commandFile, options.name)
-    if (modified.duplicate) return result(project, options, [diagnostic('DSHX6506', `Command ${JSON.stringify(options.name)} is already registered in ${hostFile}.`, hostFile, 'Keep the existing Command; no files were changed.', 'warning')], [])
-    if (modified.invalidCommands) return result(project, options, [diagnostic('DSHX6505', 'Host defineHost commands must be an array.', hostFile, 'Change commands to an array of official CommandDefinition values.')], [])
-    if (modified.source === undefined) return result(project, options, [diagnostic('DSHX6504', `Host ${hostFile} is not a DSHX defineHost default export.`, hostFile, 'Export default defineHost({ commands: [...] }) or register the Command manually in native Host code.')], [])
+    if (modified.duplicate)
+      return result(
+        project,
+        options,
+        [
+          diagnostic(
+            'DSHX6506',
+            `Command ${JSON.stringify(options.name)} is already registered in ${hostFile}.`,
+            hostFile,
+            'Keep the existing Command; no files were changed.',
+            'warning',
+          ),
+        ],
+        [],
+      )
+    if (modified.invalidCommands)
+      return result(
+        project,
+        options,
+        [diagnostic('DSHX6505', 'Host defineHost commands must be an array.', hostFile, 'Change commands to an array of official CommandDefinition values.')],
+        [],
+      )
+    if (modified.source === undefined)
+      return result(
+        project,
+        options,
+        [
+          diagnostic(
+            'DSHX6504',
+            `Host ${hostFile} is not a DSHX defineHost default export.`,
+            hostFile,
+            'Export default defineHost({ commands: [...] }) or register the Command manually in native Host code.',
+          ),
+        ],
+        [],
+      )
     hostAfter = modified.source
   }
   const plan: FilePlan[] = [
@@ -174,7 +295,19 @@ export async function createCommandScaffold(options: AddCommandOptions, dependen
   try {
     await applyFilePlan(plan)
   } catch (cause) {
-    return result(project, options, [diagnostic('DSHX6507', `Failed to write Command scaffold: ${cause instanceof Error ? cause.message : String(cause)}`, commandFile, 'Fix filesystem permissions and retry; no partial changes were kept.')], [])
+    return result(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6507',
+          `Failed to write Command scaffold: ${cause instanceof Error ? cause.message : String(cause)}`,
+          commandFile,
+          'Fix filesystem permissions and retry; no partial changes were kept.',
+        ),
+      ],
+      [],
+    )
   }
   const postProject: ResolvedDshxConfig = { ...project, ...(hostBefore === undefined ? { hostEntry: hostFile } : {}) }
   let postDiagnostics: readonly DshxDiagnostic[]
@@ -182,11 +315,36 @@ export async function createCommandScaffold(options: AddCommandOptions, dependen
     postDiagnostics = await (dependencies.checkManifest ?? checkProjectManifest)(postProject)
   } catch (cause) {
     await rollbackFilePlan(plan)
-    return result(project, options, [diagnostic('DSHX6508', `Generated Command scaffold could not be validated: ${cause instanceof Error ? cause.message : String(cause)}`, file, 'Fix the project manifest before generating a Command.')], [])
+    return result(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6508',
+          `Generated Command scaffold could not be validated: ${cause instanceof Error ? cause.message : String(cause)}`,
+          file,
+          'Fix the project manifest before generating a Command.',
+        ),
+      ],
+      [],
+    )
   }
   if (postDiagnostics.some(item => item.severity === 'error')) {
     await rollbackFilePlan(plan)
-    return result(project, options, [diagnostic('DSHX6508', 'Generated Command scaffold failed Manifest Checker validation and was rolled back.', file, 'Fix the project manifest before generating a Command.'), ...postDiagnostics], [])
+    return result(
+      project,
+      options,
+      [
+        diagnostic(
+          'DSHX6508',
+          'Generated Command scaffold failed Manifest Checker validation and was rolled back.',
+          file,
+          'Fix the project manifest before generating a Command.',
+        ),
+        ...postDiagnostics,
+      ],
+      [],
+    )
   }
   return result(project, options, postDiagnostics, plan)
 }

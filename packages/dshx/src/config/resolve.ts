@@ -13,7 +13,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 async function exists(file: string): Promise<boolean> {
-  return access(file).then(() => true, () => false)
+  return access(file).then(
+    () => true,
+    () => false,
+  )
 }
 
 async function findProjectRoot(cwd: string): Promise<string> {
@@ -24,11 +27,10 @@ async function findProjectRoot(cwd: string): Promise<string> {
     if (await exists(resolve(current, PACKAGE_FILENAME))) return current
     const parent = dirname(current)
     if (parent === current) {
-      throw new DshxError(
-        'DSHX4001',
-        `No package.json was found from ${JSON.stringify(cwd)} upward.`,
-        { file: resolve(cwd), hint: 'Run DSHX inside a plugin package.' },
-      )
+      throw new DshxError('DSHX4001', `No package.json was found from ${JSON.stringify(cwd)} upward.`, {
+        file: resolve(cwd),
+        hint: 'Run DSHX inside a plugin package.',
+      })
     }
     current = parent
   }
@@ -51,11 +53,10 @@ async function readManifest(packageFile: string): Promise<Record<string, unknown
     throw new DshxError('DSHX4002', 'Project package.json must contain a JSON object.', { file: packageFile })
   }
   if (typeof value.name !== 'string' || value.name.trim() === '') {
-    throw new DshxError(
-      'DSHX4002',
-      'Project package.json must declare a non-empty string name.',
-      { file: packageFile, hint: 'Use the installable package id, for example "@scope/my-plugin".' },
-    )
+    throw new DshxError('DSHX4002', 'Project package.json must declare a non-empty string name.', {
+      file: packageFile,
+      hint: 'Use the installable package id, for example "@scope/my-plugin".',
+    })
   }
   return value
 }
@@ -63,11 +64,10 @@ async function readManifest(packageFile: string): Promise<Record<string, unknown
 function rejectUnknownKeys(value: Record<string, unknown>, allowed: ReadonlySet<string>, label: string, file: string): void {
   const unknown = Object.keys(value).filter(key => !allowed.has(key))
   if (unknown.length > 0) {
-    throw new DshxError(
-      'DSHX4004',
-      `${label} contains unknown field${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}.`,
-      { file, hint: 'Remove the field or move runtime behavior into Host/Client source code.' },
-    )
+    throw new DshxError('DSHX4004', `${label} contains unknown field${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}.`, {
+      file,
+      hint: 'Remove the field or move runtime behavior into Host/Client source code.',
+    })
   }
 }
 
@@ -146,23 +146,16 @@ async function loadUserConfig(root: string): Promise<{
   dependencies: string[]
 }> {
   const file = resolve(root, CONFIG_FILENAME)
-  if (!await exists(file)) return { config: {}, dependencies: [] }
+  if (!(await exists(file))) return { config: {}, dependencies: [] }
   let loaded: Awaited<ReturnType<typeof loadConfigFromFile>>
   try {
-    loaded = await loadConfigFromFile(
-      { command: 'build', mode: 'production' },
-      file,
-      root,
-      'silent',
-      undefined,
-      'bundle',
-    )
+    loaded = await loadConfigFromFile({ command: 'build', mode: 'production' }, file, root, 'silent', undefined, 'bundle')
   } catch (cause) {
-    throw new DshxError(
-      'DSHX4003',
-      `Failed to load ${CONFIG_FILENAME}; it must default-export a configuration object.`,
-      { cause, file, hint: 'Fix the TypeScript error and default-export an object accepted by defineConfig().' },
-    )
+    throw new DshxError('DSHX4003', `Failed to load ${CONFIG_FILENAME}; it must default-export a configuration object.`, {
+      cause,
+      file,
+      hint: 'Fix the TypeScript error and default-export an object accepted by defineConfig().',
+    })
   }
   if (loaded === null) {
     throw new DshxError('DSHX4003', `Failed to load ${CONFIG_FILENAME}.`, {
@@ -192,28 +185,25 @@ async function resolveEntry(
   if (configured === false) return undefined
   const explicit = typeof configured === 'string'
   const unresolved = resolve(root, configured ?? convention)
-  if (!explicit && !await exists(unresolved)) return undefined
+  if (!explicit && !(await exists(unresolved))) return undefined
   const entry = await realpath(unresolved).catch((cause: unknown) => {
-    throw new DshxError(
-      'DSHX4005',
-      `${field} entry does not exist: ${unresolved}`,
-      { cause, file: configFile ?? unresolved, hint: `Create the file or set ${field}: false.` },
-    )
+    throw new DshxError('DSHX4005', `${field} entry does not exist: ${unresolved}`, {
+      cause,
+      file: configFile ?? unresolved,
+      hint: `Create the file or set ${field}: false.`,
+    })
   })
   if (!isInside(root, entry)) {
-    throw new DshxError(
-      'DSHX4005',
-      `${field} entry must stay inside the project root: ${entry}`,
-      { file: configFile ?? entry, hint: `Move the entry under ${root} or set ${field}: false.` },
-    )
+    throw new DshxError('DSHX4005', `${field} entry must stay inside the project root: ${entry}`, {
+      file: configFile ?? entry,
+      hint: `Move the entry under ${root} or set ${field}: false.`,
+    })
   }
   return entry
 }
 
 /** Discover and normalize one DSHX project without changing its files. */
-export async function resolveDshxConfig(
-  options: ResolveDshxConfigOptions = {},
-): Promise<ResolvedDshxConfig> {
+export async function resolveDshxConfig(options: ResolveDshxConfigOptions = {}): Promise<ResolvedDshxConfig> {
   const root = await findProjectRoot(options.cwd ?? process.cwd())
   const packageFile = resolve(root, PACKAGE_FILENAME)
   const manifest = await readManifest(packageFile)
@@ -221,11 +211,10 @@ export async function resolveDshxConfig(
   const hostEntry = await resolveEntry(root, loaded.config.host, 'src/host.ts', 'host', loaded.configFile)
   const clientEntry = await resolveEntry(root, loaded.config.client, 'src/client.tsx', 'client', loaded.configFile)
   if (hostEntry === undefined && clientEntry === undefined) {
-    throw new DshxError(
-      'DSHX4006',
-      'No Host or Client entry is enabled for this project.',
-      { file: loaded.configFile ?? packageFile, hint: 'Create src/host.ts or src/client.tsx, or configure an explicit entry.' },
-    )
+    throw new DshxError('DSHX4006', 'No Host or Client entry is enabled for this project.', {
+      file: loaded.configFile ?? packageFile,
+      hint: 'Create src/host.ts or src/client.tsx, or configure an explicit entry.',
+    })
   }
   const packageId = manifest.name as string
   return {

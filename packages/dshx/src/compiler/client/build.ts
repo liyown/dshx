@@ -49,10 +49,7 @@ function isInside(parent: string, child: string): boolean {
   return path !== '' && !path.startsWith('..') && !isAbsolute(path)
 }
 
-function clientEntryPlugin(
-  paths: Awaited<ReturnType<typeof resolveOptions>>,
-  options: BuildClientOptions,
-): Plugin {
+function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildClientOptions): Plugin {
   const name = options.logicalName ?? options.packageId
   return {
     name: 'dshx-client-entry',
@@ -64,15 +61,16 @@ function clientEntryPlugin(
       return null
     },
     load(id) {
-      if (id === VIRTUAL_CLIENT_PUBLIC) return [
-        'export function defineClient(definition) { return definition }',
-        'export function defineSlot(name, options) {',
-        '  const { component, ...registration } = options',
-        '  return { name, options: registration, component }',
-        '}',
-        `export { useApi, useQuery, createApiClient } from ${JSON.stringify(CLIENT_API_PATH)}`,
-        '',
-      ].join('\n')
+      if (id === VIRTUAL_CLIENT_PUBLIC)
+        return [
+          'export function defineClient(definition) { return definition }',
+          'export function defineSlot(name, options) {',
+          '  const { component, ...registration } = options',
+          '  return { name, options: registration, component }',
+          '}',
+          `export { useApi, useQuery, createApiClient } from ${JSON.stringify(CLIENT_API_PATH)}`,
+          '',
+        ].join('\n')
       if (id === `${VIRTUAL_CLIENT_PUBLIC}-api`) {
         return `export { defineApi, method } from ${JSON.stringify(API_DEFINE_PATH)}\n`
       }
@@ -110,22 +108,16 @@ async function resolveOptions(options: BuildClientOptions) {
     throw new DshxError('DSHX1002', `Client entry does not exist: ${unresolvedEntry}`, { cause, file: unresolvedEntry })
   })
   if (outDir === root || isInside(outDir, entry)) {
-    throw new DshxError(
-      'DSHX1003',
-      `Client output directory ${outDir} would overwrite project sources.`,
-      { hint: 'Choose a dedicated output directory such as dist.' },
-    )
+    throw new DshxError('DSHX1003', `Client output directory ${outDir} would overwrite project sources.`, {
+      hint: 'Choose a dedicated output directory such as dist.',
+    })
   }
   return { root, entry, outDir }
 }
 
 function clientConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildClientOptions): InlineConfig {
   const compatibility = options.compatibility ?? DEFAULT_COMPATIBILITY
-  const externals = new Set([
-    ...compatibility.client.platformModules,
-    ...compatibility.client.preloadedExternals,
-    ...(options.external ?? []),
-  ])
+  const externals = new Set([...compatibility.client.platformModules, ...compatibility.client.preloadedExternals, ...(options.external ?? [])])
   return {
     root: paths.root,
     configFile: false,
@@ -173,7 +165,6 @@ function clientConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options
       },
     },
   }
-
 }
 
 function normalizeWatcher(result: Awaited<ReturnType<typeof build>>): DshxBuildWatcher {
@@ -190,10 +181,12 @@ function normalizeWatcher(result: Awaited<ReturnType<typeof build>>): DshxBuildW
 export async function startClientWatcher(options: BuildClientOptions): Promise<DshxBuildWatcher> {
   const paths = await resolveOptions(options)
   const config = clientConfig(paths, options)
-  return normalizeWatcher(await build({
-    ...config,
-    build: { ...config.build, watch: {} },
-  }))
+  return normalizeWatcher(
+    await build({
+      ...config,
+      build: { ...config.build, watch: {} },
+    }),
+  )
 }
 
 /** Build a DSH-compatible client factory with Vite/Rolldown. */
@@ -203,7 +196,7 @@ export async function buildClient(options: BuildClientOptions): Promise<ClientBu
 
   if (options.watch === true) {
     await build(config)
-    return await startClientWatcher(options) as unknown as ClientBuildResult
+    return (await startClientWatcher(options)) as unknown as ClientBuildResult
   }
   return normalizeBuildResult(await build(config))
 }
