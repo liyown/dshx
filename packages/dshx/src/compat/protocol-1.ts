@@ -55,6 +55,11 @@ export const PROTOCOL_1_COMPATIBILITY: DshCompatibility = {
     clientRpc: true,
     defaultAuthority: 'loopback',
   },
+  hostContributions: {
+    commands: true,
+    promptSections: true,
+    promptContexts: true,
+  },
   client: {
     platformModules: [
       'react',

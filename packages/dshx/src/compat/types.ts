@@ -44,6 +44,13 @@ export interface DshConnectionCompatibility {
   readonly defaultAuthority: 'loopback'
 }
 
+/** Official Host contribution seams verified for one protocol generation. */
+export interface DshHostContributionCompatibility {
+  readonly commands: boolean
+  readonly promptSections: boolean
+  readonly promptContexts: boolean
+}
+
 /** Build/runtime protocol values owned by one DSH compatibility generation. */
 export interface DshCompatibility {
   readonly id: string
@@ -60,6 +67,7 @@ export interface DshCompatibility {
   readonly runtimePlugins?: readonly DshxRuntimePluginSpec[]
   readonly inspect?: DshInspectCompatibility
   readonly connection?: DshConnectionCompatibility
+  readonly hostContributions?: DshHostContributionCompatibility
   readonly client: {
     readonly platformModules: readonly string[]
     readonly preloadedExternals: readonly string[]

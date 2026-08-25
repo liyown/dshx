@@ -1,11 +1,13 @@
 import type { Context } from '@deepseek-ai/cordis'
 import process from 'node:process'
 import type { CommandRuntime } from '@deepseek-ai/dsh-commands'
+import type { SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type { ToolRuntime } from '@deepseek-ai/dsh-tools'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
     commands: CommandRuntime
+    systemPrompt: SystemPrompt
     tools: ToolRuntime
   }
 }
@@ -16,7 +18,7 @@ import { loadRuntimePlugins } from './runtime-plugins.js'
 import { inspectBridgeEnabled, ownHostInspectBridge, startHostInspectBridge } from './inspect-bridge.js'
 import { registerApi } from '../api/runtime.js'
 
-const HOST_DEFINITION_KEYS = new Set(['name', 'inject', 'tools', 'commands', 'api', 'apis', 'setup'])
+const HOST_DEFINITION_KEYS = new Set(['name', 'inject', 'tools', 'commands', 'prompts', 'api', 'apis', 'setup'])
 
 /** Project identity embedded by the Host compiler. */
 export interface HostPluginMetadata {
@@ -124,6 +126,31 @@ function validateDefinition(value: unknown, metadata: HostPluginMetadata): HostD
       'Use commands: [command] or remove commands when this Host registers no commands.',
     )
   }
+  if (source.prompts !== undefined) {
+    if (!Array.isArray(source.prompts)) {
+      fail(
+        'DSHX2002',
+        'Host definition prompts must be an array of definePromptSection() or definePromptContext() values.',
+        metadata,
+        'Use prompts: [definePromptSection({ ... }), definePromptContext({ ... })] or remove prompts.',
+      )
+    }
+    for (const contribution of source.prompts) {
+      const record =
+        typeof contribution === 'object' && contribution !== null && !Array.isArray(contribution) ? (contribution as Record<string, unknown>) : undefined
+      const section = record?.kind === 'section' && typeof record.section === 'object' && record.section !== null && !Array.isArray(record.section)
+      const context = record?.kind === 'context' && typeof record.context === 'object' && record.context !== null && !Array.isArray(record.context)
+      const expectedKeys = section ? ['kind', 'section'] : context ? ['kind', 'context'] : []
+      if (record === undefined || expectedKeys.length === 0 || Object.keys(record).some(key => !expectedKeys.includes(key))) {
+        fail(
+          'DSHX2002',
+          'Host definition prompts contains a malformed Prompt contribution.',
+          metadata,
+          'Create every item with definePromptSection({ ... }) or definePromptContext({ ... }); direct official registration remains available in setup(ctx).',
+        )
+      }
+    }
+  }
   if (source.api !== undefined && (typeof source.api !== 'object' || source.api === null || Array.isArray(source.api))) {
     fail('DSHX2002', 'Host api must be a value returned by api.host().', metadata, 'Use api: contract.host({ method() { ... } }) or remove api.')
   }
@@ -145,6 +172,7 @@ export function createHostPlugin(value: unknown, metadata: HostPluginMetadata): 
   const inject = [...new Set(definition.inject ?? [])]
   if ((definition.tools?.length ?? 0) > 0 && !inject.includes('tools')) inject.push('tools')
   if ((definition.commands?.length ?? 0) > 0 && !inject.includes('commands')) inject.push('commands')
+  if ((definition.prompts?.length ?? 0) > 0 && !inject.includes('systemPrompt')) inject.push('systemPrompt')
   const apis = normalizeApis(definition)
   if (apis.length > 0 && !inject.includes('connection')) inject.push('connection')
   return {
@@ -153,6 +181,10 @@ export function createHostPlugin(value: unknown, metadata: HostPluginMetadata): 
     apply(ctx) {
       for (const tool of definition.tools ?? []) ctx.tools.register(tool)
       for (const command of definition.commands ?? []) ctx.commands.register(command)
+      for (const prompt of definition.prompts ?? []) {
+        if (prompt.kind === 'section') ctx.systemPrompt.section(prompt.section)
+        else ctx.systemPrompt.context(prompt.context)
+      }
       if (apis.length === 0) return withRuntime(ctx, definition.setup?.(ctx), metadata)
       const apiSetup = Promise.all(apis.map(api => registerApi(ctx, metadata.packageId, api)))
       return withRuntime(

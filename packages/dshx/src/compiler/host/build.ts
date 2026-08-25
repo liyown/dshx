@@ -11,6 +11,7 @@ const VIRTUAL_HOST_PUBLIC = '\0virtual:dshx-host-public'
 const DSHX_HOST_PUBLIC = '@becomeopc/dshx/host'
 const DSHX_API_PUBLIC = '@becomeopc/dshx/api'
 const HOST_RUNTIME_PATH = fileURLToPath(new URL('../../host/runtime.js', import.meta.url))
+const HOST_DEFINE_PATH = fileURLToPath(new URL('../../host/define.js', import.meta.url))
 const API_DEFINE_PATH = fileURLToPath(new URL('../../api/define.js', import.meta.url))
 
 /** Options for producing one Node ESM Host bundle. */
@@ -52,15 +53,18 @@ function hostEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, opti
     enforce: 'pre',
     resolveId(source) {
       if (source === VIRTUAL_HOST_ENTRY || source === DSHX_HOST_PUBLIC || source === DSHX_API_PUBLIC) {
-        return source === DSHX_HOST_PUBLIC ? VIRTUAL_HOST_PUBLIC : source === DSHX_API_PUBLIC ? `${VIRTUAL_HOST_PUBLIC}-api` : VIRTUAL_HOST_ENTRY
+        return source === DSHX_HOST_PUBLIC
+          ? VIRTUAL_HOST_PUBLIC
+          : source === DSHX_API_PUBLIC
+            ? `${VIRTUAL_HOST_PUBLIC}-api`
+            : VIRTUAL_HOST_ENTRY
       }
       return null
     },
     load(id) {
       if (id === VIRTUAL_HOST_PUBLIC) {
         return [
-          'export function defineHost(definition) { return definition }',
-          'export function defineCommand(definition) { return definition }',
+          `export { defineHost, defineCommand, definePromptContext, definePromptSection } from ${JSON.stringify(HOST_DEFINE_PATH)}`,
           "export { defineTool } from '@deepseek-ai/dsh-tools'",
           '',
         ].join('\n')

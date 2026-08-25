@@ -18,6 +18,7 @@ export type {
   DshCompatibilityMatrixEntry,
   DshCompatibilityResolution,
   DshConnectionCompatibility,
+  DshHostContributionCompatibility,
   DshInspectCompatibility,
   DshProfileCompatibility,
   DshDeclaredRangeAnalysis,
@@ -135,6 +136,9 @@ export function resolveDeclaredCompatibility(manifest: Readonly<Record<string, u
 /** Human- and machine-readable adapter capabilities derived from the adapter record. */
 export function getCompatibilityCapabilities(compatibility: DshCompatibility): readonly string[] {
   const capabilities = ['host-loader', 'client-loader', 'profile']
+  if (compatibility.hostContributions?.commands === true) capabilities.push('host:commands')
+  if (compatibility.hostContributions?.promptSections === true) capabilities.push('host:prompt-sections')
+  if (compatibility.hostContributions?.promptContexts === true) capabilities.push('host:prompt-contexts')
   for (const target of compatibility.inspect?.targets ?? []) {
     const provider = compatibility.inspect?.providerByTarget?.[target] ?? compatibility.inspect?.provider ?? 'unavailable'
     capabilities.push(`inspect:${target}:${provider}`)
