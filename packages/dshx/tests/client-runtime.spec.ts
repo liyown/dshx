@@ -3,6 +3,9 @@ import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { defineClient, defineSlot } from '../src/client/index.js'
 import { createClientModule, createClientPlugin } from '../src/client/runtime.js'
+import { createSettingsClientRuntime } from '../src/settings/client.js'
+import { defineSettings } from '../src/settings/index.js'
+import Schema from '@deepseek-ai/schemastery'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
@@ -86,6 +89,42 @@ describe('Client runtime adapter', () => {
     expect(plugin.inject).toEqual([])
     plugin.apply({ slots: { inject: vi.fn(), register: vi.fn() } } as unknown as Context)
     expect(setup).toHaveBeenCalledOnce()
+  })
+
+  it('adds settingsScope from compiler metadata without a Client settings declaration', () => {
+    const slot = defineSlot('test.slot', { id: 'settings', component: () => null })
+    const get = vi.fn(() => ({ bind: vi.fn(), describe: vi.fn() }))
+    const registered: unknown[] = []
+    const plugin = createClientPlugin({ slots: [slot] }, { packageId: '@test/plugin', settingsCapability: true })
+    expect(plugin.inject).toEqual(['slots', 'settingsScope'])
+    plugin.apply({
+      get,
+      slots: {
+        inject: (_name: string, register: () => unknown) => register(),
+        register: (_options: unknown, component: unknown) => { registered.push(component) },
+      },
+    } as unknown as Context)
+    expect(get).toHaveBeenCalledWith('settingsScope')
+    expect(registered).toHaveLength(1)
+    expect(registered[0]).not.toBe(slot.component)
+  })
+
+  it('reuses one official bound scope per contract identity', () => {
+    const snapshot = { status: 'ready', value: { enabled: true }, base: {}, user: {}, revision: 1, writable: true, mode: 'host' }
+    const scope = { getSnapshot: () => snapshot, subscribe: () => () => undefined, set: vi.fn(), unset: vi.fn() }
+    const describe = {
+      getSnapshot: () => ({ status: 'ready', view: { namespaces: [], writable: true }, error: null }),
+      subscribe: () => () => undefined,
+      ensure: vi.fn(),
+    }
+    const bind = vi.fn(() => scope)
+    const runtime = createSettingsClientRuntime({ get: () => ({ bind, describe: () => describe }) })
+    const first = defineSettings({ namespace: 'first', schema: Schema.object({ enabled: Schema.boolean() }) })
+    const sameShape = defineSettings({ namespace: 'first', schema: first.schema })
+    expect(runtime.binding(first)).toBe(runtime.binding(first))
+    expect(runtime.binding(sameShape)).not.toBe(runtime.binding(first))
+    expect(bind).toHaveBeenCalledTimes(2)
+    expect(bind).toHaveBeenNthCalledWith(1, { namespace: 'first' })
   })
 
   it('falls back from logical name to package id', () => {

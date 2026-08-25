@@ -211,6 +211,72 @@ describe('client compiler', () => {
     expect(code).toContain('require("@deepseek-ai/dsh-client-ui-layout/client")')
   })
 
+  it('infers settingsScope from a retained useSettings hook after tree-shaking', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/client.tsx'), [
+      "import { defineClient, defineSlot, useSettings } from '@becomeopc/dshx/client'",
+      "import { defineSettings } from '@becomeopc/dshx/settings'",
+      "const schema = Object.assign(value => value, { toJSON: () => ({ type: 'object' }) })",
+      "const settings = defineSettings({ namespace: 'phase-a', schema })",
+      'function Status() {',
+      '  const state = useSettings(settings)',
+      '  return <div>{String(state.value)}</div>',
+      '}',
+      "export default defineClient({ slots: [defineSlot('status', { component: Status })] })",
+      '',
+    ].join('\n'))
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+      inject: ['@deepseek-ai/dsh-client-ui-settings'],
+    })
+    const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
+    expect(code).toContain('dshx.settings-hook.v1')
+    expect(code).toContain('settingsCapability: true')
+    expect(code).not.toContain('@becomeopc/dshx/settings')
+
+    const registration: { factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } = {} as never
+    vm.runInNewContext(code, {
+      window: { __ModuleLoader__: { load: (value: typeof registration) => Object.assign(registration, value) } },
+    })
+    const plugin = registration.factory((id) => {
+      if (id === 'react') return {}
+      if (id === 'react/jsx-runtime') return {}
+      throw new Error(`unexpected require: ${id}`)
+    }) as { inject: string[] }
+    expect(plugin.inject).toEqual(['slots', 'settingsScope'])
+  })
+
+  it('does not infer Settings when an imported hook is removed by tree-shaking', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/client.tsx'), [
+      "import { defineClient, useSettings } from '@becomeopc/dshx/client'",
+      'void useSettings',
+      'export default defineClient({ setup() {} })',
+      '',
+    ].join('\n'))
+    await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
+    expect(code).not.toContain('dshx.settings-hook.v1')
+    expect(code).toContain('settingsCapability: false')
+  })
+
+  it('fails a retained Settings hook without its official provider package edge', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/client.tsx'), [
+      "import { defineClient, useSettings } from '@becomeopc/dshx/client'",
+      "const contract = { namespace: 'phase-a' }",
+      'function Status() { useSettings(contract); return null }',
+      'export default defineClient({ setup() { return Status() } })',
+      '',
+    ].join('\n'))
+    await expect(
+      buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' }),
+    ).rejects.toThrow('DSHX1203')
+  })
+
   it('does not remove the Host artifact from the shared output directory', async () => {
     const root = await temporaryProject()
     await mkdir(resolve(root, 'dist'), { recursive: true })

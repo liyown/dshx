@@ -3,6 +3,7 @@ import {
   analyzeDeclaredDshRange,
   assessProjectCompatibility,
   classifyCompatibility,
+  getCompatibilityCapabilities,
   getCompatibilitySmokeMatrix,
   projectCompatibilityDiagnostics,
   PROTOCOL_1_COMPATIBILITY,
@@ -33,6 +34,17 @@ describe('DSH protocol compatibility generations', () => {
       '@deepseek-ai/dsh-client-ui-primitives',
     ])
     expect(PROTOCOL_1_COMPATIBILITY.client.preloadedExternals).toEqual(['@deepseek-ai/dsh-client-runtime/client', '@deepseek-ai/dsh-client-connection/client'])
+    expect(PROTOCOL_1_COMPATIBILITY.hostContributions).toEqual({ commands: true, promptSections: true, promptContexts: true, settings: true })
+    expect(getCompatibilityCapabilities(PROTOCOL_1_COMPATIBILITY)).toEqual(
+      expect.arrayContaining([
+        'host:commands',
+        'host:prompt-sections',
+        'host:prompt-contexts',
+        'host:settings',
+        'client:settings-scope',
+        'client:settings-hook-inference',
+      ]),
+    )
   })
 
   it('distinguishes verified, compatible, and experimental versions in one generation', () => {

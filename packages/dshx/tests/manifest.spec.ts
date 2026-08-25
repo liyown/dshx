@@ -139,6 +139,24 @@ describe('checkProjectManifest', () => {
     expect(diagnostics.filter(item => item.code === 'DSHX4215')).toHaveLength(3)
   })
 
+  it('previews the hook-driven Settings provider edge through the local Client graph', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/settings-view.tsx'), [
+      "import { useSettings as useRuntimeSettings } from '@becomeopc/dshx/client'",
+      'export function SettingsView(contract: unknown) { return useRuntimeSettings(contract) }',
+      '',
+    ].join('\n'))
+    await writeFile(resolve(root, 'src/client.tsx'), "import { SettingsView } from './settings-view.js'\nexport const apply = SettingsView\n")
+    const missing = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(missing).toContainEqual(expect.objectContaining({ code: 'DSHX4216', severity: 'error' }))
+
+    const manifest = fullManifest()
+    ;(manifest.dsh as { client: { inject: string[] } }).client.inject.push('@deepseek-ai/dsh-client-ui-settings')
+    await writeManifest(root, manifest)
+    const complete = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(complete).not.toContainEqual(expect.objectContaining({ code: 'DSHX4216' }))
+  })
+
   it('rejects stale Client metadata in a Host-only project', async () => {
     const root = await temporaryProject({ client: false })
     const manifest = fullManifest()
