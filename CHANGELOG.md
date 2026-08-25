@@ -10,6 +10,8 @@
 - Harden typed unary APIs across compiled artifacts, cancellation, version mismatch, Host disposal/restart, and reconnect-aware queries.
 - Add official Command contributions through `defineCommand`, `defineHost({ commands })`, and the transactional `dshx add command` scaffold.
 - Extend the real DSH `0.1.1-rc.2` smoke matrix with Host API calls, official Command registry/parser execution, and version/restart checks.
+- Add typed Prompt Section and dynamic Prompt Context contributions through the official System Prompt registry, with scoped lifecycle verification at both protocol boundaries.
+- Add Schemastery-backed Settings contracts, one-time Host ownership, hook-driven Client scope wiring, secret-safe decoding, and official persistence/revision lifecycle verification at both protocol boundaries.
 
 ## 0.1.1 - 2026-08-22
 

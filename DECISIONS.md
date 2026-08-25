@@ -197,6 +197,22 @@ The rc.2 matrix calls the real generated Host API, rejects a mismatched version,
 
 The rc.2 compatibility matrix creates the Command with the public CLI, builds and links the package, verifies discovery through the official `commands/list` Remote, executes the slash line through the official `commands/execute` parser, then repeats after an automatic Host restart. `session.prompt` is not used as a Command transport: its rc.2 implementation admits ordinary model prompts even though a stale optional Command response slot remains in its schema. This closes the Stage 2 gate for the current DSH 0.1 Command seam.
 
+## 2026-08-25: Prompt contributions preserve the official assembly registry
+
+`definePromptSection()` and `definePromptContext()` retain the exact official contribution object under a small `{ kind, section | context }` wrapper because the two official shapes are otherwise indistinguishable. `defineHost({ prompts })` adds the `systemPrompt` dependency once and registers wrappers in declaration order through `ctx.systemPrompt.section()` or `.context()` after Tools and Commands and before APIs and user setup. DSHX does not own Prompt ordering, variables, complete-section policy, tool-schema providers, assembly, scope layers, shadowing, duplicate detection, or disposers.
+
+The public source helpers and compiled Host artifact use the same implementation. Official packages remain external, and advanced or Agent-scoped behavior continues through direct `setup(ctx)` access. The generated starter includes one order-150 Tool guidance section and one request-count runtime context; it does not expose Prompt editing in the Client.
+
+The generation-parameterized smoke assembles the generated contributions through a real Agent, verifies scoped same-name shadowing without global leakage, disposes the scoped contributions and observes restoration, confirms Tool schemas remain visible, and repeats after Host restart at both verified `protocol-1` boundaries. This closes Stage 3 without adding a Prompt scaffold or a second Prompt runtime.
+
+## 2026-08-25: Settings are one shared contract with one Host owner
+
+`defineSettings()` preserves a portable namespace, official Schemastery schema, applies policy, and optional Client decoder. The Host claims ownership exactly once through `defineHost({ settings })`; advanced `contract.host({ base, validate, setup })` facets remain Host-only. A secret-bearing schema is rejected at Host registration unless it declares a decoder that returns a redacted Client value. DSHX does not own persistence, defaults/base/user layering, revisions, validation, watchers, recovery, duplicate detection, or registered-scope disposal.
+
+The Client does not repeat Settings in `defineClient()`. A retained `useSettings(contract)` call is detected after tree-shaking, adds the `settingsScope` Cordis injection, and requires `@deepseek-ai/dsh-client-ui-settings` in the manifest package edges. `dshx check` provides an earlier local-graph diagnostic, while build/dev remain authoritative. One Client Fiber reuses official bound scopes by contract identity and supplies them through React `useSyncExternalStore`; local mutation state is non-optimistic and never stores submitted secret values.
+
+The generated Runtime Deck owns one `showActivity` live setting and a custom toggle rather than a universal form. The real generation smoke verifies layering, writes, stale revision refusal, validation recovery, secret configured state/redaction, persistence, and clean Host restart at rc.8 and rc.2. No Settings scaffold, raw-document migration layer, draft controller, or optimistic cache is introduced.
+
 ## 2026-08-24: real DSH verification uses one generation-derived scenario
 
 The real-runtime scenario is version-parameterized and receives either `--version` or `DSH_VERSION`; it is not named after a DSH release. Every compatibility adapter records minimum/latest verified boundaries and exact verified versions beside its range and runtime capabilities. The resolver, diagnostics, local default, documentation, and CI all consume that registry. CI derives at most the representative minimum and latest jobs for each supported generation instead of adding one job or script per DSH release.

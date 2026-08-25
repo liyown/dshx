@@ -20,6 +20,7 @@ The 0.1 line currently provides:
 - Runtime Inspect for Slots, exact Slot contracts, Tools, Services, and Events when the verified DSH adapter and live Composition provide them.
 - `dshx dev`, automatic browser handoff for generated projects, Client HMR, Host restart, Profile orchestration, and deterministic `check --fix`.
 - Typed unary Host/Client APIs: `defineApi`, `method`, `useApi`, `useQuery`, and `ApiError` over the official Connection transport.
+- Schemastery-backed Settings contracts: `defineSettings`, Host ownership facets, and hook-driven `useSettings` Client wiring over the official shared mirror.
 
 The current release must continue to preserve direct `setup(ctx)` escape hatches and must not require users to select a Host/Client project mode.
 
@@ -44,6 +45,7 @@ definePromptContext
 tools    -> tools
 commands -> commands
 prompts  -> systemPrompt
+settings -> settings
 api      -> connection
 ```
 
@@ -83,7 +85,7 @@ defineSettings
 
 Unary methods are stable only after version checks, JSON-safe validation, lifecycle cleanup, reconnect behavior, and artifact installation are covered. Events and streams require an official subscribe/unsubscribe contract, ordering rules, replay behavior, backpressure, and Host restart semantics.
 
-Settings use Standard Schema rather than a mandatory schema library. Before stabilization, the implementation must define persistence, secret handling, defaults, migrations, Host/Client visibility, and failed-update rollback.
+Settings contracts use the official Schemastery package so the same schema can drive Host inference and the official browser decoder. DSH retains persistence, defaults/base/user layering, revisions, secret redaction, validation, recovery, shared mirroring, and lifecycle. DSHX does not add raw-document migrations; schema evolution in this stage is backward-compatible only.
 
 ## Delivery Order
 
@@ -107,11 +109,22 @@ Status: complete for the current `protocol-1` Command seam at the verified DSH b
 
 ### Stage 3: Prompt Contributions
 
-Add `definePromptSection` and `definePromptContext` after verifying scoped registration, ordering, shadowing, dynamic context, and tool-schema visibility. Do not reduce Prompt contributions to unscoped static text.
+Status: complete for the current `protocol-1` System Prompt seam at the verified DSH boundaries. `definePromptSection` and `definePromptContext` preserve official contribution values inside a small discriminated wrapper, while `defineHost({ prompts })` injects `systemPrompt` and delegates registration, ordering, scope, shadowing, assembly, and disposal to DSH. The generated starter demonstrates one ordered guidance section and one dynamic runtime context. The parameterized real-runtime smoke verifies global and Agent-scoped assembly, shadow/restore, dynamic context, Tool schema visibility, and Host restart cleanup.
+
+- Keep Prompt contribution values compatible with the official `PromptSection` and `PromptContext` contracts.
+- Keep variables, tool-schema providers, complete-prompt policy, scoped registration, ordering, shadowing, and disposal in DSH.
+- Keep `setup(ctx)` as the direct path for Agent-scoped and advanced System Prompt behavior.
+- Do not add a `dshx add prompt` scaffold until repeated authoring patterns justify it.
 
 ### Stage 4: Settings Contract
 
-Add `defineSettings` and `useSettings` with Standard Schema, persistence boundaries, secret policy, migrations, and Host/Client access rules. A generated settings UI is explicitly out of scope for the core API.
+Status: complete for the current `protocol-1` Settings and Client Settings Scope seams at the verified DSH boundaries. `defineSettings` preserves one portable Schemastery contract; `defineHost({ settings })` claims namespace ownership, while `useSettings(contract)` directly binds the official shared Client scope without a duplicate Client declaration. Tree-shaken Hook retention drives `settingsScope` injection and package-edge diagnostics. Secret contracts require a Client-safe decoder, and advanced `.host()` facets keep base, validation, setup, and disposer behavior out of Client artifacts.
+
+- Keep persistence, layering, revisions, schema validation, write serialization, redaction, recovery, namespace collisions, and scope disposal in DSH/Cordis.
+- Keep Hook mutation state local: no optimistic state, retry loop, cache, or retained write value.
+- Keep Client values decoder-safe while allowing typed writes to Host schema fields, including write-only secrets.
+- Keep the generated Runtime Deck as a concrete custom control; do not add a generic Settings page or form generator.
+- Do not add `dshx add settings` or DSHX raw-document migrations in this stage.
 
 ### Stage 5: Conversation Nodes
 
