@@ -14,11 +14,11 @@ DSHX owns:
 
 DSH and Cordis own:
 
-- Tool, Command, Session, Prompt, Event, Service, Slot, and provider lifecycles;
+- Tool, Command, Session, Prompt, Settings, Event, Service, Slot, and provider lifecycles;
 - dependency injection, registration collisions, cancellation, disposal, and ordering;
 - Connection transport, browser runtime, Client HMR, and Host process semantics.
 
-Public DSHX helpers are thin declarations over official contracts. Declarative Tools, Commands, Slots, and DSHX APIs may be adapted by the selected generation adapter. Native named DSH modules and direct `setup(ctx)` calls use official DSH/Cordis APIs directly; compatibility of those calls remains the plugin author's responsibility.
+Public DSHX helpers are thin declarations over official contracts. Declarative Tools, Commands, Prompt Sections and Contexts, Settings ownership, Slots, and DSHX APIs may be adapted by the selected generation adapter. Settings contracts are shared, but Host-only facets stay in the Host graph; a retained Client Hook drives the official `settingsScope` dependency after tree-shaking. Native named DSH modules and direct `setup(ctx)` calls use official DSH/Cordis APIs directly; compatibility of those calls remains the plugin author's responsibility.
 
 ## Build and runtime flow
 

@@ -32,7 +32,7 @@ They do not map one-to-one. A plugin declares public DSH support and pins one co
 
 - protocol generation, lifecycle, and non-overlapping DSH semver range;
 - the baseline contract version and adapter-owned runtime configuration;
-- Profile, manifest, loader, Client, Inspect, connection, and optional runtime-plugin capabilities;
+- Profile, manifest, loader, Host contribution, Client, Inspect, connection, and optional runtime-plugin capabilities;
 - minimum/latest smoke boundaries and the exact versions actually verified.
 
 The current `protocol-1` adapter covers `>=0.1.0-rc.8 <0.2.0-0`. Its minimum and latest verified boundaries are `0.1.0-rc.8` and `0.1.1-rc.2`. The range reflects current evidence, not an assumption that every DSH minor changes protocol. If DSH `0.2` preserves all relevant contracts, the same adapter may be extended after real smoke; if a seam breaks, a new protocol adapter is required.
@@ -66,9 +66,9 @@ Semver membership never implies real-runtime verification. `dshx dev` prints the
 
 ## Declarative and native compatibility
 
-DSHX may adapt the declarative surface it owns: Host Tools and Commands, Client Slots, typed DSHX APIs, generated manifest fields, Profile operations, and compiler output. The adapter is carried into the compiled artifact while official runtime packages remain external.
+DSHX may adapt the declarative surface it owns: Host Tools, Commands, Prompt Sections and Contexts, Host Settings ownership, hook-driven Client Settings scopes, Client Slots, typed DSHX APIs, generated manifest fields, Profile operations, and compiler output. The adapter is carried into the compiled artifact while official runtime packages remain external.
 
-Direct `setup(ctx)` logic and native named DSH modules call official APIs without a DSHX wrapper. Their source types come from the installed official packages, and their cross-version behavior remains the plugin author's responsibility. DSHX does not copy official DSH types into parallel versioned type trees, and `check` does not guess source usage through brittle scanning.
+Direct `setup(ctx)` logic and native named DSH modules call official APIs without a DSHX wrapper. Their source types come from the installed official packages, and their cross-version behavior remains the plugin author's responsibility. DSHX does not copy official DSH types into parallel versioned type trees. The Settings Hook is a narrow exception to generic source analysis: `check` previews direct Hook calls in the local Client graph, while build/dev make the authoritative decision from retained bundle code after tree-shaking.
 
 ## Generic real-runtime scenario
 
@@ -77,7 +77,9 @@ The single `scripts/smoke-dsh.mjs` scenario creates isolated Full, Host-only, Cl
 - compiler output and artifact installation;
 - Profile linking and manifest diagnostics;
 - Host and Client loading;
-- Tool, Hook, API, and Command registration;
+- Tool, Hook, API, Command, Prompt, and Settings contribution registration;
+- global and Agent-scoped Prompt assembly, shadowing, dynamic context, Tool schema visibility, and disposal;
+- Settings defaults/base/user layering, writes, revision fences, validation recovery, secret redaction, persistence, and restart re-registration;
 - API version mismatch and re-registration after Host restart;
 - Client HMR;
 - runtime Inspect and Bridge behavior.

@@ -20,12 +20,12 @@ cd my-plugin
 pnpm dev
 ```
 
-生成的项目包含一个最小 Host Tool 和 Client Slot，会固定匹配的 DSHX 版本，并通过官方 Profile CLI 接入 DSH。非交互场景使用 `--yes`；需要由其他流程安装依赖时使用 `--no-install`。
+生成的项目包含一个最小 Host Tool、Prompt 贡献、一份 live Settings contract，以及直接读写它的 Client Slot；它会固定匹配的 DSHX 版本，并通过官方 Profile CLI 接入 DSH。非交互场景使用 `--yes`；需要由其他流程安装依赖时使用 `--no-install`。
 
 ## DSHX 提供什么
 
 - **统一开发流程：** Host-only、Client-only、混合或原生 DSH 模块都不需要预先选择项目模式。
-- **类型安全贡献：** 基于官方 DSH 合约定义 Host Tools、Commands、Client Slots 和一元 Host/Client API。
+- **类型安全贡献：** 基于官方 DSH 合约定义 Host Tools、Commands、Prompt Sections/Contexts、Settings 所有权、Client Slots 和一元 Host/Client API。
 - **真实运行时检查：** 从正在运行的 Composition 读取 Slots、Tools、Services 和 Events，不伪造离线目录。
 - **安全脚手架：** 通过 `--dry-run` 预览，事务式写入，并保证重复执行幂等。
 - **运行时保持轻薄：** DSHX 负责构建、诊断、Profile 集成和兼容适配；DSH 负责执行、生命周期、传输和 HMR。

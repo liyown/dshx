@@ -20,12 +20,12 @@ cd my-plugin
 pnpm dev
 ```
 
-The generated project contains a minimal Host Tool and Client Slot, pins the matching DSHX release, and links to DSH through the official Profile CLI. Use `--yes` for non-interactive creation and `--no-install` when dependency installation belongs to another step.
+The generated project contains a minimal Host Tool, Prompt contributions, one live Settings contract, and a Client Slot that reads and writes it, pins the matching DSHX release, and links to DSH through the official Profile CLI. Use `--yes` for non-interactive creation and `--no-install` when dependency installation belongs to another step.
 
 ## What DSHX provides
 
 - **One authoring workflow:** build Host-only, Client-only, mixed, or native DSH modules without selecting a project mode.
-- **Typed contributions:** define Host Tools, Commands, Client Slots, and unary Host/Client APIs against official DSH contracts.
+- **Typed contributions:** define Host Tools, Commands, Prompt Sections and Contexts, Settings ownership, Client Slots, and unary Host/Client APIs against official DSH contracts.
 - **Live inspection:** inspect Slots, Tools, Services, and Events from the running Composition—never from a fabricated offline catalog.
 - **Safe scaffolding:** preview source changes with `--dry-run`, apply them transactionally, and rerun idempotently.
 - **Runtime-thin development:** DSHX owns build, diagnostics, Profile integration, and compatibility adapters; DSH owns execution, lifecycle, transport, and HMR.
