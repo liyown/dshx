@@ -150,12 +150,16 @@ async function configureDsh(root, dshxTarball, dshVersion) {
   setDependency(manifest, '@becomeopc/dshx', `file:${dshxTarball}`)
   for (const name of [
     '@deepseek-ai/dsh',
+    '@deepseek-ai/dsh-agent',
     '@deepseek-ai/dsh-commands',
     '@deepseek-ai/dsh-cordis-host-runner',
+    '@deepseek-ai/dsh-system-prompt',
+    '@deepseek-ai/dsh-settings',
     '@deepseek-ai/dsh-tool-cordis',
     '@deepseek-ai/dsh-tools',
     '@deepseek-ai/dsh-client-ui-slots',
     '@deepseek-ai/dsh-client-ui-sidebar',
+    '@deepseek-ai/dsh-client-ui-settings',
   ])
     setDependency(manifest, name, dshVersion)
   manifest.peerDependencies ??= {}
@@ -263,8 +267,204 @@ async function verifyGeneratedCommand(webUrl, projectRoot) {
   const executed = await callConnectionRpc(webUrl, 'commands/execute', {
     args: { agentId: sessionId, line: '/dshx-status', images: [] },
   })
-  if (!executed.ok || executed.value?.result?.kind !== 'success' || executed.value?.result?.text !== 'Implement /dshx-status') {
+  if (!executed.ok || executed.value?.result?.kind !== 'success') {
     throw new Error(`Generated Command did not execute through the official parser: ${JSON.stringify(executed)}`)
+  }
+  let prompt
+  try {
+    prompt = JSON.parse(executed.value.result.text)
+  } catch (error) {
+    error.cause = executed.value.result.text
+    throw error
+  }
+  return prompt
+}
+
+async function installPromptProbe(root, packageId) {
+  const commandFile = join(root, 'src/commands/dshx-status.ts')
+  const generated = await readFile(commandFile, 'utf8')
+  if (!generated.includes('Implement /dshx-status')) throw new Error('Command scaffold did not produce its default editable handler')
+  const toolName = `${packageId.replace(/[^a-zA-Z0-9_-]/g, '_')}_status`
+  await writeFile(
+    commandFile,
+    `import { assembleContextFor } from '@deepseek-ai/dsh-agent'
+import type { PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
+import { defineCommand } from '@becomeopc/dshx/host'
+
+const sectionName = ${JSON.stringify(`${packageId}:guidance`)}
+const contextName = ${JSON.stringify(`${packageId}:runtime`)}
+
+export const dshx_statusCommand = defineCommand({
+  name: 'dshx-status',
+  description: 'Verify DSHX Prompt contributions.',
+  async handler(invocation) {
+    const assemble = () => invocation.agent.ctx.systemPrompt.assemble(assembleContextFor(invocation.agent, invocation.signal))
+    const summarize = (assembly: PromptAssembly) => ({
+      section: assembly.sections.find(item => item.name === sectionName)?.text,
+      sectionCount: assembly.sections.filter(item => item.name === sectionName).length,
+      context: assembly.contexts.find(item => item.name === contextName)?.text,
+      contextCount: assembly.contexts.filter(item => item.name === contextName).length,
+    })
+    const initial = await assemble()
+    const disposeSection = invocation.agent.ctx.systemPrompt.section({ name: sectionName, order: 150, text: 'Scoped guidance.' })
+    const disposeContext = invocation.agent.ctx.systemPrompt.context({ name: contextName, order: 0, text: 'Scoped runtime.' })
+    let scoped
+    let globalWhileScoped
+    try {
+      scoped = await assemble()
+      globalWhileScoped = await invocation.agent.ctx.systemPrompt.assemble()
+    } finally {
+      disposeContext()
+      disposeSection()
+    }
+    const restored = await assemble()
+    return {
+      kind: 'success',
+      text: JSON.stringify({
+        initial: summarize(initial),
+        scoped: summarize(scoped),
+        globalWhileScoped: summarize(globalWhileScoped),
+        restored: summarize(restored),
+        toolVisible: initial.tools.some(tool => tool.name === ${JSON.stringify(toolName)}),
+      }),
+    }
+  },
+})
+`,
+  )
+}
+
+async function installSettingsProbe(root) {
+  await writeFile(
+    join(root, 'src/settings.ts'),
+    `import Schema from '@deepseek-ai/schemastery'
+import { defineSettings } from '@becomeopc/dshx/settings'
+
+export const runtimeSettings = defineSettings({
+  namespace: 'plugin-full-a',
+  schema: Schema.object({
+    showActivity: Schema.boolean().default(true),
+    threshold: Schema.number().default(1),
+    token: Schema.string().role('secret'),
+  }),
+  applies: 'live',
+  client: {
+    decode(value) {
+      if (typeof value !== 'object' || value === null) return undefined
+      const candidate = value as { readonly showActivity?: unknown; readonly threshold?: unknown }
+      if (typeof candidate.showActivity !== 'boolean' || typeof candidate.threshold !== 'number') return undefined
+      return { showActivity: candidate.showActivity, threshold: candidate.threshold }
+    },
+  },
+})
+`,
+  )
+  const hostFile = join(root, 'src/host.ts')
+  const host = await readFile(hostFile, 'utf8')
+  const ownership = `settings: [runtimeSettings.host({
+    base: { showActivity: true, threshold: 3 },
+    validate(value) {
+      if (value.threshold > 10) throw new Error('threshold must be at most 10')
+    },
+  })],`
+  if (!host.includes('settings: [runtimeSettings],')) throw new Error('Generated Host did not contain one-line Settings ownership')
+  await writeFile(hostFile, host.replace('settings: [runtimeSettings],', ownership))
+}
+
+function verifyPromptProbe(probe, packageId, requestCount) {
+  const global = {
+    section: `Use the ${packageId.replace(/[^a-zA-Z0-9_-]/g, '_')}_status tool when the user asks whether this plugin is running.`,
+    sectionCount: 1,
+    context: `${packageId} status requests: ${requestCount}`,
+    contextCount: 1,
+  }
+  const scoped = { section: 'Scoped guidance.', sectionCount: 1, context: 'Scoped runtime.', contextCount: 1 }
+  if (JSON.stringify(probe.initial) !== JSON.stringify(global)) throw new Error(`Global Prompt contribution mismatch: ${JSON.stringify(probe)}`)
+  if (JSON.stringify(probe.scoped) !== JSON.stringify(scoped)) throw new Error(`Scoped Prompt shadow mismatch: ${JSON.stringify(probe)}`)
+  if (JSON.stringify(probe.globalWhileScoped) !== JSON.stringify(global)) throw new Error(`Scoped Prompt leaked globally: ${JSON.stringify(probe)}`)
+  if (JSON.stringify(probe.restored) !== JSON.stringify(global)) throw new Error(`Prompt contribution did not restore after disposal: ${JSON.stringify(probe)}`)
+  if (probe.toolVisible !== true) throw new Error(`Prompt assembly did not include the generated Tool schema: ${JSON.stringify(probe)}`)
+}
+
+function settingsNamespace(result, namespace) {
+  if (!result?.ok) throw new Error(`Settings request failed: ${JSON.stringify(result)}`)
+  const namespaces = result.value?.namespaces
+  const view = Array.isArray(namespaces) ? namespaces.find(item => item?.ns === namespace) : result.value
+  if (view?.ns !== namespace) throw new Error(`Settings namespace ${namespace} is missing: ${JSON.stringify(result)}`)
+  return view
+}
+
+async function verifySettingsLifecycle(webUrl) {
+  const namespace = 'plugin-full-a'
+  const initialResult = await callOfficialApi(webUrl, 'settings.describe', {})
+  const initial = settingsNamespace(initialResult, namespace)
+  if (initial.value?.showActivity !== true || initial.value?.threshold !== 3 || initial.applies !== 'live') {
+    throw new Error(`Settings defaults/base layering mismatch: ${JSON.stringify(initial)}`)
+  }
+  if ('token' in initial.value || initial.secrets?.find(item => item.path?.join('.') === 'token')?.set !== false) {
+    throw new Error(`Settings initial secret redaction mismatch: ${JSON.stringify(initial)}`)
+  }
+  const updatedResult = await callOfficialApi(webUrl, 'settings.update', {
+    ns: namespace,
+    patch: { showActivity: false, threshold: 4, token: 'smoke-secret' },
+    expectedRevision: initial.revision,
+  })
+  const updated = settingsNamespace(updatedResult, namespace)
+  if (updated.value?.showActivity !== false || updated.value?.threshold !== 4 || 'token' in updated.value) {
+    throw new Error(`Settings update/redaction mismatch: ${JSON.stringify(updated)}`)
+  }
+  if (updated.secrets?.find(item => item.path?.join('.') === 'token')?.set !== true) {
+    throw new Error(`Settings secret configured state is missing: ${JSON.stringify(updated)}`)
+  }
+  const stale = await callOfficialApi(webUrl, 'settings.update', {
+    ns: namespace,
+    patch: { showActivity: true },
+    expectedRevision: initial.revision,
+  })
+  if (stale?.ok !== false) throw new Error(`Settings accepted a stale revision fence: ${JSON.stringify(stale)}`)
+  const rejected = await callOfficialApi(webUrl, 'settings.update', {
+    ns: namespace,
+    patch: { threshold: 99 },
+    expectedRevision: updated.revision,
+  })
+  if (rejected?.ok !== false) throw new Error(`Settings accepted Host validation rejection: ${JSON.stringify(rejected)}`)
+  const recovered = settingsNamespace(await callOfficialApi(webUrl, 'settings.describe', {}), namespace)
+  if (recovered.value?.showActivity !== false || recovered.value?.threshold !== 4 || recovered.revision !== updated.revision) {
+    throw new Error(`Settings failed to recover after rejected writes: ${JSON.stringify(recovered)}`)
+  }
+  const unset = settingsNamespace(
+    await callOfficialApi(webUrl, 'settings.mutate', {
+      ns: namespace,
+      ops: [{ op: 'unset', path: ['showActivity'] }],
+      expectedRevision: recovered.revision,
+    }),
+    namespace,
+  )
+  if (unset.value?.showActivity !== true || unset.user?.showActivity !== undefined) {
+    throw new Error(`Settings unset did not restore the composition base: ${JSON.stringify(unset)}`)
+  }
+  const persisted = settingsNamespace(
+    await callOfficialApi(webUrl, 'settings.update', {
+      ns: namespace,
+      patch: { showActivity: false },
+      expectedRevision: unset.revision,
+    }),
+    namespace,
+  )
+  return persisted.revision
+}
+
+async function verifySettingsAfterRestart(webUrl, previousRevision) {
+  const described = await callOfficialApi(webUrl, 'settings.describe', {})
+  const matches = described?.value?.namespaces?.filter?.(item => item?.ns === 'plugin-full-a') ?? []
+  if (matches.length !== 1) throw new Error(`Settings Host restart produced duplicate/stale registrations: ${JSON.stringify(described)}`)
+  const current = matches[0]
+  if (current.value?.showActivity !== false || current.value?.threshold !== 4 || !Number.isInteger(current.revision)) {
+    throw new Error(`Settings persistence did not survive Host restart: ${JSON.stringify(current)}`)
+  }
+  if (!Number.isInteger(previousRevision)) throw new Error(`Settings pre-restart revision was invalid: ${String(previousRevision)}`)
+  if (current.secrets?.find(item => item.path?.join('.') === 'token')?.set !== true || 'token' in current.value) {
+    throw new Error(`Settings secret redaction did not survive Host restart: ${JSON.stringify(current)}`)
   }
 }
 
@@ -398,6 +598,8 @@ async function main() {
     projects.fullA = await createProject(root, 'plugin-full-a', dshxTarball, dshVersion)
     await useAutomaticHostRestart(projects.fullA)
     await expectSuccess('pnpm', ['exec', 'dshx', 'add', 'command', '--name', 'dshx-status', '--description', 'Return DSHX status.'], { cwd: projects.fullA })
+    await installPromptProbe(projects.fullA, 'plugin-full-a')
+    await installSettingsProbe(projects.fullA)
     projects.fullB = await createProject(root, 'plugin-full-b', dshxTarball, dshVersion)
     projects.hostOnly = await createProject(root, 'plugin-host-only', dshxTarball, dshVersion)
     await removeClient(projects.hostOnly)
@@ -409,6 +611,17 @@ async function main() {
     for (const [name, project] of Object.entries(projects)) {
       await expectSuccess('pnpm', ['exec', 'dshx', 'build'], { cwd: project, env: { DSH_HOME: join(dshHome, name) } })
       await expectFailure('pnpm', ['exec', 'dshx', 'check', '--json'], 'DSHX4305', { cwd: project, env: { DSH_HOME: join(dshHome, name) } })
+    }
+    const settingsClientArtifact = await readFile(join(projects.fullA, 'dist/client.js'), 'utf8')
+    if (!settingsClientArtifact.includes('dshx.settings-hook.v1') || !/settingsCapability:\s*true/.test(settingsClientArtifact)) {
+      throw new Error('Generated Client artifact did not retain hook-driven Settings capability metadata')
+    }
+    if (settingsClientArtifact.includes('threshold must be at most 10') || settingsClientArtifact.includes('@becomeopc/dshx/settings')) {
+      throw new Error('Generated Client artifact retained Host-only Settings behavior or a private DSHX Settings import')
+    }
+    const settingsHostArtifact = await readFile(join(projects.fullA, 'dist/index.js'), 'utf8')
+    if (settingsHostArtifact.includes('@becomeopc/dshx/settings') || !settingsHostArtifact.includes('@deepseek-ai/dsh-settings')) {
+      throw new Error('Generated Host artifact did not inline DSHX Settings helpers over the official runtime service')
     }
 
     await expectFailure('pnpm', ['exec', 'dshx', 'add', 'tool', '--name', 'native.status'], 'DSHX6204', {
@@ -478,7 +691,8 @@ async function main() {
       if (incompatibleApi.ok || incompatibleApi.error?.code !== 'DSHX6401') {
         throw new Error(`Full plugin API accepted a mismatched version: ${JSON.stringify(incompatibleApi)}`)
       }
-      await verifyGeneratedCommand(fullDev.webUrl(), projects.fullA)
+      verifyPromptProbe(await verifyGeneratedCommand(fullDev.webUrl(), projects.fullA), 'plugin-full-a', 2)
+      const settingsRevision = await verifySettingsLifecycle(fullDev.webUrl())
       const hmr = fullDev.waitForOutput('client rebuilt')
       await appendFile(join(projects.fullA, 'src/client.tsx'), `\n// HMR smoke ${Date.now()}\n`)
       await hmr
@@ -490,7 +704,8 @@ async function main() {
       if (!afterRestart.ok || afterRestart.value?.output?.requestCount !== 1) {
         throw new Error(`Full plugin API did not recover after Host restart: ${JSON.stringify(afterRestart)}`)
       }
-      await verifyGeneratedCommand(fullDev.webUrl(), projects.fullA)
+      verifyPromptProbe(await verifyGeneratedCommand(fullDev.webUrl(), projects.fullA), 'plugin-full-a', 1)
+      await verifySettingsAfterRestart(fullDev.webUrl(), settingsRevision)
       const check = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['check'])
       if (check.diagnostics.some(item => item.severity === 'error')) throw new Error('Full plugin check failed after dev link')
       const inspectEnv = { DSH_HOME: join(dshHome, 'multi') }
@@ -511,6 +726,16 @@ async function main() {
             inspect: [slots, exact, services, events].map(summarizeInspect),
             api: { unary: 'verified', versionMismatch: 'verified', hostRestart: 'verified' },
             command: { scaffold: 'verified', parser: 'verified', hostRestart: 'verified' },
+            prompt: { global: 'verified', scopedShadow: 'verified', dynamicContext: 'verified', toolSchemas: 'verified', hostRestart: 'verified' },
+            settings: {
+              clientHookWiring: 'verified',
+              layering: 'verified',
+              writes: 'verified',
+              revisionFence: 'verified',
+              validationRecovery: 'verified',
+              secrets: 'verified',
+              hostRestart: 'verified',
+            },
             profile: 'linked',
             bridge: 'running',
           },
