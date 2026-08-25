@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, LayoutGrid, List, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -61,6 +61,7 @@ export const Route = createFileRoute("/$locale/plugins/")({
 function PluginsPage() {
   const catalog = Route.useLoaderData();
   const search = Route.useSearch();
+  const params = Route.useParams();
   const navigate = useNavigate({ from: "/$locale/plugins/" });
   const { t } = useI18n();
   const [query, setQuery] = useState(search.q);
@@ -204,14 +205,14 @@ function PluginsPage() {
 
         {catalog.nextCursor ? (
           <div className="mt-10 flex justify-center">
-            <button
-              onClick={() =>
-                void navigate({ search: (old) => ({ ...old, cursor: catalog.nextCursor ?? "" }) })
-              }
+            <Link
+              to="/$locale/plugins"
+              params={{ locale: params.locale }}
+              search={{ ...search, cursor: catalog.nextCursor }}
               className="inline-flex h-10 items-center gap-2 rounded-md border border-border-strong bg-surface px-4 text-sm transition-colors hover:bg-surface-2"
             >
               Load next page <ArrowRight className="size-4" data-icon="inline-end" />
-            </button>
+            </Link>
           </div>
         ) : null}
 
