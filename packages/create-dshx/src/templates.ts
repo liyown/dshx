@@ -175,7 +175,7 @@ const status = defineSlot('sidebar.footer.action', {
   component: StatusButton,
 })
 
-export default defineClient({ api: statusApi, slots: [status] })
+export default defineClient({ slots: [status] })
 `
   if (path === 'src/css-modules.d.ts')
     return `declare module '*.module.css' {
