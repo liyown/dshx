@@ -2,14 +2,14 @@
 
 ## `dshx`
 
-| Command                 | Purpose                                                                   | Writes project files        |
-| ----------------------- | ------------------------------------------------------------------------- | --------------------------- |
-| `dshx build`            | Validate and compile enabled Host/Client entries                          | Build output only           |
-| `dshx check`            | Inspect manifests, DSH compatibility, Profile link, and Inspect readiness | No                          |
-| `dshx check --fix`      | Apply deterministic manifest metadata repairs and revalidate              | Only explicit repair fields |
-| `dshx dev`              | Link the project, watch enabled entries, and run DSH                      | Profile link when required  |
-| `dshx inspect <target>` | Read live `slots`, `tools`, `services`, or `events`                       | No                          |
-| `dshx add <target>`     | Generate `ui`, `tool`, `command`, or `hook` source                        | Yes, transactionally        |
+| Command                 | Purpose                                                                                                                        | Writes project files        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
+| `dshx build`            | Validate and compile enabled Host/Client entries                                                                               | Build output only           |
+| `dshx check`            | Inspect manifests, DSH compatibility, Profile link, and Inspect readiness                                                      | No                          |
+| `dshx check --fix`      | Apply deterministic manifest metadata repairs and revalidate                                                                   | Only explicit repair fields |
+| `dshx dev`              | Link the project, watch enabled entries, and run DSH                                                                           | Profile link when required  |
+| `dshx inspect <target>` | Read an adapter-supported live target; protocol-1 exposes `slots`, `services`, and `events`, while `tools` reports unavailable | No                          |
+| `dshx add <target>`     | Generate `ui`, `tool`, `command`, or `hook` source                                                                             | Yes, transactionally        |
 
 Use `--json` with `check`, `inspect`, and `add` for automation. `--dry-run` previews scaffold changes and `check --fix` repairs. `--verbose` adds provider causes without changing stable diagnostic codes.
 

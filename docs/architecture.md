@@ -14,11 +14,13 @@ DSHX owns:
 
 DSH and Cordis own:
 
-- Tool, Command, Session, Prompt, Settings, Event, Service, Slot, and provider lifecycles;
+- Tool, Command, Session, Prompt, Settings, Event, Service, Slot, Conversation assembly, and provider lifecycles;
 - dependency injection, registration collisions, cancellation, disposal, and ordering;
 - Connection transport, browser runtime, Client HMR, and Host process semantics.
 
-Public DSHX helpers are thin declarations over official contracts. Declarative Tools, Commands, Prompt Sections and Contexts, Settings ownership, Slots, and DSHX APIs may be adapted by the selected generation adapter. Settings contracts are shared, but Host-only facets stay in the Host graph; a retained Client Hook drives the official `settingsScope` dependency after tree-shaking. Native named DSH modules and direct `setup(ctx)` calls use official DSH/Cordis APIs directly; compatibility of those calls remains the plugin author's responsibility.
+Public DSHX helpers are thin declarations over official contracts. Declarative Tools, Commands, Prompt Sections and Contexts, Settings ownership, Slots, Conversation Components, and DSHX APIs may be adapted by the selected generation adapter. Settings contracts are shared, but Host-only facets stay in the Host graph; a retained Client Hook drives the official `settingsScope` dependency after tree-shaking. A Conversation Component colocates an official event-folding definition and keyed chat renderer, while the official assembler retains replay, ordering, publication, pagination, location, and disposal. Native named DSH modules and direct `setup(ctx)` calls use official DSH/Cordis APIs directly; compatibility of those calls remains the plugin author's responsibility.
+
+Conversation UI does not gain an implicit Host channel. A component composes the existing DSHX Connection API for typed writes; retained `useApi`/`useQuery` Hooks drive Connection injection and one Fiber-local identity map, rather than a duplicate Client declaration or global cache. The Host remains responsible for authorization, revision checks, idempotency, durable events, and explicit business cancellation. The verified `protocol-1` Session contract only admits required durable event types from the official vocabulary; DSHX therefore restricts Conversation event keys to `SessionEventMap` and does not treat declaration merging as persistence registration.
 
 ## Build and runtime flow
 

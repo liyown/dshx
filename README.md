@@ -8,7 +8,7 @@
 [![Node.js](https://img.shields.io/badge/node-%5E22.19%20%7C%7C%20%3E%3D24-339933?logo=nodedotjs&logoColor=white)](./package.json)
 [![License](https://img.shields.io/github/license/liyown/dshx)](./LICENSE)
 
-[简体中文](./README.zh-CN.md) · [Documentation](https://dshx.io/docs) · [Framework Hub](https://dshx.io) · [Roadmap](./ROADMAP.md)
+[简体中文](./README.zh-CN.md) · [Documentation](./docs/index.md) · [Framework Hub](https://dshx.io) · [Roadmap](./ROADMAP.md)
 
 DSHX is the build-time toolchain for out-of-tree [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) plugins. It gives plugin authors a typed Host and Client authoring model, repeatable builds, live runtime inspection, transactional scaffolding, and a community Hub—without replacing the official DSH runtime.
 
@@ -25,8 +25,8 @@ The generated project contains a minimal Host Tool, Prompt contributions, one li
 ## What DSHX provides
 
 - **One authoring workflow:** build Host-only, Client-only, mixed, or native DSH modules without selecting a project mode.
-- **Typed contributions:** define Host Tools, Commands, Prompt Sections and Contexts, Settings ownership, Client Slots, and unary Host/Client APIs against official DSH contracts.
-- **Live inspection:** inspect Slots, Tools, Services, and Events from the running Composition—never from a fabricated offline catalog.
+- **Typed contributions:** define Host Tools, Commands, Prompt Sections and Contexts, Settings ownership, Client Slots, experimental Conversation Components, and unary Host/Client APIs against official DSH contracts.
+- **Live inspection:** inspect adapter-supported Slots, Services, and Events from the running Composition, with explicit diagnostics for unavailable targets—never a fabricated offline catalog.
 - **Safe scaffolding:** preview source changes with `--dry-run`, apply them transactionally, and rerun idempotently.
 - **Runtime-thin development:** DSHX owns build, diagnostics, Profile integration, and compatibility adapters; DSH owns execution, lifecycle, transport, and HMR.
 - **Verified ecosystem:** discover plugins and documentation through the bilingual [DSHX Framework Hub](https://dshx.io).
@@ -39,6 +39,19 @@ The generated project contains a minimal Host Tool, Prompt contributions, one li
 | [`create-dshx`](./packages/create-dshx)                   | Project initializer for reproducible Host and Client plugin projects                | `pnpm create dshx`                    |
 | [`@becomeopc/dshx-hub-cli`](./packages/framework-hub-cli) | Deterministic local verification and privileged operations client for Framework Hub | `pnpm add -g @becomeopc/dshx-hub-cli` |
 | [Framework Hub](https://dshx.io)                          | Plugin discovery, documentation, community signals, and verified catalog operations | Web                                   |
+
+## Documentation
+
+Start from the [documentation index](./docs/index.md), then use the focused guides for the contribution you are building:
+
+| Guide                                                     | Covers                                                                                |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [Host contributions](./docs/guides/host-contributions.md) | Tools, Commands, Prompts, Settings ownership, APIs, registration order, and lifecycle |
+| [Settings](./docs/guides/settings.md)                     | Shared contracts, Host facets, Client decoding, mutations, and automatic wiring       |
+| [Typed Host/Client API](./docs/guides/typed-api.md)       | Contracts, Host handlers, `useApi`, `useQuery`, validation, cancellation, and errors  |
+| [Conversation components](./docs/guides/conversation.md)  | Deterministic event folding, view projection, React rendering, and Host interaction   |
+
+Operational and maintainer references remain separate: [CLI](./docs/cli-reference.md), [Compatibility](./docs/compatibility.md), and [Architecture](./docs/architecture.md).
 
 ## Everyday commands
 
@@ -54,7 +67,7 @@ dshx add command --name <command-name>
 dshx add hook --event <event-name>
 ```
 
-`build` and `check` are read-only unless `check --fix` is explicitly requested. `inspect` requires a supported running DSH Composition. Scaffold commands do not install packages, mutate Profiles, or start DSH.
+`build` writes only declared build artifacts and does not rewrite source or manifest metadata. `check` is read-only unless `check --fix` is explicitly requested. `inspect` requires a supported running DSH Composition. Scaffold commands do not install packages, mutate Profiles, or start DSH.
 
 See the [CLI reference](./docs/cli-reference.md) for command behavior and automation guarantees.
 
@@ -73,6 +86,10 @@ A plugin declares its public DSH support in `peerDependencies`, installs one con
 
 Read [compatibility and verification](./docs/compatibility.md) before changing DSH ranges or adapters.
 
+At the currently verified `protocol-1` boundaries, Conversation Components can fold and render event types already declared by the official `SessionEventMap`. The released Session persistence contract does not expose an out-of-tree vocabulary registry for required durable event types, so DSHX does not claim custom durable Session events yet.
+
+Conversation components call Host code through the existing typed `useApi(contract)` Hook. A retained `useApi` or `useQuery` call now drives Connection injection automatically; `defineClient` does not repeat the API contract.
+
 ## Architecture boundary
 
 ```text
@@ -88,7 +105,7 @@ official DSH artifacts and runtime contracts
 DeepSeek Harness runtime
 ```
 
-DSHX deliberately does not implement a second Tool runtime, Session runtime, dependency container, event bus, connection transport, or HMR system. The detailed boundary and repository layout are documented in [Architecture](./docs/architecture.md).
+DSHX deliberately does not implement a second Tool runtime, Session runtime, dependency container, event bus, connection transport, or HMR system. Conversation Components colocate projection and rendering declarations, while the official assembler still owns replay, ordering, pagination, publication, and lifecycle. The detailed boundary and repository layout are documented in [Architecture](./docs/architecture.md).
 
 ## Develop this repository
 

@@ -21,6 +21,7 @@ The 0.1 line currently provides:
 - `dshx dev`, automatic browser handoff for generated projects, Client HMR, Host restart, Profile orchestration, and deterministic `check --fix`.
 - Typed unary Host/Client APIs: `defineApi`, `method`, `useApi`, `useQuery`, and `ApiError` over the official Connection transport.
 - Schemastery-backed Settings contracts: `defineSettings`, Host ownership facets, and hook-driven `useSettings` Client wiring over the official shared mirror.
+- Experimental component-shaped Conversation contributions that bundle one official event-folding definition with its keyed chat renderer.
 
 The current release must continue to preserve direct `setup(ctx)` escape hatches and must not require users to select a Host/Client project mode.
 
@@ -59,16 +60,18 @@ api      -> connection
 @becomeopc/dshx/client
 defineClient
 defineSlot
-defineConversationNode
 useApi
 useQuery
 useSubscription
 useSettings
+
+@becomeopc/dshx/conversation
+defineConversation
 ```
 
 `defineSlot` remains the general UI contribution point. DSHX should not grow separate helpers such as `defineToolbarItem`, `definePanel`, or `defineToolView` while the official Slot contract can express those contributions.
 
-`defineConversationNode` is a focused convenience for the official conversation-node seams. It may remove declaration-merging and registration boilerplate, but must preserve stable IDs, start/update semantics, sequence ordering, replay, publication, pagination, location data, and view registration.
+`defineConversation` is a focused component contribution over the official conversation-node seams. Its declaration may colocate event matching, state folding, view projection, and the keyed React renderer, but the official assembler must still execute replay, sequence ordering, publication, pagination, location, and disposal. The React component receives projected data; it does not become a second event reducer or Session runtime.
 
 ### API and Settings
 
@@ -91,7 +94,7 @@ Settings contracts use the official Schemastery package so the same schema can d
 
 ### Stage 1: Harden the current API
 
-Status: complete for the current `protocol-1` Connection seam at the verified DSH boundaries. Artifact/source parity, JSON transformation, channel disposal, version-mismatch classification, cancellation, and reconnect-aware query scheduling are covered. The parameterized generation smoke verifies real unary calls, Host restart, API re-registration, and Client HMR at representative boundaries; the browser fixture additionally verified `useQuery`, AbortSignal propagation, and reconnect recovery.
+Status: complete for the current `protocol-1` Connection seam at the verified DSH boundaries. Artifact/source parity, JSON transformation, channel disposal, version-mismatch classification, cancellation, reconnect-aware query scheduling, and hook-driven Client binding are covered. Retained `useApi`/`useQuery` code now infers the Connection capability and lazily reuses contracts by identity within one Client Fiber; explicit `ClientDefinition.api/apis` remains a compatibility form. The parameterized generation smoke verifies real unary calls, Host restart, API re-registration, and Client HMR at representative boundaries; the browser fixture additionally verified `useQuery`, AbortSignal propagation, and reconnect recovery.
 
 - Keep `defineApi`/`method` compatible with the official Connection API.
 - Verify Host and Client lifecycle, API version mismatch, reconnect, AbortSignal, and HMR behavior against real DSH fixtures.
@@ -128,7 +131,13 @@ Status: complete for the current `protocol-1` Settings and Client Settings Scope
 
 ### Stage 5: Conversation Nodes
 
-Add `defineConversationNode` only after a real replay fixture covers event maps, step data, publication, update ordering, pagination, location, view nodes, HMR, and duplicate-registration cleanup. The helper must not hide replay semantics.
+Status: the component contribution is implemented for the official `protocol-1` Client seams, but Stage 5 remains experimental and open. `defineConversation({ kind, events }).component(...)` produces one contribution for `defineClient({ conversations })`; DSHX registers its official assembler definition before the keyed `conversation.chat.node` renderer and infers the `conversationEvents` and `slots` dependencies. This removes the artificial split between a lifecycle definition and its renderer without moving lifecycle execution into React.
+
+- Keep event keys constrained to the official `SessionEventMap` at the current verified boundaries. TypeScript declaration merging alone does not make a new required event type safe for Session persistence or replay.
+- Keep match, start/update folding, view-node publication, replay, ordering, pagination, location, duplicate handling, and disposal in the official Client runtime.
+- Keep Host interaction compositional: use the existing `defineApi`/`useApi` Connection contract for typed writes, and use official Commands or Agent behavior only when their semantics actually match the operation. Do not add a private Conversation transport or an implicit Host action facet.
+- Do not present custom durable Session events as supported until DSH exposes an effect-owned event-vocabulary registration seam that is active before restore/resume, validates append and persisted history, and distinguishes required from ignorable data.
+- Before marking the stage complete, add a real replay fixture for official events covering step data, publication, update ordering, pagination, location, HMR, reconnect, and duplicate-registration cleanup; then add a separate custom-event fixture only after the upstream vocabulary seam exists.
 
 ### Stage 6: Client Events and Subscriptions
 

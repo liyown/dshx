@@ -66,9 +66,11 @@ Semver membership never implies real-runtime verification. `dshx dev` prints the
 
 ## Declarative and native compatibility
 
-DSHX may adapt the declarative surface it owns: Host Tools, Commands, Prompt Sections and Contexts, Host Settings ownership, hook-driven Client Settings scopes, Client Slots, typed DSHX APIs, generated manifest fields, Profile operations, and compiler output. The adapter is carried into the compiled artifact while official runtime packages remain external.
+DSHX may adapt the declarative surface it owns: Host Tools, Commands, Prompt Sections and Contexts, Host Settings ownership, hook-driven Client Settings scopes, Client Slots and Conversation Components, typed DSHX APIs, generated manifest fields, Profile operations, and compiler output. The adapter is carried into the compiled artifact while official runtime packages remain external.
 
-Direct `setup(ctx)` logic and native named DSH modules call official APIs without a DSHX wrapper. Their source types come from the installed official packages, and their cross-version behavior remains the plugin author's responsibility. DSHX does not copy official DSH types into parallel versioned type trees. The Settings Hook is a narrow exception to generic source analysis: `check` previews direct Hook calls in the local Client graph, while build/dev make the authoritative decision from retained bundle code after tree-shaking.
+For Conversation Components, `protocol-1` records the official `conversationEvents` and keyed chat Slot seams separately from Session event vocabulary. Machine-readable capabilities report the component adapter as `experimental`, because replay and HMR are not yet part of the real DSH generation scenario. The component contribution is available, but custom required durable event types are not: the verified rc boundaries expose no out-of-tree vocabulary registry that persistence can consult before history load and resume. Event keys therefore remain limited to the official `SessionEventMap`; a TypeScript-only extension is not a compatibility guarantee.
+
+Direct `setup(ctx)` logic and native named DSH modules call official APIs without a DSHX wrapper. Their source types come from the installed official packages, and their cross-version behavior remains the plugin author's responsibility. DSHX does not copy official DSH types into parallel versioned type trees. Settings and API Hooks are narrow exceptions to generic source analysis: `check` previews direct Hook calls in the local Client graph, while build/dev make the authoritative decision from retained bundle code after tree-shaking.
 
 ## Generic real-runtime scenario
 
