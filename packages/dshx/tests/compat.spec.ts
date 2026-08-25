@@ -35,6 +35,15 @@ describe('DSH protocol compatibility generations', () => {
     ])
     expect(PROTOCOL_1_COMPATIBILITY.client.preloadedExternals).toEqual(['@deepseek-ai/dsh-client-runtime/client', '@deepseek-ai/dsh-client-connection/client'])
     expect(PROTOCOL_1_COMPATIBILITY.hostContributions).toEqual({ commands: true, promptSections: true, promptContexts: true, settings: true })
+    expect(PROTOCOL_1_COMPATIBILITY.client.conversation).toEqual({
+      runtimePackageName: '@deepseek-ai/dsh-client-runtime',
+      rendererPackageName: '@deepseek-ai/dsh-client-ui-conversation',
+      eventService: 'conversationEvents',
+      slotService: 'slots',
+      componentContributions: true,
+      verification: 'experimental',
+    })
+    expect(PROTOCOL_1_COMPATIBILITY.session).toEqual({ customDurableEventVocabulary: false })
     expect(getCompatibilityCapabilities(PROTOCOL_1_COMPATIBILITY)).toEqual(
       expect.arrayContaining([
         'host:commands',
@@ -43,6 +52,11 @@ describe('DSH protocol compatibility generations', () => {
         'host:settings',
         'client:settings-scope',
         'client:settings-hook-inference',
+        'client:conversation-event-registry',
+        'client:conversation-chat-slots',
+        'client:conversation-components:experimental',
+        'client:api-hook-inference',
+        'session:custom-durable-event-vocabulary:unavailable',
       ]),
     )
   })

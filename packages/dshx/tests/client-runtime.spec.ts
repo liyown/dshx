@@ -1,7 +1,9 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { defineApi, method } from '../src/api/index.js'
 import { defineClient, defineSlot } from '../src/client/index.js'
+import type { ClientConversationContribution } from '../src/client/types.js'
 import { createClientModule, createClientPlugin } from '../src/client/runtime.js'
 import { createSettingsClientRuntime } from '../src/settings/client.js'
 import { defineSettings } from '../src/settings/index.js'
@@ -10,6 +12,35 @@ import Schema from '@deepseek-ai/schemastery'
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     'test.slot': { kind: 'list'; scope: 'root' }
+  }
+}
+
+function conversationContribution(kind = 'review-job'): ClientConversationContribution {
+  const contract = {
+    kind,
+    events: {
+      'review/job-started': { role: 'start', id: () => kind },
+    },
+    component: vi.fn(),
+  }
+  const definition = {
+    kind,
+    target: 'chat',
+    match: vi.fn(),
+    start: vi.fn(),
+    update: vi.fn(),
+    buildViewNode: vi.fn(),
+  }
+  return {
+    kind: 'conversation-component',
+    marker: 'dshx.conversation-component.v1',
+    contract,
+    definition,
+    renderer: {
+      name: 'conversation.chat.node',
+      options: { key: kind, locale: 'conversation' },
+      component: vi.fn(),
+    },
   }
 }
 
@@ -40,16 +71,18 @@ describe('defineClient', () => {
     defineSlot('missing.slot', { component })
   })
 })
-
 describe('Client runtime adapter', () => {
   it('applies definition name, inject normalization, and async setup', async () => {
     const setup = vi.fn(async (ctx: Context) => ctx)
     const context = {} as Context
-    const plugin = createClientPlugin({ name: 'explicit-client', inject: ['remote', 'remote', 'slots'], setup }, {
-      packageId: '@test/plugin',
-      logicalName: 'logical-client',
-      sourceFile: '/project/src/client.tsx',
-    })
+    const plugin = createClientPlugin(
+      { name: 'explicit-client', inject: ['remote', 'remote', 'slots'], setup },
+      {
+        packageId: '@test/plugin',
+        logicalName: 'logical-client',
+        sourceFile: '/project/src/client.tsx',
+      },
+    )
     expect(plugin.name).toBe('explicit-client')
     expect(plugin.inject).toEqual(['remote', 'slots'])
     await plugin.apply(context)
@@ -60,10 +93,19 @@ describe('Client runtime adapter', () => {
     const calls: string[] = []
     const first = defineSlot('test.slot', { id: 'first', component: () => null })
     const second = defineSlot('test.slot', { id: 'second', component: () => null })
-    const plugin = createClientPlugin({ inject: ['remote', 'slots'], slots: [first, second], setup() { calls.push('setup') } }, {
-      packageId: '@test/plugin',
-      sourceFile: '/project/src/client.tsx',
-    })
+    const plugin = createClientPlugin(
+      {
+        inject: ['remote', 'slots'],
+        slots: [first, second],
+        setup() {
+          calls.push('setup')
+        },
+      },
+      {
+        packageId: '@test/plugin',
+        sourceFile: '/project/src/client.tsx',
+      },
+    )
     expect(plugin.inject).toEqual(['remote', 'slots'])
     const registered: unknown[] = []
     plugin.apply({
@@ -91,6 +133,106 @@ describe('Client runtime adapter', () => {
     expect(setup).toHaveBeenCalledOnce()
   })
 
+  it('registers each Conversation Definition before its paired keyed renderer and then setup', () => {
+    const calls: string[] = []
+    const first = conversationContribution('review-job')
+    const second = conversationContribution('audit-job')
+    const setup = vi.fn(() => {
+      calls.push('setup')
+    })
+    const plugin = createClientPlugin(
+      {
+        inject: ['conversationEvents', 'conversationEvents'],
+        conversations: [first, second],
+        setup,
+      },
+      { packageId: '@test/plugin' },
+    )
+    expect(plugin.inject).toEqual(['conversationEvents', 'slots'])
+
+    const definitions: unknown[] = []
+    const renderers: unknown[] = []
+    const disposers: Array<ReturnType<typeof vi.fn>> = []
+    plugin.apply({
+      conversationEvents: {
+        register(definition: { kind: string }) {
+          calls.push(`definition:${definition.kind}`)
+          definitions.push(definition)
+          const dispose = vi.fn()
+          disposers.push(dispose)
+          return dispose
+        },
+      },
+      slots: {
+        inject(name: string, register: () => unknown) {
+          calls.push(`inject:${name}`)
+          return register()
+        },
+        register(options: Record<string, unknown>, component: unknown) {
+          calls.push(`renderer:${String(options.key)}`)
+          renderers.push({ options, component })
+          const dispose = vi.fn()
+          disposers.push(dispose)
+          return dispose
+        },
+      },
+    } as unknown as Context)
+
+    expect(calls).toEqual([
+      'definition:review-job',
+      'inject:conversation.chat.node',
+      'renderer:review-job',
+      'definition:audit-job',
+      'inject:conversation.chat.node',
+      'renderer:audit-job',
+      'setup',
+    ])
+    expect(definitions).toEqual([first.definition, second.definition])
+    expect(renderers).toEqual([
+      { options: { name: 'conversation.chat.node', key: 'review-job', locale: 'conversation' }, component: first.renderer.component },
+      { options: { name: 'conversation.chat.node', key: 'audit-job', locale: 'conversation' }, component: second.renderer.component },
+    ])
+    expect(disposers).toHaveLength(4)
+    expect(disposers.every(dispose => dispose.mock.calls.length === 0)).toBe(true)
+  })
+
+  it('does not inject or register an empty Conversation list', () => {
+    const setup = vi.fn()
+    const plugin = createClientPlugin({ conversations: [], setup }, { packageId: '@test/plugin' })
+    expect(plugin.inject).toEqual([])
+    plugin.apply({} as Context)
+    expect(setup).toHaveBeenCalledOnce()
+  })
+
+  it('applies API and Settings providers to Conversation renderers without wrapping Definitions', async () => {
+    const conversation = conversationContribution()
+    const api = defineApi({ id: 'review-actions', version: 1, methods: { cancel: method<void, void>() } })
+    const definitions: unknown[] = []
+    const renderers: unknown[] = []
+    const get = vi.fn(() => undefined)
+    const plugin = createClientPlugin({ conversations: [conversation], api }, { packageId: '@test/plugin', settingsCapability: true })
+    expect(plugin.inject).toEqual(['conversationEvents', 'slots', 'connection', 'settingsScope'])
+    await plugin.apply({
+      get,
+      conversationEvents: {
+        register: (definition: unknown) => {
+          definitions.push(definition)
+        },
+      },
+      slots: {
+        inject: (_name: string, register: () => unknown) => register(),
+        register: (_options: unknown, component: unknown) => {
+          renderers.push(component)
+        },
+      },
+    } as unknown as Context)
+    expect(definitions).toEqual([conversation.definition])
+    expect(renderers).toHaveLength(1)
+    expect(renderers[0]).not.toBe(conversation.renderer.component)
+    expect(get).toHaveBeenCalledWith('settingsScope')
+    expect(get).toHaveBeenCalledWith('connection')
+  })
+
   it('adds settingsScope from compiler metadata without a Client settings declaration', () => {
     const slot = defineSlot('test.slot', { id: 'settings', component: () => null })
     const get = vi.fn(() => ({ bind: vi.fn(), describe: vi.fn() }))
@@ -101,12 +243,35 @@ describe('Client runtime adapter', () => {
       get,
       slots: {
         inject: (_name: string, register: () => unknown) => register(),
-        register: (_options: unknown, component: unknown) => { registered.push(component) },
+        register: (_options: unknown, component: unknown) => {
+          registered.push(component)
+        },
       },
     } as unknown as Context)
     expect(get).toHaveBeenCalledWith('settingsScope')
     expect(registered).toHaveLength(1)
     expect(registered[0]).not.toBe(slot.component)
+  })
+
+  it('adds Connection and a lazy API provider from compiler metadata without Client api/apis', async () => {
+    const slot = defineSlot('test.slot', { id: 'api-hook', component: () => null })
+    const get = vi.fn(() => ({ rpc: { call: vi.fn() } }))
+    const registered: unknown[] = []
+    const plugin = createClientPlugin({ inject: ['connection', 'connection'], slots: [slot] }, { packageId: '@test/plugin', apiCapability: true })
+    expect(plugin.inject).toEqual(['connection', 'slots'])
+    await plugin.apply({
+      get,
+      slots: {
+        inject: (_name: string, register: () => unknown) => register(),
+        register: (_options: unknown, component: unknown) => {
+          registered.push(component)
+        },
+      },
+    } as unknown as Context)
+    expect(registered).toHaveLength(1)
+    expect(registered[0]).not.toBe(slot.component)
+    // Retained-hook contracts bind only when their component invokes useApi().
+    expect(get).not.toHaveBeenCalled()
   })
 
   it('reuses one official bound scope per contract identity', () => {
@@ -146,9 +311,12 @@ describe('Client runtime adapter', () => {
 
   it('prefers a default definition over native named exports', () => {
     const setup = vi.fn()
-    const plugin = createClientModule({ name: 'native', apply: vi.fn(), default: { name: 'default', setup } }, {
-      packageId: '@test/plugin',
-    })
+    const plugin = createClientModule(
+      { name: 'native', apply: vi.fn(), default: { name: 'default', setup } },
+      {
+        packageId: '@test/plugin',
+      },
+    )
     expect(plugin.name).toBe('default')
     plugin.apply({} as Context)
     expect(setup).toHaveBeenCalledOnce()
@@ -160,19 +328,34 @@ describe('Client runtime adapter', () => {
     ['empty name', { name: '' }, 'DSHX2102'],
     ['invalid inject', { inject: [''] }, 'DSHX2102'],
     ['invalid setup', { setup: true }, 'DSHX2102'],
+    ['invalid conversations', { conversations: {} }, 'DSHX2302'],
+    ['invalid Conversation contribution', { conversations: [{}] }, 'DSHX2301'],
+    ['invalid Conversation marker', { conversations: [{ ...conversationContribution(), marker: 'dshx.conversation-component.v2' }] }, 'DSHX2301'],
+    [
+      'inconsistent Conversation contribution',
+      { conversations: [{ ...conversationContribution(), renderer: { ...conversationContribution().renderer, options: { key: 'other' } } }] },
+      'DSHX2302',
+    ],
     ['invalid slots', { slots: {} }, 'DSHX2202'],
     ['invalid contribution', { slots: [{}] }, 'DSHX2202'],
   ])('rejects %s with a stable diagnostic', (_label, definition, code) => {
-    expect(() => createClientPlugin(definition, {
-      packageId: '@test/plugin',
-      sourceFile: '/project/src/client.tsx',
-    })).toThrow(expect.objectContaining({ code, file: '/project/src/client.tsx', hint: expect.any(String) }))
+    expect(() =>
+      createClientPlugin(definition, {
+        packageId: '@test/plugin',
+        sourceFile: '/project/src/client.tsx',
+      }),
+    ).toThrow(expect.objectContaining({ code, file: '/project/src/client.tsx', hint: expect.any(String) }))
   })
 
   it('rejects a native Client module without apply', () => {
-    expect(() => createClientModule({ name: 'broken' }, {
-      packageId: '@test/plugin',
-      sourceFile: '/project/src/client.tsx',
-    })).toThrow(expect.objectContaining({ code: 'DSHX2101', file: '/project/src/client.tsx' }))
+    expect(() =>
+      createClientModule(
+        { name: 'broken' },
+        {
+          packageId: '@test/plugin',
+          sourceFile: '/project/src/client.tsx',
+        },
+      ),
+    ).toThrow(expect.objectContaining({ code: 'DSHX2101', file: '/project/src/client.tsx' }))
   })
 })

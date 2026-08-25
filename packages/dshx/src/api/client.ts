@@ -3,10 +3,18 @@ import type { ApiCallOptions, ApiClient, ApiContract, ApiError, ApiInput, ApiMet
 import { apiConnectionAvailable, createApiClient, subscribeApiConnection } from './runtime.js'
 
 type ReactRuntime = typeof import('react')
-type ApiMap = ReadonlyMap<ApiContract, ApiClient>
 declare const require: ((name: string) => ReactRuntime) | undefined
 let react: ReactRuntime | undefined
-let apiContext: import('react').Context<ApiMap | undefined> | undefined
+let apiContext: import('react').Context<ApiClientRuntime | undefined> | undefined
+
+interface ContextLike {
+  get(name: string): unknown
+}
+
+/** One identity-scoped API client cache owned by a Client Fiber. */
+export interface ApiClientRuntime {
+  client<const Methods extends Record<string, ApiMethodDefinition<any, any>>>(contract: ApiContract<Methods>): ApiClient<Methods>
+}
 
 function runtime(): ReactRuntime {
   if (react !== undefined) return react
@@ -19,21 +27,39 @@ function runtime(): ReactRuntime {
   return react
 }
 
-function context(): import('react').Context<ApiMap | undefined> {
+function context(): import('react').Context<ApiClientRuntime | undefined> {
   if (apiContext !== undefined) return apiContext
-  apiContext = runtime().createContext<ApiMap | undefined>(undefined)
+  apiContext = runtime().createContext<ApiClientRuntime | undefined>(undefined)
   return apiContext
 }
 
-export function provideApiContext(component: (props: any) => ReactNode, clients: ReadonlyMap<ApiContract, ApiClient>): (props: any) => ReactNode {
-  return (props: any) => runtime().createElement(context().Provider, { value: clients }, runtime().createElement(component, props))
+/** Create one lazy contract-identity map for the lifetime of a Client Fiber. */
+export function createApiClientRuntime(ctx: ContextLike, packageId: string, contracts: readonly ApiContract[] = []): ApiClientRuntime {
+  const clients = new Map<object, ApiClient>()
+  const client = <const Methods extends Record<string, ApiMethodDefinition<any, any>>>(contract: ApiContract<Methods>): ApiClient<Methods> => {
+    const existing = clients.get(contract)
+    if (existing !== undefined) return existing as ApiClient<Methods>
+    const created = createApiClient(ctx, contract, packageId)
+    clients.set(contract, created)
+    return created
+  }
+  const result: ApiClientRuntime = { client }
+  // Explicit ClientDefinition.api/apis remain a compatible eager-binding form.
+  for (const contract of contracts) result.client(contract)
+  return result
+}
+
+export function provideApiContext(component: (props: any) => ReactNode, client: ApiClientRuntime): (props: any) => ReactNode {
+  return (props: any) => runtime().createElement(context().Provider, { value: client }, runtime().createElement(component, props))
 }
 
 export function useApi<const Methods extends Record<string, ApiMethodDefinition<any, any>>>(contract: ApiContract<Methods>): ApiClient<Methods> {
-  const clients = runtime().useContext(context())
-  const existing = clients?.get(contract)
-  if (existing !== undefined) return existing as ApiClient<Methods>
-  throw new Error(`API ${JSON.stringify(contract.id)} is not available in this Client component.`)
+  // The Client compiler uses this retained marker after tree-shaking to infer
+  // the Connection capability without a duplicate defineClient declaration.
+  runtime().useDebugValue?.('dshx.api-hook.v1')
+  const client = runtime().useContext(context())
+  if (client !== undefined) return client.client(contract)
+  throw new Error(`API ${JSON.stringify(contract.id)} is unavailable outside a DSHX Client Slot component.`)
 }
 
 interface ApiQueryEffectOptions<T> {

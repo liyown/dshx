@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { startApiQueryEffect } from '../src/api/client.js'
+import { createApiClientRuntime, startApiQueryEffect } from '../src/api/client.js'
 import { defineApi, method } from '../src/api/define.js'
 import { apiChannel, apiConnectionAvailable, createApiClient, registerApi, subscribeApiConnection } from '../src/api/runtime.js'
 import { ApiError } from '../src/api/types.js'
@@ -24,12 +24,29 @@ describe('generic API runtime', () => {
     let handler: ((endpoint: string, payload: unknown, signal: AbortSignal) => Promise<unknown>) | undefined
     const remove = vi.fn(async () => undefined)
     const ctx = {
-      get(name: string) { return name === 'connection' ? { rpc: { handle(_channel: string, value: typeof handler) { handler = value; return remove } } } : undefined },
-      effect() { return undefined },
+      get(name: string) {
+        return name === 'connection'
+          ? {
+              rpc: {
+                handle(_channel: string, value: typeof handler) {
+                  handler = value
+                  return remove
+                },
+              },
+            }
+          : undefined
+      },
+      effect() {
+        return undefined
+      },
     }
     const registration = api.host({
-      async get() { return { value: 'ready' } },
-      async refresh({ input }) { return { value: input.force === true ? 'forced' : 'normal' } },
+      async get() {
+        return { value: 'ready' }
+      },
+      async refresh({ input }) {
+        return { value: input.force === true ? 'forced' : 'normal' }
+      },
     })
     await registerApi(ctx as never, '@scope/plugin', registration)
     expect(handler).toBeDefined()
@@ -55,8 +72,12 @@ describe('generic API runtime', () => {
       },
     }
     const registration = api.host({
-      async get() { return { value: 'ready' } },
-      async refresh() { return { value: 'ready' } },
+      async get() {
+        return { value: 'ready' }
+      },
+      async refresh() {
+        return { value: 'ready' }
+      },
     })
     // These package ids are a deterministic FNV-1a collision for the status API.
     const first = 'pkg-ppsie4'
@@ -70,14 +91,26 @@ describe('generic API runtime', () => {
   })
 
   it('provides typed calls and safe errors over Connection.call', async () => {
-    const call = vi.fn(async (_channel: string, endpoint: string): Promise<
-      | { readonly ok: true; readonly value: unknown }
-      | { readonly ok: false; readonly error: { readonly code: string; readonly message: string } }
-    > => ({
-      ok: true,
-      value: { version: 1, output: { value: endpoint } },
-    }))
-    const client = createApiClient({ get(name: string) { return name === 'connection' ? { rpc: { call } } : undefined } } as never, api, '@scope/plugin')
+    const call = vi.fn(
+      async (
+        _channel: string,
+        endpoint: string,
+      ): Promise<
+        { readonly ok: true; readonly value: unknown } | { readonly ok: false; readonly error: { readonly code: string; readonly message: string } }
+      > => ({
+        ok: true,
+        value: { version: 1, output: { value: endpoint } },
+      }),
+    )
+    const client = createApiClient(
+      {
+        get(name: string) {
+          return name === 'connection' ? { rpc: { call } } : undefined
+        },
+      } as never,
+      api,
+      '@scope/plugin',
+    )
     await expect(client.get()).resolves.toEqual({ value: 'get' })
     await expect(client.refresh({ force: true })).resolves.toEqual({ value: 'refresh' })
     expect(call).toHaveBeenCalledWith(apiChannel('@scope/plugin', 'status'), 'get', { version: 1, input: undefined }, undefined)
@@ -87,12 +120,50 @@ describe('generic API runtime', () => {
     expect(result).toMatchObject({ ok: false, error: { kind: 'remote', remoteCode: 'internal' } })
   })
 
+  it('lazily reuses API clients by contract identity within one Client Fiber runtime', () => {
+    const get = vi.fn(() => ({ rpc: { call: vi.fn() } }))
+    const firstRuntime = createApiClientRuntime({ get }, '@scope/plugin')
+    const sameShape = defineApi({
+      id: 'status-copy',
+      version: 1,
+      methods: {
+        get: method<void, { value: string }>(),
+        refresh: method<{ force?: boolean }, { value: string }>(),
+      },
+    })
+
+    const first = firstRuntime.client(api)
+    expect(firstRuntime.client(api)).toBe(first)
+    expect(firstRuntime.client(sameShape)).not.toBe(first)
+    expect(get).toHaveBeenCalledTimes(2)
+
+    const nextRuntime = createApiClientRuntime({ get }, '@scope/plugin')
+    expect(nextRuntime.client(api)).not.toBe(first)
+    expect(get).toHaveBeenCalledTimes(3)
+  })
+
+  it('keeps explicit API declarations as compatible eager bindings', () => {
+    const get = vi.fn(() => ({ rpc: { call: vi.fn() } }))
+    const client = createApiClientRuntime({ get }, '@scope/plugin', [api])
+    expect(get).toHaveBeenCalledOnce()
+    expect(client.client(api)).toBe(client.client(api))
+    expect(get).toHaveBeenCalledOnce()
+  })
+
   it('uses an unambiguous AbortSignal position for no-input methods', async () => {
     const call = vi.fn(async (): Promise<{ readonly ok: true; readonly value: unknown }> => ({
       ok: true,
       value: { version: 1, output: { value: 'ready' } },
     }))
-    const client = createApiClient({ get(name: string) { return name === 'connection' ? { rpc: { call } } : undefined } } as never, api, '@scope/plugin')
+    const client = createApiClient(
+      {
+        get(name: string) {
+          return name === 'connection' ? { rpc: { call } } : undefined
+        },
+      } as never,
+      api,
+      '@scope/plugin',
+    )
     const controller = new AbortController()
     controller.abort('cancelled before dispatch')
     await expect(client.get(undefined, { signal: controller.signal })).rejects.toMatchObject({ kind: 'aborted', retryable: false })
@@ -105,18 +176,33 @@ describe('generic API runtime', () => {
     const clientContract = defineApi({ id: 'versioned', version: 2, methods: { get: method<void, string>() } })
     const context = {
       get(name: string) {
-        return name === 'connection' ? {
-          rpc: {
-            handle(_channel: string, value: typeof handler) { handler = value; return async () => undefined },
-            call(_channel: string, endpoint: string, payload: unknown, signal?: AbortSignal) {
-              return handler?.(endpoint, payload, signal ?? new AbortController().signal)
-            },
-          },
-        } : undefined
+        return name === 'connection'
+          ? {
+              rpc: {
+                handle(_channel: string, value: typeof handler) {
+                  handler = value
+                  return async () => undefined
+                },
+                call(_channel: string, endpoint: string, payload: unknown, signal?: AbortSignal) {
+                  return handler?.(endpoint, payload, signal ?? new AbortController().signal)
+                },
+              },
+            }
+          : undefined
       },
-      effect(setup: () => unknown) { setup() },
+      effect(setup: () => unknown) {
+        setup()
+      },
     }
-    await registerApi(context as never, '@scope/plugin', host.host({ async get() { return 'ready' } }))
+    await registerApi(
+      context as never,
+      '@scope/plugin',
+      host.host({
+        async get() {
+          return 'ready'
+        },
+      }),
+    )
     const client = createApiClient(context as never, clientContract, '@scope/plugin')
     await expect(client.get()).rejects.toMatchObject({ kind: 'contract', remoteCode: 'DSHX6401', retryable: false })
   })
@@ -134,11 +220,30 @@ describe('generic API runtime', () => {
     })
     const context = {
       get(name: string) {
-        return name === 'connection' ? { rpc: { handle(_channel: string, value: typeof handler) { handler = value; return async () => undefined } } } : undefined
+        return name === 'connection'
+          ? {
+              rpc: {
+                handle(_channel: string, value: typeof handler) {
+                  handler = value
+                  return async () => undefined
+                },
+              },
+            }
+          : undefined
       },
-      effect(setup: () => unknown) { setup() },
+      effect(setup: () => unknown) {
+        setup()
+      },
     }
-    await registerApi(context as never, '@scope/plugin', transformed.host({ async get() { return 'ready' } }))
+    await registerApi(
+      context as never,
+      '@scope/plugin',
+      transformed.host({
+        async get() {
+          return 'ready'
+        },
+      }),
+    )
     await expect(handler?.('get', { version: 1 }, new AbortController().signal)).resolves.toMatchObject({
       ok: true,
       value: { output: 'READY' },
@@ -159,7 +264,15 @@ describe('generic API runtime', () => {
         }),
       },
     })
-    const client = createApiClient({ get(name: string) { return name === 'connection' ? { rpc: { call } } : undefined } } as never, contract, '@scope/plugin')
+    const client = createApiClient(
+      {
+        get(name: string) {
+          return name === 'connection' ? { rpc: { call } } : undefined
+        },
+      } as never,
+      contract,
+      '@scope/plugin',
+    )
     await expect(client.get({})).rejects.toMatchObject({ kind: 'contract', retryable: false })
     expect(call).not.toHaveBeenCalled()
   })
@@ -167,15 +280,26 @@ describe('generic API runtime', () => {
   it('exposes the official Host description lifecycle to query adapters', () => {
     let connected = false
     const listeners = new Set<() => void>()
-    const client = createApiClient({ get(name: string) {
-      return name === 'connection' ? {
-        hostDescription: {
-          getSnapshot: () => connected ? { profile: 'web' } : undefined,
-          subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener) },
+    const client = createApiClient(
+      {
+        get(name: string) {
+          return name === 'connection'
+            ? {
+                hostDescription: {
+                  getSnapshot: () => (connected ? { profile: 'web' } : undefined),
+                  subscribe(listener: () => void) {
+                    listeners.add(listener)
+                    return () => listeners.delete(listener)
+                  },
+                },
+                rpc: { call: vi.fn() },
+              }
+            : undefined
         },
-        rpc: { call: vi.fn() },
-      } : undefined
-    } } as never, api, '@scope/plugin')
+      } as never,
+      api,
+      '@scope/plugin',
+    )
     const listener = vi.fn()
     const dispose = subscribeApiConnection(client, listener)
     expect(apiConnectionAvailable(client)).toBe(false)
@@ -194,7 +318,10 @@ describe('generic API runtime', () => {
     const onReconnect = vi.fn()
     const dispose = startApiQueryEffect({
       available: () => connected,
-      subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener) },
+      subscribe(listener) {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
       invoke,
       onLoading: vi.fn(),
       onSuccess: vi.fn(),
@@ -219,7 +346,10 @@ describe('generic API runtime', () => {
     const onReconnect = vi.fn()
     const dispose = startApiQueryEffect({
       available: () => connected,
-      subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener) },
+      subscribe(listener) {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
       invoke(signal) {
         requestSignal = signal
         return new Promise((_resolve, reject) => {

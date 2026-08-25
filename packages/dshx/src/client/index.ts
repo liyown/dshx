@@ -1,5 +1,5 @@
 export { defineClient, defineSlot } from './define.js'
-export type { ClientDefinition, DshxSlotOptions, SlotContribution } from './types.js'
+export type { ClientConversationContribution, ClientDefinition, DshxSlotOptions, SlotContribution } from './types.js'
 export { createApiClient, useApi, useQuery } from '../api/client.js'
 export { useSettings } from '../settings/client.js'
 export type { SettingsMutationState, SettingsReadError, SettingsState } from '../settings/types.js'

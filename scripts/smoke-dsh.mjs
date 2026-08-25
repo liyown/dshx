@@ -616,6 +616,9 @@ async function main() {
     if (!settingsClientArtifact.includes('dshx.settings-hook.v1') || !/settingsCapability:\s*true/.test(settingsClientArtifact)) {
       throw new Error('Generated Client artifact did not retain hook-driven Settings capability metadata')
     }
+    if (!settingsClientArtifact.includes('dshx.api-hook.v1') || !/apiCapability:\s*true/.test(settingsClientArtifact)) {
+      throw new Error('Generated Client artifact did not retain hook-driven API capability metadata')
+    }
     if (settingsClientArtifact.includes('threshold must be at most 10') || settingsClientArtifact.includes('@becomeopc/dshx/settings')) {
       throw new Error('Generated Client artifact retained Host-only Settings behavior or a private DSHX Settings import')
     }
@@ -724,7 +727,7 @@ async function main() {
             },
             projects: Object.fromEntries(Object.entries(projects).map(([name, project]) => [name, project])),
             inspect: [slots, exact, services, events].map(summarizeInspect),
-            api: { unary: 'verified', versionMismatch: 'verified', hostRestart: 'verified' },
+            api: { clientHookWiring: 'verified', unary: 'verified', versionMismatch: 'verified', hostRestart: 'verified' },
             command: { scaffold: 'verified', parser: 'verified', hostRestart: 'verified' },
             prompt: { global: 'verified', scopedShadow: 'verified', dynamicContext: 'verified', toolSchemas: 'verified', hostRestart: 'verified' },
             settings: {

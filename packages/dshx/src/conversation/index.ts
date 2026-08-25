@@ -1,0 +1,45 @@
+export { defineConversation } from './define.js'
+export type { ConversationDefinition } from './define.js'
+export { CONVERSATION_COMPONENT_MARKER } from './types.js'
+export type {
+  ConversationComponentContribution,
+  ConversationComponentFactory,
+  ConversationComponentOptions,
+  ConversationContract,
+  ConversationContractEvent,
+  ConversationDefaultComponentOptions,
+  ConversationEventDescriptor,
+  ConversationEventDescriptors,
+  ConversationEventType,
+  ConversationEventTypeForRole,
+  ConversationInitialInput,
+  ConversationLocationDataProjection,
+  ConversationLocationDataInput,
+  ConversationPublicationInput,
+  ConversationProjectedComponentOptions,
+  ConversationReduceInput,
+  ConversationRendererComponent,
+  ConversationRendererNode,
+  ConversationRendererProps,
+  ConversationRendererSlotProps,
+  ConversationStartEvent,
+  ConversationStepLocationDataProjection,
+  ConversationTurnLocationDataProjection,
+  ConversationTypedMatch,
+  ConversationUpdateEvent,
+  ConversationViewInput,
+  ConversationViewProjection,
+} from './types.js'
+export type {
+  ChatConversationViewNode,
+  ConversationContextReader,
+  ConversationLocation,
+  ConversationLocationData,
+  ConversationLocationDataScope,
+  ConversationMatch,
+  ConversationNodeContext,
+  ConversationNodeDefinition,
+  ConversationPreviousContext,
+  ConversationPublication,
+} from '@deepseek-ai/dsh-client-runtime/client'
+export type { SessionEvent, SessionEventMap, SessionEventType, SessionId } from '@deepseek-ai/dsh-session/types'

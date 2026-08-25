@@ -65,6 +65,10 @@
       "types": "./dist/settings/index.d.ts",
       "default": "./dist/settings/index.js"
     },
+    "./conversation": {
+      "types": "./dist/conversation/index.d.ts",
+      "default": "./dist/conversation/index.js"
+    },
     "./cli": {
       "types": "./dist/cli/index.d.ts",
       "default": "./dist/cli/index.js"
@@ -95,11 +99,14 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-conversation": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-commands": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-cordis-host-runner": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-client-ui-settings": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-settings": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-session": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-system-prompt": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-tool-cordis": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.8 <0.2.0",
@@ -111,6 +118,8 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-conversation": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-commands": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-cordis-host-runner": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-client-ui-settings": ">=0.1.0-rc.8 <0.2.0",
@@ -118,12 +127,22 @@
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-settings": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-session": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-system-prompt": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/schemastery": "^3.18.1",
     "react": ">=18 <20"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-cordis-host-runner": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-runtime": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-conversation": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session": {
       "optional": true
     },
     "@deepseek-ai/dsh-tool-cordis": {

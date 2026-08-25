@@ -12,10 +12,44 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ApiContract, ApiMethodDefinition } from '../api/types.js'
 
+/**
+ * Structural Conversation contribution accepted by the Client adapter.
+ *
+ * The concrete, generically typed author contract lives in the Conversation
+ * public entry. Keeping this boundary structural prevents the general Client
+ * definition from duplicating that contract's state and event relationships.
+ */
+export interface ClientConversationContribution {
+  readonly kind: 'conversation-component'
+  readonly marker: 'dshx.conversation-component.v1'
+  readonly contract: {
+    readonly kind: string
+    readonly events: object
+    readonly component: unknown
+  }
+  readonly definition: {
+    readonly kind: string
+    readonly target?: string
+    readonly match: unknown
+    readonly start: unknown
+    readonly update: unknown
+    readonly buildViewNode?: unknown
+  }
+  readonly renderer: {
+    readonly name: 'conversation.chat.node'
+    readonly options: {
+      readonly key: string
+      readonly locale: 'conversation'
+    } & object
+    readonly component: unknown
+  }
+}
+
 /** Author-facing Client definition backed by the official Cordis context. */
 export interface ClientDefinition {
   readonly name?: string
   readonly inject?: readonly string[]
+  readonly conversations?: readonly ClientConversationContribution[]
   // Keep this constraint structural. A bare SlotContribution defaults to an
   // unknown Slot union whose kind-specific options are intentionally empty;
   // defineSlot() supplies the precise relationship on the inferred value.
@@ -24,7 +58,9 @@ export interface ClientDefinition {
     readonly options: object
     readonly component: unknown
   }[]
+  /** Optional eager binding retained for compatibility; useApi/useQuery normally infer this capability. */
   readonly api?: ApiContract<Record<string, ApiMethodDefinition<any, any>>>
+  /** Optional eager bindings retained for compatibility; useApi/useQuery normally infer this capability. */
   readonly apis?: readonly ApiContract<Record<string, ApiMethodDefinition<any, any>>>[]
   readonly setup?: (ctx: Context) => void | Promise<void>
 }

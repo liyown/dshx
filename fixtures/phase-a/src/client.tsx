@@ -54,6 +54,5 @@ const status = defineSlot('sidebar.footer.action', {
 })
 
 export default defineClient({
-  api: statusApi,
   slots: [status],
 })

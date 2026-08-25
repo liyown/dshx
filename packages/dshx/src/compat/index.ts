@@ -17,10 +17,12 @@ export type {
   DshCompatibilityLifecycle,
   DshCompatibilityMatrixEntry,
   DshCompatibilityResolution,
+  DshClientConversationCompatibility,
   DshConnectionCompatibility,
   DshHostContributionCompatibility,
   DshInspectCompatibility,
   DshProfileCompatibility,
+  DshSessionCompatibility,
   DshDeclaredRangeAnalysis,
   DshDeclaredRangeStatus,
   DshProjectCompatibilityAssessment,
@@ -142,12 +144,23 @@ export function getCompatibilityCapabilities(compatibility: DshCompatibility): r
   if (compatibility.hostContributions?.settings === true) capabilities.push('host:settings')
   if (compatibility.client.settings?.service === 'settingsScope') capabilities.push('client:settings-scope')
   if (compatibility.client.settings?.hookDrivenCapabilityInference === true) capabilities.push('client:settings-hook-inference')
+  if (compatibility.client.conversation?.eventService === 'conversationEvents') capabilities.push('client:conversation-event-registry')
+  if (compatibility.client.conversation?.slotService === 'slots') capabilities.push('client:conversation-chat-slots')
+  if (compatibility.client.conversation?.componentContributions === true) {
+    capabilities.push(`client:conversation-components:${compatibility.client.conversation.verification}`)
+  }
+  if (compatibility.session?.customDurableEventVocabulary === true) {
+    capabilities.push('session:custom-durable-event-vocabulary:available')
+  } else if (compatibility.session?.customDurableEventVocabulary === false) {
+    capabilities.push('session:custom-durable-event-vocabulary:unavailable')
+  }
   for (const target of compatibility.inspect?.targets ?? []) {
     const provider = compatibility.inspect?.providerByTarget?.[target] ?? compatibility.inspect?.provider ?? 'unavailable'
     capabilities.push(`inspect:${target}:${provider}`)
   }
   if (compatibility.connection?.hostRpc) capabilities.push('connection:host-rpc')
   if (compatibility.connection?.clientRpc) capabilities.push('connection:client-rpc')
+  if (compatibility.connection?.hookDrivenCapabilityInference === true) capabilities.push('client:api-hook-inference')
   for (const plugin of compatibility.runtimePlugins ?? []) {
     for (const provided of plugin.provides) capabilities.push(`runtime:${provided}`)
   }

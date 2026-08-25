@@ -54,7 +54,6 @@ async function writeManifest(root: string, manifest: unknown): Promise<void> {
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true })))
 })
-
 describe('checkProjectManifest', () => {
   it('accepts valid full, Host-only, and Client-only projects', async () => {
     const full = await temporaryProject()
@@ -105,10 +104,9 @@ describe('checkProjectManifest', () => {
     await rm(resolve(root, 'cordis.patch.yml'))
 
     const diagnostics = await checkProjectManifest(resolved)
-    expect(new Set(diagnostics.map(item => item.code))).toEqual(new Set([
-      'DSHX4101', 'DSHX4102', 'DSHX4110', 'DSHX4120', 'DSHX4121', 'DSHX4122', 'DSHX4123',
-      'DSHX4190', 'DSHX4191', 'DSHX4210', 'DSHX4211',
-    ]))
+    expect(new Set(diagnostics.map(item => item.code))).toEqual(
+      new Set(['DSHX4101', 'DSHX4102', 'DSHX4110', 'DSHX4120', 'DSHX4121', 'DSHX4122', 'DSHX4123', 'DSHX4190', 'DSHX4191', 'DSHX4210', 'DSHX4211']),
+    )
     expect(diagnostics.every(item => item.file.length > 0)).toBe(true)
     expect(diagnostics.every(item => item.hint.length > 0)).toBe(true)
     expect(diagnostics.filter(item => item.severity === 'error')).toHaveLength(9)
@@ -121,13 +119,7 @@ describe('checkProjectManifest', () => {
     ;(manifest.dsh as { client: Record<string, unknown> }).client = {
       platform: 'web',
       inject: ['ok', 'ok', '', 1],
-      external: [
-        '@test/plugin/internal',
-        'react',
-        '@deepseek-ai/dsh-client-runtime/client',
-        '@example/extra',
-        '@example/extra',
-      ],
+      external: ['@test/plugin/internal', 'react', '@deepseek-ai/dsh-client-runtime/client', '@example/extra', '@example/extra'],
       immediately: 'false',
     }
     await writeManifest(root, manifest)
@@ -141,11 +133,14 @@ describe('checkProjectManifest', () => {
 
   it('previews the hook-driven Settings provider edge through the local Client graph', async () => {
     const root = await temporaryProject()
-    await writeFile(resolve(root, 'src/settings-view.tsx'), [
-      "import { useSettings as useRuntimeSettings } from '@becomeopc/dshx/client'",
-      'export function SettingsView(contract: unknown) { return useRuntimeSettings(contract) }',
-      '',
-    ].join('\n'))
+    await writeFile(
+      resolve(root, 'src/settings-view.tsx'),
+      [
+        "import { useSettings as useRuntimeSettings } from '@becomeopc/dshx/client'",
+        'export function SettingsView(contract: unknown) { return useRuntimeSettings(contract) }',
+        '',
+      ].join('\n'),
+    )
     await writeFile(resolve(root, 'src/client.tsx'), "import { SettingsView } from './settings-view.js'\nexport const apply = SettingsView\n")
     const missing = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
     expect(missing).toContainEqual(expect.objectContaining({ code: 'DSHX4216', severity: 'error' }))
@@ -155,6 +150,89 @@ describe('checkProjectManifest', () => {
     await writeManifest(root, manifest)
     const complete = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
     expect(complete).not.toContainEqual(expect.objectContaining({ code: 'DSHX4216' }))
+  })
+
+  it('previews the hook-driven API provider edge through aliases and the local Client graph', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/api-view.tsx'),
+      ["import { useQuery as query } from '@becomeopc/dshx/client'", "export function ApiView(contract: unknown) { return query(contract, 'get') }", ''].join(
+        '\n',
+      ),
+    )
+    await writeFile(resolve(root, 'src/client.tsx'), "import { ApiView } from './api-view.js'\nexport const apply = ApiView\n")
+    const missing = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(missing).toContainEqual(
+      expect.objectContaining({
+        code: 'DSHX4218',
+        severity: 'error',
+        hint: expect.stringContaining('@deepseek-ai/dsh-client-connection'),
+      }),
+    )
+
+    const manifest = fullManifest()
+    ;(manifest.dsh as { client: { inject: string[] } }).client.inject.push('@deepseek-ai/dsh-client-connection')
+    await writeManifest(root, manifest)
+    const complete = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(complete).not.toContainEqual(expect.objectContaining({ code: 'DSHX4218' }))
+  })
+
+  it('does not infer an API provider from a bare or voided hook import', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      ["import { useApi } from '@becomeopc/dshx/client'", 'void useApi', 'export function apply() {}', ''].join('\n'),
+    )
+    const diagnostics = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(diagnostics).not.toContainEqual(expect.objectContaining({ code: 'DSHX4218' }))
+  })
+
+  it('previews Conversation component provider edges from defineClient()', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      [
+        "import { defineClient as client } from '@becomeopc/dshx/client'",
+        'const contribution = {}',
+        'export default client({ conversations: [contribution] })',
+        '',
+      ].join('\n'),
+    )
+    const missing = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(missing).toContainEqual(
+      expect.objectContaining({
+        code: 'DSHX4217',
+        severity: 'error',
+        hint: expect.stringContaining('@deepseek-ai/dsh-client-runtime'),
+      }),
+    )
+
+    const manifest = fullManifest()
+    ;(manifest.dsh as { client: { inject: string[] } }).client.inject.push('@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation')
+    await writeManifest(root, manifest)
+    const complete = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(complete).not.toContainEqual(expect.objectContaining({ code: 'DSHX4217' }))
+  })
+
+  it('does not infer Conversation providers from an empty contribution list', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      ["import * as dshx from '@becomeopc/dshx/client'", 'export default dshx.defineClient({ conversations: [] })', ''].join('\n'),
+    )
+    const diagnostics = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(diagnostics).not.toContainEqual(expect.objectContaining({ code: 'DSHX4217' }))
+  })
+
+  it('follows a local default-export barrel without inventing Conversation providers', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/definition.ts'),
+      ["import { defineClient } from '@becomeopc/dshx/client'", "export default defineClient({ name: 'barrel-client', slots: [] })", ''].join('\n'),
+    )
+    await writeFile(resolve(root, 'src/client.tsx'), "export { default } from './definition.js'\n")
+    const diagnostics = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(diagnostics).not.toContainEqual(expect.objectContaining({ code: 'DSHX4217' }))
   })
 
   it('rejects stale Client metadata in a Host-only project', async () => {

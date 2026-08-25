@@ -6,6 +6,7 @@ import { DEFAULT_COMPATIBILITY } from '../../compat/index.js'
 import type { DshCompatibility } from '../../compat/types.js'
 import { DshxError } from '../../diagnostics.js'
 import { clientCssPlugin } from './css.js'
+import { clientUsesConversationComponents } from './capabilities.js'
 import { clientGuardPlugin, singleClientChunkPlugin } from './guards.js'
 
 const VIRTUAL_CLIENT_ENTRY = '\0virtual:dshx-client-entry'
@@ -13,14 +14,20 @@ const VIRTUAL_CLIENT_PUBLIC = '\0virtual:dshx-client-public'
 const DSHX_CLIENT_PUBLIC = '@becomeopc/dshx/client'
 const DSHX_API_PUBLIC = '@becomeopc/dshx/api'
 const DSHX_SETTINGS_PUBLIC = '@becomeopc/dshx/settings'
+const DSHX_CONVERSATION_PUBLIC = '@becomeopc/dshx/conversation'
 const SETTINGS_PROVIDER_PACKAGE = '@deepseek-ai/dsh-client-ui-settings'
 const SETTINGS_HOOK_MARKER = 'dshx.settings-hook.v1'
 const SETTINGS_CAPABILITY_GLOBAL = '__DSHX_CLIENT_SETTINGS_CAPABILITY__'
+const API_PROVIDER_PACKAGE = '@deepseek-ai/dsh-client-connection'
+const API_HOOK_MARKER = 'dshx.api-hook.v1'
+const API_CAPABILITY_GLOBAL = '__DSHX_CLIENT_API_CAPABILITY__'
+const CONVERSATION_PROVIDER_PACKAGES = ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation'] as const
 const CLIENT_RUNTIME_PATH = fileURLToPath(new URL('../../client/runtime.js', import.meta.url))
 const CLIENT_API_PATH = fileURLToPath(new URL('../../api/client.js', import.meta.url))
 const API_DEFINE_PATH = fileURLToPath(new URL('../../api/define.js', import.meta.url))
 const SETTINGS_DEFINE_PATH = fileURLToPath(new URL('../../settings/define.js', import.meta.url))
 const SETTINGS_CLIENT_PATH = fileURLToPath(new URL('../../settings/client.js', import.meta.url))
+const CONVERSATION_DEFINE_PATH = fileURLToPath(new URL('../../conversation/define.js', import.meta.url))
 
 /** Options for producing one DSH-compatible lazy-CJS client bundle. */
 export interface BuildClientOptions {
@@ -63,14 +70,22 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
     name: 'dshx-client-entry',
     enforce: 'pre',
     resolveId(source) {
-      if (source === VIRTUAL_CLIENT_ENTRY || source === DSHX_CLIENT_PUBLIC || source === DSHX_API_PUBLIC || source === DSHX_SETTINGS_PUBLIC) {
+      if (
+        source === VIRTUAL_CLIENT_ENTRY ||
+        source === DSHX_CLIENT_PUBLIC ||
+        source === DSHX_API_PUBLIC ||
+        source === DSHX_SETTINGS_PUBLIC ||
+        source === DSHX_CONVERSATION_PUBLIC
+      ) {
         return source === DSHX_CLIENT_PUBLIC
           ? VIRTUAL_CLIENT_PUBLIC
           : source === DSHX_API_PUBLIC
             ? `${VIRTUAL_CLIENT_PUBLIC}-api`
             : source === DSHX_SETTINGS_PUBLIC
               ? `${VIRTUAL_CLIENT_PUBLIC}-settings`
-              : VIRTUAL_CLIENT_ENTRY
+              : source === DSHX_CONVERSATION_PUBLIC
+                ? `${VIRTUAL_CLIENT_PUBLIC}-conversation`
+                : VIRTUAL_CLIENT_ENTRY
       }
       return null
     },
@@ -92,6 +107,9 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
       if (id === `${VIRTUAL_CLIENT_PUBLIC}-settings`) {
         return `export { defineSettings } from ${JSON.stringify(SETTINGS_DEFINE_PATH)}\n`
       }
+      if (id === `${VIRTUAL_CLIENT_PUBLIC}-conversation`) {
+        return `export { defineConversation } from ${JSON.stringify(CONVERSATION_DEFINE_PATH)}\n`
+      }
       if (id !== VIRTUAL_CLIENT_ENTRY) return null
       const metadata = {
         packageId: options.packageId,
@@ -102,7 +120,8 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
         `import * as source from ${JSON.stringify(paths.entry)}`,
         `import { createClientModule } from ${JSON.stringify(CLIENT_RUNTIME_PATH)}`,
         `const settingsCapability = globalThis[${JSON.stringify(SETTINGS_CAPABILITY_GLOBAL)}] === true`,
-        `const plugin = createClientModule(source, { ...${JSON.stringify(metadata)}, settingsCapability })`,
+        `const apiCapability = globalThis[${JSON.stringify(API_CAPABILITY_GLOBAL)}] === true`,
+        `const plugin = createClientModule(source, { ...${JSON.stringify(metadata)}, settingsCapability, apiCapability })`,
         'export const name = plugin.name',
         'export const inject = plugin.inject',
         'export const Config = plugin.Config',
@@ -113,23 +132,40 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
   }
 }
 
-/** Infer Settings only from code retained in the final chunk. */
-function settingsCapabilityPlugin(options: BuildClientOptions): Plugin {
+/** Infer optional Client capabilities only from code retained in the final chunk. */
+function clientCapabilitiesPlugin(options: BuildClientOptions): Plugin {
   return {
-    name: 'dshx-client-settings-capability',
+    name: 'dshx-client-capabilities',
     renderChunk(code, chunk) {
       if (!chunk.isEntry) return null
-      const retained = code.includes(JSON.stringify(SETTINGS_HOOK_MARKER)) || code.includes(`'${SETTINGS_HOOK_MARKER}'`)
-      if (retained && !(options.inject ?? []).includes(SETTINGS_PROVIDER_PACKAGE)) {
+      const settingsRetained = code.includes(JSON.stringify(SETTINGS_HOOK_MARKER)) || code.includes(`'${SETTINGS_HOOK_MARKER}'`)
+      const apiRetained = code.includes(JSON.stringify(API_HOOK_MARKER)) || code.includes(`'${API_HOOK_MARKER}'`)
+      if (settingsRetained && !(options.inject ?? []).includes(SETTINGS_PROVIDER_PACKAGE)) {
         throw new DshxError('DSHX1203', 'useSettings() requires the official Settings Scope provider package edge.', {
           hint: `Add ${JSON.stringify(SETTINGS_PROVIDER_PACKAGE)} to package.json dsh.client.inject, then rebuild.`,
         })
       }
-      const capabilityExpression = new RegExp(`globalThis\\[["']${SETTINGS_CAPABILITY_GLOBAL}["']\\]\\s*===\\s*true`, 'g')
-      const next = code.replace(capabilityExpression, retained ? 'true' : 'false')
+      if (apiRetained && !(options.inject ?? []).includes(API_PROVIDER_PACKAGE)) {
+        throw new DshxError('DSHX1203', 'useApi()/useQuery() requires the official Client Connection provider package edge.', {
+          hint: `Add ${JSON.stringify(API_PROVIDER_PACKAGE)} to package.json dsh.client.inject, then rebuild.`,
+        })
+      }
+      const settingsExpression = new RegExp(`globalThis\\[["']${SETTINGS_CAPABILITY_GLOBAL}["']\\]\\s*===\\s*true`, 'g')
+      const apiExpression = new RegExp(`globalThis\\[["']${API_CAPABILITY_GLOBAL}["']\\]\\s*===\\s*true`, 'g')
+      const next = code.replace(settingsExpression, settingsRetained ? 'true' : 'false').replace(apiExpression, apiRetained ? 'true' : 'false')
       return next === code ? null : { code: next, map: null }
     },
   }
+}
+
+async function validateConversationProviderEdges(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildClientOptions): Promise<void> {
+  if (!(await clientUsesConversationComponents(paths.entry, paths.root))) return
+  const missing = CONVERSATION_PROVIDER_PACKAGES.filter(packageName => !(options.inject ?? []).includes(packageName))
+  if (missing.length === 0) return
+  throw new DshxError('DSHX1203', 'Conversation components require the official Client Runtime and Conversation UI package edges.', {
+    file: paths.entry,
+    hint: `Add ${missing.map(packageName => JSON.stringify(packageName)).join(' and ')} to package.json dsh.client.inject, then rebuild.`,
+  })
 }
 
 async function resolveOptions(options: BuildClientOptions) {
@@ -166,7 +202,7 @@ function clientConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options
       clientEntryPlugin(paths, options),
       clientGuardPlugin(externals, options.packageId),
       clientCssPlugin(options.packageId, paths.root),
-      settingsCapabilityPlugin(options),
+      clientCapabilitiesPlugin(options),
       singleClientChunkPlugin(),
     ],
     define: {
@@ -219,6 +255,7 @@ function normalizeWatcher(result: Awaited<ReturnType<typeof build>>): DshxBuildW
 /** Start a Client watcher without awaiting a successful initial build. */
 export async function startClientWatcher(options: BuildClientOptions): Promise<DshxBuildWatcher> {
   const paths = await resolveOptions(options)
+  await validateConversationProviderEdges(paths, options)
   const config = clientConfig(paths, options)
   return normalizeWatcher(
     await build({
@@ -231,6 +268,7 @@ export async function startClientWatcher(options: BuildClientOptions): Promise<D
 /** Build a DSH-compatible client factory with Vite/Rolldown. */
 export async function buildClient(options: BuildClientOptions): Promise<ClientBuildResult> {
   const paths = await resolveOptions(options)
+  await validateConversationProviderEdges(paths, options)
   const config = clientConfig(paths, options)
 
   if (options.watch === true) {

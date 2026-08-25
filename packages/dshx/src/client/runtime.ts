@@ -1,9 +1,10 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { DshxError } from '../diagnostics.js'
-import type { ClientDefinition, SlotContribution } from './types.js'
+import type { ClientConversationContribution, ClientDefinition, SlotContribution } from './types.js'
+import { createApiClientRuntime, provideApiContext } from '../api/client.js'
 import { createSettingsClientRuntime, provideSettingsContext } from '../settings/client.js'
 
-const CLIENT_DEFINITION_KEYS = new Set(['name', 'inject', 'slots', 'api', 'apis', 'setup'])
+const CLIENT_DEFINITION_KEYS = new Set(['name', 'inject', 'conversations', 'slots', 'api', 'apis', 'setup'])
 
 /** Project identity embedded by the Client compiler. */
 export interface ClientPluginMetadata {
@@ -11,6 +12,7 @@ export interface ClientPluginMetadata {
   readonly logicalName?: string
   readonly sourceFile?: string
   readonly settingsCapability?: boolean
+  readonly apiCapability?: boolean
 }
 
 /** Normalized Client module surface consumed by the virtual entry. */
@@ -26,17 +28,33 @@ interface ClientSlotsService {
   register(options: Record<string, unknown>, component: unknown): unknown
 }
 
-type ClientRuntimeContext = Context & { readonly slots: ClientSlotsService }
+interface ClientConversationEventsService {
+  register(definition: unknown): unknown
+}
+
+type ClientRuntimeContext = Context & {
+  readonly conversationEvents: ClientConversationEventsService
+  readonly slots: ClientSlotsService
+}
 
 function normalizeApis(definition: ClientDefinition): readonly import('../api/types.js').ApiContract[] {
   return [...(definition.api === undefined ? [] : [definition.api]), ...(definition.apis ?? [])]
 }
 
-function fail(code: 'DSHX2101' | 'DSHX2102' | 'DSHX2201' | 'DSHX2202', message: string, metadata: ClientPluginMetadata, hint: string): never {
+function fail(
+  code: 'DSHX2101' | 'DSHX2102' | 'DSHX2201' | 'DSHX2202' | 'DSHX2301' | 'DSHX2302',
+  message: string,
+  metadata: ClientPluginMetadata,
+  hint: string,
+): never {
   throw new DshxError(code, message, {
     ...(metadata.sourceFile === undefined ? {} : { file: metadata.sourceFile }),
     hint,
   })
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
 }
 
 function fallbackName(metadata: ClientPluginMetadata): string {
@@ -80,6 +98,57 @@ function validateContribution(value: unknown, metadata: ClientPluginMetadata, in
   return value as SlotContribution
 }
 
+function validateConversationContribution(value: unknown, metadata: ClientPluginMetadata, index: number): ClientConversationContribution {
+  const source = record(value)
+  if (
+    source === undefined ||
+    source.kind !== 'conversation-component' ||
+    source.marker !== 'dshx.conversation-component.v1' ||
+    Object.keys(source).some(key => key !== 'kind' && key !== 'marker' && key !== 'contract' && key !== 'definition' && key !== 'renderer')
+  ) {
+    fail(
+      'DSHX2301',
+      `Client Conversation contribution at index ${index} must be an object returned by defineConversation(...).component(...).`,
+      metadata,
+      'Create the contribution with defineConversation({ kind, events }).component({ initial, reduce, view, component }).',
+    )
+  }
+
+  const contract = record(source.contract)
+  const definition = record(source.definition)
+  const renderer = record(source.renderer)
+  const rendererOptions = record(renderer?.options)
+  const contractKind = contract?.kind
+  if (
+    contract === undefined ||
+    typeof contractKind !== 'string' ||
+    contractKind.trim() === '' ||
+    record(contract.events) === undefined ||
+    typeof contract.component !== 'function' ||
+    definition === undefined ||
+    definition.kind !== contractKind ||
+    definition.target !== 'chat' ||
+    typeof definition.match !== 'function' ||
+    typeof definition.start !== 'function' ||
+    typeof definition.update !== 'function' ||
+    typeof definition.buildViewNode !== 'function' ||
+    renderer === undefined ||
+    renderer.name !== 'conversation.chat.node' ||
+    rendererOptions === undefined ||
+    rendererOptions.key !== contractKind ||
+    rendererOptions.locale !== 'conversation' ||
+    typeof renderer.component !== 'function'
+  ) {
+    fail(
+      'DSHX2302',
+      `Client Conversation contribution at index ${index} has an inconsistent contract, Definition, or renderer.`,
+      metadata,
+      'Keep the value returned by contract.component() intact; its Definition kind and renderer key must match the contract kind.',
+    )
+  }
+  return value as ClientConversationContribution
+}
+
 function validateDefinition(value: unknown, metadata: ClientPluginMetadata): ClientDefinition {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     fail(
@@ -112,6 +181,17 @@ function validateDefinition(value: unknown, metadata: ClientPluginMetadata): Cli
       )
     }
   }
+  if (source.conversations !== undefined) {
+    if (!Array.isArray(source.conversations)) {
+      fail(
+        'DSHX2302',
+        'Client definition conversations must be an array of Conversation component contributions.',
+        metadata,
+        'Use conversations: [contract.component({ ... })] or remove conversations.',
+      )
+    }
+    source.conversations.forEach((conversation, index) => validateConversationContribution(conversation, metadata, index))
+  }
   if (source.slots !== undefined) {
     if (!Array.isArray(source.slots)) {
       fail(
@@ -138,17 +218,33 @@ function validateDefinition(value: unknown, metadata: ClientPluginMetadata): Cli
   return value as ClientDefinition
 }
 
+type ComponentDecorator = (component: unknown) => unknown
+
+function registerContributions(client: ClientRuntimeContext, definition: ClientDefinition, decorate: ComponentDecorator): void {
+  for (const conversation of definition.conversations ?? []) {
+    client.conversationEvents.register(conversation.definition)
+    const renderer = conversation.renderer
+    client.slots.inject(renderer.name, () => client.slots.register({ name: renderer.name, ...renderer.options }, decorate(renderer.component)))
+  }
+  for (const slot of definition.slots ?? []) {
+    client.slots.inject(slot.name, () => client.slots.register({ name: slot.name, ...slot.options }, decorate(slot.component)))
+  }
+}
+
 /** Convert a definition into the standard Cordis Client module contract. */
 export function createClientPlugin(value: unknown, metadata: ClientPluginMetadata): CreatedClientPlugin {
   const definition = validateDefinition(value, metadata)
+  const hasConversations = (definition.conversations?.length ?? 0) > 0
+  const apis = normalizeApis(definition)
+  const hasApiCapability = metadata.apiCapability === true || apis.length > 0
   const inject = [
     ...new Set([
       ...(definition.inject ?? []),
-      ...(definition.slots !== undefined && definition.slots.length > 0 ? ['slots'] : []),
-      ...(normalizeApis(definition).length > 0 ? ['connection'] : []),
+      ...(hasConversations ? ['conversationEvents'] : []),
+      ...((definition.slots?.length ?? 0) > 0 || hasConversations ? ['slots'] : []),
+      ...(hasApiCapability ? ['connection'] : []),
     ]),
   ]
-  const apis = normalizeApis(definition)
   if (metadata.settingsCapability === true && !inject.includes('settingsScope')) inject.push('settingsScope')
   return {
     name: definition.name ?? fallbackName(metadata),
@@ -156,22 +252,16 @@ export function createClientPlugin(value: unknown, metadata: ClientPluginMetadat
     apply(ctx) {
       const client = ctx as ClientRuntimeContext
       const settings = metadata.settingsCapability === true ? createSettingsClientRuntime(ctx) : undefined
-      if (apis.length === 0) {
-        for (const slot of definition.slots ?? []) {
-          const component = settings === undefined ? slot.component : provideSettingsContext(slot.component as any, settings)
-          client.slots.inject(slot.name, () => client.slots.register({ name: slot.name, ...slot.options }, component))
-        }
+      if (!hasApiCapability) {
+        registerContributions(client, definition, component => (settings === undefined ? component : provideSettingsContext(component as any, settings)))
         return definition.setup?.(ctx)
       }
-      return import('../api/client.js').then(({ createApiClient, provideApiContext }) => {
-        const apiClients = new Map(apis.map(contract => [contract, createApiClient(ctx, contract, metadata.packageId)]))
-        for (const slot of definition.slots ?? []) {
-          const apiComponent = provideApiContext(slot.component as any, apiClients)
-          const component = settings === undefined ? apiComponent : provideSettingsContext(apiComponent, settings)
-          client.slots.inject(slot.name, () => client.slots.register({ name: slot.name, ...slot.options }, component))
-        }
-        return definition.setup?.(ctx)
+      const apiClient = createApiClientRuntime(ctx, metadata.packageId, apis)
+      registerContributions(client, definition, component => {
+        const apiComponent = provideApiContext(component as any, apiClient)
+        return settings === undefined ? apiComponent : provideSettingsContext(apiComponent, settings)
       })
+      return definition.setup?.(ctx)
     },
   }
 }

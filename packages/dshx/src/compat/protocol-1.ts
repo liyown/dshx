@@ -53,6 +53,7 @@ export const PROTOCOL_1_COMPATIBILITY: DshCompatibility = {
     protocolVersion: 1,
     hostRpc: true,
     clientRpc: true,
+    hookDrivenCapabilityInference: true,
     defaultAuthority: 'loopback',
   },
   hostContributions: {
@@ -60,6 +61,9 @@ export const PROTOCOL_1_COMPATIBILITY: DshCompatibility = {
     promptSections: true,
     promptContexts: true,
     settings: true,
+  },
+  session: {
+    customDurableEventVocabulary: false,
   },
   client: {
     platformModules: [
@@ -76,6 +80,14 @@ export const PROTOCOL_1_COMPATIBILITY: DshCompatibility = {
       packageName: '@deepseek-ai/dsh-client-ui-settings',
       service: 'settingsScope',
       hookDrivenCapabilityInference: true,
+    },
+    conversation: {
+      runtimePackageName: '@deepseek-ai/dsh-client-runtime',
+      rendererPackageName: '@deepseek-ai/dsh-client-ui-conversation',
+      eventService: 'conversationEvents',
+      slotService: 'slots',
+      componentContributions: true,
+      verification: 'experimental',
     },
     manifest: {
       platform: 'web',

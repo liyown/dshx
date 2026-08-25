@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { parse } from 'yaml'
 import { DEFAULT_COMPATIBILITY } from '../compat/index.js'
 import type { DshCompatibility } from '../compat/types.js'
-import { clientUsesSettings } from '../compiler/client/capabilities.js'
+import { clientUsesApi, clientUsesConversationComponents, clientUsesSettings } from '../compiler/client/capabilities.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import type { DshxDiagnostic, DshxDiagnosticSeverity } from '../diagnostics.js'
 
@@ -250,6 +250,42 @@ async function checkSettingsCapability(diagnostics: DshxDiagnostic[], config: Re
   )
 }
 
+async function checkApiCapability(diagnostics: DshxDiagnostic[], config: ResolvedDshxConfig, manifest: Record<string, unknown>): Promise<void> {
+  if (config.clientEntry === undefined || !(await clientUsesApi(config.clientEntry, config.root))) return
+  const dsh = isObject(manifest.dsh) ? manifest.dsh : undefined
+  const client = isObject(dsh?.client) ? dsh.client : undefined
+  const inject = Array.isArray(client?.inject) ? client.inject : []
+  if (inject.includes('@deepseek-ai/dsh-client-connection')) return
+  diagnostics.push(
+    issue(
+      'DSHX4218',
+      'error',
+      'useApi()/useQuery() requires @deepseek-ai/dsh-client-connection in dsh.client.inject.',
+      config.packageFile,
+      'Add "@deepseek-ai/dsh-client-connection" to dsh.client.inject so DSH loads the official connection provider first.',
+    ),
+  )
+}
+
+async function checkConversationCapability(diagnostics: DshxDiagnostic[], config: ResolvedDshxConfig, manifest: Record<string, unknown>): Promise<void> {
+  if (config.clientEntry === undefined || !(await clientUsesConversationComponents(config.clientEntry, config.root))) return
+  const dsh = isObject(manifest.dsh) ? manifest.dsh : undefined
+  const client = isObject(dsh?.client) ? dsh.client : undefined
+  const inject = Array.isArray(client?.inject) ? client.inject : []
+  const required = ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation'] as const
+  const missing = required.filter(packageName => !inject.includes(packageName))
+  if (missing.length === 0) return
+  diagnostics.push(
+    issue(
+      'DSHX4217',
+      'error',
+      'Conversation components require the official Client Runtime and Conversation UI package edges.',
+      config.packageFile,
+      `Add ${missing.map(packageName => JSON.stringify(packageName)).join(' and ')} to dsh.client.inject before building the Client.`,
+    ),
+  )
+}
+
 /** Collect current package and bundle metadata issues without changing project files. */
 export async function checkProjectManifest(config: ResolvedDshxConfig, options: { readonly compatibility?: DshCompatibility } = {}): Promise<DshxDiagnostic[]> {
   const diagnostics: DshxDiagnostic[] = []
@@ -339,6 +375,8 @@ export async function checkProjectManifest(config: ResolvedDshxConfig, options: 
   await checkPatch(diagnostics, config.root, config.packageFile)
   checkClient(diagnostics, config, manifest, options.compatibility ?? DEFAULT_COMPATIBILITY)
   await checkSettingsCapability(diagnostics, config, manifest)
+  await checkApiCapability(diagnostics, config, manifest)
+  await checkConversationCapability(diagnostics, config, manifest)
   checkPublishingHints(diagnostics, manifest, config.packageFile)
   return diagnostics
 }

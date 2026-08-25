@@ -41,6 +41,7 @@ export interface DshConnectionCompatibility {
   readonly protocolVersion: 1
   readonly hostRpc: boolean
   readonly clientRpc: boolean
+  readonly hookDrivenCapabilityInference?: boolean
   readonly defaultAuthority: 'loopback'
 }
 
@@ -56,6 +57,22 @@ export interface DshClientSettingsCompatibility {
   readonly packageName: '@deepseek-ai/dsh-client-ui-settings'
   readonly service: 'settingsScope'
   readonly hookDrivenCapabilityInference: boolean
+}
+
+/** Official Client conversation seams declared for one protocol generation. */
+export interface DshClientConversationCompatibility {
+  readonly runtimePackageName: '@deepseek-ai/dsh-client-runtime'
+  readonly rendererPackageName: '@deepseek-ai/dsh-client-ui-conversation'
+  readonly eventService: 'conversationEvents'
+  readonly slotService: 'slots'
+  readonly componentContributions: boolean
+  readonly verification: 'experimental' | 'verified'
+}
+
+/** Official durable Session seam facts declared for one protocol generation. */
+export interface DshSessionCompatibility {
+  /** Whether out-of-tree required durable event types can be registered before persistence restore. */
+  readonly customDurableEventVocabulary: boolean
 }
 
 /** Build/runtime protocol values owned by one DSH compatibility generation. */
@@ -75,10 +92,12 @@ export interface DshCompatibility {
   readonly inspect?: DshInspectCompatibility
   readonly connection?: DshConnectionCompatibility
   readonly hostContributions?: DshHostContributionCompatibility
+  readonly session?: DshSessionCompatibility
   readonly client: {
     readonly platformModules: readonly string[]
     readonly preloadedExternals: readonly string[]
     readonly settings?: DshClientSettingsCompatibility
+    readonly conversation?: DshClientConversationCompatibility
     readonly manifest: {
       readonly platform: 'web'
       readonly moduleRequestsField: 'external'
