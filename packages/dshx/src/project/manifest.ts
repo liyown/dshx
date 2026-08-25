@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { parse } from 'yaml'
 import { DEFAULT_COMPATIBILITY } from '../compat/index.js'
 import type { DshCompatibility } from '../compat/types.js'
+import { clientUsesSettings } from '../compiler/client/capabilities.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import type { DshxDiagnostic, DshxDiagnosticSeverity } from '../diagnostics.js'
 
@@ -232,6 +233,23 @@ function checkClient(diagnostics: DshxDiagnostic[], config: ResolvedDshxConfig, 
   }
 }
 
+async function checkSettingsCapability(diagnostics: DshxDiagnostic[], config: ResolvedDshxConfig, manifest: Record<string, unknown>): Promise<void> {
+  if (config.clientEntry === undefined || !(await clientUsesSettings(config.clientEntry, config.root))) return
+  const dsh = isObject(manifest.dsh) ? manifest.dsh : undefined
+  const client = isObject(dsh?.client) ? dsh.client : undefined
+  const inject = Array.isArray(client?.inject) ? client.inject : []
+  if (inject.includes('@deepseek-ai/dsh-client-ui-settings')) return
+  diagnostics.push(
+    issue(
+      'DSHX4216',
+      'error',
+      'useSettings() requires @deepseek-ai/dsh-client-ui-settings in dsh.client.inject.',
+      config.packageFile,
+      'Add "@deepseek-ai/dsh-client-ui-settings" to dsh.client.inject so DSH loads the official settingsScope provider first.',
+    ),
+  )
+}
+
 /** Collect current package and bundle metadata issues without changing project files. */
 export async function checkProjectManifest(config: ResolvedDshxConfig, options: { readonly compatibility?: DshCompatibility } = {}): Promise<DshxDiagnostic[]> {
   const diagnostics: DshxDiagnostic[] = []
@@ -320,6 +338,7 @@ export async function checkProjectManifest(config: ResolvedDshxConfig, options: 
   }
   await checkPatch(diagnostics, config.root, config.packageFile)
   checkClient(diagnostics, config, manifest, options.compatibility ?? DEFAULT_COMPATIBILITY)
+  await checkSettingsCapability(diagnostics, config, manifest)
   checkPublishingHints(diagnostics, manifest, config.packageFile)
   return diagnostics
 }

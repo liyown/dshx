@@ -10,9 +10,11 @@ const VIRTUAL_HOST_ENTRY = '\0virtual:dshx-host-entry'
 const VIRTUAL_HOST_PUBLIC = '\0virtual:dshx-host-public'
 const DSHX_HOST_PUBLIC = '@becomeopc/dshx/host'
 const DSHX_API_PUBLIC = '@becomeopc/dshx/api'
+const DSHX_SETTINGS_PUBLIC = '@becomeopc/dshx/settings'
 const HOST_RUNTIME_PATH = fileURLToPath(new URL('../../host/runtime.js', import.meta.url))
 const HOST_DEFINE_PATH = fileURLToPath(new URL('../../host/define.js', import.meta.url))
 const API_DEFINE_PATH = fileURLToPath(new URL('../../api/define.js', import.meta.url))
+const SETTINGS_DEFINE_PATH = fileURLToPath(new URL('../../settings/define.js', import.meta.url))
 
 /** Options for producing one Node ESM Host bundle. */
 export interface BuildHostOptions {
@@ -52,12 +54,14 @@ function hostEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, opti
     name: 'dshx-host-entry',
     enforce: 'pre',
     resolveId(source) {
-      if (source === VIRTUAL_HOST_ENTRY || source === DSHX_HOST_PUBLIC || source === DSHX_API_PUBLIC) {
+      if (source === VIRTUAL_HOST_ENTRY || source === DSHX_HOST_PUBLIC || source === DSHX_API_PUBLIC || source === DSHX_SETTINGS_PUBLIC) {
         return source === DSHX_HOST_PUBLIC
           ? VIRTUAL_HOST_PUBLIC
           : source === DSHX_API_PUBLIC
             ? `${VIRTUAL_HOST_PUBLIC}-api`
-            : VIRTUAL_HOST_ENTRY
+            : source === DSHX_SETTINGS_PUBLIC
+              ? `${VIRTUAL_HOST_PUBLIC}-settings`
+              : VIRTUAL_HOST_ENTRY
       }
       return null
     },
@@ -71,6 +75,9 @@ function hostEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, opti
       }
       if (id === `${VIRTUAL_HOST_PUBLIC}-api`) {
         return `export { defineApi, method } from ${JSON.stringify(API_DEFINE_PATH)}\n`
+      }
+      if (id === `${VIRTUAL_HOST_PUBLIC}-settings`) {
+        return `export { defineSettings } from ${JSON.stringify(SETTINGS_DEFINE_PATH)}\n`
       }
       if (id !== VIRTUAL_HOST_ENTRY) return null
       if (paths.entry === undefined) {
@@ -141,7 +148,7 @@ function hostConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options: 
       rollupOptions: {
         input: VIRTUAL_HOST_ENTRY,
         preserveEntrySignatures: 'strict',
-        external: source => source !== DSHX_HOST_PUBLIC && source !== DSHX_API_PUBLIC && isHostExternal(source),
+        external: source => source !== DSHX_HOST_PUBLIC && source !== DSHX_API_PUBLIC && source !== DSHX_SETTINGS_PUBLIC && isHostExternal(source),
         output: {
           format: 'es',
           entryFileNames: 'index.js',

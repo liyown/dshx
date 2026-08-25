@@ -12,9 +12,15 @@ const VIRTUAL_CLIENT_ENTRY = '\0virtual:dshx-client-entry'
 const VIRTUAL_CLIENT_PUBLIC = '\0virtual:dshx-client-public'
 const DSHX_CLIENT_PUBLIC = '@becomeopc/dshx/client'
 const DSHX_API_PUBLIC = '@becomeopc/dshx/api'
+const DSHX_SETTINGS_PUBLIC = '@becomeopc/dshx/settings'
+const SETTINGS_PROVIDER_PACKAGE = '@deepseek-ai/dsh-client-ui-settings'
+const SETTINGS_HOOK_MARKER = 'dshx.settings-hook.v1'
+const SETTINGS_CAPABILITY_GLOBAL = '__DSHX_CLIENT_SETTINGS_CAPABILITY__'
 const CLIENT_RUNTIME_PATH = fileURLToPath(new URL('../../client/runtime.js', import.meta.url))
 const CLIENT_API_PATH = fileURLToPath(new URL('../../api/client.js', import.meta.url))
 const API_DEFINE_PATH = fileURLToPath(new URL('../../api/define.js', import.meta.url))
+const SETTINGS_DEFINE_PATH = fileURLToPath(new URL('../../settings/define.js', import.meta.url))
+const SETTINGS_CLIENT_PATH = fileURLToPath(new URL('../../settings/client.js', import.meta.url))
 
 /** Options for producing one DSH-compatible lazy-CJS client bundle. */
 export interface BuildClientOptions {
@@ -26,6 +32,8 @@ export interface BuildClientOptions {
   readonly sourcemap?: boolean
   readonly watch?: boolean
   readonly external?: readonly string[]
+  /** Package edges declared by dsh.client.inject. */
+  readonly inject?: readonly string[]
   readonly compatibility?: DshCompatibility
 }
 
@@ -55,8 +63,14 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
     name: 'dshx-client-entry',
     enforce: 'pre',
     resolveId(source) {
-      if (source === VIRTUAL_CLIENT_ENTRY || source === DSHX_CLIENT_PUBLIC || source === DSHX_API_PUBLIC) {
-        return source === DSHX_CLIENT_PUBLIC ? VIRTUAL_CLIENT_PUBLIC : source === DSHX_API_PUBLIC ? `${VIRTUAL_CLIENT_PUBLIC}-api` : VIRTUAL_CLIENT_ENTRY
+      if (source === VIRTUAL_CLIENT_ENTRY || source === DSHX_CLIENT_PUBLIC || source === DSHX_API_PUBLIC || source === DSHX_SETTINGS_PUBLIC) {
+        return source === DSHX_CLIENT_PUBLIC
+          ? VIRTUAL_CLIENT_PUBLIC
+          : source === DSHX_API_PUBLIC
+            ? `${VIRTUAL_CLIENT_PUBLIC}-api`
+            : source === DSHX_SETTINGS_PUBLIC
+              ? `${VIRTUAL_CLIENT_PUBLIC}-settings`
+              : VIRTUAL_CLIENT_ENTRY
       }
       return null
     },
@@ -69,10 +83,14 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
           '  return { name, options: registration, component }',
           '}',
           `export { useApi, useQuery, createApiClient } from ${JSON.stringify(CLIENT_API_PATH)}`,
+          `export { useSettings } from ${JSON.stringify(SETTINGS_CLIENT_PATH)}`,
           '',
         ].join('\n')
       if (id === `${VIRTUAL_CLIENT_PUBLIC}-api`) {
         return `export { defineApi, method } from ${JSON.stringify(API_DEFINE_PATH)}\n`
+      }
+      if (id === `${VIRTUAL_CLIENT_PUBLIC}-settings`) {
+        return `export { defineSettings } from ${JSON.stringify(SETTINGS_DEFINE_PATH)}\n`
       }
       if (id !== VIRTUAL_CLIENT_ENTRY) return null
       const metadata = {
@@ -83,13 +101,33 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
       return [
         `import * as source from ${JSON.stringify(paths.entry)}`,
         `import { createClientModule } from ${JSON.stringify(CLIENT_RUNTIME_PATH)}`,
-        `const plugin = createClientModule(source, ${JSON.stringify(metadata)})`,
+        `const settingsCapability = globalThis[${JSON.stringify(SETTINGS_CAPABILITY_GLOBAL)}] === true`,
+        `const plugin = createClientModule(source, { ...${JSON.stringify(metadata)}, settingsCapability })`,
         'export const name = plugin.name',
         'export const inject = plugin.inject',
         'export const Config = plugin.Config',
         'export function apply(ctx, config) { return plugin.apply(ctx, config) }',
         '',
       ].join('\n')
+    },
+  }
+}
+
+/** Infer Settings only from code retained in the final chunk. */
+function settingsCapabilityPlugin(options: BuildClientOptions): Plugin {
+  return {
+    name: 'dshx-client-settings-capability',
+    renderChunk(code, chunk) {
+      if (!chunk.isEntry) return null
+      const retained = code.includes(JSON.stringify(SETTINGS_HOOK_MARKER)) || code.includes(`'${SETTINGS_HOOK_MARKER}'`)
+      if (retained && !(options.inject ?? []).includes(SETTINGS_PROVIDER_PACKAGE)) {
+        throw new DshxError('DSHX1203', 'useSettings() requires the official Settings Scope provider package edge.', {
+          hint: `Add ${JSON.stringify(SETTINGS_PROVIDER_PACKAGE)} to package.json dsh.client.inject, then rebuild.`,
+        })
+      }
+      const capabilityExpression = new RegExp(`globalThis\\[["']${SETTINGS_CAPABILITY_GLOBAL}["']\\]\\s*===\\s*true`, 'g')
+      const next = code.replace(capabilityExpression, retained ? 'true' : 'false')
+      return next === code ? null : { code: next, map: null }
     },
   }
 }
@@ -128,6 +166,7 @@ function clientConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options
       clientEntryPlugin(paths, options),
       clientGuardPlugin(externals, options.packageId),
       clientCssPlugin(options.packageId, paths.root),
+      settingsCapabilityPlugin(options),
       singleClientChunkPlugin(),
     ],
     define: {

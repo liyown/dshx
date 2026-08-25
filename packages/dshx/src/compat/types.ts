@@ -49,6 +49,13 @@ export interface DshHostContributionCompatibility {
   readonly commands: boolean
   readonly promptSections: boolean
   readonly promptContexts: boolean
+  readonly settings: boolean
+}
+
+export interface DshClientSettingsCompatibility {
+  readonly packageName: '@deepseek-ai/dsh-client-ui-settings'
+  readonly service: 'settingsScope'
+  readonly hookDrivenCapabilityInference: boolean
 }
 
 /** Build/runtime protocol values owned by one DSH compatibility generation. */
@@ -71,6 +78,7 @@ export interface DshCompatibility {
   readonly client: {
     readonly platformModules: readonly string[]
     readonly preloadedExternals: readonly string[]
+    readonly settings?: DshClientSettingsCompatibility
     readonly manifest: {
       readonly platform: 'web'
       readonly moduleRequestsField: 'external'

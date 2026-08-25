@@ -139,6 +139,9 @@ export function getCompatibilityCapabilities(compatibility: DshCompatibility): r
   if (compatibility.hostContributions?.commands === true) capabilities.push('host:commands')
   if (compatibility.hostContributions?.promptSections === true) capabilities.push('host:prompt-sections')
   if (compatibility.hostContributions?.promptContexts === true) capabilities.push('host:prompt-contexts')
+  if (compatibility.hostContributions?.settings === true) capabilities.push('host:settings')
+  if (compatibility.client.settings?.service === 'settingsScope') capabilities.push('client:settings-scope')
+  if (compatibility.client.settings?.hookDrivenCapabilityInference === true) capabilities.push('client:settings-hook-inference')
   for (const target of compatibility.inspect?.targets ?? []) {
     const provider = compatibility.inspect?.providerByTarget?.[target] ?? compatibility.inspect?.provider ?? 'unavailable'
     capabilities.push(`inspect:${target}:${provider}`)

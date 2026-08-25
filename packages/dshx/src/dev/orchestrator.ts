@@ -20,13 +20,13 @@ function errorMessage(error: unknown): string {
   return String(error)
 }
 
-function clientExternals(project: ResolvedDshxConfig): readonly string[] {
+function clientManifestArray(project: ResolvedDshxConfig, field: 'external' | 'inject'): readonly string[] {
   const dsh = project.manifest.dsh
   if (typeof dsh !== 'object' || dsh === null || Array.isArray(dsh)) return []
   const client = (dsh as Record<string, unknown>).client
   if (typeof client !== 'object' || client === null || Array.isArray(client)) return []
-  const external = (client as Record<string, unknown>).external
-  return Array.isArray(external) && external.every(value => typeof value === 'string') ? external : []
+  const value = (client as Record<string, unknown>)[field]
+  return Array.isArray(value) && value.every(item => typeof item === 'string') ? value : []
 }
 
 function childFromExeca(
@@ -89,7 +89,8 @@ function buildOptions(
             outDir: project.outDir,
             sourcemap: project.build.sourcemap,
             watch: true,
-            external: clientExternals(project),
+            external: clientManifestArray(project, 'external'),
+            inject: clientManifestArray(project, 'inject'),
             compatibility,
           },
         }),

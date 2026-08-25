@@ -2,12 +2,14 @@ import type { Context } from '@deepseek-ai/cordis'
 import process from 'node:process'
 import type { CommandRuntime } from '@deepseek-ai/dsh-commands'
 import type { SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
+import { settingsNamespace, type SettingsProvider } from '@deepseek-ai/dsh-settings'
 import type { ToolRuntime } from '@deepseek-ai/dsh-tools'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
     commands: CommandRuntime
     systemPrompt: SystemPrompt
+    settings: SettingsProvider
     tools: ToolRuntime
   }
 }
@@ -17,8 +19,10 @@ import type { DshCompatibility } from '../compat/types.js'
 import { loadRuntimePlugins } from './runtime-plugins.js'
 import { inspectBridgeEnabled, ownHostInspectBridge, startHostInspectBridge } from './inspect-bridge.js'
 import { registerApi } from '../api/runtime.js'
+import type { SettingsContract, SettingsContribution, SettingsHostContribution } from '../settings/types.js'
+import { settingsSchemaContainsSecret } from '../settings/define.js'
 
-const HOST_DEFINITION_KEYS = new Set(['name', 'inject', 'tools', 'commands', 'prompts', 'api', 'apis', 'setup'])
+const HOST_DEFINITION_KEYS = new Set(['name', 'inject', 'tools', 'commands', 'prompts', 'settings', 'api', 'apis', 'setup'])
 
 /** Project identity embedded by the Host compiler. */
 export interface HostPluginMetadata {
@@ -62,6 +66,95 @@ async function startHostRuntime(ctx: Context, metadata: HostPluginMetadata): Pro
 
 function normalizeApis(definition: HostDefinition): readonly import('../api/types.js').ApiHostRegistration[] {
   return [...(definition.api === undefined ? [] : [definition.api]), ...(definition.apis ?? [])]
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
+}
+
+function settingsContract(contribution: SettingsContribution): SettingsContract {
+  return contribution.kind === 'settings' ? contribution : contribution.contract
+}
+
+function validateSettingsContract(value: unknown, metadata: HostPluginMetadata, index: number): SettingsContract {
+  const source = record(value)
+  const keys = ['kind', 'namespace', 'schema', 'applies', 'client', 'host']
+  if (
+    source === undefined ||
+    source.kind !== 'settings' ||
+    typeof source.namespace !== 'string' ||
+    typeof source.schema !== 'function' ||
+    (source.applies !== 'live' && source.applies !== 'restart') ||
+    typeof source.host !== 'function' ||
+    Object.keys(source).some(key => !keys.includes(key))
+  ) {
+    fail(
+      'DSHX2002',
+      `Host definition settings contains a malformed Settings contract at index ${index}.`,
+      metadata,
+      'Create the contract with defineSettings({ namespace, schema, applies }) before adding it to defineHost({ settings }).',
+    )
+  }
+  const client = record(source.client)
+  if (source.client !== undefined && (client === undefined || typeof client.decode !== 'function' || Object.keys(client).some(key => key !== 'decode'))) {
+    fail(
+      'DSHX2002',
+      `Host Settings ${JSON.stringify(source.namespace)} has invalid Client decoding options.`,
+      metadata,
+      'Use client: { decode(value) { ... } } or remove client when the Host and Client values are identical.',
+    )
+  }
+  if (settingsSchemaContainsSecret(source.schema as SettingsContract['schema']) && client?.decode === undefined) {
+    fail(
+      'DSHX2002',
+      `Host Settings ${JSON.stringify(source.namespace)} contains secret fields without a Client decoder.`,
+      metadata,
+      'Provide client: { decode(redactedValue) { ... } } and return a Client-safe value with secret fields removed.',
+    )
+  }
+  return value as SettingsContract
+}
+
+function validateSettingsContribution(value: unknown, metadata: HostPluginMetadata, index: number): SettingsContribution {
+  const source = record(value)
+  if (source?.kind === 'settings') return validateSettingsContract(value, metadata, index)
+  if (source?.kind !== 'settings-host' || Object.keys(source).some(key => key !== 'kind' && key !== 'contract' && key !== 'options')) {
+    fail(
+      'DSHX2002',
+      `Host definition settings contains a malformed Settings contribution at index ${index}.`,
+      metadata,
+      'Use settings: [contract] or settings: [contract.host({ base, validate, setup })].',
+    )
+  }
+  validateSettingsContract(source.contract, metadata, index)
+  const options = record(source.options)
+  if (
+    options === undefined ||
+    Object.keys(options).some(key => key !== 'base' && key !== 'validate' && key !== 'setup') ||
+    (options.base !== undefined && record(options.base) === undefined) ||
+    (options.validate !== undefined && typeof options.validate !== 'function') ||
+    (options.setup !== undefined && typeof options.setup !== 'function')
+  ) {
+    fail(
+      'DSHX2002',
+      `Host Settings contribution at index ${index} has invalid Host options.`,
+      metadata,
+      'Pass only base, validate, and setup to contract.host().',
+    )
+  }
+  return value as SettingsHostContribution
+}
+
+function registerSettings(ctx: Context, contribution: SettingsContribution): void {
+  const contract = settingsContract(contribution)
+  const options = contribution.kind === 'settings-host' ? contribution.options : undefined
+  const scope = ctx.settings.register(settingsNamespace(contract.namespace), contract.schema, {
+    applies: contract.applies,
+    ...(options?.base === undefined ? {} : { base: options.base }),
+    ...(options?.validate === undefined ? {} : { validate: options.validate }),
+  })
+  const dispose = options?.setup?.(scope, ctx)
+  if (typeof dispose === 'function') ctx.effect(() => dispose, `dshx settings: ${contract.namespace}`)
 }
 
 function withRuntime(ctx: Context, result: unknown, metadata: HostPluginMetadata): unknown {
@@ -151,6 +244,17 @@ function validateDefinition(value: unknown, metadata: HostPluginMetadata): HostD
       }
     }
   }
+  if (source.settings !== undefined) {
+    if (!Array.isArray(source.settings)) {
+      fail(
+        'DSHX2002',
+        'Host definition settings must be an array of defineSettings() contracts.',
+        metadata,
+        'Use settings: [contract] or remove settings when this Host owns no Settings namespace.',
+      )
+    }
+    source.settings.forEach((setting, index) => validateSettingsContribution(setting, metadata, index))
+  }
   if (source.api !== undefined && (typeof source.api !== 'object' || source.api === null || Array.isArray(source.api))) {
     fail('DSHX2002', 'Host api must be a value returned by api.host().', metadata, 'Use api: contract.host({ method() { ... } }) or remove api.')
   }
@@ -173,6 +277,7 @@ export function createHostPlugin(value: unknown, metadata: HostPluginMetadata): 
   if ((definition.tools?.length ?? 0) > 0 && !inject.includes('tools')) inject.push('tools')
   if ((definition.commands?.length ?? 0) > 0 && !inject.includes('commands')) inject.push('commands')
   if ((definition.prompts?.length ?? 0) > 0 && !inject.includes('systemPrompt')) inject.push('systemPrompt')
+  if ((definition.settings?.length ?? 0) > 0 && !inject.includes('settings')) inject.push('settings')
   const apis = normalizeApis(definition)
   if (apis.length > 0 && !inject.includes('connection')) inject.push('connection')
   return {
@@ -185,6 +290,7 @@ export function createHostPlugin(value: unknown, metadata: HostPluginMetadata): 
         if (prompt.kind === 'section') ctx.systemPrompt.section(prompt.section)
         else ctx.systemPrompt.context(prompt.context)
       }
+      for (const setting of definition.settings ?? []) registerSettings(ctx, setting)
       if (apis.length === 0) return withRuntime(ctx, definition.setup?.(ctx), metadata)
       const apiSetup = Promise.all(apis.map(api => registerApi(ctx, metadata.packageId, api)))
       return withRuntime(

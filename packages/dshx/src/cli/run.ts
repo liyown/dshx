@@ -284,6 +284,7 @@ async function runBuild(args: CliArgs, options: CliRunOptions, project: Resolved
         ? ((dsh as Record<string, unknown>).client as Record<string, unknown>)
         : undefined
     const external = Array.isArray(client?.external) && client.external.every(value => typeof value === 'string') ? (client.external as string[]) : []
+    const inject = Array.isArray(client?.inject) && client.inject.every(value => typeof value === 'string') ? (client.inject as string[]) : []
     jobs.push({
       fallback: resolvePath(project.outDir, 'client.js'),
       task: (runtime.buildClient ?? buildClient)({
@@ -294,6 +295,7 @@ async function runBuild(args: CliArgs, options: CliRunOptions, project: Resolved
         outDir: project.outDir,
         sourcemap: project.build.sourcemap,
         external,
+        inject,
         compatibility,
       }),
     })

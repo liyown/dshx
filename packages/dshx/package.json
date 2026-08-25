@@ -61,6 +61,10 @@
       "types": "./dist/api/index.d.ts",
       "default": "./dist/api/index.js"
     },
+    "./settings": {
+      "types": "./dist/settings/index.d.ts",
+      "default": "./dist/settings/index.js"
+    },
     "./cli": {
       "types": "./dist/cli/index.d.ts",
       "default": "./dist/cli/index.js"
@@ -93,10 +97,13 @@
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-commands": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-cordis-host-runner": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-settings": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-system-prompt": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-tool-cordis": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/schemastery": "^3.18.1",
     "@types/react": "~18.3.31",
     "@types/semver": "^7.7.1",
     "@types/write-file-atomic": "4.0.3",
@@ -106,10 +113,13 @@
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-commands": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-cordis-host-runner": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-tool-cordis": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/dsh-settings": ">=0.1.0-rc.8 <0.2.0",
     "@deepseek-ai/dsh-system-prompt": ">=0.1.0-rc.8 <0.2.0",
+    "@deepseek-ai/schemastery": "^3.18.1",
     "react": ">=18 <20"
   },
   "peerDependenciesMeta": {

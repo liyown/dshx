@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { DshxError } from '../diagnostics.js'
 import type { ClientDefinition, SlotContribution } from './types.js'
+import { createSettingsClientRuntime, provideSettingsContext } from '../settings/client.js'
 
 const CLIENT_DEFINITION_KEYS = new Set(['name', 'inject', 'slots', 'api', 'apis', 'setup'])
 
@@ -9,6 +10,7 @@ export interface ClientPluginMetadata {
   readonly packageId: string
   readonly logicalName?: string
   readonly sourceFile?: string
+  readonly settingsCapability?: boolean
 }
 
 /** Normalized Client module surface consumed by the virtual entry. */
@@ -24,9 +26,7 @@ interface ClientSlotsService {
   register(options: Record<string, unknown>, component: unknown): unknown
 }
 
-interface ClientRuntimeContext extends Context {
-  readonly slots: ClientSlotsService
-}
+type ClientRuntimeContext = Context & { readonly slots: ClientSlotsService }
 
 function normalizeApis(definition: ClientDefinition): readonly import('../api/types.js').ApiContract[] {
   return [...(definition.api === undefined ? [] : [definition.api]), ...(definition.apis ?? [])]
@@ -149,21 +149,25 @@ export function createClientPlugin(value: unknown, metadata: ClientPluginMetadat
     ]),
   ]
   const apis = normalizeApis(definition)
+  if (metadata.settingsCapability === true && !inject.includes('settingsScope')) inject.push('settingsScope')
   return {
     name: definition.name ?? fallbackName(metadata),
     inject,
     apply(ctx) {
       const client = ctx as ClientRuntimeContext
+      const settings = metadata.settingsCapability === true ? createSettingsClientRuntime(ctx) : undefined
       if (apis.length === 0) {
         for (const slot of definition.slots ?? []) {
-          client.slots.inject(slot.name, () => client.slots.register({ name: slot.name, ...slot.options }, slot.component))
+          const component = settings === undefined ? slot.component : provideSettingsContext(slot.component as any, settings)
+          client.slots.inject(slot.name, () => client.slots.register({ name: slot.name, ...slot.options }, component))
         }
         return definition.setup?.(ctx)
       }
       return import('../api/client.js').then(({ createApiClient, provideApiContext }) => {
         const apiClients = new Map(apis.map(contract => [contract, createApiClient(ctx, contract, metadata.packageId)]))
         for (const slot of definition.slots ?? []) {
-          const component = provideApiContext(slot.component as any, apiClients)
+          const apiComponent = provideApiContext(slot.component as any, apiClients)
+          const component = settings === undefined ? apiComponent : provideSettingsContext(apiComponent, settings)
           client.slots.inject(slot.name, () => client.slots.register({ name: slot.name, ...slot.options }, component))
         }
         return definition.setup?.(ctx)

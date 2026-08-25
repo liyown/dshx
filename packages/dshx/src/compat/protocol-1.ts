@@ -59,6 +59,7 @@ export const PROTOCOL_1_COMPATIBILITY: DshCompatibility = {
     commands: true,
     promptSections: true,
     promptContexts: true,
+    settings: true,
   },
   client: {
     platformModules: [
@@ -71,6 +72,11 @@ export const PROTOCOL_1_COMPATIBILITY: DshCompatibility = {
       '@deepseek-ai/dsh-client-ui-primitives',
     ],
     preloadedExternals: ['@deepseek-ai/dsh-client-runtime/client', '@deepseek-ai/dsh-client-connection/client'],
+    settings: {
+      packageName: '@deepseek-ai/dsh-client-ui-settings',
+      service: 'settingsScope',
+      hookDrivenCapabilityInference: true,
+    },
     manifest: {
       platform: 'web',
       moduleRequestsField: 'external',
