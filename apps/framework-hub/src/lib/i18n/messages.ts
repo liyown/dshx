@@ -45,10 +45,10 @@ const en = {
     "Verification status could not be loaded. Please refresh and try again.",
   "community.verification.unavailable":
     "Community actions are unavailable until human verification is configured.",
-  "seo.title": "DSHX — The developer framework for DSH plugins",
+  "seo.title": "DSHX — DSH plugin framework and community hub",
   "seo.description":
-    "Build DSH plugins with TypeScript, React, typed Host–Client APIs and a fast development loop.",
-  "seo.ogDescription": "TypeScript-first authoring for the DSH runtime.",
+    "Build DSH plugins with a TypeScript-first framework, then discover plugins from across the DSH community.",
+  "seo.ogDescription": "Build DSH plugins and explore the wider DSH plugin ecosystem.",
   "home.compatible": "compatible with dsh ^0.9",
   "home.heroTitle": "The developer framework for DSH plugins.",
   "home.heroBody":
@@ -261,10 +261,10 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     "community.verification.failed": "人机验证失败，请重新完成下方验证。",
     "community.verification.loadFailed": "无法读取验证状态，请刷新页面后重试。",
     "community.verification.unavailable": "人机验证配置完成前，社区操作暂不可用。",
-    "seo.title": "DSHX — DSH 插件开发框架",
+    "seo.title": "DSHX — DSH 插件开发框架与社区市场",
     "seo.description":
-      "使用 TypeScript、React、类型安全的 Host–Client API 和快速开发循环构建 DSH 插件。",
-    "seo.ogDescription": "面向 DSH Runtime 的 TypeScript 优先开发体验。",
+      "使用 TypeScript 优先的开发框架构建 DSH 插件，并发现来自整个 DSH 社区的插件。",
+    "seo.ogDescription": "构建 DSH 插件，探索完整的 DSH 插件生态。",
     "home.compatible": "兼容 dsh ^0.9",
     "home.heroTitle": "DSH 插件开发框架。",
     "home.heroBody":

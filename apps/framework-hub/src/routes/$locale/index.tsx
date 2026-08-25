@@ -27,18 +27,40 @@ export const Route = createFileRoute("/$locale/")({
       data: { locale: parseLocale(params.locale), q: "", sort: "featured", limit: 6 },
     }),
   head: ({ params }) => {
-    const t = createTranslator(parseLocale(params.locale));
+    const locale = parseLocale(params.locale);
+    const t = createTranslator(locale);
+    const canonical = `https://dshx.io/${locale}`;
     return {
       meta: [
         { title: t("seo.title") },
         {
           name: "description",
-          content: t("home.heroBody"),
+          content: t("seo.description"),
         },
         { property: "og:title", content: t("seo.title") },
         {
           property: "og:description",
           content: t("seo.ogDescription"),
+        },
+        { property: "og:url", content: canonical },
+      ],
+      links: [
+        { rel: "canonical", href: canonical },
+        { rel: "alternate", hrefLang: "en", href: "https://dshx.io/en" },
+        { rel: "alternate", hrefLang: "zh", href: "https://dshx.io/zh" },
+        { rel: "alternate", hrefLang: "x-default", href: "https://dshx.io/en" },
+      ],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "DSHX",
+            url: "https://dshx.io",
+            inLanguage: locale === "zh" ? "zh-CN" : "en",
+            description: t("seo.description"),
+          }),
         },
       ],
     };
