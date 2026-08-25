@@ -54,6 +54,7 @@ const en = {
   "home.heroBody":
     "Build DSH extensions with TypeScript, React, fast development workflows, typed Host–Client communication, and direct access to the native DSH runtime.",
   "home.viewGithub": "View on GitHub",
+  "home.apiReference": "API reference",
   "home.terminal": "terminal",
   "home.devWatching": "dshx dev · host + client watching",
   "home.whyLabel": "Why DSHX",
@@ -270,6 +271,7 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     "home.heroBody":
       "使用 TypeScript、React、快速开发工作流和类型安全的 Host–Client 通信构建 DSH 扩展，直接访问原生 DSH Runtime。",
     "home.viewGithub": "在 GitHub 查看",
+    "home.apiReference": "API 参考",
     "home.terminal": "终端",
     "home.devWatching": "dshx dev · Host + Client 监听中",
     "home.whyLabel": "为什么是 DSHX",

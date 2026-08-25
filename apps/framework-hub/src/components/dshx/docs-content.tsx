@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { Code, CodeSurface, Terminal } from "@/components/dshx/code";
+import { CopyAgentPrompt } from "@/components/dshx/copy-agent-prompt";
 import {
   DOC_CHAPTERS,
   DOC_SLUGS,
@@ -238,6 +239,7 @@ export function DocsOverview() {
           <p className="mt-6 max-w-[44rem] text-[16px] leading-7 text-muted-foreground md:text-[17px]">
             {copy.intro}
           </p>
+          <CopyAgentPrompt className="mt-7" />
         </header>
 
         <section className="docs-section pt-10 md:pt-12">

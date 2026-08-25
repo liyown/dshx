@@ -11,6 +11,7 @@ import {
   XMark,
 } from "@/components/dshx/primitives";
 import { Code, CodeSurface, Terminal } from "@/components/dshx/code";
+import { CopyAgentPrompt } from "@/components/dshx/copy-agent-prompt";
 import { RuntimeDiagram } from "@/components/dshx/runtime-diagram";
 import { DevLoop } from "@/components/dshx/dev-loop";
 import { PluginCard } from "@/components/dshx/plugin-card";
@@ -130,8 +131,11 @@ function Hero() {
             {t("home.heroBody")}
           </p>
           <div className="mt-8 flex flex-wrap gap-2.5" data-motion-hero="actions">
-            <ButtonLink to="/docs">{t("nav.getStarted")}</ButtonLink>
-            <ButtonLink href="https://github.com/liyown/dshx" variant="outline">
+            <CopyAgentPrompt />
+            <ButtonLink to="/docs" variant="outline">
+              {t("home.apiReference")}
+            </ButtonLink>
+            <ButtonLink href="https://github.com/liyown/dshx" variant="ghost">
               {t("home.viewGithub")}
             </ButtonLink>
           </div>
