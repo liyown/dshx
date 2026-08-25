@@ -7,6 +7,7 @@ export interface TemplateContext {
 
 export const TEMPLATE_FILES = [
   'src/api/status.ts',
+  'src/settings.ts',
   'src/host.ts',
   'src/client.tsx',
   'src/css-modules.d.ts',
@@ -37,9 +38,28 @@ export const statusApi = defineApi({
   },
 })
 `
+  if (path === 'src/settings.ts') {
+    const candidate = (context.packageId.split('/').at(-1) ?? 'plugin')
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/^-+|-+$/g, '')
+    const namespace = /^[a-z]/.test(candidate) ? candidate : `plugin-${candidate || 'settings'}`
+    return `import Schema from '@deepseek-ai/schemastery'
+import { defineSettings } from '@becomeopc/dshx/settings'
+
+export const runtimeSettings = defineSettings({
+  namespace: '${namespace}',
+  schema: Schema.object({
+    showActivity: Schema.boolean().default(true),
+  }),
+  applies: 'live',
+})
+`
+  }
   if (path === 'src/host.ts')
-    return `import { defineHost, defineTool } from '@becomeopc/dshx/host'
+    return `import { defineHost, definePromptContext, definePromptSection, defineTool } from '@becomeopc/dshx/host'
 import { statusApi } from './api/status.js'
+import { runtimeSettings } from './settings.js'
 
 const startedAt = new Date().toISOString()
 let requestCount = 0
@@ -57,6 +77,18 @@ const statusTool = defineTool({
   },
 })
 
+const statusGuidance = definePromptSection({
+  name: '${context.packageId}:guidance',
+  order: 150,
+  text: 'Use the ${context.packageId.replace(/[^a-zA-Z0-9_-]/g, '_')}_status tool when the user asks whether this plugin is running.',
+})
+
+const runtimeContext = definePromptContext({
+  name: '${context.packageId}:runtime',
+  order: 0,
+  text: () => '${context.packageId} status requests: ' + requestCount,
+})
+
 const statusHostApi = statusApi.host({
   async get() {
     return { project: '${context.packageId}', startedAt, requestCount: ++requestCount }
@@ -68,6 +100,8 @@ const statusHostApi = statusApi.host({
 
 export default defineHost({
   tools: [statusTool],
+  prompts: [statusGuidance, runtimeContext],
+  settings: [runtimeSettings],
   api: statusHostApi,
   setup() {
     console.info('${context.packageId} Host adapter loaded')
@@ -77,14 +111,18 @@ export default defineHost({
   if (path === 'src/client.tsx')
     return `import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { defineClient, defineSlot, useApi, useQuery } from '@becomeopc/dshx/client'
+import { defineClient, defineSlot, useApi, useQuery, useSettings } from '@becomeopc/dshx/client'
 import { statusApi } from './api/status.js'
+import { runtimeSettings } from './settings.js'
 import styles from './Status.module.css'
 
 function StatusButton(_props: PropsRuntime<'sidebar.footer.action'>) {
   const api = useApi(statusApi)
   const status = useQuery(statusApi, 'get')
+  const settings = useSettings(runtimeSettings)
+  const showActivity = settings.value?.showActivity ?? true
   const refresh = () => { void api.refresh({ force: true }).then(() => status.retry()).catch(() => status.retry()) }
+  const toggleActivity = () => { void settings.set('showActivity', !showActivity).catch(() => undefined) }
   return (
     <details className={styles.deck} open>
       <summary className={styles.summary} onClick={(event) => event.stopPropagation()}>
@@ -107,11 +145,20 @@ function StatusButton(_props: PropsRuntime<'sidebar.footer.action'>) {
           <div><span>Requests</span><strong>{status.data?.requestCount ?? '...'}</strong></div>
         </div>
 
-        <ol className={styles.activity} aria-label="Runtime activity">
-          <li><span className={styles.activityMark} /><span>{status.loading ? 'Connecting to Host' : status.error ? 'Host unavailable' : 'Host API connected'}</span><time>{status.error ? 'retry' : 'live'}</time></li>
-          <li><span className={styles.activityMark} /><span>Slot registered</span><time>now</time></li>
-          <li><span className={styles.activityMark} /><span>{status.data?.project ?? 'Client syncing'}</span><time>{status.data?.startedAt.slice(11, 19) ?? '...'}</time></li>
-        </ol>
+        {showActivity ? (
+          <ol className={styles.activity} aria-label="Runtime activity">
+            <li><span className={styles.activityMark} /><span>{status.loading ? 'Connecting to Host' : status.error ? 'Host unavailable' : 'Host API connected'}</span><time>{status.error ? 'retry' : 'live'}</time></li>
+            <li><span className={styles.activityMark} /><span>Slot registered</span><time>now</time></li>
+            <li><span className={styles.activityMark} /><span>{status.data?.project ?? 'Client syncing'}</span><time>{status.data?.startedAt.slice(11, 19) ?? '...'}</time></li>
+          </ol>
+        ) : null}
+
+        <div className={styles.settingsControl}>
+          <button type="button" disabled={!settings.writable || settings.mutation.pending} onClick={toggleActivity}>
+            {settings.mutation.pending ? 'Saving…' : showActivity ? 'Hide activity' : 'Show activity'}
+          </button>
+          {settings.error ? <span role="status">{settings.error.message}</span> : settings.mutation.error ? <span role="status">Setting update failed</span> : null}
+        </div>
 
         <div className={styles.footer}>
           <span className={styles.footerPulse} aria-hidden="true" />
@@ -323,6 +370,34 @@ export default defineClient({ api: statusApi, slots: [status] })
   font-size: 10px;
 }
 
+.settingsControl {
+  display: grid;
+  gap: 6px;
+  padding: 0 0 12px;
+}
+
+.settingsControl button,
+.footer button {
+  width: fit-content;
+  padding: 0;
+  color: #9fd8cb;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.settingsControl button:disabled {
+  color: #718895;
+  cursor: wait;
+}
+
+.settingsControl span {
+  color: #efb4aa;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
 .footerPulse {
   width: 7px;
   height: 7px;
@@ -362,7 +437,12 @@ export default defineConfig({
         files: ['dist', 'cordis.patch.yml'],
         dsh: {
           bundle: { patch: './cordis.patch.yml' },
-          client: { platform: 'web', inject: ['@deepseek-ai/dsh-client-connection', '@deepseek-ai/dsh-client-ui-sidebar'], external: [], immediately: false },
+          client: {
+            platform: 'web',
+            inject: ['@deepseek-ai/dsh-client-connection', '@deepseek-ai/dsh-client-ui-sidebar', '@deepseek-ai/dsh-client-ui-settings'],
+            external: [],
+            immediately: false,
+          },
         },
         scripts: { dev: 'dshx dev --open', build: 'dshx build', check: 'dshx check' },
         devDependencies: {
@@ -372,6 +452,10 @@ export default defineConfig({
           '@deepseek-ai/dsh-cordis-host-runner': context.dshVersion,
           '@deepseek-ai/dsh-tool-cordis': context.dshVersion,
           '@deepseek-ai/dsh-tools': context.dshVersion,
+          '@deepseek-ai/dsh-system-prompt': context.dshVersion,
+          '@deepseek-ai/dsh-settings': context.dshVersion,
+          '@deepseek-ai/schemastery': '3.18.1',
+          '@deepseek-ai/dsh-client-ui-settings': context.dshVersion,
           '@deepseek-ai/dsh-client-ui-slots': context.dshVersion,
           '@deepseek-ai/dsh-client-ui-sidebar': context.dshVersion,
           '@types/node': '^22.19.0',
@@ -381,7 +465,11 @@ export default defineConfig({
         },
         peerDependencies: {
           '@deepseek-ai/dsh': context.dshRange,
+          '@deepseek-ai/dsh-system-prompt': context.dshRange,
           '@deepseek-ai/dsh-tools': context.dshRange,
+          '@deepseek-ai/dsh-settings': context.dshRange,
+          '@deepseek-ai/schemastery': '^3.18.1',
+          '@deepseek-ai/dsh-client-ui-settings': context.dshRange,
         },
       },
       null,

@@ -8,7 +8,7 @@ cd my-plugin
 pnpm dev
 ```
 
-The initializer refuses to overwrite an existing non-empty directory, generates a minimal Host Tool and Client Slot, pins the matching DSHX release, installs the latest verified DSH boundary for local development, and declares the full `protocol-1` DSH range as a peer dependency.
+The initializer refuses to overwrite an existing non-empty directory, generates a minimal Host Tool, Prompt Section, dynamic Prompt Context, and one `showActivity` live Settings contract, plus a Client Runtime Deck that reads and writes that contract directly. It pins the matching DSHX release, installs the latest verified DSH boundary for local development, and declares the full `protocol-1` DSH range as a peer dependency.
 
 ## Automation
 

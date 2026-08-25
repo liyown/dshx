@@ -8,7 +8,9 @@ import { DEFAULT_COMPATIBILITY } from '../../dshx/src/compat/index.js'
 import { defaultFileSystem } from '../src/fs.js'
 import { runCreate } from '../src/cli.js'
 
-async function temp(): Promise<string> { return mkdtemp(resolve(tmpdir(), 'dshx-create-')) }
+async function temp(): Promise<string> {
+  return mkdtemp(resolve(tmpdir(), 'dshx-create-'))
+}
 
 describe('create-dshx', () => {
   it('keeps generated DSH defaults aligned with the core compatibility registry', () => {
@@ -28,15 +30,39 @@ describe('create-dshx', () => {
   it('renders a complete full template without workspace dependencies', async () => {
     const root = await temp()
     const result = await createProject({ name: 'demo', cwd: root, install: false })
-    expect(result.files).toHaveLength(10)
-    const manifest = JSON.parse(await defaultFileSystem.readFile(resolve(result.root, 'package.json'))) as { devDependencies: Record<string, string>; peerDependencies: Record<string, string>; scripts: Record<string, string> }
+    expect(result.files).toHaveLength(11)
+    const manifest = JSON.parse(await defaultFileSystem.readFile(resolve(result.root, 'package.json'))) as {
+      devDependencies: Record<string, string>
+      peerDependencies: Record<string, string>
+      scripts: Record<string, string>
+      dsh: { client: { inject: string[] } }
+    }
     expect(manifest.devDependencies['@becomeopc/dshx']).toBe('0.1.1')
     expect(manifest.devDependencies['@deepseek-ai/dsh']).toBe('0.1.1-rc.2')
+    expect(manifest.devDependencies['@deepseek-ai/dsh-system-prompt']).toBe('0.1.1-rc.2')
+    expect(manifest.devDependencies['@deepseek-ai/dsh-settings']).toBe('0.1.1-rc.2')
+    expect(manifest.devDependencies['@deepseek-ai/dsh-client-ui-settings']).toBe('0.1.1-rc.2')
+    expect(manifest.devDependencies['@deepseek-ai/schemastery']).toBe('3.18.1')
     expect(manifest.peerDependencies['@deepseek-ai/dsh']).toBe('>=0.1.0-rc.8 <0.2.0-0')
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-system-prompt']).toBe('>=0.1.0-rc.8 <0.2.0-0')
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-settings']).toBe('>=0.1.0-rc.8 <0.2.0-0')
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-client-ui-settings']).toBe('>=0.1.0-rc.8 <0.2.0-0')
     expect(manifest.scripts.dev).toBe('dshx dev --open')
+    expect(manifest.dsh.client.inject).toContain('@deepseek-ai/dsh-client-ui-settings')
     expect(Object.values(manifest.devDependencies).some(value => value.startsWith('workspace:'))).toBe(false)
     expect(await readFile(resolve(result.root, 'src/client.tsx'), 'utf8')).toContain('Build. Ship. Observe.')
     expect(await readFile(resolve(result.root, 'src/api/status.ts'), 'utf8')).toContain('defineApi')
+    const host = await readFile(resolve(result.root, 'src/host.ts'), 'utf8')
+    expect(host).toContain('definePromptSection')
+    expect(host).toContain('definePromptContext')
+    expect(host).toContain('prompts: [statusGuidance, runtimeContext]')
+    expect(host).toContain('settings: [runtimeSettings]')
+    const settings = await readFile(resolve(result.root, 'src/settings.ts'), 'utf8')
+    expect(settings).toContain('defineSettings')
+    expect(settings).toContain('showActivity')
+    const client = await readFile(resolve(result.root, 'src/client.tsx'), 'utf8')
+    expect(client).toContain('useSettings(runtimeSettings)')
+    expect(client).not.toContain('settings: [runtimeSettings]')
     expect(await readFile(resolve(result.root, 'src/Status.module.css'), 'utf8')).toContain('.deck')
     await rm(root, { recursive: true, force: true })
   })
