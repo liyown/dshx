@@ -11,7 +11,10 @@ const rules: { re: RegExp; c: TokenKind }[] = [
     re: /^\b(export|default|import|from|const|let|return|function|await|async|new|type|interface)\b/,
     c: "kw",
   },
-  { re: /^\b(defineClient|defineHost|defineSlot|defineApi|useQuery|setup|on)\b/, c: "fn" },
+  {
+    re: /^\b(defineApi|defineClient|defineCommand|defineConversation|defineHost|definePromptContext|definePromptSection|defineSettings|defineSlot|defineTool|method|useApi|useQuery|useSettings|setup|on)\b/,
+    c: "fn",
+  },
   { re: /^[a-zA-Z_$][\w$]*(?=\s*:)/, c: "prop" },
   { re: /^[{}[\](),.:;=><+*/|&?!-]/, c: "punc" },
 ];

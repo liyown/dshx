@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { requireDatabase } from "@/lib/db/client";
 import { requireBindings } from "@/lib/db/context";
+import { DOC_SLUGS } from "@/lib/docs";
 import { jsonError } from "@/lib/http";
 
 function escapeXml(value: string): string {
@@ -36,6 +37,8 @@ export const Route = createFileRoute("/sitemap.xml")({
           const base = ["en", "zh"].flatMap((locale) => [
             `${site}/${locale}`,
             `${site}/${locale}/plugins`,
+            `${site}/${locale}/docs`,
+            ...DOC_SLUGS.map((slug) => `${site}/${locale}/docs/${slug}`),
           ]);
           const urls = [
             ...base.map((loc) => `<url><loc>${escapeXml(loc)}</loc></url>`),

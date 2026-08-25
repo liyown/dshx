@@ -11,7 +11,7 @@ const groups: {
     items: [
       { key: "nav.plugins", to: "/plugins" },
       { key: "nav.docs", to: "/docs" },
-      { key: "footer.compatibility", to: "/docs" },
+      { key: "footer.compatibility", to: "/docs/compatibility" },
     ],
   },
   {
@@ -46,7 +46,7 @@ export function Footer() {
             {t("footer.tagline")}
           </p>
           <p className="mt-auto font-mono text-[11px] text-muted-foreground">
-            MIT · v0.4.0 · dsh ^0.9
+            MIT · DSHX 0.1 · protocol-1
           </p>
         </div>
 

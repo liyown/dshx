@@ -14,7 +14,6 @@ import { Route as LocaleRouteImport } from './routes/$locale'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
-import { Route as LocaleDocsRouteImport } from './routes/$locale/docs'
 import { Route as LocaleExamplesRouteImport } from './routes/$locale/examples'
 import { Route as ApiConfigRouteImport } from './routes/api/config'
 import { Route as ApiGithubStarsRouteImport } from './routes/api/github-stars'
@@ -28,6 +27,8 @@ import { Route as LocaleAccountSubmissionsRouteImport } from './routes/$locale/a
 import { Route as LocaleAuthCliRouteImport } from './routes/$locale/auth/cli'
 import { Route as LocaleCategoriesSlugRouteImport } from './routes/$locale/categories/$slug'
 import { Route as LocaleCollectionsIdRouteImport } from './routes/$locale/collections/$id'
+import { Route as LocaleDocsIndexRouteImport } from './routes/$locale/docs/index'
+import { Route as LocaleDocsSlugRouteImport } from './routes/$locale/docs/$slug'
 import { Route as LocaleLegalDocumentRouteImport } from './routes/$locale/legal/$document'
 import { Route as LocalePluginsIndexRouteImport } from './routes/$locale/plugins/index'
 import { Route as LocalePluginsSlugRouteImport } from './routes/$locale/plugins/$slug'
@@ -118,11 +119,6 @@ const LocaleIndexRoute = LocaleIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LocaleRoute,
 } as any)
-const LocaleDocsRoute = LocaleDocsRouteImport.update({
-  id: '/docs',
-  path: '/docs',
-  getParentRoute: () => LocaleRoute,
-} as any)
 const LocaleExamplesRoute = LocaleExamplesRouteImport.update({
   id: '/examples',
   path: '/examples',
@@ -189,6 +185,16 @@ const LocaleCategoriesSlugRoute = LocaleCategoriesSlugRouteImport.update({
 const LocaleCollectionsIdRoute = LocaleCollectionsIdRouteImport.update({
   id: '/collections/$id',
   path: '/collections/$id',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleDocsIndexRoute = LocaleDocsIndexRouteImport.update({
+  id: '/docs/',
+  path: '/docs/',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleDocsSlugRoute = LocaleDocsSlugRouteImport.update({
+  id: '/docs/$slug',
+  path: '/docs/$slug',
   getParentRoute: () => LocaleRoute,
 } as any)
 const LocaleLegalDocumentRoute = LocaleLegalDocumentRouteImport.update({
@@ -535,7 +541,6 @@ export interface FileRoutesByFullPath {
   '/$locale': typeof LocaleRouteWithChildren
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/$locale/docs': typeof LocaleDocsRoute
   '/$locale/examples': typeof LocaleExamplesRoute
   '/api/config': typeof ApiConfigRoute
   '/api/github-stars': typeof ApiGithubStarsRoute
@@ -549,6 +554,7 @@ export interface FileRoutesByFullPath {
   '/$locale/auth/cli': typeof LocaleAuthCliRoute
   '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
+  '/$locale/docs/$slug': typeof LocaleDocsSlugRoute
   '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
   '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
@@ -570,6 +576,7 @@ export interface FileRoutesByFullPath {
   '/api/replies/$id': typeof ApiRepliesIdRoute
   '/api/users/$login': typeof ApiUsersLoginRoute
   '/$locale/account/': typeof LocaleAccountIndexRoute
+  '/$locale/docs/': typeof LocaleDocsIndexRoute
   '/$locale/plugins/': typeof LocalePluginsIndexRoute
   '/admin/approvals/': typeof AdminApprovalsIndexRoute
   '/api/plugins/': typeof ApiPluginsIndexRoute
@@ -619,7 +626,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/$locale/docs': typeof LocaleDocsRoute
   '/$locale/examples': typeof LocaleExamplesRoute
   '/api/config': typeof ApiConfigRoute
   '/api/github-stars': typeof ApiGithubStarsRoute
@@ -633,6 +639,7 @@ export interface FileRoutesByTo {
   '/$locale/auth/cli': typeof LocaleAuthCliRoute
   '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
+  '/$locale/docs/$slug': typeof LocaleDocsSlugRoute
   '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
   '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
@@ -654,6 +661,7 @@ export interface FileRoutesByTo {
   '/api/replies/$id': typeof ApiRepliesIdRoute
   '/api/users/$login': typeof ApiUsersLoginRoute
   '/$locale/account': typeof LocaleAccountIndexRoute
+  '/$locale/docs': typeof LocaleDocsIndexRoute
   '/$locale/plugins': typeof LocalePluginsIndexRoute
   '/admin/approvals': typeof AdminApprovalsIndexRoute
   '/api/plugins': typeof ApiPluginsIndexRoute
@@ -705,7 +713,6 @@ export interface FileRoutesById {
   '/$locale': typeof LocaleRouteWithChildren
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/$locale/docs': typeof LocaleDocsRoute
   '/$locale/examples': typeof LocaleExamplesRoute
   '/api/config': typeof ApiConfigRoute
   '/api/github-stars': typeof ApiGithubStarsRoute
@@ -719,6 +726,7 @@ export interface FileRoutesById {
   '/$locale/auth/cli': typeof LocaleAuthCliRoute
   '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
+  '/$locale/docs/$slug': typeof LocaleDocsSlugRoute
   '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
   '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
@@ -740,6 +748,7 @@ export interface FileRoutesById {
   '/api/replies/$id': typeof ApiRepliesIdRoute
   '/api/users/$login': typeof ApiUsersLoginRoute
   '/$locale/account/': typeof LocaleAccountIndexRoute
+  '/$locale/docs/': typeof LocaleDocsIndexRoute
   '/$locale/plugins/': typeof LocalePluginsIndexRoute
   '/admin/approvals/': typeof AdminApprovalsIndexRoute
   '/api/plugins/': typeof ApiPluginsIndexRoute
@@ -792,7 +801,6 @@ export interface FileRouteTypes {
     | '/$locale'
     | '/robots.txt'
     | '/sitemap.xml'
-    | '/$locale/docs'
     | '/$locale/examples'
     | '/api/config'
     | '/api/github-stars'
@@ -806,6 +814,7 @@ export interface FileRouteTypes {
     | '/$locale/auth/cli'
     | '/$locale/categories/$slug'
     | '/$locale/collections/$id'
+    | '/$locale/docs/$slug'
     | '/$locale/legal/$document'
     | '/$locale/plugins/$slug'
     | '/$locale/publishers/$login'
@@ -827,6 +836,7 @@ export interface FileRouteTypes {
     | '/api/replies/$id'
     | '/api/users/$login'
     | '/$locale/account/'
+    | '/$locale/docs/'
     | '/$locale/plugins/'
     | '/admin/approvals/'
     | '/api/plugins/'
@@ -876,7 +886,6 @@ export interface FileRouteTypes {
     | '/'
     | '/robots.txt'
     | '/sitemap.xml'
-    | '/$locale/docs'
     | '/$locale/examples'
     | '/api/config'
     | '/api/github-stars'
@@ -890,6 +899,7 @@ export interface FileRouteTypes {
     | '/$locale/auth/cli'
     | '/$locale/categories/$slug'
     | '/$locale/collections/$id'
+    | '/$locale/docs/$slug'
     | '/$locale/legal/$document'
     | '/$locale/plugins/$slug'
     | '/$locale/publishers/$login'
@@ -911,6 +921,7 @@ export interface FileRouteTypes {
     | '/api/replies/$id'
     | '/api/users/$login'
     | '/$locale/account'
+    | '/$locale/docs'
     | '/$locale/plugins'
     | '/admin/approvals'
     | '/api/plugins'
@@ -961,7 +972,6 @@ export interface FileRouteTypes {
     | '/$locale'
     | '/robots.txt'
     | '/sitemap.xml'
-    | '/$locale/docs'
     | '/$locale/examples'
     | '/api/config'
     | '/api/github-stars'
@@ -975,6 +985,7 @@ export interface FileRouteTypes {
     | '/$locale/auth/cli'
     | '/$locale/categories/$slug'
     | '/$locale/collections/$id'
+    | '/$locale/docs/$slug'
     | '/$locale/legal/$document'
     | '/$locale/plugins/$slug'
     | '/$locale/publishers/$login'
@@ -996,6 +1007,7 @@ export interface FileRouteTypes {
     | '/api/replies/$id'
     | '/api/users/$login'
     | '/$locale/account/'
+    | '/$locale/docs/'
     | '/$locale/plugins/'
     | '/admin/approvals/'
     | '/api/plugins/'
@@ -1136,13 +1148,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleIndexRouteImport
       parentRoute: typeof LocaleRoute
     }
-    '/$locale/docs': {
-      id: '/$locale/docs'
-      path: '/docs'
-      fullPath: '/$locale/docs'
-      preLoaderRoute: typeof LocaleDocsRouteImport
-      parentRoute: typeof LocaleRoute
-    }
     '/$locale/examples': {
       id: '/$locale/examples'
       path: '/examples'
@@ -1232,6 +1237,20 @@ declare module '@tanstack/react-router' {
       path: '/collections/$id'
       fullPath: '/$locale/collections/$id'
       preLoaderRoute: typeof LocaleCollectionsIdRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/docs/': {
+      id: '/$locale/docs/'
+      path: '/docs'
+      fullPath: '/$locale/docs/'
+      preLoaderRoute: typeof LocaleDocsIndexRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/docs/$slug': {
+      id: '/$locale/docs/$slug'
+      path: '/docs/$slug'
+      fullPath: '/$locale/docs/$slug'
+      preLoaderRoute: typeof LocaleDocsSlugRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/legal/$document': {
@@ -1686,7 +1705,6 @@ declare module '@tanstack/react-router' {
 }
 
 interface LocaleRouteChildren {
-  LocaleDocsRoute: typeof LocaleDocsRoute
   LocaleExamplesRoute: typeof LocaleExamplesRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
   LocaleAccountAppealsRoute: typeof LocaleAccountAppealsRoute
@@ -1697,16 +1715,17 @@ interface LocaleRouteChildren {
   LocaleAuthCliRoute: typeof LocaleAuthCliRoute
   LocaleCategoriesSlugRoute: typeof LocaleCategoriesSlugRoute
   LocaleCollectionsIdRoute: typeof LocaleCollectionsIdRoute
+  LocaleDocsSlugRoute: typeof LocaleDocsSlugRoute
   LocaleLegalDocumentRoute: typeof LocaleLegalDocumentRoute
   LocalePluginsSlugRoute: typeof LocalePluginsSlugRoute
   LocalePublishersLoginRoute: typeof LocalePublishersLoginRoute
   LocaleUsersLoginRoute: typeof LocaleUsersLoginRoute
   LocaleAccountIndexRoute: typeof LocaleAccountIndexRoute
+  LocaleDocsIndexRoute: typeof LocaleDocsIndexRoute
   LocalePluginsIndexRoute: typeof LocalePluginsIndexRoute
 }
 
 const LocaleRouteChildren: LocaleRouteChildren = {
-  LocaleDocsRoute: LocaleDocsRoute,
   LocaleExamplesRoute: LocaleExamplesRoute,
   LocaleIndexRoute: LocaleIndexRoute,
   LocaleAccountAppealsRoute: LocaleAccountAppealsRoute,
@@ -1717,11 +1736,13 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleAuthCliRoute: LocaleAuthCliRoute,
   LocaleCategoriesSlugRoute: LocaleCategoriesSlugRoute,
   LocaleCollectionsIdRoute: LocaleCollectionsIdRoute,
+  LocaleDocsSlugRoute: LocaleDocsSlugRoute,
   LocaleLegalDocumentRoute: LocaleLegalDocumentRoute,
   LocalePluginsSlugRoute: LocalePluginsSlugRoute,
   LocalePublishersLoginRoute: LocalePublishersLoginRoute,
   LocaleUsersLoginRoute: LocaleUsersLoginRoute,
   LocaleAccountIndexRoute: LocaleAccountIndexRoute,
+  LocaleDocsIndexRoute: LocaleDocsIndexRoute,
   LocalePluginsIndexRoute: LocalePluginsIndexRoute,
 }
 

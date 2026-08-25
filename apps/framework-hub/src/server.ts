@@ -96,14 +96,15 @@ function withSecurityHeaders(response: Response) {
   });
 }
 
-function redirectToLocale(request: Request): Response | undefined {
+export function redirectToLocale(request: Request): Response | undefined {
   const url = new URL(request.url);
   const firstSegment = url.pathname.split("/")[1];
   if (isLocale(firstSegment)) return undefined;
 
   const isRoot = url.pathname === "/";
   const isLegacyPage =
-    /^\/(?:docs|examples)(?:\/)?$/.test(url.pathname) ||
+    /^\/docs(?:\/[^/]+)*(?:\/)?$/.test(url.pathname) ||
+    /^\/examples(?:\/)?$/.test(url.pathname) ||
     /^\/plugins(?:\/[^/]+)?(?:\/)?$/.test(url.pathname);
   if (!isRoot && !isLegacyPage) return undefined;
 
