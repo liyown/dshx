@@ -59,7 +59,7 @@ interface Binding<T> {
 }
 
 export interface SettingsClientRuntime {
-  binding<T>(contract: SettingsContract<z<any, object>, T>): Binding<T>
+  binding<T extends object>(contract: SettingsContract<z<any, object>, T>): Binding<T>
 }
 
 let react: ReactRuntime | undefined
@@ -105,13 +105,21 @@ export function createSettingsClientRuntime(ctx: ContextLike): SettingsClientRun
   const describe = binder?.describe() ?? unavailableDescribe(missing)
   const bindings = new Map<object, Binding<unknown>>()
   return {
-    binding<T>(contract: SettingsContract<z<any, object>, T>): Binding<T> {
+    binding<T extends object>(contract: SettingsContract<z<any, object>, T>): Binding<T> {
       const existing = bindings.get(contract)
       if (existing !== undefined) return existing as Binding<T>
       const scope =
         binder?.bind<T>({
           namespace: contract.namespace,
-          ...(contract.client?.decode === undefined ? {} : { decode: contract.client.decode }),
+          ...(contract.client?.decode === undefined
+            ? {}
+            : {
+                decode(value: unknown): T {
+                  const decoded = contract.client!.decode(value)
+                  if (decoded === undefined) throw new TypeError(`Settings ${JSON.stringify(contract.namespace)} client.decode returned undefined.`)
+                  return decoded
+                },
+              }),
         }) ?? unavailableScope<T>(missing)
       const binding = { scope, describe }
       bindings.set(contract, binding as Binding<unknown>)
@@ -151,12 +159,9 @@ function readError(
 }
 
 /** Read and mutate one Settings contract through the official shared Client mirror. */
-export function useSettings<Schema extends z<any, object>, ClientValue>(
+export function useSettings<Schema extends z<any, object>, ClientValue extends object>(
   contract: SettingsContract<Schema, ClientValue>,
 ): SettingsState<SettingsValue<Schema>, ClientValue> {
-  // The Client compiler uses this retained marker after tree-shaking to infer
-  // the settingsScope capability without a duplicate defineClient declaration.
-  runtime().useDebugValue?.('dshx.settings-hook.v1')
   const client = runtime().useContext(context())
   if (client === undefined) {
     throw new Error(`Settings ${JSON.stringify(contract.namespace)} is unavailable outside a DSHX Client Slot component.`)
@@ -178,9 +183,8 @@ export function useSettings<Schema extends z<any, object>, ClientValue>(
 
   const namespaceView = mirror.view?.namespaces.find(item => item.ns === contract.namespace)
   const error = readError(contract, scope, mirror, namespaceView)
-  const [mutation, setMutation] = runtime().useState<{ readonly pending: boolean; readonly error: unknown | null }>({ pending: false, error: null })
+  const [mutationPending, setMutationPending] = runtime().useState(false)
   const pending = runtime().useRef(0)
-  const generation = runtime().useRef(0)
   const mounted = runtime().useRef(true)
   runtime().useEffect(
     () => () => {
@@ -191,31 +195,29 @@ export function useSettings<Schema extends z<any, object>, ClientValue>(
 
   const mutate = runtime().useCallback(
     async (operation: () => Promise<void>): Promise<void> => {
-      const current = ++generation.current
       pending.current += 1
-      setMutation({ pending: true, error: null })
-      let failure: unknown
+      setMutationPending(true)
       try {
         await operation()
-      } catch (cause) {
-        failure = cause
-        throw cause
       } finally {
         pending.current -= 1
-        if (mounted.current) {
-          setMutation(previous => ({
-            pending: pending.current > 0,
-            error: current === generation.current ? (failure ?? null) : previous.error,
-          }))
-        }
+        if (mounted.current) setMutationPending(pending.current > 0)
       }
     },
     [binding],
   )
 
+  const writable =
+    scope.writable &&
+    mirror.view?.writable === true &&
+    namespaceView !== undefined &&
+    error?.kind !== 'provider-unavailable' &&
+    error?.kind !== 'namespace-unregistered'
+  const status =
+    error?.kind === 'provider-unavailable' || error?.kind === 'namespace-unregistered' || error?.kind === 'decode-failed' ? 'unavailable' : scope.status
   const assertAvailable = runtime().useCallback(() => {
-    if (error?.kind === 'provider-unavailable' || error?.kind === 'namespace-unregistered') throw new Error(error.message)
-  }, [error])
+    if (!writable) throw new Error(error?.message ?? `Settings namespace ${JSON.stringify(contract.namespace)} is not writable.`)
+  }, [contract.namespace, error, writable])
 
   const set = runtime().useCallback(
     <Key extends keyof SettingsValue<Schema> & string>(field: Key, value: SettingsValue<Schema>[Key]) =>
@@ -233,14 +235,16 @@ export function useSettings<Schema extends z<any, object>, ClientValue>(
       }),
     [assertAvailable, binding, mutate],
   )
-  const clearError = runtime().useCallback(() => setMutation(previous => ({ ...previous, error: null })), [])
-
   return {
-    ...scope,
-    applies: namespaceView?.applies,
+    status,
+    value: scope.value,
+    revision: scope.revision,
+    writable,
+    mode: scope.mode,
+    applies: namespaceView?.applies ?? contract.applies,
     secrets: namespaceView?.secrets ?? [],
     error,
-    mutation: { ...mutation, clearError },
+    mutation: { pending: mutationPending },
     set,
     unset,
   }

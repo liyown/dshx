@@ -24,8 +24,8 @@ describe('defineSettings', () => {
       namespace: 'runtime-secret',
       schema,
       client: {
-        decode(value): { showActivity: boolean } | undefined {
-          if (typeof value !== 'object' || value === null || !('showActivity' in value)) return undefined
+        decode(value): { showActivity: boolean } {
+          if (typeof value !== 'object' || value === null || !('showActivity' in value)) throw new Error('invalid settings')
           return { showActivity: Boolean(value.showActivity) }
         },
       },
@@ -46,9 +46,11 @@ describe('defineSettings', () => {
     const schema = Schema.object({ enabled: Schema.boolean().default(true) })
     const contract = defineSettings({ namespace: 'advanced', schema, applies: 'restart' })
     const base = { enabled: false }
-    const validate = (value: { enabled: boolean }): void => { void value.enabled }
+    const validate = (value: { enabled: boolean }): void => {
+      void value.enabled
+    }
     const contribution = contract.host({ base, validate })
-    expect(contribution).toEqual({ kind: 'settings-host', contract, options: { base, validate } })
+    expect(contribution).toEqual({})
     expect(contract).not.toHaveProperty('base')
     expect(contract).not.toHaveProperty('validate')
     expect(contract).not.toHaveProperty('setup')
@@ -60,5 +62,34 @@ describe('defineSettings', () => {
     expect(() => createHostPlugin({ settings: [secret] }, { packageId: '@test/plugin' })).toThrow(
       expect.objectContaining({ code: 'DSHX2002', hint: expect.stringContaining('Client-safe') }),
     )
+  })
+
+  it('rejects secret traversal through transforms even with a decoder', () => {
+    const schema = Schema.transform(Schema.object({ token: Schema.string().role('secret') }), value => value)
+    const contract = defineSettings({ namespace: 'unsafe-secret', schema, client: { decode: value => value as { token?: never } } })
+    expect(() => createHostPlugin({ settings: [contract] }, { packageId: '@test/plugin' })).toThrow(
+      expect.objectContaining({ code: 'DSHX2002', message: expect.stringContaining('unsupported schema path') }),
+    )
+  })
+
+  it('rejects a secret role placed directly on an unsupported composite node', () => {
+    const schema = Schema.union([Schema.object({ token: Schema.string() }), Schema.object({ token: Schema.number() })]).role('secret')
+    const contract = defineSettings({ namespace: 'unsafe-union-secret', schema, client: { decode: () => ({}) } })
+    expect(() => createHostPlugin({ settings: [contract] }, { packageId: '@test/plugin' })).toThrow(
+      expect.objectContaining({ code: 'DSHX2002', message: expect.stringContaining('unsupported schema path') }),
+    )
+  })
+
+  it('allows safe object/array secret paths and turns undefined decoder results into throws', () => {
+    const schema = Schema.object({ entries: Schema.array(Schema.object({ token: Schema.string().role('secret') })) })
+    const safe = defineSettings({ namespace: 'safe-secret', schema, client: { decode: () => ({ entries: [] as readonly unknown[] }) } })
+    expect(() => createHostPlugin({ settings: [safe] }, { packageId: '@test/plugin' })).not.toThrow()
+
+    const invalid = defineSettings({
+      namespace: 'throwing-decoder',
+      schema: Schema.object({ enabled: Schema.boolean() }),
+      client: { decode: (() => undefined) as unknown as (value: unknown) => { enabled: boolean } },
+    })
+    expect(() => invalid.client?.decode({ enabled: true })).toThrow('returned undefined')
   })
 })

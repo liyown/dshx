@@ -86,12 +86,17 @@ afterAll(() => {
 })
 
 describe('useSettings', () => {
-  it('reads external snapshots and keeps pending/error state local without optimistic values', async () => {
+  it('reads external snapshots and keeps only pending state local without optimistic values', async () => {
     hookState.length = 0
     hookRefs.length = 0
     const contract = defineSettings({ namespace: 'runtime-hook', schema: Schema.object({ enabled: Schema.boolean().default(true) }) })
     let resolveWrite: (() => void) | undefined
-    const set = vi.fn(() => new Promise<void>(resolve => { resolveWrite = resolve }))
+    const set = vi.fn(
+      () =>
+        new Promise<void>(resolve => {
+          resolveWrite = resolve
+        }),
+    )
     const scope = {
       getSnapshot: () => ({ status: 'ready', value: { enabled: true }, base: { enabled: true }, user: {}, revision: 2, writable: true, mode: 'host' }),
       subscribe: () => () => undefined,
@@ -115,14 +120,12 @@ describe('useSettings', () => {
     expect(render(contract).value).toEqual({ enabled: true })
     resolveWrite?.()
     await write
-    expect(render(contract).mutation).toMatchObject({ pending: false, error: null })
+    expect(render(contract).mutation).toEqual({ pending: false })
 
     const failure = new Error('write failed')
     set.mockRejectedValueOnce(failure)
     await expect(render(contract).set('enabled', false)).rejects.toBe(failure)
-    expect(render(contract).mutation.error).toBe(failure)
-    render(contract).mutation.clearError()
-    expect(render(contract).mutation.error).toBeNull()
+    expect(render(contract).mutation).toEqual({ pending: false })
   })
 
   it('distinguishes unregistered namespaces and refuses their writes', async () => {
@@ -140,6 +143,8 @@ describe('useSettings', () => {
       mirror: { status: 'ready', view: { namespaces: [], writable: true }, error: null },
     })
     const state = render(contract)
+    expect(state.status).toBe('unavailable')
+    expect(state.writable).toBe(false)
     expect(state.error?.kind).toBe('namespace-unregistered')
     await expect(state.set('enabled', true)).rejects.toThrow('not registered')
     expect(set).not.toHaveBeenCalled()
@@ -150,7 +155,7 @@ describe('useSettings', () => {
     hookState.length = 0
     hookRefs.length = 0
     currentClient = createSettingsClientRuntime({ get: () => undefined })
-    expect(render(contract).error?.kind).toBe('provider-unavailable')
+    expect(render(contract)).toMatchObject({ status: 'unavailable', writable: false, error: { kind: 'provider-unavailable' } })
 
     currentClient = clientWith({
       scope: {
@@ -165,7 +170,7 @@ describe('useSettings', () => {
         error: null,
       },
     })
-    expect(render(contract).error?.kind).toBe('decode-failed')
+    expect(render(contract)).toMatchObject({ status: 'unavailable', error: { kind: 'decode-failed' } })
 
     currentClient = clientWith({
       scope: {
