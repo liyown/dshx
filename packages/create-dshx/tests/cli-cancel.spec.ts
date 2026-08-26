@@ -5,6 +5,7 @@ const CANCEL = Symbol('clack:cancel')
 
 vi.mock('@clack/prompts', () => ({
   confirm: vi.fn(async () => true),
+  select: vi.fn(async () => CANCEL),
   text: vi.fn(async () => CANCEL),
   isCancel: (value: unknown) => value === CANCEL,
 }))

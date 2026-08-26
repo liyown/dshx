@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import { detect } from 'package-manager-detector'
 import { defaultFileSystem } from './fs.js'
 import { commandAvailable, defaultCommandRunner, installCommand } from './command.js'
-import { renderTemplate, TEMPLATE_FILES } from './templates.js'
+import { renderProjectTemplate } from './templates.js'
 import type { CommandRunner, CreateDiagnostic, CreateProjectOptions, CreateProjectResult, FileSystem, PackageManager } from './types.js'
 
 export interface CreateDependencies {
@@ -22,6 +22,8 @@ export const DEFAULT_DSH_VERSION = '0.1.1-rc.2'
 
 /** Public DSH range owned by the current protocol generation. */
 export const DEFAULT_DSH_RANGE = '>=0.1.0-rc.8 <0.2.0-0'
+export const DEFAULT_TEMPLATE = 'starter' as const
+export const DEFAULT_STYLE = 'css-modules' as const
 
 export function packageVersion(): string {
   try {
@@ -93,12 +95,16 @@ export async function createProject(options: CreateProjectOptions, dependencies:
   const fs = dependencies.fs ?? defaultFileSystem
   const runner = dependencies.runner ?? defaultCommandRunner
   const root = resolve(options.cwd ?? process.cwd(), options.name)
+  const template = options.template ?? DEFAULT_TEMPLATE
+  const style = options.style ?? DEFAULT_STYLE
   const nameError = validateProjectName(options.name)
-  if (nameError !== undefined) return { root, packageId: options.name, files: [], installed: false, diagnostics: [nameError] }
+  if (nameError !== undefined) return { root, packageId: options.name, template, style, files: [], installed: false, diagnostics: [nameError] }
   if (await fs.exists(root)) {
     return {
       root,
       packageId: options.name,
+      template,
+      style,
       files: [],
       installed: false,
       diagnostics: [
@@ -121,16 +127,18 @@ export async function createProject(options: CreateProjectOptions, dependencies:
   const files: string[] = []
   try {
     await fs.mkdir(root)
-    for (const file of TEMPLATE_FILES) {
-      const target = join(root, file)
+    for (const file of renderProjectTemplate(context, template, style)) {
+      const target = join(root, file.path)
       await fs.mkdir(resolve(target, '..'))
-      await fs.writeFile(target, renderTemplate(file, context))
+      await fs.writeFile(target, file.contents)
       files.push(target)
     }
   } catch (error) {
     return {
       root,
       packageId: options.name,
+      template,
+      style,
       files,
       installed: false,
       diagnostics: [
@@ -145,12 +153,14 @@ export async function createProject(options: CreateProjectOptions, dependencies:
     }
   }
 
-  if (options.install === false) return { root, packageId: options.name, files, installed: false, diagnostics: [] }
+  if (options.install === false) return { root, packageId: options.name, template, style, files, installed: false, diagnostics: [] }
   const manager = options.packageManager ?? (await detectPackageManager(root, fs, runner))
   if (manager === undefined)
     return {
       root,
       packageId: options.name,
+      template,
+      style,
       files,
       installed: false,
       diagnostics: [
@@ -168,6 +178,8 @@ export async function createProject(options: CreateProjectOptions, dependencies:
     return {
       root,
       packageId: options.name,
+      template,
+      style,
       files,
       packageManager: manager,
       installed: false,
@@ -175,5 +187,5 @@ export async function createProject(options: CreateProjectOptions, dependencies:
         diagnostic('DSHX6004', `Dependency installation failed with ${manager}.`, root, `Run "${manager} install" in the generated project and retry.`, result),
       ],
     }
-  return { root, packageId: options.name, files, packageManager: manager, installed: true, diagnostics: [] }
+  return { root, packageId: options.name, template, style, files, packageManager: manager, installed: true, diagnostics: [] }
 }

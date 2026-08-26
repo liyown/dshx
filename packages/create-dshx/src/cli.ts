@@ -2,10 +2,10 @@
 import { realpathSync } from 'node:fs'
 import { stdin, stdout, stderr } from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { confirm as clackConfirm, isCancel, text as clackText } from '@clack/prompts'
+import { confirm as clackConfirm, isCancel, select as clackSelect, text as clackText } from '@clack/prompts'
 import { defineCommand, parseArgs as parseCittyArgs } from 'citty'
-import { createProject, packageVersion } from './create.js'
-import type { CreateIO, PackageManager } from './types.js'
+import { createProject, DEFAULT_STYLE, DEFAULT_TEMPLATE, packageVersion } from './create.js'
+import type { CreateIO, PackageManager, ProjectStyle, TemplateName } from './types.js'
 
 interface Args {
   readonly name?: string
@@ -13,6 +13,8 @@ interface Args {
   readonly install: boolean
   readonly installExplicit: boolean
   readonly packageManager?: PackageManager
+  readonly template?: TemplateName
+  readonly style?: ProjectStyle
   readonly yes: boolean
   readonly help: boolean
   readonly version: boolean
@@ -41,6 +43,18 @@ const createArgs = {
     options: ['pnpm', 'yarn', 'npm'] as string[],
     description: 'Use a specific package manager.',
     valueHint: 'name',
+  },
+  template: {
+    type: 'enum',
+    options: ['starter', 'showcase'] as string[],
+    description: 'Choose the project feature set.',
+    valueHint: 'starter|showcase',
+  },
+  style: {
+    type: 'enum',
+    options: ['css-modules', 'tailwind', 'none'] as string[],
+    description: 'Choose the Client styling setup.',
+    valueHint: 'css-modules|tailwind|none',
   },
   yes: {
     type: 'boolean',
@@ -72,11 +86,18 @@ function parseArgs(argv: readonly string[]): Args {
     const token = argv[index]
     if (token === undefined || !token.startsWith('-')) continue
     if (['--install', '--no-install', '--yes', '-y', '--help', '-h', '--version', '-V'].includes(token)) continue
-    if (token !== '--cwd' && token !== '--package-manager') throw new Error(`Unknown argument ${JSON.stringify(token)}.`)
+    if (token !== '--cwd' && token !== '--package-manager' && token !== '--template' && token !== '--style')
+      throw new Error(`Unknown argument ${JSON.stringify(token)}.`)
     const value = argv[index + 1]
     if (value === undefined || value.startsWith('-')) throw new Error(`${token} requires a value.`)
     if (token === '--package-manager' && value !== 'pnpm' && value !== 'yarn' && value !== 'npm') {
       throw new Error('--package-manager must be pnpm, yarn, or npm.')
+    }
+    if (token === '--template' && value !== 'starter' && value !== 'showcase') {
+      throw new Error('--template must be starter or showcase.')
+    }
+    if (token === '--style' && value !== 'css-modules' && value !== 'tailwind' && value !== 'none') {
+      throw new Error('--style must be css-modules, tailwind, or none.')
     }
     index += 1
   }
@@ -88,6 +109,8 @@ function parseArgs(argv: readonly string[]): Args {
     install: parsed.install ?? true,
     installExplicit: install || noInstall,
     ...(parsed.packageManager === undefined ? {} : { packageManager: parsed.packageManager as PackageManager }),
+    ...(parsed.template === undefined ? {} : { template: parsed.template as TemplateName }),
+    ...(parsed.style === undefined ? {} : { style: parsed.style as ProjectStyle }),
     yes: parsed.yes ?? false,
     help: parsed.help ?? false,
     version: parsed.version ?? false,
@@ -95,7 +118,9 @@ function parseArgs(argv: readonly string[]): Args {
 }
 
 function printHelp(output: { write: (text: string) => void }): void {
-  output.write('Usage: pnpm create dshx [name] [--cwd <path>] [--install|--no-install] [--yes] [--package-manager <pnpm|yarn|npm>]\n')
+  output.write(
+    'Usage: pnpm create dshx [name] [--template <starter|showcase>] [--style <css-modules|tailwind|none>] [--cwd <path>] [--install|--no-install] [--yes] [--package-manager <pnpm|yarn|npm>]\n',
+  )
 }
 
 export async function runCreate(argv = process.argv.slice(2), io: CreateIO = {}): Promise<number> {
@@ -134,6 +159,57 @@ export async function runCreate(argv = process.argv.slice(2), io: CreateIO = {})
     writeError('A project name is required outside an interactive terminal.\n')
     return 2
   }
+  let template = args.template ?? DEFAULT_TEMPLATE
+  if (args.template === undefined && interactive && !args.yes) {
+    const answer =
+      io.readLine === undefined
+        ? await clackSelect<TemplateName>({
+            message: 'Project template',
+            initialValue: DEFAULT_TEMPLATE,
+            options: [
+              { value: 'starter', label: 'Starter', hint: 'Tool + visible Slot' },
+              { value: 'showcase', label: 'Showcase', hint: 'API + Settings + Prompt + Slot' },
+            ],
+            input,
+            output,
+          })
+        : (await io.readLine('Project template (starter/showcase): ', DEFAULT_TEMPLATE)).trim() || DEFAULT_TEMPLATE
+    if (isCancel(answer)) {
+      writeError('Operation cancelled.\n')
+      return 130
+    }
+    if (answer !== 'starter' && answer !== 'showcase') {
+      writeError('Project template must be starter or showcase.\n')
+      return 2
+    }
+    template = answer
+  }
+  let style = args.style ?? DEFAULT_STYLE
+  if (args.style === undefined && interactive && !args.yes) {
+    const answer =
+      io.readLine === undefined
+        ? await clackSelect<ProjectStyle>({
+            message: 'Client style',
+            initialValue: DEFAULT_STYLE,
+            options: [
+              { value: 'css-modules', label: 'CSS Modules', hint: 'Scoped CSS' },
+              { value: 'tailwind', label: 'Tailwind CSS', hint: 'v4, dshx prefix, no Preflight' },
+              { value: 'none', label: 'None', hint: 'No stylesheet' },
+            ],
+            input,
+            output,
+          })
+        : (await io.readLine('Client style (css-modules/tailwind/none): ', DEFAULT_STYLE)).trim() || DEFAULT_STYLE
+    if (isCancel(answer)) {
+      writeError('Operation cancelled.\n')
+      return 130
+    }
+    if (answer !== 'css-modules' && answer !== 'tailwind' && answer !== 'none') {
+      writeError('Client style must be css-modules, tailwind, or none.\n')
+      return 2
+    }
+    style = answer
+  }
   let installDependencies = args.install
   if (args.install && interactive && !args.yes && !args.installExplicit) {
     if (io.confirm !== undefined) {
@@ -157,6 +233,8 @@ export async function runCreate(argv = process.argv.slice(2), io: CreateIO = {})
   }
   const result = await createProject({
     name,
+    template,
+    style,
     ...(args.cwd === undefined ? {} : { cwd: args.cwd }),
     install: installDependencies,
     ...(args.packageManager === undefined ? {} : { packageManager: args.packageManager }),

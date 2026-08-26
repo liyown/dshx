@@ -27,47 +27,102 @@ describe('create-dshx', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  it('renders a complete full template without workspace dependencies', async () => {
+  it.each([
+    ['starter', 'css-modules'],
+    ['starter', 'tailwind'],
+    ['starter', 'none'],
+    ['showcase', 'css-modules'],
+    ['showcase', 'tailwind'],
+    ['showcase', 'none'],
+  ] as const)('renders the %s + %s combination with exact files and dependencies', async (template, style) => {
     const root = await temp()
-    const result = await createProject({ name: 'demo', cwd: root, install: false })
-    expect(result.files).toHaveLength(11)
-    const manifest = JSON.parse(await defaultFileSystem.readFile(resolve(result.root, 'package.json'))) as {
+    const result = await createProject({ name: `demo-${template}-${style}`, cwd: root, install: false, template, style })
+    expect(result.diagnostics).toEqual([])
+    expect(result.template).toBe(template)
+    expect(result.style).toBe(style)
+
+    const relativeFiles = result.files.map(file => file.slice(result.root.length + 1)).sort()
+    expect(relativeFiles).toContain('src/host.ts')
+    expect(relativeFiles).toContain('src/client.tsx')
+    expect(relativeFiles).toContain('dshx.config.ts')
+    expect(relativeFiles.includes('src/api/status.ts')).toBe(template === 'showcase')
+    expect(relativeFiles.includes('src/settings.ts')).toBe(template === 'showcase')
+    expect(relativeFiles.includes('src/Plugin.module.css')).toBe(style === 'css-modules')
+    expect(relativeFiles.includes('src/css-modules.d.ts')).toBe(style === 'css-modules')
+    expect(relativeFiles.includes('src/styles.css')).toBe(style === 'tailwind')
+    expect(relativeFiles.some(file => file.endsWith('.css'))).toBe(style !== 'none')
+
+    const manifest = JSON.parse(await readFile(resolve(result.root, 'package.json'), 'utf8')) as {
       devDependencies: Record<string, string>
       peerDependencies: Record<string, string>
       scripts: Record<string, string>
       dsh: { client: { inject: string[] } }
     }
     expect(manifest.devDependencies['@becomeopc/dshx']).toBe('0.1.1')
-    expect(manifest.devDependencies['@deepseek-ai/dsh']).toBe('0.1.1-rc.2')
-    expect(manifest.devDependencies['@deepseek-ai/dsh-system-prompt']).toBe('0.1.1-rc.2')
-    expect(manifest.devDependencies['@deepseek-ai/dsh-settings']).toBe('0.1.1-rc.2')
-    expect(manifest.devDependencies['@deepseek-ai/dsh-client-ui-settings']).toBe('0.1.1-rc.2')
-    expect(manifest.devDependencies['@deepseek-ai/schemastery']).toBe('3.18.1')
-    expect(manifest.peerDependencies['@deepseek-ai/dsh']).toBe('>=0.1.0-rc.8 <0.2.0-0')
-    expect(manifest.peerDependencies['@deepseek-ai/dsh-system-prompt']).toBe('>=0.1.0-rc.8 <0.2.0-0')
-    expect(manifest.peerDependencies['@deepseek-ai/dsh-settings']).toBe('>=0.1.0-rc.8 <0.2.0-0')
-    expect(manifest.peerDependencies['@deepseek-ai/dsh-client-ui-settings']).toBe('>=0.1.0-rc.8 <0.2.0-0')
-    expect(manifest.scripts.dev).toBe('dshx dev --open')
-    expect(manifest.dsh.client.inject).toContain('@deepseek-ai/dsh-client-ui-settings')
+    expect(manifest.devDependencies['@deepseek-ai/dsh']).toBe(DEFAULT_DSH_VERSION)
+    expect(manifest.peerDependencies['@deepseek-ai/dsh']).toBe(DEFAULT_DSH_RANGE)
+    expect(manifest.scripts).toEqual({
+      check: 'dshx check',
+      build: 'dshx build',
+      dev: 'dshx dev --open',
+      prepack: 'npm run check && npm run build',
+    })
     expect(Object.values(manifest.devDependencies).some(value => value.startsWith('workspace:'))).toBe(false)
-    expect(await readFile(resolve(result.root, 'src/client.tsx'), 'utf8')).toContain('Build. Ship. Observe.')
-    expect(await readFile(resolve(result.root, 'src/api/status.ts'), 'utf8')).toContain('defineApi')
+    expect(manifest.devDependencies.tailwindcss).toBe(style === 'tailwind' ? '^4.3.3' : undefined)
+    expect(manifest.devDependencies['@tailwindcss/vite']).toBe(style === 'tailwind' ? '^4.3.3' : undefined)
+
+    const config = await readFile(resolve(result.root, 'dshx.config.ts'), 'utf8')
+    expect(config).toContain("import { defineConfig } from '@becomeopc/dshx'")
+    expect(config).toContain("host: { entry: 'src/host.ts' }")
+    expect(config).toContain("entry: 'src/client.tsx'")
+    expect(config).toContain('declarations: true')
+    expect(config.includes("import tailwindcss from '@tailwindcss/vite'")).toBe(style === 'tailwind')
+
     const host = await readFile(resolve(result.root, 'src/host.ts'), 'utf8')
-    expect(host).toContain('definePromptSection')
-    expect(host).toContain('definePromptContext')
-    expect(host).toContain('prompts: [statusGuidance, runtimeContext]')
-    expect(host).toContain('settings: [runtimeSettings]')
-    const settings = await readFile(resolve(result.root, 'src/settings.ts'), 'utf8')
-    expect(settings).toContain('defineSettings')
-    expect(settings).toContain('showActivity')
     const client = await readFile(resolve(result.root, 'src/client.tsx'), 'utf8')
-    expect(client).toContain('useApi(statusApi)')
-    expect(client).toContain("useQuery(statusApi, 'get')")
-    expect(client).toContain('defineClient({ slots: [status] })')
-    expect(client).not.toMatch(/defineClient\(\{[^}]*\bapis?\s*:/s)
-    expect(client).toContain('useSettings(runtimeSettings)')
-    expect(client).not.toContain('settings: [runtimeSettings]')
-    expect(await readFile(resolve(result.root, 'src/Status.module.css'), 'utf8')).toContain('.deck')
+    expect(host).toContain('defineTool')
+    expect(client).toContain("defineSlot('sidebar.footer.action'")
+    expect(client).not.toMatch(/defineClient\(\{[^}]*\b(?:api|apis|settings)\s*:/s)
+    expect(client).not.toContain('useQuery')
+    expect(host.includes('definePromptSection')).toBe(template === 'showcase')
+    expect(host.includes('definePromptContext')).toBe(template === 'showcase')
+    expect(host.includes('settings: [runtimeSettings]')).toBe(template === 'showcase')
+    expect(host.includes('apis: [statusHostApi]')).toBe(template === 'showcase')
+    expect(client.includes("useApiQuery(statusApi, 'get', { enabled: true })")).toBe(template === 'showcase')
+    expect(client.includes('useSettings(runtimeSettings)')).toBe(template === 'showcase')
+    expect(client).not.toContain('Conversation')
+
+    const showcaseProviders = ['@deepseek-ai/dsh-client-connection', '@deepseek-ai/dsh-client-ui-sidebar', '@deepseek-ai/dsh-client-ui-settings']
+    expect(manifest.dsh.client.inject).toEqual(template === 'showcase' ? showcaseProviders : ['@deepseek-ai/dsh-client-ui-sidebar'])
+    expect(Boolean(manifest.devDependencies['@deepseek-ai/dsh-client-connection'])).toBe(template === 'showcase')
+    expect(Boolean(manifest.peerDependencies['@deepseek-ai/dsh-client-connection'])).toBe(template === 'showcase')
+    expect(Boolean(manifest.devDependencies['@deepseek-ai/dsh-system-prompt'])).toBe(template === 'showcase')
+    expect(Boolean(manifest.devDependencies['@deepseek-ai/dsh-settings'])).toBe(template === 'showcase')
+
+    if (style === 'tailwind') {
+      const css = await readFile(resolve(result.root, 'src/styles.css'), 'utf8')
+      expect(css).toContain('@layer theme, utilities;')
+      expect(css).toContain('prefix(dshx)')
+      expect(css).not.toContain('preflight.css')
+      expect(client).toContain('dshx:')
+      expect(client).not.toMatch(/className=\{`[^`]*\$\{/)
+    }
+
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it('defaults programmatic and --yes generation to starter + css-modules', async () => {
+    const root = await temp()
+    const direct = await createProject({ name: 'direct-default', cwd: root, install: false })
+    expect(direct.template).toBe('starter')
+    expect(direct.style).toBe('css-modules')
+    expect(await readFile(resolve(direct.root, 'src/Plugin.module.css'), 'utf8')).toContain('.card')
+
+    const output = new PassThrough()
+    const input = new PassThrough() as PassThrough & { isTTY?: boolean }
+    input.isTTY = false
+    await expect(runCreate(['cli-default', '--cwd', root, '--no-install', '--yes'], { stdin: input, stdout: output, stderr: output })).resolves.toBe(0)
+    expect(await readFile(resolve(root, 'cli-default/src/Plugin.module.css'), 'utf8')).toContain('.card')
     await rm(root, { recursive: true, force: true })
   })
 
@@ -130,6 +185,27 @@ describe('create-dshx', () => {
     input.isTTY = false
     await expect(runCreate(['demo', '--cwd', root, '--no-install', '--yes'], { stdin: input, stdout: output, stderr: output })).resolves.toBe(0)
     expect(Buffer.concat(chunks).toString()).toContain('Created demo')
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it('accepts CLI selectors and asks both choices in interactive mode', async () => {
+    const root = await temp()
+    const output = new PassThrough()
+    const input = new PassThrough() as PassThrough & { isTTY?: boolean }
+    input.isTTY = true
+    const answers = ['showcase', 'tailwind']
+    const questions: string[] = []
+    const readLine = async (question: string): Promise<string> => {
+      questions.push(question)
+      return answers.shift() ?? ''
+    }
+    await expect(runCreate(['interactive-demo', '--cwd', root, '--no-install'], { stdin: input, stdout: output, stderr: output, readLine })).resolves.toBe(0)
+    expect(questions).toEqual(['Project template (starter/showcase): ', 'Client style (css-modules/tailwind/none): '])
+    expect(await readFile(resolve(root, 'interactive-demo/src/api/status.ts'), 'utf8')).toContain('defineApi')
+    expect(await readFile(resolve(root, 'interactive-demo/src/styles.css'), 'utf8')).toContain('prefix(dshx)')
+
+    await expect(runCreate(['bad', '--template', 'full', '--no-install'], { stdin: input, stdout: output, stderr: output })).resolves.toBe(2)
+    await expect(runCreate(['bad', '--style', 'sass', '--no-install'], { stdin: input, stdout: output, stderr: output })).resolves.toBe(2)
     await rm(root, { recursive: true, force: true })
   })
 

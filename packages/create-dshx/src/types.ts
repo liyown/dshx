@@ -31,8 +31,12 @@ export interface FileSystem {
   readonly readFile: (path: string) => Promise<string>
 }
 export type PackageManager = 'pnpm' | 'yarn' | 'npm'
+export type TemplateName = 'starter' | 'showcase'
+export type ProjectStyle = 'css-modules' | 'tailwind' | 'none'
 export interface CreateProjectOptions {
   readonly name: string
+  readonly template?: TemplateName
+  readonly style?: ProjectStyle
   readonly cwd?: string
   readonly install?: boolean
   readonly packageManager?: PackageManager
@@ -45,8 +49,22 @@ export interface CreateProjectOptions {
 export interface CreateProjectResult {
   readonly root: string
   readonly packageId: string
+  readonly template: TemplateName
+  readonly style: ProjectStyle
   readonly files: readonly string[]
   readonly packageManager?: PackageManager
   readonly installed: boolean
   readonly diagnostics: readonly CreateDiagnostic[]
+}
+
+export interface TemplateContext {
+  readonly packageId: string
+  readonly dshxVersion: string
+  readonly dshVersion: string
+  readonly dshRange: string
+}
+
+export interface RenderedTemplateFile {
+  readonly path: string
+  readonly contents: string
 }

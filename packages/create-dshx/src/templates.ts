@@ -1,27 +1,103 @@
-export interface TemplateContext {
-  readonly packageId: string
-  readonly dshxVersion: string
-  readonly dshVersion: string
-  readonly dshRange: string
+import type { ProjectStyle, RenderedTemplateFile, TemplateContext, TemplateName } from './types.js'
+
+type DependencyMap = Readonly<Record<string, string>>
+
+interface TemplateDefinition {
+  readonly label: string
+  readonly description: string
+  readonly clientProviders: readonly string[]
+  readonly devDependencies: (context: TemplateContext) => DependencyMap
+  readonly peerDependencies: (context: TemplateContext) => DependencyMap
+  readonly files: (context: TemplateContext, style: ProjectStyle) => readonly RenderedTemplateFile[]
 }
 
-export const TEMPLATE_FILES = [
-  'src/api/status.ts',
-  'src/settings.ts',
-  'src/host.ts',
-  'src/client.tsx',
-  'src/css-modules.d.ts',
-  'src/Status.module.css',
-  'dshx.config.ts',
-  'package.json',
-  'tsconfig.json',
-  'cordis.patch.yml',
-  'README.md',
-] as const
+interface StyleDefinition {
+  readonly label: string
+  readonly description: string
+  readonly devDependencies: DependencyMap
+  readonly files: () => readonly RenderedTemplateFile[]
+}
 
-export function renderTemplate(path: (typeof TEMPLATE_FILES)[number], context: TemplateContext): string {
-  if (path === 'src/api/status.ts')
-    return `import { defineApi, method } from '@becomeopc/dshx/api'
+const sidebarProvider = '@deepseek-ai/dsh-client-ui-sidebar'
+const connectionProvider = '@deepseek-ai/dsh-client-connection'
+const settingsProvider = '@deepseek-ai/dsh-client-ui-settings'
+
+function packageSlug(packageId: string): string {
+  const candidate = (packageId.split('/').at(-1) ?? 'plugin')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return /^[a-z]/.test(candidate) ? candidate : `plugin-${candidate || 'settings'}`
+}
+
+function toolName(packageId: string): string {
+  return `${packageId.replace(/[^a-zA-Z0-9_-]/g, '_')}_status`
+}
+
+function styleImport(style: ProjectStyle): string {
+  if (style === 'css-modules') return "import styles from './Plugin.module.css'\n"
+  if (style === 'tailwind') return "import './styles.css'\n"
+  return ''
+}
+
+function classAttribute(style: ProjectStyle, cssModule: string, tailwind: string): string {
+  if (style === 'css-modules') return ` className={styles.${cssModule}}`
+  if (style === 'tailwind') return ` className="${tailwind}"`
+  return ''
+}
+
+function renderStarterHost(context: TemplateContext): string {
+  return `import { defineHost, defineTool } from '@becomeopc/dshx/host'
+
+const statusTool = defineTool({
+  name: '${toolName(context.packageId)}',
+  description: 'Return the plugin status.',
+  parameters: {},
+  output: {
+    schema: { type: 'string' },
+    render: (_args, value) => [{ type: 'text', text: value }],
+  },
+  async execute() {
+    return '${context.packageId} is ready'
+  },
+})
+
+export default defineHost({
+  name: '${context.packageId}',
+  tools: [statusTool],
+})
+`
+}
+
+function renderStarterClient(context: TemplateContext, style: ProjectStyle): string {
+  return `import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { defineClient, defineSlot } from '@becomeopc/dshx/client'
+${styleImport(style)}
+function PluginStatus() {
+  return (
+    <section${classAttribute(style, 'card', 'dshx:w-[252px] dshx:rounded-xl dshx:border dshx:border-slate-700 dshx:bg-slate-950 dshx:p-4 dshx:text-slate-100 dshx:shadow-xl')}>
+      <p${classAttribute(style, 'eyebrow', 'dshx:m-0 dshx:text-xs dshx:font-semibold dshx:uppercase dshx:tracking-widest dshx:text-emerald-300')}>DSHX plugin</p>
+      <h2${classAttribute(style, 'title', 'dshx:mt-2 dshx:mb-0 dshx:text-lg dshx:font-semibold')}>${context.packageId}</h2>
+      <p${classAttribute(style, 'body', 'dshx:mt-2 dshx:mb-0 dshx:text-sm dshx:leading-6 dshx:text-slate-300')}>Host and Client are connected.</p>
+    </section>
+  )
+}
+
+const statusSlot = defineSlot('sidebar.footer.action', {
+  id: '${context.packageId}.status',
+  order: 0,
+  component: PluginStatus,
+})
+
+export default defineClient({
+  name: '${context.packageId}',
+  slots: [statusSlot],
+})
+`
+}
+
+function renderStatusApi(): string {
+  return `import { defineApi, method } from '@becomeopc/dshx/api'
 
 export interface Status {
   readonly project: string
@@ -38,26 +114,24 @@ export const statusApi = defineApi({
   },
 })
 `
-  if (path === 'src/settings.ts') {
-    const candidate = (context.packageId.split('/').at(-1) ?? 'plugin')
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/^-+|-+$/g, '')
-    const namespace = /^[a-z]/.test(candidate) ? candidate : `plugin-${candidate || 'settings'}`
-    return `import Schema from '@deepseek-ai/schemastery'
+}
+
+function renderSettings(context: TemplateContext): string {
+  return `import Schema from '@deepseek-ai/schemastery'
 import { defineSettings } from '@becomeopc/dshx/settings'
 
 export const runtimeSettings = defineSettings({
-  namespace: '${namespace}',
+  namespace: '${packageSlug(context.packageId)}',
   schema: Schema.object({
     showActivity: Schema.boolean().default(true),
   }),
   applies: 'live',
 })
 `
-  }
-  if (path === 'src/host.ts')
-    return `import { defineHost, definePromptContext, definePromptSection, defineTool } from '@becomeopc/dshx/host'
+}
+
+function renderShowcaseHost(context: TemplateContext): string {
+  return `import { defineHost, definePromptContext, definePromptSection, defineTool } from '@becomeopc/dshx/host'
 import { statusApi } from './api/status.js'
 import { runtimeSettings } from './settings.js'
 
@@ -65,7 +139,7 @@ const startedAt = new Date().toISOString()
 let requestCount = 0
 
 const statusTool = defineTool({
-  name: '${context.packageId.replace(/[^a-zA-Z0-9_-]/g, '_')}_status',
+  name: '${toolName(context.packageId)}',
   description: 'Return the plugin status.',
   parameters: {},
   output: {
@@ -80,7 +154,7 @@ const statusTool = defineTool({
 const statusGuidance = definePromptSection({
   name: '${context.packageId}:guidance',
   order: 150,
-  text: 'Use the ${context.packageId.replace(/[^a-zA-Z0-9_-]/g, '_')}_status tool when the user asks whether this plugin is running.',
+  text: 'Use the ${toolName(context.packageId)} tool when the user asks whether this plugin is running.',
 })
 
 const runtimeContext = definePromptContext({
@@ -94,400 +168,337 @@ const statusHostApi = statusApi.host({
     return { project: '${context.packageId}', startedAt, requestCount: ++requestCount }
   },
   async refresh({ input }) {
-    return { project: input.force ? '${context.packageId} (refreshed)' : '${context.packageId}', startedAt, requestCount: ++requestCount }
+    return {
+      project: input.force ? '${context.packageId} (refreshed)' : '${context.packageId}',
+      startedAt,
+      requestCount: ++requestCount,
+    }
   },
 })
 
 export default defineHost({
+  name: '${context.packageId}',
   tools: [statusTool],
   prompts: [statusGuidance, runtimeContext],
   settings: [runtimeSettings],
-  api: statusHostApi,
-  setup() {
-    console.info('${context.packageId} Host adapter loaded')
-  },
+  apis: [statusHostApi],
 })
 `
-  if (path === 'src/client.tsx')
-    return `import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { defineClient, defineSlot, useApi, useQuery, useSettings } from '@becomeopc/dshx/client'
+}
+
+function renderShowcaseClient(context: TemplateContext, style: ProjectStyle): string {
+  return `import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { defineClient, defineSlot, useApi, useApiQuery, useSettings } from '@becomeopc/dshx/client'
 import { statusApi } from './api/status.js'
 import { runtimeSettings } from './settings.js'
-import styles from './Status.module.css'
-
-function StatusButton(_props: PropsRuntime<'sidebar.footer.action'>) {
+${styleImport(style)}
+function RuntimeDeck() {
   const api = useApi(statusApi)
-  const status = useQuery(statusApi, 'get')
+  const status = useApiQuery(statusApi, 'get', { enabled: true })
   const settings = useSettings(runtimeSettings)
   const showActivity = settings.value?.showActivity ?? true
-  const refresh = () => { void api.refresh({ force: true }).then(() => status.retry()).catch(() => status.retry()) }
-  const toggleActivity = () => { void settings.set('showActivity', !showActivity).catch(() => undefined) }
+
+  const refresh = () => {
+    void api.refresh({ force: true }).then(() => status.refetch()).catch(() => status.refetch())
+  }
+  const toggleActivity = () => {
+    void settings.set('showActivity', !showActivity).catch(() => undefined)
+  }
+
   return (
-    <details className={styles.deck} open>
-      <summary className={styles.summary} onClick={(event) => event.stopPropagation()}>
-        <span className={styles.brandMark} aria-hidden="true"><span /></span>
-        <span className={styles.summaryCopy}>
-          <strong>DSHX Runtime</strong>
-          <small>Live composition</small>
-        </span>
-        <span className={styles.live}><span aria-hidden="true" />LIVE</span>
-      </summary>
-
-      <div className={styles.body}>
-        <div className={styles.intro}>
-          <h2>Build. Ship. Observe.</h2>
-          <p>Your plugin is running in the active web profile.</p>
+    <section${classAttribute(style, 'deck', 'dshx:w-[252px] dshx:overflow-hidden dshx:rounded-xl dshx:border dshx:border-slate-700 dshx:bg-slate-950 dshx:text-slate-100 dshx:shadow-xl')}>
+      <header${classAttribute(style, 'header', 'dshx:flex dshx:items-center dshx:justify-between dshx:border-b dshx:border-slate-800 dshx:px-4 dshx:py-3')}>
+        <div>
+          <p${classAttribute(style, 'eyebrow', 'dshx:m-0 dshx:text-xs dshx:font-semibold dshx:uppercase dshx:tracking-widest dshx:text-emerald-300')}>DSHX Runtime</p>
+          <h2${classAttribute(style, 'title', 'dshx:mt-1 dshx:mb-0 dshx:text-base dshx:font-semibold')}>${context.packageId}</h2>
         </div>
+        <span${classAttribute(style, 'badge', 'dshx:rounded-full dshx:bg-emerald-400/10 dshx:px-2 dshx:py-1 dshx:text-[10px] dshx:font-bold dshx:text-emerald-300')}>{status.fetchStatus}</span>
+      </header>
 
-        <div className={styles.metrics}>
-          <div><span>Profile</span><strong>web</strong></div>
-          <div><span>Requests</span><strong>{status.data?.requestCount ?? '...'}</strong></div>
-        </div>
+      <div${classAttribute(style, 'body', 'dshx:grid dshx:gap-3 dshx:p-4')}>
+        <p${classAttribute(style, 'message', 'dshx:m-0 dshx:text-sm dshx:text-slate-300')} aria-live="polite">
+          {status.status === 'pending' ? 'Connecting to Host…' : status.status === 'error' ? status.error.message : <>{status.data.project} · {status.data.requestCount} requests</>}
+        </p>
 
-        {showActivity ? (
-          <ol className={styles.activity} aria-label="Runtime activity">
-            <li><span className={styles.activityMark} /><span>{status.loading ? 'Connecting to Host' : status.error ? 'Host unavailable' : 'Host API connected'}</span><time>{status.error ? 'retry' : 'live'}</time></li>
-            <li><span className={styles.activityMark} /><span>Slot registered</span><time>now</time></li>
-            <li><span className={styles.activityMark} /><span>{status.data?.project ?? 'Client syncing'}</span><time>{status.data?.startedAt.slice(11, 19) ?? '...'}</time></li>
-          </ol>
-        ) : null}
+        {showActivity ? <p${classAttribute(style, 'activity', 'dshx:m-0 dshx:rounded-lg dshx:bg-slate-900 dshx:px-3 dshx:py-2 dshx:text-xs dshx:text-slate-400')}>Slot registered. Prompt and Settings are live.</p> : null}
 
-        <div className={styles.settingsControl}>
-          <button type="button" disabled={!settings.writable || settings.mutation.pending} onClick={toggleActivity}>
+        <div${classAttribute(style, 'actions', 'dshx:flex dshx:flex-wrap dshx:gap-2')}>
+          <button${classAttribute(style, 'button', 'dshx:rounded-md dshx:bg-emerald-300 dshx:px-3 dshx:py-2 dshx:text-xs dshx:font-semibold dshx:text-slate-950')} type="button" onClick={refresh}>Refresh</button>
+          <button${classAttribute(style, 'secondaryButton', 'dshx:rounded-md dshx:border dshx:border-slate-700 dshx:bg-transparent dshx:px-3 dshx:py-2 dshx:text-xs dshx:font-semibold dshx:text-slate-200')} type="button" disabled={!settings.writable || settings.mutation.pending} onClick={toggleActivity}>
             {settings.mutation.pending ? 'Saving…' : showActivity ? 'Hide activity' : 'Show activity'}
           </button>
-          {settings.error ? <span role="status">{settings.error.message}</span> : settings.mutation.error ? <span role="status">Setting update failed</span> : null}
         </div>
-
-        <div className={styles.footer}>
-          <span className={styles.footerPulse} aria-hidden="true" />
-          {status.error ? <button type="button" onClick={status.retry}>Retry connection</button> : <button type="button" onClick={refresh}>Refresh Host state</button>}
-        </div>
+        {settings.error ? <p${classAttribute(style, 'error', 'dshx:m-0 dshx:text-xs dshx:text-red-300')} role="status">{settings.error.message}</p> : null}
       </div>
-    </details>
+    </section>
   )
 }
 
-const status = defineSlot('sidebar.footer.action', {
-  id: '${context.packageId}.status',
+const runtimeDeck = defineSlot('sidebar.footer.action', {
+  id: '${context.packageId}.runtime-deck',
   order: 0,
-  component: StatusButton,
+  component: RuntimeDeck,
 })
 
-export default defineClient({ slots: [status] })
+export default defineClient({
+  name: '${context.packageId}',
+  slots: [runtimeDeck],
+})
 `
-  if (path === 'src/css-modules.d.ts')
-    return `declare module '*.module.css' {
+}
+
+const cssModuleDeclaration = `declare module '*.module.css' {
   const classes: Record<string, string>
   export default classes
 }
 `
-  if (path === 'src/Status.module.css')
-    return `.deck {
+
+const cssModuleStyles = `.card,
+.deck {
   width: min(252px, calc(100vw - 28px));
-  overflow: hidden;
-  color: #eff7f5;
-  background: #101b2a;
-  border: 1px solid #2a4050;
-  border-radius: 14px;
-  box-shadow: 0 16px 34px rgba(7, 17, 28, 0.2);
+  color: #f1f5f9;
+  background: #020617;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  box-shadow: 0 16px 34px rgba(2, 6, 23, 0.24);
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-.summary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 54px;
-  padding: 10px 12px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.summary::-webkit-details-marker {
-  display: none;
-}
-
-.summary:focus-visible {
-  outline: 2px solid #6de0c5;
-  outline-offset: -3px;
-}
-
-.brandMark {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  place-items: center;
-  border: 1px solid #2b6870;
-  border-radius: 9px;
-  background: #12343a;
-}
-
-.brandMark span {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #6de0c5;
-  box-shadow: 0 0 0 4px rgba(109, 224, 197, 0.12);
-}
-
-.summaryCopy {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-  flex: 1;
-}
-
-.summaryCopy strong {
-  overflow: hidden;
-  color: #f4fbf9;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.summaryCopy small {
-  color: #93a9b8;
-  font-size: 10px;
-  letter-spacing: 0;
-}
-
-.live {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #6de0c5;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.live span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #6de0c5;
-}
-
-.body {
-  padding: 0 12px 12px;
-}
-
-.intro {
-  padding: 13px 0 12px;
-  border-top: 1px solid #223548;
-}
-
-.intro h2 {
-  margin: 0;
-  color: #f4fbf9;
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-}
-
-.intro p {
-  max-width: 29ch;
-  margin: 6px 0 0;
-  color: #9db0be;
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.metrics {
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 10px;
-  padding: 10px 0;
-  border-top: 1px solid #223548;
-  border-bottom: 1px solid #223548;
-}
-
-.metrics div {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.metrics span {
-  color: #8095a5;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.metrics strong {
-  overflow: hidden;
-  color: #e4f0ed;
-  font-size: 11px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.activity {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 13px 0 12px;
-  list-style: none;
-}
-
-.activity li {
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  color: #c5d4d6;
-  font-size: 10px;
-}
-
-.activityMark {
-  width: 6px;
-  height: 6px;
-  border: 1px solid #6de0c5;
-  border-radius: 50%;
-  background: #163e40;
-}
-
-.activity time {
-  color: #718895;
-  font-size: 9px;
-  font-variant-numeric: tabular-nums;
-}
-
-.footer {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #87a0aa;
-  font-size: 10px;
-}
-
-.settingsControl {
-  display: grid;
-  gap: 6px;
-  padding: 0 0 12px;
-}
-
-.settingsControl button,
-.footer button {
-  width: fit-content;
-  padding: 0;
-  color: #9fd8cb;
-  background: transparent;
-  border: 0;
-  font: inherit;
-  cursor: pointer;
-}
-
-.settingsControl button:disabled {
-  color: #718895;
-  cursor: wait;
-}
-
-.settingsControl span {
-  color: #efb4aa;
-  font-size: 9px;
-  line-height: 1.35;
-}
-
-.footerPulse {
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  background: #efc46d;
-  transform: rotate(45deg);
-}
-
-@media (max-width: 420px) {
-  .deck {
-    width: min(252px, calc(100vw - 20px));
-  }
-}
+.card { padding: 16px; }
+.deck { overflow: hidden; }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #1e293b; }
+.body { display: grid; gap: 12px; padding: 16px; }
+.eyebrow { margin: 0; color: #6ee7b7; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.title { margin: 6px 0 0; color: #f8fafc; font-size: 17px; line-height: 1.25; }
+.card .body, .message, .activity, .error { margin: 8px 0 0; font-size: 12px; line-height: 1.5; }
+.message { margin: 0; color: #cbd5e1; }
+.activity { margin: 0; padding: 8px 10px; color: #94a3b8; background: #0f172a; border-radius: 8px; }
+.error { margin: 0; color: #fca5a5; }
+.badge { padding: 4px 8px; color: #6ee7b7; background: rgba(52, 211, 153, 0.1); border-radius: 999px; font-size: 10px; font-weight: 700; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.button, .secondaryButton { padding: 7px 10px; border-radius: 6px; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.button { color: #020617; background: #6ee7b7; border: 1px solid #6ee7b7; }
+.secondaryButton { color: #e2e8f0; background: transparent; border: 1px solid #475569; }
+.secondaryButton:disabled { opacity: 0.55; cursor: wait; }
 `
-  if (path === 'dshx.config.ts')
-    return `import { defineConfig } from '@becomeopc/dshx/config'
+
+const tailwindStyles = `@layer theme, utilities;
+
+@import "tailwindcss/theme.css"
+  layer(theme)
+  prefix(dshx);
+
+@import "tailwindcss/utilities.css"
+  layer(utilities)
+  source("./")
+  prefix(dshx);
+`
+
+export const STYLE_REGISTRY = {
+  'css-modules': {
+    label: 'CSS Modules',
+    description: 'Scoped CSS through the standard Vite CSS Modules pipeline.',
+    devDependencies: {},
+    files: () => [
+      { path: 'src/css-modules.d.ts', contents: cssModuleDeclaration },
+      { path: 'src/Plugin.module.css', contents: cssModuleStyles },
+    ],
+  },
+  tailwind: {
+    label: 'Tailwind CSS',
+    description: 'Tailwind v4 utilities with a dshx prefix and no Preflight.',
+    devDependencies: {
+      tailwindcss: '^4.3.3',
+      '@tailwindcss/vite': '^4.3.3',
+    },
+    files: () => [{ path: 'src/styles.css', contents: tailwindStyles }],
+  },
+  none: {
+    label: 'No styles',
+    description: 'No stylesheet or styling build dependency.',
+    devDependencies: {},
+    files: () => [],
+  },
+} as const satisfies Record<ProjectStyle, StyleDefinition>
+
+export const TEMPLATE_REGISTRY = {
+  starter: {
+    label: 'Starter',
+    description: 'A minimal Host Tool and visible Client Slot.',
+    clientProviders: [sidebarProvider],
+    devDependencies: context => ({
+      '@becomeopc/dshx': context.dshxVersion,
+      '@deepseek-ai/dsh': context.dshVersion,
+      '@deepseek-ai/dsh-cordis-host-runner': context.dshVersion,
+      '@deepseek-ai/dsh-tool-cordis': context.dshVersion,
+      '@deepseek-ai/dsh-tools': context.dshVersion,
+      [sidebarProvider]: context.dshVersion,
+      '@types/node': '^22.19.0',
+      '@types/react': '~18.3.31',
+      react: '^18.3.1',
+      typescript: '^5.9.3',
+    }),
+    peerDependencies: context => ({
+      '@deepseek-ai/dsh': context.dshRange,
+      '@deepseek-ai/dsh-tools': context.dshRange,
+      [sidebarProvider]: context.dshRange,
+    }),
+    files: (context, style) => [
+      { path: 'src/host.ts', contents: renderStarterHost(context) },
+      { path: 'src/client.tsx', contents: renderStarterClient(context, style) },
+    ],
+  },
+  showcase: {
+    label: 'Showcase',
+    description: 'Tool, Prompt, Settings, typed API, and Runtime Deck Slot.',
+    clientProviders: [connectionProvider, sidebarProvider, settingsProvider],
+    devDependencies: context => ({
+      '@becomeopc/dshx': context.dshxVersion,
+      '@deepseek-ai/dsh': context.dshVersion,
+      '@deepseek-ai/dsh-cordis-host-runner': context.dshVersion,
+      '@deepseek-ai/dsh-tool-cordis': context.dshVersion,
+      '@deepseek-ai/dsh-tools': context.dshVersion,
+      '@deepseek-ai/dsh-system-prompt': context.dshVersion,
+      '@deepseek-ai/dsh-settings': context.dshVersion,
+      '@deepseek-ai/schemastery': '3.18.1',
+      [connectionProvider]: context.dshVersion,
+      [sidebarProvider]: context.dshVersion,
+      [settingsProvider]: context.dshVersion,
+      '@types/node': '^22.19.0',
+      '@types/react': '~18.3.31',
+      react: '^18.3.1',
+      typescript: '^5.9.3',
+    }),
+    peerDependencies: context => ({
+      '@deepseek-ai/dsh': context.dshRange,
+      '@deepseek-ai/dsh-tools': context.dshRange,
+      '@deepseek-ai/dsh-system-prompt': context.dshRange,
+      '@deepseek-ai/dsh-settings': context.dshRange,
+      '@deepseek-ai/schemastery': '^3.18.1',
+      [connectionProvider]: context.dshRange,
+      [sidebarProvider]: context.dshRange,
+      [settingsProvider]: context.dshRange,
+    }),
+    files: (context, style) => [
+      { path: 'src/api/status.ts', contents: renderStatusApi() },
+      { path: 'src/settings.ts', contents: renderSettings(context) },
+      { path: 'src/host.ts', contents: renderShowcaseHost(context) },
+      { path: 'src/client.tsx', contents: renderShowcaseClient(context, style) },
+    ],
+  },
+} as const satisfies Record<TemplateName, TemplateDefinition>
+
+function renderConfig(style: ProjectStyle): string {
+  const tailwindImport = style === 'tailwind' ? "import tailwindcss from '@tailwindcss/vite'\n" : ''
+  const client =
+    style === 'tailwind' ? `client: {\n    entry: 'src/client.tsx',\n    vite: { plugins: [tailwindcss()] },\n  }` : `client: { entry: 'src/client.tsx' }`
+  return `${tailwindImport}import { defineConfig } from '@becomeopc/dshx'
 
 export default defineConfig({
-  profile: 'web',
-  dev: { hostRestart: 'manual' },
+  host: { entry: 'src/host.ts' },
+  ${client},
+  build: {
+    sourcemap: true,
+    declarations: true,
+  },
 })
 `
-  if (path === 'package.json')
-    return `${JSON.stringify(
-      {
-        name: context.packageId,
-        version: '0.0.0',
-        private: true,
-        type: 'module',
-        main: './dist/index.js',
-        exports: {
-          '.': { types: './dist/index.d.ts', default: './dist/index.js' },
-          './client': { types: './dist/client.d.ts', default: './dist/client.js' },
-          './cordis.patch.yml': './cordis.patch.yml',
-          './package.json': './package.json',
-        },
-        files: ['dist', 'cordis.patch.yml'],
-        dsh: {
-          bundle: { patch: './cordis.patch.yml' },
-          client: {
-            platform: 'web',
-            inject: ['@deepseek-ai/dsh-client-connection', '@deepseek-ai/dsh-client-ui-sidebar', '@deepseek-ai/dsh-client-ui-settings'],
-            external: [],
-            immediately: false,
-          },
-        },
-        scripts: { dev: 'dshx dev --open', build: 'dshx build', check: 'dshx check' },
-        devDependencies: {
-          '@becomeopc/dshx': context.dshxVersion,
-          '@deepseek-ai/dsh': context.dshVersion,
-          '@deepseek-ai/cordis': '^4.0.1',
-          '@deepseek-ai/dsh-cordis-host-runner': context.dshVersion,
-          '@deepseek-ai/dsh-tool-cordis': context.dshVersion,
-          '@deepseek-ai/dsh-tools': context.dshVersion,
-          '@deepseek-ai/dsh-system-prompt': context.dshVersion,
-          '@deepseek-ai/dsh-settings': context.dshVersion,
-          '@deepseek-ai/schemastery': '3.18.1',
-          '@deepseek-ai/dsh-client-ui-settings': context.dshVersion,
-          '@deepseek-ai/dsh-client-ui-slots': context.dshVersion,
-          '@deepseek-ai/dsh-client-ui-sidebar': context.dshVersion,
-          '@types/node': '^22.19.0',
-          '@types/react': '~18.3.31',
-          react: '^18.3.1',
-          typescript: '^5.9.3',
-        },
-        peerDependencies: {
-          '@deepseek-ai/dsh': context.dshRange,
-          '@deepseek-ai/dsh-system-prompt': context.dshRange,
-          '@deepseek-ai/dsh-tools': context.dshRange,
-          '@deepseek-ai/dsh-settings': context.dshRange,
-          '@deepseek-ai/schemastery': '^3.18.1',
-          '@deepseek-ai/dsh-client-ui-settings': context.dshRange,
+}
+
+function renderManifest(context: TemplateContext, templateName: TemplateName, style: ProjectStyle): string {
+  const template = TEMPLATE_REGISTRY[templateName]
+  const styleDefinition = STYLE_REGISTRY[style]
+  return `${JSON.stringify(
+    {
+      name: context.packageId,
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      main: './dist/index.js',
+      exports: {
+        '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+        './client': { types: './dist/client.d.ts', default: './dist/client.js' },
+        './cordis.patch.yml': './cordis.patch.yml',
+        './package.json': './package.json',
+      },
+      files: ['dist', 'cordis.patch.yml'],
+      dsh: {
+        bundle: { patch: './cordis.patch.yml' },
+        client: {
+          platform: 'web',
+          inject: [...template.clientProviders],
+          external: [],
+          immediately: false,
         },
       },
-      null,
-      2,
-    )}
+      scripts: {
+        check: 'dshx check',
+        build: 'dshx build',
+        dev: 'dshx dev --open',
+        prepack: 'npm run check && npm run build',
+      },
+      devDependencies: {
+        ...template.devDependencies(context),
+        ...styleDefinition.devDependencies,
+      },
+      peerDependencies: template.peerDependencies(context),
+    },
+    null,
+    2,
+  )}
 `
-  if (path === 'tsconfig.json')
-    return `${JSON.stringify({ compilerOptions: { target: 'ES2024', module: 'NodeNext', moduleResolution: 'NodeNext', preserveSymlinks: true, jsx: 'react-jsx', strict: true, noEmit: true, skipLibCheck: true }, include: ['src/**/*.ts', 'src/**/*.tsx'] }, null, 2)}
+}
+
+function renderTsconfig(): string {
+  return `${JSON.stringify(
+    {
+      compilerOptions: {
+        target: 'ES2024',
+        module: 'NodeNext',
+        moduleResolution: 'NodeNext',
+        preserveSymlinks: true,
+        jsx: 'react-jsx',
+        strict: true,
+        noEmit: true,
+        skipLibCheck: true,
+      },
+      include: ['dshx.config.ts', 'src/**/*.ts', 'src/**/*.tsx'],
+    },
+    null,
+    2,
+  )}
 `
-  if (path === 'cordis.patch.yml')
-    return `- insert:
-    - id: ${context.packageId.replace(/[^a-zA-Z0-9_-]/g, '-')}
-      name: "${context.packageId}"
-`
+}
+
+function renderReadme(context: TemplateContext, template: TemplateName, style: ProjectStyle): string {
   return `# ${context.packageId}
 
-This plugin was created with create-dshx.
+This ${template} plugin was created with create-dshx using ${STYLE_REGISTRY[style].label}.
 
-Run \`pnpm install\` (or your package manager's install command), then \`pnpm dev\`. The dev script starts DSH, opens the web profile in your browser, and serves the Runtime Deck from the generated Client.
+\`\`\`bash
+pnpm install
+pnpm check
+pnpm build
+pnpm dev
+\`\`\`
+
+The \`prepack\` script runs the offline project check and production build before packaging.
 `
+}
+
+/** Compose exactly the feature and style files required by one generated project. */
+export function renderProjectTemplate(context: TemplateContext, templateName: TemplateName, style: ProjectStyle): readonly RenderedTemplateFile[] {
+  const template = TEMPLATE_REGISTRY[templateName]
+  return [
+    ...template.files(context, style),
+    ...STYLE_REGISTRY[style].files(),
+    { path: 'dshx.config.ts', contents: renderConfig(style) },
+    { path: 'package.json', contents: renderManifest(context, templateName, style) },
+    { path: 'tsconfig.json', contents: renderTsconfig() },
+    {
+      path: 'cordis.patch.yml',
+      contents: `- insert:\n    - id: ${context.packageId.replace(/[^a-zA-Z0-9_-]/g, '-')}\n      name: "${context.packageId}"\n`,
+    },
+    { path: 'README.md', contents: renderReadme(context, templateName, style) },
+  ]
 }
