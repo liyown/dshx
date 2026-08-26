@@ -1,2 +1,2 @@
-export { buildHost } from './build.js'
+export { buildHost, watchHost } from './build.js'
 export type { BuildHostOptions, HostBuildResult } from './build.js'

@@ -3,13 +3,12 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DshxError } from '../src/diagnostics.js'
-import { defineConfig, resolveDshxConfig } from '../src/config/index.js'
+import { defineConfig } from '../src/config/index.js'
+import { resolveDshxConfig } from '../src/tooling/index.js'
 
 const temporaryDirectories: string[] = []
 
-async function temporaryProject(
-  manifest: unknown = { name: '@test/plugin', type: 'module' },
-): Promise<{ base: string; root: string }> {
+async function temporaryProject(manifest: unknown = { name: '@test/plugin', type: 'module' }): Promise<{ base: string; root: string }> {
   const base = await realpath(await mkdtemp(resolve(tmpdir(), 'dshx-config-')))
   temporaryDirectories.push(base)
   const root = resolve(base, 'project')
@@ -31,8 +30,27 @@ afterEach(async () => {
 
 describe('defineConfig', () => {
   it('returns the exact config object', () => {
-    const config = { profile: 'web', build: { sourcemap: false } } as const
+    const plugin = { name: 'transform', marker: 123 as const }
+    const config = { profile: 'web', host: { vite: { plugins: [plugin] } }, build: { sourcemap: false } } as const
     expect(defineConfig(config)).toBe(config)
+    expect(defineConfig(config).host.vite.plugins[0].marker).toBe(123)
+
+    if (false) {
+      defineConfig({
+        host: {
+          entry: 'src/host.ts',
+          // @ts-expect-error arbitrary Vite config is outside the bounded kernel
+          root: '/tmp',
+        },
+      })
+      defineConfig({
+        build: {
+          sourcemap: true,
+          // @ts-expect-error nested excess build fields are rejected
+          minify: true,
+        },
+      })
+    }
   })
 })
 
@@ -68,19 +86,22 @@ describe('resolveDshxConfig', () => {
     await source(root, 'src/host.ts')
     const hostEntry = await source(root, 'custom/entry.ts')
     await writeFile(resolve(root, 'config-values.ts'), "export const selectedProfile: string = 'desktop'\n")
-    await writeFile(resolve(root, 'dshx.config.ts'), [
-      "import { selectedProfile } from './config-values.ts'",
-      'export default {',
-      "  name: 'Logical Plugin',",
-      "  host: 'custom/entry.ts',",
-      '  client: false,',
-      '  profile: selectedProfile,',
-      "  dev: { hostRestart: 'auto' },",
-      '  build: { sourcemap: false },',
-      '  compatibility: { allowUnsupported: true },',
-      '}',
-      '',
-    ].join('\n'))
+    await writeFile(
+      resolve(root, 'dshx.config.ts'),
+      [
+        "import { selectedProfile } from './config-values.ts'",
+        'export default {',
+        "  name: 'Logical Plugin',",
+        "  host: { entry: 'custom/entry.ts' },",
+        '  client: false,',
+        '  profile: selectedProfile,',
+        "  dev: { hostRestart: 'auto' },",
+        '  build: { sourcemap: false },',
+        '  compatibility: { allowUnsupported: true },',
+        '}',
+        '',
+      ].join('\n'),
+    )
     await mkdir(resolve(root, 'nested'), { recursive: true })
     await writeFile(resolve(root, 'nested/dshx.config.ts'), "throw new Error('must not load nested config')\n")
 
@@ -92,7 +113,7 @@ describe('resolveDshxConfig', () => {
       hostEntry,
       profile: 'desktop',
       dev: { hostRestart: 'auto' },
-      build: { sourcemap: false },
+      build: { sourcemap: false, declarations: true },
       compatibility: { allowUnsupported: true },
     })
     expect(resolved.clientEntry).toBeUndefined()
@@ -123,6 +144,54 @@ describe('resolveDshxConfig', () => {
     expect(resolved.clientEntry).toBe(clientEntry)
   })
 
+  it('treats an explicit empty face object as enabled and requires its conventional entry', async () => {
+    const { root } = await temporaryProject()
+    await source(root, 'src/client.tsx')
+    await writeFile(resolve(root, 'dshx.config.ts'), 'export default { host: {}, client: false }\n')
+    await expect(resolveDshxConfig({ cwd: root })).rejects.toMatchObject({ code: 'DSHX4005' })
+  })
+
+  it('rejects the removed string entry shorthand with a migration hint', async () => {
+    const { root } = await temporaryProject()
+    await source(root, 'src/host.ts')
+    await writeFile(resolve(root, 'dshx.config.ts'), "export default { host: 'src/host.ts' }\n")
+    await expect(resolveDshxConfig({ cwd: root })).rejects.toMatchObject({
+      code: 'DSHX4004',
+      hint: expect.stringContaining('host: { entry:'),
+    })
+  })
+
+  it('retains per-face Vite plugin instances and rejects sharing one instance', async () => {
+    const valid = await temporaryProject({ name: '@test/valid-plugins', type: 'module' })
+    await source(valid.root, 'src/host.ts')
+    await source(valid.root, 'src/client.tsx')
+    await writeFile(
+      resolve(valid.root, 'dshx.config.ts'),
+      "export default { host: { vite: { plugins: [{ name: 'host-plugin' }] } }, client: { vite: { plugins: [{ name: 'client-plugin' }] } } }\n",
+    )
+    const resolved = await resolveDshxConfig({ cwd: valid.root })
+    expect((resolved.hostVitePlugins?.[0] as { name?: string }).name).toBe('host-plugin')
+    expect((resolved.clientVitePlugins?.[0] as { name?: string }).name).toBe('client-plugin')
+
+    const shared = await temporaryProject({ name: '@test/shared-plugin', type: 'module' })
+    await source(shared.root, 'src/host.ts')
+    await source(shared.root, 'src/client.tsx')
+    await writeFile(
+      resolve(shared.root, 'dshx.config.ts'),
+      "const plugin = { name: 'shared' }; export default { host: { vite: { plugins: [plugin] } }, client: { vite: { plugins: [plugin] } } }\n",
+    )
+    await expect(resolveDshxConfig({ cwd: shared.root })).rejects.toMatchObject({ code: 'DSHX4004', message: expect.stringContaining('same stateful') })
+
+    const promised = await temporaryProject({ name: '@test/promised-shared-plugin', type: 'module' })
+    await source(promised.root, 'src/host.ts')
+    await source(promised.root, 'src/client.tsx')
+    await writeFile(
+      resolve(promised.root, 'dshx.config.ts'),
+      "const plugin = { name: 'shared' }; const promised = Promise.resolve(plugin); export default { host: { vite: { plugins: [promised] } }, client: { vite: { plugins: [promised] } } }\n",
+    )
+    await expect(resolveDshxConfig({ cwd: promised.root })).rejects.toMatchObject({ code: 'DSHX4004', message: expect.stringContaining('same stateful') })
+  })
+
   it('rejects projects with no enabled or discovered entry', async () => {
     const { root } = await temporaryProject()
     await expect(resolveDshxConfig({ cwd: root })).rejects.toMatchObject({ code: 'DSHX4006' })
@@ -137,11 +206,13 @@ describe('resolveDshxConfig', () => {
   })
 
   it.each([
-    ["export default { typo: true }\n", 'unknown field'],
+    ['export default { typo: true }\n', 'unknown field'],
     ["export default { build: { sourcemap: 'yes' } }\n", 'sourcemap'],
+    ["export default { build: { declarations: 'yes' } }\n", 'declarations'],
+    ["export default { host: { vite: { root: '/tmp' } } }\n", 'unknown field'],
     ["export default { dev: { hostRestart: 'sometimes' } }\n", 'hostRestart'],
-    ["export default { dev: { typo: true } }\n", 'unknown field'],
-    ["export default []\n", 'default-export'],
+    ['export default { dev: { typo: true } }\n', 'unknown field'],
+    ['export default []\n', 'default-export'],
   ])('rejects invalid config: %s', async (config, message) => {
     const { root } = await temporaryProject()
     await source(root, 'src/host.ts')
@@ -156,7 +227,7 @@ describe('resolveDshxConfig', () => {
 
   it('rejects a missing explicit entry with an actionable file and hint', async () => {
     const { root } = await temporaryProject()
-    await writeFile(resolve(root, 'dshx.config.ts'), "export default { host: 'src/missing.ts' }\n")
+    await writeFile(resolve(root, 'dshx.config.ts'), "export default { host: { entry: 'src/missing.ts' } }\n")
     const failure = await resolveDshxConfig({ cwd: root }).catch((error: unknown) => error)
     expect(failure).toBeInstanceOf(DshxError)
     expect(failure).toMatchObject({
@@ -169,7 +240,7 @@ describe('resolveDshxConfig', () => {
   it('rejects an explicit entry outside the project root', async () => {
     const { base, root } = await temporaryProject()
     await writeFile(resolve(base, 'outside.ts'), 'export function apply() {}\n')
-    await writeFile(resolve(root, 'dshx.config.ts'), "export default { host: '../outside.ts' }\n")
+    await writeFile(resolve(root, 'dshx.config.ts'), "export default { host: { entry: '../outside.ts' } }\n")
     await expect(resolveDshxConfig({ cwd: root })).rejects.toMatchObject({
       code: 'DSHX4005',
       message: expect.stringContaining('inside the project root'),

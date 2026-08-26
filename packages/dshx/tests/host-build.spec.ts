@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { Plugin } from 'vite'
 import { buildHost } from '../src/compiler/index.js'
-import { startHostWatcher } from '../src/compiler/host/build.js'
+import { watchHost } from '../src/compiler/host/build.js'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const fixtureRoot = resolve(packageRoot, '../../fixtures/phase-a')
@@ -244,7 +245,7 @@ describe('host compiler', () => {
     )
     await writeFile(resolve(root, 'src/host-helper.ts'), "export default 'dshx-host'\n")
 
-    await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist' })
+    const report = await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist' })
 
     const code = await readFile(resolve(root, 'dist/index.js'), 'utf8')
     const map = JSON.parse(await readFile(resolve(root, 'dist/index.js.map'), 'utf8')) as {
@@ -256,6 +257,9 @@ describe('host compiler', () => {
     expect(code).toMatch(/sourceMappingURL=index\.js\.map/)
     expect(map.sources.some(source => source.endsWith('/src/host.ts') || source.endsWith('src/host.ts'))).toBe(true)
     expect(map.sourcesContent?.some(source => source?.includes('export const name') === true)).toBe(true)
+    expect(report).toMatchObject({ face: 'host', entryFile: 'index.js' })
+    expect(report.output).toEqual(expect.arrayContaining([{ fileName: 'index.d.ts', type: 'declaration' }]))
+    expect(await readFile(resolve(root, 'dist/index.d.ts'), 'utf8')).toContain('export declare function apply(ctx: Context')
   })
 
   it('builds a client-only project with the standard no-op Host entry', async () => {
@@ -297,6 +301,42 @@ describe('host compiler', () => {
     expect(ctx.received).toBe(config)
   })
 
+  it('runs Host transforms but rejects protected kernel overrides', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/host.ts'), "export const name = 'host-before'\nexport function apply() {}\n")
+    const transform: Plugin = {
+      name: 'host-transform',
+      transform(code, id) {
+        return id.endsWith('/src/host.ts') ? code.replace('host-before', 'host-after') : null
+      },
+    }
+    await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist', vite: { plugins: [transform] } })
+    expect(await readFile(resolve(root, 'dist/index.js'), 'utf8')).toContain('host-after')
+
+    const override: Plugin = { name: 'host-output-override', config: () => ({ build: { rollupOptions: { output: { format: 'cjs' } } } }) }
+    await expect(buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist', vite: { plugins: [override] } })).rejects.toThrow(
+      'DSHX1403',
+    )
+
+    const corrupt: Plugin = { name: 'corrupt-host-protocol', renderChunk: () => 'export const broken = true' }
+    await expect(buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist', vite: { plugins: [corrupt] } })).rejects.toThrow(
+      'DSHX1302',
+    )
+  })
+
+  it('can omit generated artifact declarations explicitly', async () => {
+    const root = await temporaryProject()
+    const report = await buildHost({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/host.ts',
+      outDir: 'dist',
+      declarations: false,
+    })
+    expect(report.output.some(item => item.type === 'declaration')).toBe(false)
+    await expect(readFile(resolve(root, 'dist/index.d.ts'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('does not remove an existing Client artifact in the shared output directory', async () => {
     const root = await temporaryProject()
     await mkdir(resolve(root, 'dist'), { recursive: true })
@@ -312,12 +352,11 @@ describe('host compiler', () => {
       sourcePath,
       "import { defineHost } from '@becomeopc/dshx/host'\nexport default defineHost({ setup() { return 'Phase A has no Host behavior' } })\n",
     )
-    const result = await buildHost({
+    const result = await watchHost({
       packageId: '@dshx/phase-a-fixture',
       root,
       entry: 'src/host.ts',
       outDir: 'dist',
-      watch: true,
     })
     if (!('on' in result) || !('close' in result)) throw new Error('watch build did not return a watcher')
     const events: string[] = []
@@ -368,7 +407,7 @@ describe('host compiler', () => {
     const root = await temporaryProject()
     const sourcePath = resolve(root, 'src/host.ts')
     await writeFile(sourcePath, 'export const = broken\n')
-    const watcher = await startHostWatcher({
+    const watcher = await watchHost({
       packageId: '@dshx/phase-a-fixture',
       root,
       entry: 'src/host.ts',

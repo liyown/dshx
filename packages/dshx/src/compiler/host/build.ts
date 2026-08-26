@@ -4,6 +4,8 @@ import { isAbsolute, relative, resolve } from 'node:path'
 import { build, type InlineConfig, type Plugin } from 'vite'
 import { DshxError } from '../../diagnostics.js'
 import type { DshCompatibility } from '../../compat/types.js'
+import { artifactDeclarationPlugin, buildReport, buildWatcher, kernelBoundaryPlugin, resolveUserPlugins } from '../kernel.js'
+import type { BuildReport, BuildWatcher, ViteExtensionOptions } from '../types.js'
 import { isHostExternal, singleHostChunkPlugin } from './guards.js'
 
 const VIRTUAL_HOST_ENTRY = '\0virtual:dshx-host-entry'
@@ -14,6 +16,7 @@ const DSHX_SETTINGS_PUBLIC = '@becomeopc/dshx/settings'
 const HOST_RUNTIME_PATH = fileURLToPath(new URL('../../host/runtime.js', import.meta.url))
 const HOST_DEFINE_PATH = fileURLToPath(new URL('../../host/define.js', import.meta.url))
 const API_DEFINE_PATH = fileURLToPath(new URL('../../api/define.js', import.meta.url))
+const API_RUNTIME_PATH = fileURLToPath(new URL('../../api/runtime.js', import.meta.url))
 const SETTINGS_DEFINE_PATH = fileURLToPath(new URL('../../settings/define.js', import.meta.url))
 
 /** Options for producing one Node ESM Host bundle. */
@@ -24,24 +27,12 @@ export interface BuildHostOptions {
   readonly entry?: string
   readonly root?: string
   readonly sourcemap?: boolean
-  readonly watch?: boolean
+  readonly declarations?: boolean
+  readonly vite?: ViteExtensionOptions
   readonly compatibility?: DshCompatibility
 }
 
-/** Vite result for a one-shot Host build or an active watch build. */
-export type HostBuildResult = Exclude<Awaited<ReturnType<typeof build>>, readonly unknown[]>
-
-/** Minimal watcher contract shared with the internal dev process orchestrator. */
-export interface DshxBuildWatcher {
-  on(event: 'event', listener: (event: DshxBuildEvent) => void): DshxBuildWatcher
-  close(): Promise<void>
-}
-
-/** Rollup/Rolldown watcher events normalized at the compiler boundary. */
-export type DshxBuildEvent =
-  | { readonly code: 'START' | 'BUNDLE_START' | 'END' }
-  | { readonly code: 'BUNDLE_END'; readonly duration?: number; readonly output?: readonly string[] }
-  | { readonly code: 'ERROR'; readonly error: unknown }
+export type HostBuildResult = BuildReport
 
 function isInside(parent: string, child: string): boolean {
   const path = relative(parent, child)
@@ -74,14 +65,18 @@ function hostEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, opti
         ].join('\n')
       }
       if (id === `${VIRTUAL_HOST_PUBLIC}-api`) {
-        return `export { defineApi, method } from ${JSON.stringify(API_DEFINE_PATH)}\n`
+        return [
+          `export { defineApi, method } from ${JSON.stringify(API_DEFINE_PATH)}`,
+          `export { isApiError } from ${JSON.stringify(API_RUNTIME_PATH)}`,
+          '',
+        ].join('\n')
       }
       if (id === `${VIRTUAL_HOST_PUBLIC}-settings`) {
         return `export { defineSettings } from ${JSON.stringify(SETTINGS_DEFINE_PATH)}\n`
       }
       if (id !== VIRTUAL_HOST_ENTRY) return null
       if (paths.entry === undefined) {
-        return `export const name = ${JSON.stringify(name)}\nexport function apply() {}\n`
+        return `export const name = ${JSON.stringify(name)}\nexport const inject = undefined\nexport const Config = undefined\nexport function apply() {}\n`
       }
       const metadata = {
         packageId: options.packageId,
@@ -129,75 +124,68 @@ async function resolveOptions(options: BuildHostOptions) {
   return { root, entry, outDir }
 }
 
-function hostConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildHostOptions): InlineConfig {
+async function hostConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildHostOptions, watch: boolean): Promise<InlineConfig> {
+  const external = (source: string): boolean =>
+    source !== DSHX_HOST_PUBLIC && source !== DSHX_API_PUBLIC && source !== DSHX_SETTINGS_PUBLIC && isHostExternal(source)
+  const assetsInlineLimit = (): boolean => true
+  const output = {
+    format: 'es',
+    entryFileNames: 'index.js',
+    codeSplitting: false,
+    exports: 'named',
+  } as const
+  const userPlugins = await resolveUserPlugins(options.vite?.plugins, watch)
   return {
     root: paths.root,
     configFile: false,
+    publicDir: false,
     appType: 'custom',
-    mode: 'production',
+    mode: watch ? 'development' : 'production',
     logLevel: 'error',
-    plugins: [hostEntryPlugin(paths, options), singleHostChunkPlugin()],
+    plugins: [
+      hostEntryPlugin(paths, options),
+      ...userPlugins,
+      artifactDeclarationPlugin('host', paths.outDir, options.declarations ?? true),
+      kernelBoundaryPlugin({ face: 'host', root: paths.root, input: VIRTUAL_HOST_ENTRY, target: 'es2024', assetsInlineLimit, external, output }),
+      singleHostChunkPlugin(),
+    ],
     build: {
       target: 'es2024',
       outDir: paths.outDir,
       emptyOutDir: false,
       copyPublicDir: false,
+      assetsInlineLimit,
       minify: false,
       sourcemap: options.sourcemap ?? true,
       watch: null,
       rollupOptions: {
         input: VIRTUAL_HOST_ENTRY,
         preserveEntrySignatures: 'strict',
-        external: source => source !== DSHX_HOST_PUBLIC && source !== DSHX_API_PUBLIC && source !== DSHX_SETTINGS_PUBLIC && isHostExternal(source),
-        output: {
-          format: 'es',
-          entryFileNames: 'index.js',
-          codeSplitting: false,
-          exports: 'named',
-        },
+        external,
+        output,
       },
     },
   }
 }
 
-function normalizeWatcher(result: Awaited<ReturnType<typeof build>>): DshxBuildWatcher {
-  const candidate = result as unknown as { on?: unknown; close?: unknown }
-  if (Array.isArray(result) || typeof result !== 'object' || result === null || typeof candidate.on !== 'function' || typeof candidate.close !== 'function') {
-    throw new DshxError('DSHX1305', 'Expected one Host watcher result.', {
-      hint: 'Restart the dev session after updating the DSHX compiler.',
-    })
-  }
-  return result as unknown as DshxBuildWatcher
-}
-
 /** Start a Host watcher without awaiting a successful initial build. */
-export async function startHostWatcher(options: BuildHostOptions): Promise<DshxBuildWatcher> {
+export async function watchHost(options: BuildHostOptions): Promise<BuildWatcher> {
   const paths = await resolveOptions(options)
-  const config = hostConfig(paths, options)
-  return normalizeWatcher(
+  const config = await hostConfig(paths, options, true)
+  return buildWatcher(
     await build({
       ...config,
       build: { ...config.build, watch: {} },
     }),
+    'host',
+    'DSHX1305',
   )
 }
 
 /** Build a DSH-compatible Host entry as one Node ESM file. */
 export async function buildHost(options: BuildHostOptions): Promise<HostBuildResult> {
   const paths = await resolveOptions(options)
-  const config = hostConfig(paths, options)
-
-  if (options.watch === true) {
-    await build(config)
-    return (await startHostWatcher(options)) as unknown as HostBuildResult
-  }
-  return normalizeBuildResult(await build(config))
-}
-
-function normalizeBuildResult(result: Awaited<ReturnType<typeof build>>): HostBuildResult {
-  if (Array.isArray(result)) {
-    if (result.length === 1 && result[0] !== undefined) return result[0]
-    throw new DshxError('DSHX1304', `Expected one Host build result, received ${result.length}.`)
-  }
-  return result
+  const config = await hostConfig(paths, options, false)
+  const declarations = options.declarations ?? true
+  return buildReport(await build(config), 'host', 'index.js', paths.outDir, declarations, 'DSHX1304')
 }

@@ -5,26 +5,30 @@ import { build, type InlineConfig, type Plugin } from 'vite'
 import { DEFAULT_COMPATIBILITY } from '../../compat/index.js'
 import type { DshCompatibility } from '../../compat/types.js'
 import { DshxError } from '../../diagnostics.js'
+import { artifactDeclarationPlugin, buildReport, buildWatcher, kernelBoundaryPlugin, resolveUserPlugins } from '../kernel.js'
+import type { BuildReport, BuildWatcher, ViteExtensionOptions } from '../types.js'
 import { clientCssPlugin } from './css.js'
 import { clientUsesConversationComponents } from './capabilities.js'
 import { clientGuardPlugin, singleClientChunkPlugin } from './guards.js'
 
 const VIRTUAL_CLIENT_ENTRY = '\0virtual:dshx-client-entry'
 const VIRTUAL_CLIENT_PUBLIC = '\0virtual:dshx-client-public'
+const VIRTUAL_CLIENT_API_HOOKS = '\0virtual:dshx-client-api-hooks'
+const VIRTUAL_CLIENT_SETTINGS_HOOK = '\0virtual:dshx-client-settings-hook'
 const DSHX_CLIENT_PUBLIC = '@becomeopc/dshx/client'
 const DSHX_API_PUBLIC = '@becomeopc/dshx/api'
 const DSHX_SETTINGS_PUBLIC = '@becomeopc/dshx/settings'
-const DSHX_CONVERSATION_PUBLIC = '@becomeopc/dshx/conversation'
+const DSHX_CONVERSATION_PUBLIC = '@becomeopc/dshx/experimental/conversation'
 const SETTINGS_PROVIDER_PACKAGE = '@deepseek-ai/dsh-client-ui-settings'
-const SETTINGS_HOOK_MARKER = 'dshx.settings-hook.v1'
 const SETTINGS_CAPABILITY_GLOBAL = '__DSHX_CLIENT_SETTINGS_CAPABILITY__'
 const API_PROVIDER_PACKAGE = '@deepseek-ai/dsh-client-connection'
-const API_HOOK_MARKER = 'dshx.api-hook.v1'
 const API_CAPABILITY_GLOBAL = '__DSHX_CLIENT_API_CAPABILITY__'
 const CONVERSATION_PROVIDER_PACKAGES = ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation'] as const
 const CLIENT_RUNTIME_PATH = fileURLToPath(new URL('../../client/runtime.js', import.meta.url))
+const CLIENT_DEFINE_PATH = fileURLToPath(new URL('../../client/define.js', import.meta.url))
 const CLIENT_API_PATH = fileURLToPath(new URL('../../api/client.js', import.meta.url))
 const API_DEFINE_PATH = fileURLToPath(new URL('../../api/define.js', import.meta.url))
+const API_RUNTIME_PATH = fileURLToPath(new URL('../../api/runtime.js', import.meta.url))
 const SETTINGS_DEFINE_PATH = fileURLToPath(new URL('../../settings/define.js', import.meta.url))
 const SETTINGS_CLIENT_PATH = fileURLToPath(new URL('../../settings/client.js', import.meta.url))
 const CONVERSATION_DEFINE_PATH = fileURLToPath(new URL('../../conversation/define.js', import.meta.url))
@@ -37,27 +41,15 @@ export interface BuildClientOptions {
   readonly outDir: string
   readonly root?: string
   readonly sourcemap?: boolean
-  readonly watch?: boolean
+  readonly declarations?: boolean
+  readonly vite?: ViteExtensionOptions
   readonly external?: readonly string[]
   /** Package edges declared by dsh.client.inject. */
   readonly inject?: readonly string[]
   readonly compatibility?: DshCompatibility
 }
 
-/** Vite result for a one-shot build or an active watch build. */
-export type ClientBuildResult = Exclude<Awaited<ReturnType<typeof build>>, readonly unknown[]>
-
-/** Minimal watcher contract shared with the internal dev process orchestrator. */
-export interface DshxBuildWatcher {
-  on(event: 'event', listener: (event: DshxBuildEvent) => void): DshxBuildWatcher
-  close(): Promise<void>
-}
-
-/** Rollup/Rolldown watcher events normalized at the compiler boundary. */
-export type DshxBuildEvent =
-  | { readonly code: 'START' | 'BUNDLE_START' | 'END' }
-  | { readonly code: 'BUNDLE_END'; readonly duration?: number; readonly output?: readonly string[] }
-  | { readonly code: 'ERROR'; readonly error: unknown }
+export type ClientBuildResult = BuildReport
 
 function isInside(parent: string, child: string): boolean {
   const path = relative(parent, child)
@@ -72,37 +64,56 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
     resolveId(source) {
       if (
         source === VIRTUAL_CLIENT_ENTRY ||
+        source === VIRTUAL_CLIENT_API_HOOKS ||
+        source === VIRTUAL_CLIENT_SETTINGS_HOOK ||
         source === DSHX_CLIENT_PUBLIC ||
         source === DSHX_API_PUBLIC ||
         source === DSHX_SETTINGS_PUBLIC ||
         source === DSHX_CONVERSATION_PUBLIC
       ) {
-        return source === DSHX_CLIENT_PUBLIC
-          ? VIRTUAL_CLIENT_PUBLIC
-          : source === DSHX_API_PUBLIC
-            ? `${VIRTUAL_CLIENT_PUBLIC}-api`
-            : source === DSHX_SETTINGS_PUBLIC
-              ? `${VIRTUAL_CLIENT_PUBLIC}-settings`
-              : source === DSHX_CONVERSATION_PUBLIC
-                ? `${VIRTUAL_CLIENT_PUBLIC}-conversation`
-                : VIRTUAL_CLIENT_ENTRY
+        return source === VIRTUAL_CLIENT_API_HOOKS || source === VIRTUAL_CLIENT_SETTINGS_HOOK
+          ? source
+          : source === DSHX_CLIENT_PUBLIC
+            ? VIRTUAL_CLIENT_PUBLIC
+            : source === DSHX_API_PUBLIC
+              ? `${VIRTUAL_CLIENT_PUBLIC}-api`
+              : source === DSHX_SETTINGS_PUBLIC
+                ? `${VIRTUAL_CLIENT_PUBLIC}-settings`
+                : source === DSHX_CONVERSATION_PUBLIC
+                  ? `${VIRTUAL_CLIENT_PUBLIC}-conversation`
+                  : VIRTUAL_CLIENT_ENTRY
       }
       return null
     },
     load(id) {
       if (id === VIRTUAL_CLIENT_PUBLIC)
         return [
-          'export function defineClient(definition) { return definition }',
-          'export function defineSlot(name, options) {',
-          '  const { component, ...registration } = options',
-          '  return { name, options: registration, component }',
-          '}',
-          `export { useApi, useQuery, createApiClient } from ${JSON.stringify(CLIENT_API_PATH)}`,
-          `export { useSettings } from ${JSON.stringify(SETTINGS_CLIENT_PATH)}`,
+          `export { defineClient, defineSlot } from ${JSON.stringify(CLIENT_DEFINE_PATH)}`,
+          `export { useApi, useApiQuery } from ${JSON.stringify(VIRTUAL_CLIENT_API_HOOKS)}`,
+          `export { useSettings } from ${JSON.stringify(VIRTUAL_CLIENT_SETTINGS_HOOK)}`,
           '',
         ].join('\n')
+      if (id === VIRTUAL_CLIENT_API_HOOKS) {
+        return [
+          `import { useApi as useApiImplementation, useApiQuery as useApiQueryImplementation } from ${JSON.stringify(CLIENT_API_PATH)}`,
+          'export function useApi(...args) { return useApiImplementation(...args) }',
+          'export function useApiQuery(...args) { return useApiQueryImplementation(...args) }',
+          '',
+        ].join('\n')
+      }
+      if (id === VIRTUAL_CLIENT_SETTINGS_HOOK) {
+        return [
+          `import { useSettings as useSettingsImplementation } from ${JSON.stringify(SETTINGS_CLIENT_PATH)}`,
+          'export function useSettings(...args) { return useSettingsImplementation(...args) }',
+          '',
+        ].join('\n')
+      }
       if (id === `${VIRTUAL_CLIENT_PUBLIC}-api`) {
-        return `export { defineApi, method } from ${JSON.stringify(API_DEFINE_PATH)}\n`
+        return [
+          `export { defineApi, method } from ${JSON.stringify(API_DEFINE_PATH)}`,
+          `export { isApiError } from ${JSON.stringify(API_RUNTIME_PATH)}`,
+          '',
+        ].join('\n')
       }
       if (id === `${VIRTUAL_CLIENT_PUBLIC}-settings`) {
         return `export { defineSettings } from ${JSON.stringify(SETTINGS_DEFINE_PATH)}\n`
@@ -136,24 +147,25 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
 function clientCapabilitiesPlugin(options: BuildClientOptions): Plugin {
   return {
     name: 'dshx-client-capabilities',
-    renderChunk(code, chunk) {
-      if (!chunk.isEntry) return null
-      const settingsRetained = code.includes(JSON.stringify(SETTINGS_HOOK_MARKER)) || code.includes(`'${SETTINGS_HOOK_MARKER}'`)
-      const apiRetained = code.includes(JSON.stringify(API_HOOK_MARKER)) || code.includes(`'${API_HOOK_MARKER}'`)
+    enforce: 'post',
+    generateBundle(_output, bundle) {
+      const chunk = Object.values(bundle).find(item => item.type === 'chunk' && item.isEntry)
+      if (chunk === undefined || chunk.type !== 'chunk') return
+      const settingsRetained = Object.hasOwn(chunk.modules, VIRTUAL_CLIENT_SETTINGS_HOOK)
+      const apiRetained = Object.hasOwn(chunk.modules, VIRTUAL_CLIENT_API_HOOKS)
       if (settingsRetained && !(options.inject ?? []).includes(SETTINGS_PROVIDER_PACKAGE)) {
         throw new DshxError('DSHX1203', 'useSettings() requires the official Settings Scope provider package edge.', {
           hint: `Add ${JSON.stringify(SETTINGS_PROVIDER_PACKAGE)} to package.json dsh.client.inject, then rebuild.`,
         })
       }
       if (apiRetained && !(options.inject ?? []).includes(API_PROVIDER_PACKAGE)) {
-        throw new DshxError('DSHX1203', 'useApi()/useQuery() requires the official Client Connection provider package edge.', {
+        throw new DshxError('DSHX1203', 'useApi()/useApiQuery() requires the official Client Connection provider package edge.', {
           hint: `Add ${JSON.stringify(API_PROVIDER_PACKAGE)} to package.json dsh.client.inject, then rebuild.`,
         })
       }
       const settingsExpression = new RegExp(`globalThis\\[["']${SETTINGS_CAPABILITY_GLOBAL}["']\\]\\s*===\\s*true`, 'g')
       const apiExpression = new RegExp(`globalThis\\[["']${API_CAPABILITY_GLOBAL}["']\\]\\s*===\\s*true`, 'g')
-      const next = code.replace(settingsExpression, settingsRetained ? 'true' : 'false').replace(apiExpression, apiRetained ? 'true' : 'false')
-      return next === code ? null : { code: next, map: null }
+      chunk.code = chunk.code.replace(settingsExpression, settingsRetained ? 'true' : 'false').replace(apiExpression, apiRetained ? 'true' : 'false')
     },
   }
 }
@@ -189,26 +201,52 @@ async function resolveOptions(options: BuildClientOptions) {
   return { root, entry, outDir }
 }
 
-function clientConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildClientOptions): InlineConfig {
+async function clientConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildClientOptions, watch: boolean): Promise<InlineConfig> {
   const compatibility = options.compatibility ?? DEFAULT_COMPATIBILITY
   const externals = new Set([...compatibility.client.platformModules, ...compatibility.client.preloadedExternals, ...(options.external ?? [])])
+  const external = (source: string): boolean => externals.has(source)
+  const assetsInlineLimit = (): boolean => true
+  const output = {
+    format: 'cjs',
+    entryFileNames: 'client.js',
+    codeSplitting: false,
+    exports: 'named',
+    banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(options.packageId)}, factory: (require) => {`,
+    intro: 'var module = { exports: {} }; var exports = module.exports;',
+    footer: 'return module.exports; } });',
+  } as const
+  const userPlugins = await resolveUserPlugins(options.vite?.plugins, watch)
+  const mode = watch ? 'development' : 'production'
   return {
     root: paths.root,
     configFile: false,
+    publicDir: false,
     appType: 'custom',
-    mode: 'production',
+    mode,
     logLevel: 'error',
     plugins: [
       clientEntryPlugin(paths, options),
       clientGuardPlugin(externals, options.packageId),
-      clientCssPlugin(options.packageId, paths.root),
+      ...userPlugins,
+      artifactDeclarationPlugin('client', paths.outDir, options.declarations ?? true),
+      clientCssPlugin(options.packageId, paths.outDir),
       clientCapabilitiesPlugin(options),
+      kernelBoundaryPlugin({
+        face: 'client',
+        root: paths.root,
+        input: VIRTUAL_CLIENT_ENTRY,
+        target: 'es2024',
+        assetsInlineLimit,
+        external,
+        output,
+        cssCodeSplit: false,
+      }),
       singleClientChunkPlugin(),
     ],
     define: {
-      'process.env.NODE_ENV': JSON.stringify('production'),
-      'import.meta.env.MODE': JSON.stringify('production'),
-      'import.meta.env': JSON.stringify({ MODE: 'production' }),
+      'process.env.NODE_ENV': JSON.stringify(mode),
+      'import.meta.env.MODE': JSON.stringify(mode),
+      'import.meta.env': JSON.stringify({ MODE: mode }),
     },
     oxc: {
       jsx: {
@@ -221,47 +259,33 @@ function clientConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, options
       outDir: paths.outDir,
       emptyOutDir: false,
       copyPublicDir: false,
+      cssCodeSplit: false,
+      assetsInlineLimit,
       minify: false,
       sourcemap: options.sourcemap ?? true,
       watch: null,
       rollupOptions: {
         input: VIRTUAL_CLIENT_ENTRY,
         preserveEntrySignatures: 'strict',
-        external: source => externals.has(source),
-        output: {
-          format: 'cjs',
-          entryFileNames: 'client.js',
-          codeSplitting: false,
-          exports: 'named',
-          banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(options.packageId)}, factory: (require) => {`,
-          intro: 'var module = { exports: {} }; var exports = module.exports;',
-          footer: 'return module.exports; } });',
-        },
+        external,
+        output,
       },
     },
   }
 }
 
-function normalizeWatcher(result: Awaited<ReturnType<typeof build>>): DshxBuildWatcher {
-  const candidate = result as unknown as { on?: unknown; close?: unknown }
-  if (Array.isArray(result) || typeof result !== 'object' || result === null || typeof candidate.on !== 'function' || typeof candidate.close !== 'function') {
-    throw new DshxError('DSHX1104', 'Expected one Client watcher result.', {
-      hint: 'Restart the dev session after updating the DSHX compiler.',
-    })
-  }
-  return result as unknown as DshxBuildWatcher
-}
-
 /** Start a Client watcher without awaiting a successful initial build. */
-export async function startClientWatcher(options: BuildClientOptions): Promise<DshxBuildWatcher> {
+export async function watchClient(options: BuildClientOptions): Promise<BuildWatcher> {
   const paths = await resolveOptions(options)
   await validateConversationProviderEdges(paths, options)
-  const config = clientConfig(paths, options)
-  return normalizeWatcher(
+  const config = await clientConfig(paths, options, true)
+  return buildWatcher(
     await build({
       ...config,
       build: { ...config.build, watch: {} },
     }),
+    'client',
+    'DSHX1104',
   )
 }
 
@@ -269,19 +293,7 @@ export async function startClientWatcher(options: BuildClientOptions): Promise<D
 export async function buildClient(options: BuildClientOptions): Promise<ClientBuildResult> {
   const paths = await resolveOptions(options)
   await validateConversationProviderEdges(paths, options)
-  const config = clientConfig(paths, options)
-
-  if (options.watch === true) {
-    await build(config)
-    return (await startClientWatcher(options)) as unknown as ClientBuildResult
-  }
-  return normalizeBuildResult(await build(config))
-}
-
-function normalizeBuildResult(result: Awaited<ReturnType<typeof build>>): ClientBuildResult {
-  if (Array.isArray(result)) {
-    if (result.length === 1 && result[0] !== undefined) return result[0]
-    throw new DshxError('DSHX1103', `Expected one Client build result, received ${result.length}.`)
-  }
-  return result
+  const config = await clientConfig(paths, options, false)
+  const declarations = options.declarations ?? true
+  return buildReport(await build(config), 'client', 'client.js', paths.outDir, declarations, 'DSHX1103')
 }

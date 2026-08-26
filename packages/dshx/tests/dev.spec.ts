@@ -1,9 +1,10 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { DSH_0_1_COMPATIBILITY } from '../src/compat/index.js'
-import type { ResolvedDshxConfig } from '../src/config/index.js'
+import type { BuildHostOptions } from '../src/compiler/host/build.js'
+import type { ResolvedDshxConfig } from '../src/tooling/index.js'
 import { startDevSession } from '../src/dev/index.js'
-import type { DevBuildEvent, DevChildProcess, DevEvent, DevWatcher } from '../src/dev/index.js'
+import type { DevBuildEvent, DevChildProcess, DevEvent, DevProjectWatcher, DevWatcher } from '../src/dev/index.js'
 import type { PreparedProjectProfile } from '../src/profile/index.js'
 
 class FakeWatcher extends EventEmitter implements DevWatcher {
@@ -39,6 +40,19 @@ class FakeChild extends EventEmitter implements DevChildProcess {
 
   exit(code: number | null, signal: string | null = null): void {
     this.emit('exit', code, signal)
+  }
+}
+
+class FakeProjectWatcher implements DevProjectWatcher {
+  close = vi.fn(async () => undefined)
+
+  constructor(
+    readonly files: readonly string[],
+    private readonly onChange: (file: string) => void,
+  ) {}
+
+  change(file: string): void {
+    this.onChange(file)
   }
 }
 
@@ -236,11 +250,17 @@ describe('development process orchestration', () => {
         return prepared(projectValue)
       },
       hostWatcher: async options => {
-        expect(options).toMatchObject({ root: projectValue.root, entry: projectValue.hostEntry, outDir: projectValue.outDir, logicalName: projectValue.name, watch: true })
+        expect(options).toMatchObject({
+          root: projectValue.root,
+          entry: projectValue.hostEntry,
+          outDir: projectValue.outDir,
+          logicalName: projectValue.name,
+          declarations: true,
+        })
         return host
       },
       clientWatcher: async options => {
-        expect(options).toMatchObject({ root: projectValue.root, entry: projectValue.clientEntry, watch: true, external: ['@test/runtime'] })
+        expect(options).toMatchObject({ root: projectValue.root, entry: projectValue.clientEntry, declarations: true, external: ['@test/runtime'] })
         return client
       },
       child: async (childProject, args, env) => {
@@ -362,7 +382,9 @@ describe('development process orchestration', () => {
     const host = new FakeWatcher()
     const lateChild = new FakeChild()
     let resolveChild: ((child: DevChildProcess) => void) | undefined
-    const pendingChild = new Promise<DevChildProcess>(resolve => { resolveChild = resolve })
+    const pendingChild = new Promise<DevChildProcess>(resolve => {
+      resolveChild = resolve
+    })
     const session = await startDevSession(projectValue, {
       ensureProfile: async () => prepared(projectValue),
       hostWatcher: async () => host,
@@ -373,7 +395,9 @@ describe('development process orchestration', () => {
     expect(session.state.dshProcess).toBe('starting')
 
     let closeResolved = false
-    const closing = session.close().then(() => { closeResolved = true })
+    const closing = session.close().then(() => {
+      closeResolved = true
+    })
     await flush()
     expect(closeResolved).toBe(false)
     resolveChild?.(lateChild)
@@ -385,11 +409,15 @@ describe('development process orchestration', () => {
   it('closes an already-created watcher when a later watcher cannot start', async () => {
     const projectValue = project()
     const host = new FakeWatcher()
-    await expect(startDevSession(projectValue, {
-      ensureProfile: async () => prepared(projectValue),
-      hostWatcher: async () => host,
-      clientWatcher: async () => { throw new Error('watch unavailable') },
-    })).rejects.toMatchObject({ code: 'DSHX4405' })
+    await expect(
+      startDevSession(projectValue, {
+        ensureProfile: async () => prepared(projectValue),
+        hostWatcher: async () => host,
+        clientWatcher: async () => {
+          throw new Error('watch unavailable')
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'DSHX4405' })
     expect(host.close).toHaveBeenCalledTimes(1)
   })
 
@@ -410,6 +438,125 @@ describe('development process orchestration', () => {
       child: async () => new FakeChild(),
     })
     expect(session.diagnostics).toEqual([warning])
+    await session.close()
+  })
+
+  it('atomically switches compiler watchers and DSH, then re-arms changed config dependencies', async () => {
+    const initial: ResolvedDshxConfig = {
+      ...project('host'),
+      configFile: '/project/plugin/dshx.config.ts',
+      configDependencies: ['/project/plugin/config/initial.ts'],
+    }
+    const next: ResolvedDshxConfig = {
+      ...initial,
+      hostEntry: '/project/plugin/src/next-host.ts',
+      configDependencies: ['/project/plugin/config/next.ts'],
+    }
+    const compilerWatchers: FakeWatcher[] = []
+    const compilerOptions: BuildHostOptions[] = []
+    const projectWatchers: FakeProjectWatcher[] = []
+    const children: Array<{ child: FakeChild; project: ResolvedDshxConfig }> = []
+    const resolveProject = vi.fn(async () => next)
+    const session = await startDevSession(initial, {
+      preparedProfile: prepared(initial),
+      ensureProfile: async candidate => prepared(candidate),
+      resolveProject,
+      hostWatcher: async options => {
+        compilerOptions.push(options)
+        const watcher = new FakeWatcher()
+        compilerWatchers.push(watcher)
+        return watcher
+      },
+      projectWatcher: async (files, onChange) => {
+        const watcher = new FakeProjectWatcher(files, onChange)
+        projectWatchers.push(watcher)
+        return watcher
+      },
+      child: async childProject => {
+        const child = new FakeChild()
+        children.push({ child, project: childProject })
+        return child
+      },
+    })
+
+    expect(projectWatchers[0]?.files).toEqual(['/project/plugin/dshx.config.ts', '/project/plugin/package.json', '/project/plugin/config/initial.ts'])
+    compilerWatchers[0]?.build({ code: 'BUNDLE_END' })
+    await flush()
+    expect(children).toHaveLength(1)
+
+    projectWatchers[0]?.change(initial.packageFile)
+    await vi.waitFor(() => expect(compilerWatchers).toHaveLength(2))
+    await vi.waitFor(() => expect(projectWatchers).toHaveLength(2))
+    expect(resolveProject).toHaveBeenCalledWith({ cwd: initial.root })
+    expect(compilerOptions[1]?.entry).toBe(next.hostEntry)
+    expect(compilerWatchers[0]?.close).toHaveBeenCalledTimes(1)
+    expect(projectWatchers[0]?.close).toHaveBeenCalledTimes(1)
+    expect(children[0]?.child.signals).toEqual(['SIGTERM'])
+    expect(projectWatchers[1]?.files).toEqual(['/project/plugin/dshx.config.ts', '/project/plugin/package.json', '/project/plugin/config/next.ts'])
+
+    compilerWatchers[1]?.build({ code: 'BUNDLE_END' })
+    await vi.waitFor(() => expect(children).toHaveLength(2))
+    expect(children[1]?.project.hostEntry).toBe(next.hostEntry)
+    await session.close()
+  })
+
+  it('keeps the last-good session alive after reload failure and recovers on the next dependency change', async () => {
+    const initial: ResolvedDshxConfig = {
+      ...project('host'),
+      configFile: '/project/plugin/dshx.config.ts',
+      configDependencies: ['/project/plugin/config/runtime.ts'],
+    }
+    const next: ResolvedDshxConfig = {
+      ...initial,
+      name: '@test/plugin-recovered',
+      configDependencies: ['/project/plugin/config/recovered.ts'],
+    }
+    const compilerWatchers: FakeWatcher[] = []
+    const projectWatchers: FakeProjectWatcher[] = []
+    const children: FakeChild[] = []
+    const resolveProject = vi.fn().mockRejectedValueOnce(new Error('invalid imported config')).mockResolvedValue(next)
+    const session = await startDevSession(initial, {
+      preparedProfile: prepared(initial),
+      ensureProfile: async candidate => prepared(candidate),
+      resolveProject,
+      hostWatcher: async () => {
+        const watcher = new FakeWatcher()
+        compilerWatchers.push(watcher)
+        return watcher
+      },
+      projectWatcher: async (files, onChange) => {
+        const watcher = new FakeProjectWatcher(files, onChange)
+        projectWatchers.push(watcher)
+        return watcher
+      },
+      child: async () => {
+        const child = new FakeChild()
+        children.push(child)
+        return child
+      },
+    })
+    compilerWatchers[0]?.build({ code: 'BUNDLE_END' })
+    await flush()
+
+    projectWatchers[0]?.change('/project/plugin/config/runtime.ts')
+    await vi.waitFor(() => expect(session.diagnostics.at(-1)?.code).toBe('DSHX4407'))
+    expect(session.diagnostics.at(-1)?.message).toContain('last-good development session is still active')
+    expect(compilerWatchers).toHaveLength(1)
+    expect(compilerWatchers[0]?.close).not.toHaveBeenCalled()
+    expect(projectWatchers[0]?.close).not.toHaveBeenCalled()
+    expect(children[0]?.signals).toEqual([])
+    expect(session.state.dshProcess).toBe('running')
+
+    projectWatchers[0]?.change('/project/plugin/config/runtime.ts')
+    await vi.waitFor(() => expect(compilerWatchers).toHaveLength(2))
+    await vi.waitFor(() => expect(projectWatchers).toHaveLength(2))
+    expect(resolveProject).toHaveBeenCalledTimes(2)
+    expect(projectWatchers[1]?.files).toContain('/project/plugin/config/recovered.ts')
+    expect(compilerWatchers[0]?.close).toHaveBeenCalledTimes(1)
+    expect(children[0]?.signals).toEqual(['SIGTERM'])
+
+    compilerWatchers[1]?.build({ code: 'BUNDLE_END' })
+    await vi.waitFor(() => expect(children).toHaveLength(2))
     await session.close()
   })
 })

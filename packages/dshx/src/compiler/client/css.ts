@@ -1,72 +1,56 @@
-import { readFile } from 'node:fs/promises'
-import { basename, dirname, relative, resolve, sep } from 'node:path'
-import { transform } from 'lightningcss'
+import { readFile, writeFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import type { Plugin } from 'vite'
+import { DshxError } from '../../diagnostics.js'
 
-const MODULE_PREFIX = '\0dshx-css-module:'
-const GLOBAL_PREFIX = '\0dshx-css-global:'
-const VIRTUAL_SUFFIX = '.mjs'
-
-function stylesheetPath(source: string, importer: string | undefined): string {
-  return importer === undefined ? source : resolve(dirname(importer), source)
+interface CssAsset {
+  readonly type: 'asset'
+  readonly fileName: string
+  readonly source: string | Uint8Array
 }
 
-function stableStyleId(projectRoot: string, file: string): string {
-  const projectPath = relative(projectRoot, file).split(sep).join('/')
-  return projectPath.startsWith('../') ? basename(file) : projectPath
+function cssSource(asset: CssAsset): string {
+  return typeof asset.source === 'string' ? asset.source : Buffer.from(asset.source).toString('utf8')
 }
 
-function injectionModule(packageId: string, styleId: string, css: string, classMap?: Readonly<Record<string, string>>): string {
-  const tagId = `${packageId}/${styleId}`
-  const lines = [
-    `const css = ${JSON.stringify(css)};`,
-    `const tagId = ${JSON.stringify(tagId)};`,
-    "if (typeof document !== 'undefined' && document.querySelector('style[data-plugin-css=' + JSON.stringify(tagId) + ']') === null) {",
-    "  const tag = document.createElement('style');",
-    `  tag.dataset.plugin = ${JSON.stringify(packageId)};`,
-    '  tag.dataset.pluginCss = tagId;',
-    '  tag.textContent = css;',
-    '  document.head.appendChild(tag);',
-    '}',
-    classMap === undefined ? 'export {};' : `export default ${JSON.stringify(classMap)};`,
-  ]
-  return lines.join('\n')
+function materializer(packageId: string, css: string): string {
+  if (css === '') return ''
+  const styleId = `${packageId}/client.css`
+  return `if(typeof document!=="undefined"){const styleId=${JSON.stringify(styleId)};if(document.querySelector("style[data-plugin-css="+JSON.stringify(styleId)+"]")===null){const style=document.createElement("style");style.dataset.plugin=${JSON.stringify(packageId)};style.dataset.pluginCss=styleId;style.textContent=${JSON.stringify(css)};document.head.appendChild(style)}}`
 }
 
-/** Compile CSS into lazy-factory-owned JavaScript modules. */
-export function clientCssPlugin(packageId: string, projectRoot: string): Plugin {
+/** Fold Vite's one native CSS asset into the lazy Client factory. */
+export function clientCssPlugin(packageId: string, outDir: string): Plugin {
+  let pendingMaterializer = ''
   return {
-    name: 'dshx-client-css',
-    enforce: 'pre',
-    resolveId(source, importer) {
-      if (source.endsWith('.module.css')) {
-        return MODULE_PREFIX + stylesheetPath(source, importer) + VIRTUAL_SUFFIX
+    name: 'dshx-client-css-fold',
+    enforce: 'post',
+    generateBundle(_options, bundle) {
+      const chunks = Object.values(bundle).filter(item => item.type === 'chunk' && item.isEntry)
+      if (chunks.length !== 1) return
+      const css = Object.entries(bundle).filter(([, item]) => item.type === 'asset' && item.fileName.endsWith('.css')) as unknown as Array<[string, CssAsset]>
+      if (css.length > 1) {
+        throw new DshxError('DSHX1102', `A DSH Client build emitted multiple CSS assets: ${css.map(([, asset]) => asset.fileName).join(', ')}.`, {
+          hint: 'Keep cssCodeSplit disabled and combine styles through the standard Vite CSS graph.',
+        })
       }
-      if (source.endsWith('.css')) {
-        return GLOBAL_PREFIX + stylesheetPath(source, importer) + VIRTUAL_SUFFIX
-      }
-      return null
+      const chunk = chunks[0]
+      if (chunk === undefined || chunk.type !== 'chunk') return
+      pendingMaterializer = css[0] === undefined ? '' : materializer(packageId, cssSource(css[0][1]))
+      if (css[0] !== undefined) delete bundle[css[0][0]]
     },
-    async load(id) {
-      const isModule = id.startsWith(MODULE_PREFIX)
-      const prefix = isModule ? MODULE_PREFIX : GLOBAL_PREFIX
-      if (!id.startsWith(prefix)) return null
-
-      const file = id.slice(prefix.length, -VIRTUAL_SUFFIX.length)
-      this.addWatchFile(file)
-      const source = await readFile(file)
-      const result = transform({
-        filename: file,
-        code: source,
-        minify: true,
-        ...(isModule ? { cssModules: { pattern: '[hash]_[local]' } } : {}),
-      })
-
-      const classMap: Record<string, string> = {}
-      for (const [local, value] of Object.entries(result.exports ?? {}).sort(([left], [right]) => left.localeCompare(right))) {
-        classMap[local] = value.name
-      }
-      return injectionModule(packageId, stableStyleId(projectRoot, file), result.code.toString(), isModule ? classMap : undefined)
+    async writeBundle() {
+      if (pendingMaterializer === '') return
+      const file = resolve(outDir, 'client.js')
+      const code = await readFile(file, 'utf8')
+      const marker = 'return module.exports;'
+      const offset = code.lastIndexOf(marker)
+      if (offset < 0) throw new DshxError('DSHX1102', 'The lazy Client factory return marker is missing from client.js.')
+      const lineStart = code.lastIndexOf('\n', offset) + 1
+      const indentation = code.slice(lineStart, offset)
+      // Insertion occurs after all mapped module code and immediately before the
+      // generated factory return, so existing source mappings remain aligned.
+      await writeFile(file, `${code.slice(0, lineStart)}${indentation}${pendingMaterializer}\n${code.slice(lineStart)}`, 'utf8')
     },
   }
 }

@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
-import { afterEach, describe, expect, it } from 'vitest'
-import { buildClient } from '../src/compiler/index.js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { Plugin } from 'vite'
+import { buildClient, watchClient } from '../src/compiler/index.js'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const fixtureRoot = resolve(packageRoot, '../../fixtures/phase-a')
@@ -14,6 +15,8 @@ async function temporaryProject(): Promise<string> {
   const directory = await mkdtemp(resolve(tmpdir(), 'dshx-phase-a-'))
   temporaryDirectories.push(directory)
   await cp(fixtureRoot, directory, { recursive: true })
+  const clientEntry = resolve(directory, 'src/client.tsx')
+  await writeFile(clientEntry, (await readFile(clientEntry, 'utf8')).replaceAll('useQuery', 'useApiQuery'))
   return directory
 }
 
@@ -85,8 +88,8 @@ describe('client compiler', () => {
     })
     expect(styles).toHaveLength(1)
     expect(styles[0]?.dataset.plugin).toBe('@dshx/phase-a-fixture')
-    expect(styles[0]?.dataset.pluginCss).toContain('src/Status.module.css')
-    expect(styles[0]?.textContent).toContain('background:#101b2a')
+    expect(styles[0]?.dataset.pluginCss).toBe('@dshx/phase-a-fixture/client.css')
+    expect(styles[0]?.textContent).toContain('background: #101b2a')
     const registered: unknown[] = []
     const clientPlugin = plugin as unknown as { name: string; inject: readonly string[]; apply(ctx: unknown): unknown }
     expect(clientPlugin.name).toBe('@dshx/phase-a-fixture')
@@ -145,17 +148,15 @@ describe('client compiler', () => {
       resolve(root, 'src/client.tsx'),
       [
         "import { defineClient } from '@becomeopc/dshx/client'",
-        "import { defineConversation } from '@becomeopc/dshx/conversation'",
+        "import { defineConversation } from '@becomeopc/dshx/experimental/conversation'",
         'const component = () => null',
         'const review = defineConversation({',
         "  kind: 'review-job',",
         "  events: { 'review/job-started': { role: 'start', id: () => 'review-job' } },",
+        '  initial(_context, event) { return event.data },',
+        '  project(state) { return { data: state } },',
         '})',
-        'const contribution = review.component({',
-        '  initial({ event }) { return event.data },',
-        '  view({ state }) { return { data: state } },',
-        '  component,',
-        '})',
+        'const contribution = review.render(component)',
         'export default defineClient({ conversations: [contribution] })',
         '',
       ].join('\n'),
@@ -169,8 +170,9 @@ describe('client compiler', () => {
     })
 
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
-    expect(code).toContain('dshx.conversation-component.v1')
-    expect(code).not.toContain('@becomeopc/dshx/conversation')
+    expect(code).not.toContain('dshx.conversation-component.v1')
+    expect(code).toContain('getConversationContributionParts')
+    expect(code).not.toContain('@becomeopc/dshx/experimental/conversation')
     const registration: { factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } = {} as never
     vm.runInNewContext(code, {
       window: { __ModuleLoader__: { load: (value: typeof registration) => Object.assign(registration, value) } },
@@ -229,7 +231,7 @@ describe('client compiler', () => {
       resolve(root, 'src/client.tsx'),
       [
         "import { defineClient } from '@becomeopc/dshx/client'",
-        "import { defineConversation } from '@becomeopc/dshx/conversation'",
+        "import { defineConversation } from '@becomeopc/dshx/experimental/conversation'",
         'void defineConversation',
         'export default defineClient({ setup() {} })',
         '',
@@ -244,7 +246,7 @@ describe('client compiler', () => {
       resolve(root, 'src/client.tsx'),
       [
         "import { defineClient } from '@becomeopc/dshx/client'",
-        "import { defineConversation } from '@becomeopc/dshx/conversation'",
+        "import { defineConversation } from '@becomeopc/dshx/experimental/conversation'",
         'const review = defineConversation({',
         "  kind: 'review-job',",
         "  events: { 'review/job-started': { role: 'start', id: () => 'review-job' } },",
@@ -399,7 +401,7 @@ describe('client compiler', () => {
       inject: ['@deepseek-ai/dsh-client-ui-settings'],
     })
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
-    expect(code).toContain('dshx.settings-hook.v1')
+    expect(code).not.toContain('dshx.settings-hook.v1')
     expect(code).toContain('settingsCapability: true')
     expect(code).not.toContain('@becomeopc/dshx/settings')
 
@@ -463,7 +465,7 @@ describe('client compiler', () => {
       inject: ['@deepseek-ai/dsh-client-connection'],
     })
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
-    expect(code).toContain('dshx.api-hook.v1')
+    expect(code).not.toContain('dshx.api-hook.v1')
     expect(code).toContain('apiCapability: true')
     expect(code).not.toContain('@becomeopc/dshx/api')
     expect(code).not.toContain('@becomeopc/dshx/client')
@@ -476,15 +478,15 @@ describe('client compiler', () => {
     expect(plugin.inject).toEqual(['slots', 'connection'])
   })
 
-  it('infers Connection when useQuery retains useApi internally', async () => {
+  it('infers Connection when useApiQuery retains useApi internally', async () => {
     const root = await temporaryProject()
     await writeFile(
       resolve(root, 'src/client.tsx'),
       [
         "import { defineApi, method } from '@becomeopc/dshx/api'",
-        "import { defineClient, defineSlot, useQuery } from '@becomeopc/dshx/client'",
+        "import { defineClient, defineSlot, useApiQuery } from '@becomeopc/dshx/client'",
         "const status = defineApi({ id: 'status', version: 1, methods: { get: method() } })",
-        "function Status() { useQuery(status, 'get'); return null }",
+        "function Status() { useApiQuery(status, 'get'); return null }",
         "export default defineClient({ slots: [defineSlot('status', { component: Status })] })",
         '',
       ].join('\n'),
@@ -497,7 +499,7 @@ describe('client compiler', () => {
       inject: ['@deepseek-ai/dsh-client-connection'],
     })
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
-    expect(code).toContain('dshx.api-hook.v1')
+    expect(code).not.toContain('dshx.api-hook.v1')
     expect(code).toContain('apiCapability: true')
   })
 
@@ -511,6 +513,120 @@ describe('client compiler', () => {
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
     expect(code).not.toContain('dshx.api-hook.v1')
     expect(code).toContain('apiCapability: false')
+  })
+
+  it('derives capabilities from retained module metadata rather than marker-like user strings', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      [
+        "import { defineClient } from '@becomeopc/dshx/client'",
+        "export const labels = ['dshx.api-hook.v1', 'dshx.settings-hook.v1']",
+        'export default defineClient({ setup() { return labels.length } })',
+        '',
+      ].join('\n'),
+    )
+    await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
+    expect(code).toContain('dshx.api-hook.v1')
+    expect(code).toContain('apiCapability: false')
+    expect(code).toContain('settingsCapability: false')
+  })
+
+  it('runs user transforms inside the bounded Vite kernel', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/client.tsx'), "export const name = 'transform-before'\nexport function apply() {}\n")
+    const plugin: Plugin = {
+      name: 'test-transform',
+      transform(code, id) {
+        return id.endsWith('/src/client.tsx') ? code.replace('transform-before', 'transform-after') : null
+      },
+    }
+    const report = await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+      vite: { plugins: [[false, plugin]] },
+    })
+    expect(await readFile(resolve(root, 'dist/client.js'), 'utf8')).toContain('transform-after')
+    expect(report).toMatchObject({ face: 'client', entryFile: 'client.js' })
+    expect(report.output).toEqual(expect.arrayContaining([{ fileName: 'client.d.ts', type: 'declaration' }]))
+    expect(await readFile(resolve(root, 'dist/client.d.ts'), 'utf8')).toContain('export declare function apply(ctx: Context')
+  })
+
+  it('inlines local resources and leaves no standalone assets', async () => {
+    const root = await temporaryProject()
+    await writeFile(resolve(root, 'src/icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="2" cy="2" r="2"/></svg>')
+    await writeFile(resolve(root, 'src/client.tsx'), "import icon from './icon.svg'\nexport const name = icon\nexport function apply() {}\n")
+    const report = await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    expect(await readFile(resolve(root, 'dist/client.js'), 'utf8')).toContain('data:image/svg+xml')
+    expect(report.output.filter(item => item.type === 'asset' && !item.fileName.endsWith('.map'))).toEqual([])
+  })
+
+  it('rejects protected config overrides and unsupported emitted assets', async () => {
+    const root = await temporaryProject()
+    const override: Plugin = { name: 'override-target', config: () => ({ build: { target: 'es2018' } }) }
+    await expect(
+      buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist', vite: { plugins: [override] } }),
+    ).rejects.toThrow('DSHX1403')
+
+    const emit: Plugin = {
+      name: 'emit-asset',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'unsupported.txt', source: 'nope' })
+      },
+    }
+    await expect(
+      buildClient({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/client.tsx',
+        outDir: 'dist',
+        inject: ['@deepseek-ai/dsh-client-connection'],
+        vite: { plugins: [emit] },
+      }),
+    ).rejects.toThrow('DSHX1102')
+
+    const corrupt: Plugin = { name: 'corrupt-client-protocol', renderChunk: () => 'module.exports = {}' }
+    await expect(
+      buildClient({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/client.tsx',
+        outDir: 'dist',
+        inject: ['@deepseek-ai/dsh-client-connection'],
+        vite: { plugins: [corrupt] },
+      }),
+    ).rejects.toThrow('DSHX1101')
+  })
+
+  it('rejects dev-server-only plugins from build-watch', async () => {
+    const root = await temporaryProject()
+    await expect(
+      watchClient({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/client.tsx',
+        outDir: 'dist',
+        vite: { plugins: [{ name: 'serve-only', apply: 'serve' }] },
+      }),
+    ).rejects.toThrow('DSHX1402')
+  })
+
+  it('allows a build plugin to expose an unused configureServer hook', async () => {
+    const root = await temporaryProject()
+    const configureServer = vi.fn()
+    const watcher = await watchClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+      inject: ['@deepseek-ai/dsh-client-connection'],
+      vite: { plugins: [{ name: 'build-with-optional-server-hook', configureServer, transform: () => null }] },
+    })
+    await watcher.close()
+    expect(configureServer).not.toHaveBeenCalled()
   })
 
   it('fails a retained API hook without its official provider package edge', async () => {
@@ -545,12 +661,11 @@ describe('client compiler', () => {
 
   it('rewrites the client artifact after a watched source change', async () => {
     const root = await temporaryProject()
-    const result = await buildClient({
+    const result = await watchClient({
       packageId: '@dshx/phase-a-fixture',
       root,
       entry: 'src/client.tsx',
       outDir: 'dist',
-      watch: true,
       inject: ['@deepseek-ai/dsh-client-connection'],
     })
     if (!('on' in result) || !('close' in result)) throw new Error('watch build did not return a watcher')

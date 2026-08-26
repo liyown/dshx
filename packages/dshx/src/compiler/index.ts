@@ -1,4 +1,5 @@
-export { buildClient } from './client/build.js'
+export { buildClient, watchClient } from './client/build.js'
 export type { BuildClientOptions, ClientBuildResult } from './client/build.js'
-export { buildHost } from './host/build.js'
+export { buildHost, watchHost } from './host/build.js'
 export type { BuildHostOptions, HostBuildResult } from './host/build.js'
+export type { BuildArtifact, BuildEvent, BuildReport, BuildWatcher, ViteExtensionOptions } from './types.js'

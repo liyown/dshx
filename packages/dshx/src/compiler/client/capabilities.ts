@@ -89,7 +89,7 @@ function sourceCapabilities(source: string, file: string): SourceCapabilityAnaly
       for (const element of bindings.elements) {
         const importedName = element.propertyName?.text ?? element.name.text
         if (importedName === 'useSettings') settingsHookNames.add(element.name.text)
-        if (importedName === 'useApi' || importedName === 'useQuery') apiHookNames.add(element.name.text)
+        if (importedName === 'useApi' || importedName === 'useApiQuery') apiHookNames.add(element.name.text)
       }
     }
   }
@@ -111,7 +111,7 @@ function sourceCapabilities(source: string, file: string): SourceCapabilityAnaly
         ts.isPropertyAccessExpression(expression) &&
         ts.isIdentifier(expression.expression) &&
         namespaces.has(expression.expression.text) &&
-        (expression.name.text === 'useApi' || expression.name.text === 'useQuery')
+        (expression.name.text === 'useApi' || expression.name.text === 'useApiQuery')
       )
         api = true
     }

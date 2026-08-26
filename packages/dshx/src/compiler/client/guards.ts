@@ -1,6 +1,7 @@
 import { isBuiltin } from 'node:module'
-import type { Plugin } from 'vite'
+import type { Plugin, Rollup } from 'vite'
 import { DshxError } from '../../diagnostics.js'
+import { containsPrivateDshxImport } from '../private-imports.js'
 
 const INLINE_SAFE = /^@deepseek-ai\/dsh-(host-apiproxy|file-reference|session|llm|tools|brand)(\/|$)/
 const VENDORED_LIBRARY = /^@deepseek-ai\/(cosmokit|schemastery)(\/|$)/
@@ -30,18 +31,40 @@ export function clientGuardPlugin(externals: ReadonlySet<string>, packageId: str
 
 /** Fail when a build violates the selected DSH client bundle protocol. */
 export function singleClientChunkPlugin(): Plugin {
+  const validate = (bundle: Rollup.OutputBundle): void => {
+    const chunks = Object.values(bundle).filter(output => output.type === 'chunk')
+    const assets = Object.values(bundle).filter(output => output.type === 'asset')
+    if (chunks.length !== 1 || chunks[0]?.isEntry !== true) {
+      throw new DshxError('DSHX1101', 'A DSH Client build must emit exactly one JavaScript entry chunk.')
+    }
+    const chunk = chunks[0]
+    const requiredExports = ['Config', 'apply', 'inject', 'name']
+    const missingExports = requiredExports.filter(name => !chunk.exports.includes(name))
+    const hasLoader = /window\.__ModuleLoader__\.load\(\{\s*id\s*:/.test(chunk.code)
+    const hasFactory = /factory\s*:\s*\(require\)\s*=>\s*\{/.test(chunk.code)
+    const hasReturn = /return\s+module\.exports\s*;\s*\}\s*\}\s*\)\s*;?/.test(chunk.code)
+    const missingAssignments = requiredExports.filter(name => !new RegExp(`\\bexports\\.${name}\\s*=`).test(chunk.code))
+    if (missingExports.length > 0 || missingAssignments.length > 0 || !hasLoader || !hasFactory || !hasReturn) {
+      throw new DshxError('DSHX1101', 'A Vite plugin corrupted the DSH lazy Client factory protocol.', {
+        hint: `Preserve the ModuleLoader wrapper and the ${requiredExports.join(', ')} exports; avoid replacing the final chunk in renderChunk/generateBundle.`,
+      })
+    }
+    if (containsPrivateDshxImport(chunk.code)) {
+      throw new DshxError('DSHX1101', 'The DSH Client artifact retained a private DSHX runtime import.')
+    }
+    const unexpectedAssets = assets.filter(asset => !asset.fileName.endsWith('.js.map'))
+    if (unexpectedAssets.length > 0) {
+      throw new DshxError('DSHX1102', `A DSH Client build emitted unsupported assets: ${unexpectedAssets.map(asset => asset.fileName).join(', ')}.`)
+    }
+  }
   return {
     name: 'dshx-single-client-chunk',
-    generateBundle(_options, bundle) {
-      const chunks = Object.values(bundle).filter(output => output.type === 'chunk')
-      const assets = Object.values(bundle).filter(output => output.type === 'asset')
-      if (chunks.length !== 1 || chunks[0]?.isEntry !== true) {
-        throw new DshxError('DSHX1101', 'A DSH Client build must emit exactly one JavaScript entry chunk.')
-      }
-      const unexpectedAssets = assets.filter(asset => !asset.fileName.endsWith('.js.map'))
-      if (unexpectedAssets.length > 0) {
-        throw new DshxError('DSHX1102', `A DSH Client build emitted unsupported assets: ${unexpectedAssets.map(asset => asset.fileName).join(', ')}.`)
-      }
+    enforce: 'post',
+    generateBundle: {
+      order: 'post',
+      handler(_options, bundle) {
+        validate(bundle)
+      },
     },
   }
 }

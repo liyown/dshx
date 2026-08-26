@@ -2,11 +2,14 @@ import { access, readFile, realpath } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { loadConfigFromFile } from 'vite'
 import { DshxError } from '../diagnostics.js'
+import { resolveVitePlugins } from './vite-plugins.js'
 import type { DshxConfig, ResolvedDshxConfig, ResolveDshxConfigOptions } from './types.js'
 
 const CONFIG_FILENAME = 'dshx.config.ts'
 const PACKAGE_FILENAME = 'package.json'
 const TOP_LEVEL_KEYS = new Set(['name', 'host', 'client', 'profile', 'dev', 'build', 'compatibility'])
+const FACE_KEYS = new Set(['entry', 'vite'])
+const VITE_KEYS = new Set(['plugins'])
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -95,7 +98,30 @@ function validateConfig(value: unknown, file: string): DshxConfig {
   optionalNonEmptyString(value.profile, 'profile', file)
   for (const field of ['host', 'client'] as const) {
     const candidate = value[field]
-    if (candidate !== undefined && candidate !== false) optionalNonEmptyString(candidate, field, file)
+    if (candidate === undefined || candidate === false) continue
+    if (!isObject(candidate)) {
+      throw new DshxError('DSHX4004', `${field} must be false or an object.`, {
+        file,
+        hint: `Replace the removed string shorthand with ${field}: { entry: "src/${field}.ts${field === 'client' ? 'x' : ''}" }.`,
+      })
+    }
+    rejectUnknownKeys(candidate, FACE_KEYS, field, file)
+    optionalNonEmptyString(candidate.entry, `${field}.entry`, file)
+    if (candidate.vite !== undefined) {
+      if (!isObject(candidate.vite)) {
+        throw new DshxError('DSHX4004', `${field}.vite must be an object.`, {
+          file,
+          hint: `Use ${field}: { vite: { plugins: [plugin()] } }.`,
+        })
+      }
+      rejectUnknownKeys(candidate.vite, VITE_KEYS, `${field}.vite`, file)
+      if (candidate.vite.plugins !== undefined && !Array.isArray(candidate.vite.plugins)) {
+        throw new DshxError('DSHX4004', `${field}.vite.plugins must be an array of Vite PluginOption values.`, {
+          file,
+          hint: 'Call each plugin factory separately for Host and Client.',
+        })
+      }
+    }
   }
 
   if (value.dev !== undefined) {
@@ -112,13 +138,19 @@ function validateConfig(value: unknown, file: string): DshxConfig {
   }
   if (value.build !== undefined) {
     if (!isObject(value.build)) {
-      throw new DshxError('DSHX4004', 'build must be an object.', { file, hint: 'Use build: { sourcemap: true | false }.' })
+      throw new DshxError('DSHX4004', 'build must be an object.', { file, hint: 'Use build: { sourcemap: true | false, declarations: true | false }.' })
     }
-    rejectUnknownKeys(value.build, new Set(['sourcemap']), 'build', file)
+    rejectUnknownKeys(value.build, new Set(['sourcemap', 'declarations']), 'build', file)
     if (value.build.sourcemap !== undefined && typeof value.build.sourcemap !== 'boolean') {
       throw new DshxError('DSHX4004', 'build.sourcemap must be a boolean.', {
         file,
         hint: 'Set build.sourcemap to true or false.',
+      })
+    }
+    if (value.build.declarations !== undefined && typeof value.build.declarations !== 'boolean') {
+      throw new DshxError('DSHX4004', 'build.declarations must be a boolean.', {
+        file,
+        hint: 'Set build.declarations to true or false.',
       })
     }
   }
@@ -177,14 +209,14 @@ function isInside(root: string, file: string): boolean {
 
 async function resolveEntry(
   root: string,
-  configured: string | false | undefined,
+  configured: false | { readonly entry?: string } | undefined,
   convention: string,
   field: 'host' | 'client',
   configFile: string | undefined,
 ): Promise<string | undefined> {
   if (configured === false) return undefined
-  const explicit = typeof configured === 'string'
-  const unresolved = resolve(root, configured ?? convention)
+  const explicit = configured !== undefined
+  const unresolved = resolve(root, configured?.entry ?? convention)
   if (!explicit && !(await exists(unresolved))) return undefined
   const entry = await realpath(unresolved).catch((cause: unknown) => {
     throw new DshxError('DSHX4005', `${field} entry does not exist: ${unresolved}`, {
@@ -202,12 +234,25 @@ async function resolveEntry(
   return entry
 }
 
+function immediatePlugins(value: DshxConfig['host'] | DshxConfig['client']): readonly import('vite').PluginOption[] {
+  return value === false || value === undefined ? [] : (value.vite?.plugins ?? [])
+}
+
 /** Discover and normalize one DSHX project without changing its files. */
 export async function resolveDshxConfig(options: ResolveDshxConfigOptions = {}): Promise<ResolvedDshxConfig> {
   const root = await findProjectRoot(options.cwd ?? process.cwd())
   const packageFile = resolve(root, PACKAGE_FILENAME)
   const manifest = await readManifest(packageFile)
   const loaded = await loadUserConfig(root)
+  const hostVitePlugins = immediatePlugins(loaded.config.host)
+  const clientVitePlugins = immediatePlugins(loaded.config.client)
+  const hostPluginObjects = new Set(await resolveVitePlugins(hostVitePlugins))
+  if ((await resolveVitePlugins(clientVitePlugins)).some(plugin => hostPluginObjects.has(plugin))) {
+    throw new DshxError('DSHX4004', 'Host and Client cannot reuse the same stateful Vite plugin instance.', {
+      file: loaded.configFile ?? packageFile,
+      hint: 'Call the plugin factory separately in host.vite.plugins and client.vite.plugins.',
+    })
+  }
   const hostEntry = await resolveEntry(root, loaded.config.host, 'src/host.ts', 'host', loaded.configFile)
   const clientEntry = await resolveEntry(root, loaded.config.client, 'src/client.tsx', 'client', loaded.configFile)
   if (hostEntry === undefined && clientEntry === undefined) {
@@ -226,10 +271,12 @@ export async function resolveDshxConfig(options: ResolveDshxConfigOptions = {}):
     name: loaded.config.name ?? packageId,
     ...(hostEntry === undefined ? {} : { hostEntry }),
     ...(clientEntry === undefined ? {} : { clientEntry }),
+    ...(hostVitePlugins.length === 0 ? {} : { hostVitePlugins }),
+    ...(clientVitePlugins.length === 0 ? {} : { clientVitePlugins }),
     outDir: resolve(root, 'dist'),
     profile: loaded.config.profile ?? 'web',
     dev: { hostRestart: loaded.config.dev?.hostRestart ?? 'manual' },
-    build: { sourcemap: loaded.config.build?.sourcemap ?? true },
+    build: { sourcemap: loaded.config.build?.sourcemap ?? true, declarations: loaded.config.build?.declarations ?? true },
     compatibility: { allowUnsupported: loaded.config.compatibility?.allowUnsupported ?? false },
     manifest,
   }
