@@ -1,19 +1,37 @@
 import { describe, expect, it, vi } from 'vitest'
 import { inspectProjectComposition, normalizeSlots, normalizeTools } from '../src/inspect/index.js'
-import type { ResolvedDshxConfig } from '../src/config/index.js'
+import type { ResolvedDshxConfig } from '../src/config/types.js'
 import { DSH_0_1_COMPATIBILITY } from '../src/compat/index.js'
 
 function project(): ResolvedDshxConfig {
   return {
-    root: '/project/plugin', packageFile: '/project/plugin/package.json', configFile: '/project/plugin/dshx.config.ts', configDependencies: [],
-    packageId: '@test/plugin', name: '@test/plugin', hostEntry: '/project/plugin/src/host.ts',
-    outDir: '/project/plugin/dist', profile: 'web', dev: { hostRestart: 'manual' }, build: { sourcemap: true }, compatibility: { allowUnsupported: false },
+    root: '/project/plugin',
+    packageFile: '/project/plugin/package.json',
+    configFile: '/project/plugin/dshx.config.ts',
+    configDependencies: [],
+    packageId: '@test/plugin',
+    name: '@test/plugin',
+    hostEntry: '/project/plugin/src/host.ts',
+    outDir: '/project/plugin/dist',
+    profile: 'web',
+    dev: { hostRestart: 'manual' },
+    build: { sourcemap: true },
+    compatibility: { allowUnsupported: false },
     manifest: { name: '@test/plugin', type: 'module' },
   }
 }
 
 function installation() {
-  return { version: '0.1.0-rc.8', executable: 'local' as const, support: 'verified' as const, adapterId: DSH_0_1_COMPATIBILITY.id, protocolGeneration: DSH_0_1_COMPATIBILITY.protocolGeneration, supportedRange: DSH_0_1_COMPATIBILITY.dshRange, compatibility: DSH_0_1_COMPATIBILITY, diagnostics: [] }
+  return {
+    version: '0.1.0-rc.8',
+    executable: 'local' as const,
+    support: 'verified' as const,
+    adapterId: DSH_0_1_COMPATIBILITY.id,
+    protocolGeneration: DSH_0_1_COMPATIBILITY.protocolGeneration,
+    supportedRange: DSH_0_1_COMPATIBILITY.dshRange,
+    compatibility: DSH_0_1_COMPATIBILITY,
+    diagnostics: [],
+  }
 }
 
 describe('runtime inspect normalization', () => {
@@ -50,9 +68,11 @@ describe('inspectProjectComposition', () => {
 
   it('passes the exact Slot root to an injected Client provider', async () => {
     const value = project()
-    const listSlots = vi.fn(async (options?: { root?: string }) => options?.root === undefined
-      ? [{ name: 'sidebar.footer.action', kind: 'list', scope: 'root' }]
-      : [{ name: options.root, kind: 'list', scope: 'root', metadata: { catalog: { registration: [], replaceRisk: 'none' } } }])
+    const listSlots = vi.fn(async (options?: { root?: string }) =>
+      options?.root === undefined
+        ? [{ name: 'sidebar.footer.action', kind: 'list', scope: 'root' }]
+        : [{ name: options.root, kind: 'list', scope: 'root', metadata: { catalog: { registration: [], replaceRisk: 'none' } } }],
+    )
     const result = await inspectProjectComposition(value, 'slots', {
       provider: { listSlots, listTools: async () => [] },
       resolveDsh: async () => installation(),
@@ -88,7 +108,12 @@ describe('inspectProjectComposition', () => {
     const value = project()
     const failure = new Error('connection refused')
     const result = await inspectProjectComposition(value, 'tools', {
-      provider: { listSlots: async () => [], listTools: async () => { throw failure } },
+      provider: {
+        listSlots: async () => [],
+        listTools: async () => {
+          throw failure
+        },
+      },
       resolveDsh: async () => installation(),
       inspectProfile: async () => ({ state: 'linked', profile: 'web', packageId: value.packageId, root: value.root }),
     })

@@ -39,7 +39,7 @@ function safeFileName(event: string): string {
 function importPath(from: string, to: string): string {
   let value = relative(dirname(from), to).replaceAll('\\', '/')
   if (!value.startsWith('.')) value = `./${value}`
-  return value.replace(/\.(?:tsx?|mts|cts)$/, '')
+  return value.replace(/\.ts$/, '.js')
 }
 
 function registerName(event: string): string {
@@ -55,7 +55,7 @@ function registerName(event: string): string {
 }
 
 function sourceForHook(event: string): string {
-  return `import type { Context } from '@deepseek-ai/cordis'\n\nexport function ${registerName(event)}(ctx: Context) {\n  return ctx.on(${JSON.stringify(event)}, (...args) => {\n    void args\n    // Add hook behavior here.\n  })\n}\n`
+  return `import type { Context } from '@becomeopc/dshx/host'\n\nexport function ${registerName(event)}(ctx: Context) {\n  return ctx.on(${JSON.stringify(event)}, (...args: unknown[]) => {\n    void args\n    // Add hook behavior here.\n  })\n}\n`
 }
 
 function isNamed(node: ts.NamedDeclaration, name: string): boolean {

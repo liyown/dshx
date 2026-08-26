@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { resolveDshxConfig } from '../src/config/index.js'
-import { checkProjectManifest } from '../src/project/index.js'
+import { resolveDshxConfig } from '../src/config/resolve.js'
+import { checkPackageTargets, checkProjectManifest } from '../src/project/index.js'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const fixtureRoot = resolve(packageRoot, '../../fixtures/phase-a')
@@ -76,6 +76,53 @@ describe('checkProjectManifest', () => {
     }
     await writeManifest(root, manifest)
     await expect(checkProjectManifest(await resolveDshxConfig({ cwd: root }))).resolves.toEqual([])
+  })
+
+  it('verifies every concrete export, types, main, and bin target after build', async () => {
+    const root = await temporaryProject()
+    const manifest = fullManifest()
+    manifest.types = './dist/index.d.ts'
+    manifest.bin = { demo: './dist/cli.js' }
+    manifest.exports = {
+      ...(manifest.exports as object),
+      '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+      './client': { types: './dist/client.d.ts', default: './dist/client.js' },
+    }
+    await writeManifest(root, manifest)
+    await mkdir(resolve(root, 'dist'), { recursive: true })
+    for (const file of ['index.js', 'index.d.ts', 'client.js', 'client.d.ts', 'cli.js']) await writeFile(resolve(root, 'dist', file), '')
+    const config = await resolveDshxConfig({ cwd: root })
+    await expect(checkPackageTargets(config)).resolves.toEqual([])
+    await rm(resolve(root, 'dist/client.d.ts'))
+    await expect(checkPackageTargets(config)).resolves.toContainEqual(
+      expect.objectContaining({ code: 'DSHX4192', message: expect.stringContaining('./dist/client.d.ts') }),
+    )
+  })
+
+  it('accepts npm main, types, and bin paths without a dot-slash prefix', async () => {
+    const root = await temporaryProject()
+    const manifest = fullManifest()
+    manifest.main = 'dist/index.js'
+    manifest.types = 'dist/index.d.ts'
+    manifest.bin = { demo: 'dist/cli.js' }
+    await writeManifest(root, manifest)
+    await mkdir(resolve(root, 'dist'), { recursive: true })
+    for (const file of ['index.js', 'index.d.ts', 'client.js', 'cli.js']) await writeFile(resolve(root, 'dist', file), '')
+
+    await expect(checkPackageTargets(await resolveDshxConfig({ cwd: root }))).resolves.toEqual([])
+  })
+
+  it('still requires package exports to use concrete dot-slash targets', async () => {
+    const root = await temporaryProject()
+    const manifest = fullManifest()
+    manifest.exports = { '.': 'dist/index.js' }
+    await writeManifest(root, manifest)
+    await mkdir(resolve(root, 'dist'), { recursive: true })
+    await writeFile(resolve(root, 'dist/index.js'), '')
+
+    await expect(checkPackageTargets(await resolveDshxConfig({ cwd: root }))).resolves.toContainEqual(
+      expect.objectContaining({ code: 'DSHX4192', message: expect.stringContaining('exports.') }),
+    )
   })
 
   it('accepts the checked-in Phase A fixture', async () => {
@@ -156,9 +203,11 @@ describe('checkProjectManifest', () => {
     const root = await temporaryProject()
     await writeFile(
       resolve(root, 'src/api-view.tsx'),
-      ["import { useQuery as query } from '@becomeopc/dshx/client'", "export function ApiView(contract: unknown) { return query(contract, 'get') }", ''].join(
-        '\n',
-      ),
+      [
+        "import { useApiQuery as query } from '@becomeopc/dshx/client'",
+        "export function ApiView(contract: unknown) { return query(contract, 'get') }",
+        '',
+      ].join('\n'),
     )
     await writeFile(resolve(root, 'src/client.tsx'), "import { ApiView } from './api-view.js'\nexport const apply = ApiView\n")
     const missing = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))

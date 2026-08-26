@@ -12,6 +12,7 @@ export interface CliArgs {
   readonly root?: string
   readonly verbose: boolean
   readonly json: boolean
+  readonly runtime: boolean
   readonly open: boolean
   readonly slot?: string
   readonly name?: string
@@ -35,7 +36,7 @@ export class CliUsageError extends Error {
 }
 
 const valueOptions = new Set(['--cwd', '--root', '--slot', '--name', '--description', '--event', '--provider', '--file', '--id', '--order'])
-const booleanOptions = new Set(['--help', '-h', '--version', '-V', '--verbose', '--json', '--open', '--dry-run', '--fix'])
+const booleanOptions = new Set(['--help', '-h', '--version', '-V', '--verbose', '--json', '--runtime', '--open', '--dry-run', '--fix'])
 
 const sharedArgs = {
   cwd: {
@@ -53,6 +54,7 @@ const sharedArgs = {
     description: 'Print underlying command failures.',
   },
   json: { type: 'boolean', description: 'Emit stable machine-readable JSON.' },
+  runtime: { type: 'boolean', description: 'Require a linked and reachable DSH runtime when checking.' },
   open: { type: 'boolean', description: 'Open the development URL.' },
   slot: {
     type: 'string',
@@ -198,6 +200,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   const root = parsed.root
   const verbose = parsed.verbose ?? false
   const json = parsed.json ?? false
+  const runtime = parsed.runtime ?? false
   const open = parsed.open ?? false
   const slot = parsed.slot
   const name = parsed.name
@@ -222,6 +225,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   if (dryRun && command !== 'add' && !(command === 'check' && fix))
     throw new CliUsageError('DSHX4147: --dry-run is only valid with add commands or check --fix.')
   if (fix && command !== 'check') throw new CliUsageError('DSHX4147: --fix is only valid with check.')
+  if (runtime && command !== 'check') throw new CliUsageError('--runtime is only valid with check.')
   if ((slot !== undefined || provider !== undefined || id !== undefined || order !== undefined) && command !== 'add')
     throw new CliUsageError('add ui options are only valid with add ui.')
   if ((name !== undefined || description !== undefined) && command !== 'add')
@@ -258,6 +262,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
       ...(order === undefined ? {} : { order }),
       verbose,
       json,
+      runtime,
       open,
       dryRun,
       fix,
@@ -281,6 +286,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     ...(order === undefined ? {} : { order }),
     verbose,
     json,
+    runtime,
     open,
     dryRun,
     fix,

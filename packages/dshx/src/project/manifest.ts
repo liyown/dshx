@@ -260,7 +260,7 @@ async function checkApiCapability(diagnostics: DshxDiagnostic[], config: Resolve
     issue(
       'DSHX4218',
       'error',
-      'useApi()/useQuery() requires @deepseek-ai/dsh-client-connection in dsh.client.inject.',
+      'useApi()/useApiQuery() requires @deepseek-ai/dsh-client-connection in dsh.client.inject.',
       config.packageFile,
       'Add "@deepseek-ai/dsh-client-connection" to dsh.client.inject so DSH loads the official connection provider first.',
     ),

@@ -81,7 +81,7 @@ function hasCommand(sourceFile: ts.SourceFile, name: string): boolean {
 function importPath(from: string, to: string): string {
   let path = relative(dirname(from), to).replaceAll('\\', '/')
   if (!path.startsWith('.')) path = `./${path}`
-  return path.replace(/\.ts$/, '')
+  return path.replace(/\.ts$/, '.js')
 }
 
 function modifyHost(source: string, hostFile: string, commandFile: string, name: string): { source?: string; duplicate: boolean; invalidCommands: boolean } {

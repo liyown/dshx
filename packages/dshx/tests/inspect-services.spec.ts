@@ -1,16 +1,36 @@
 import { describe, expect, it, vi } from 'vitest'
 import { inspectProjectComposition, normalizeEvents, normalizeServices } from '../src/inspect/index.js'
-import type { ResolvedDshxConfig } from '../src/config/index.js'
+import type { ResolvedDshxConfig } from '../src/config/types.js'
 import { DSH_0_1_COMPATIBILITY } from '../src/compat/index.js'
 
 function project(): ResolvedDshxConfig {
   return {
-    root: '/project/plugin', packageFile: '/project/plugin/package.json', configDependencies: [], packageId: 'demo-plugin', name: 'demo-plugin', hostEntry: '/project/plugin/src/host.ts', outDir: '/project/plugin/dist', profile: 'web', dev: { hostRestart: 'manual' }, build: { sourcemap: true }, compatibility: { allowUnsupported: false }, manifest: { name: 'demo-plugin' },
+    root: '/project/plugin',
+    packageFile: '/project/plugin/package.json',
+    configDependencies: [],
+    packageId: 'demo-plugin',
+    name: 'demo-plugin',
+    hostEntry: '/project/plugin/src/host.ts',
+    outDir: '/project/plugin/dist',
+    profile: 'web',
+    dev: { hostRestart: 'manual' },
+    build: { sourcemap: true },
+    compatibility: { allowUnsupported: false },
+    manifest: { name: 'demo-plugin' },
   }
 }
 
 function installation() {
-  return { version: '0.1.0-rc.8', executable: 'local' as const, support: 'verified' as const, adapterId: DSH_0_1_COMPATIBILITY.id, protocolGeneration: DSH_0_1_COMPATIBILITY.protocolGeneration, supportedRange: DSH_0_1_COMPATIBILITY.dshRange, compatibility: DSH_0_1_COMPATIBILITY, diagnostics: [] }
+  return {
+    version: '0.1.0-rc.8',
+    executable: 'local' as const,
+    support: 'verified' as const,
+    adapterId: DSH_0_1_COMPATIBILITY.id,
+    protocolGeneration: DSH_0_1_COMPATIBILITY.protocolGeneration,
+    supportedRange: DSH_0_1_COMPATIBILITY.dshRange,
+    compatibility: DSH_0_1_COMPATIBILITY,
+    diagnostics: [],
+  }
 }
 
 function linked(value: ResolvedDshxConfig) {
@@ -19,9 +39,15 @@ function linked(value: ResolvedDshxConfig) {
 
 describe('services and events inspect normalization', () => {
   it('normalizes summaries and preserves metadata', () => {
-    expect(normalizeServices([{ name: 'logger', provider: 'core', scope: 'global', version: '1' }])).toEqual([{ name: 'logger', provider: 'core', scope: 'global', metadata: { version: '1' } }])
-    expect(normalizeServices([{ name: 'logger', metadata: { description: 'structured' }, version: '1' }])).toEqual([{ name: 'logger', metadata: { description: 'structured', version: '1' } }])
-    expect(normalizeEvents([{ name: 'agent.ready', provider: 'agent', payload: { type: 'object' } }])).toEqual([{ name: 'agent.ready', provider: 'agent', metadata: { payload: { type: 'object' } } }])
+    expect(normalizeServices([{ name: 'logger', provider: 'core', scope: 'global', version: '1' }])).toEqual([
+      { name: 'logger', provider: 'core', scope: 'global', metadata: { version: '1' } },
+    ])
+    expect(normalizeServices([{ name: 'logger', metadata: { description: 'structured' }, version: '1' }])).toEqual([
+      { name: 'logger', metadata: { description: 'structured', version: '1' } },
+    ])
+    expect(normalizeEvents([{ name: 'agent.ready', provider: 'agent', payload: { type: 'object' } }])).toEqual([
+      { name: 'agent.ready', provider: 'agent', metadata: { payload: { type: 'object' } } },
+    ])
   })
 
   it('rejects malformed summaries', () => {

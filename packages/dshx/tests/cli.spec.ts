@@ -4,7 +4,7 @@ import { parseCliArgs } from '../src/cli/args.js'
 import { runCli } from '../src/cli/run.js'
 import type { CliIO } from '../src/cli/run.js'
 import type { DevEvent, DevSession } from '../src/dev/index.js'
-import type { ResolvedDshxConfig } from '../src/config/index.js'
+import type { ResolvedDshxConfig } from '../src/config/types.js'
 import type { PreparedProjectProfile } from '../src/profile/index.js'
 import type { InspectOptions, InspectTarget } from '../src/inspect/index.js'
 
@@ -22,7 +22,12 @@ function project(): ResolvedDshxConfig {
     dev: { hostRestart: 'manual' },
     build: { sourcemap: true },
     compatibility: { allowUnsupported: false },
-    manifest: { name: '@test/plugin', type: 'module', devDependencies: { '@deepseek-ai/dsh': '0.1.0-rc.8' }, peerDependencies: { '@deepseek-ai/dsh': '>=0.1.0-rc.8 <0.2.0-0' } },
+    manifest: {
+      name: '@test/plugin',
+      type: 'module',
+      devDependencies: { '@deepseek-ai/dsh': '0.1.0-rc.8' },
+      peerDependencies: { '@deepseek-ai/dsh': '>=0.1.0-rc.8 <0.2.0-0' },
+    },
   }
 }
 
@@ -73,6 +78,12 @@ function profile(projectValue: ResolvedDshxConfig): PreparedProjectProfile {
   }
 }
 
+const offlineChecks = {
+  checkMigrations: async () => [],
+  checkPackageTargets: async () => [],
+  typecheckProject: async (root: string) => ({ status: 'passed' as const, configFile: `${root}/tsconfig.json`, diagnostics: [] }),
+}
+
 describe('CLI argument parser', () => {
   it('parses commands and command-specific options', () => {
     expect(parseCliArgs(['build', '--cwd', '/tmp/project', '--verbose'])).toMatchObject({ command: 'build', cwd: '/tmp/project', verbose: true })
@@ -89,6 +100,7 @@ describe('CLI argument parser', () => {
         "help": false,
         "json": true,
         "open": false,
+        "runtime": false,
         "verbose": false,
         "version": false,
       }
@@ -107,22 +119,51 @@ describe('CLI argument parser', () => {
 
   it('parses inspect targets and JSON mode', () => {
     expect(parseCliArgs(['inspect', 'slots', '--json'])).toMatchObject({ command: 'inspect', inspectTarget: 'slots', json: true })
-    expect(parseCliArgs(['inspect', 'slots', '--root', 'sidebar.footer.action'])).toMatchObject({ command: 'inspect', inspectTarget: 'slots', root: 'sidebar.footer.action' })
+    expect(parseCliArgs(['inspect', 'slots', '--root', 'sidebar.footer.action'])).toMatchObject({
+      command: 'inspect',
+      inspectTarget: 'slots',
+      root: 'sidebar.footer.action',
+    })
     expect(() => parseCliArgs(['inspect', 'services', '--root', 'logger'])).toThrow('--root')
-    expect(parseCliArgs(['inspect', 'tools', '--verbose', '--cwd', '/tmp/project'])).toMatchObject({ command: 'inspect', inspectTarget: 'tools', verbose: true, cwd: '/tmp/project' })
+    expect(parseCliArgs(['inspect', 'tools', '--verbose', '--cwd', '/tmp/project'])).toMatchObject({
+      command: 'inspect',
+      inspectTarget: 'tools',
+      verbose: true,
+      cwd: '/tmp/project',
+    })
     expect(parseCliArgs(['inspect', 'services'])).toMatchObject({ command: 'inspect', inspectTarget: 'services' })
     expect(parseCliArgs(['inspect', 'events'])).toMatchObject({ command: 'inspect', inspectTarget: 'events' })
   })
 
   it('parses add ui options and rejects non-ui add targets', () => {
-    expect(parseCliArgs(['add', 'ui', '--slot', 'sidebar.footer.action', '--provider', '@provider/sidebar', '--order', '2', '--dry-run', '--json'])).toMatchObject({
-      command: 'add', addTarget: 'ui', slot: 'sidebar.footer.action', provider: '@provider/sidebar', order: 2, dryRun: true, json: true,
+    expect(
+      parseCliArgs(['add', 'ui', '--slot', 'sidebar.footer.action', '--provider', '@provider/sidebar', '--order', '2', '--dry-run', '--json']),
+    ).toMatchObject({
+      command: 'add',
+      addTarget: 'ui',
+      slot: 'sidebar.footer.action',
+      provider: '@provider/sidebar',
+      order: 2,
+      dryRun: true,
+      json: true,
     })
     expect(() => parseCliArgs(['add'])).toThrow('requires a target')
     expect(parseCliArgs(['add', 'tool'])).toMatchObject({ command: 'add', addTarget: 'tool' })
-    expect(parseCliArgs(['add', 'command', '--name', 'status', '--description', 'Status'])).toMatchObject({ command: 'add', addTarget: 'command', name: 'status', description: 'Status' })
+    expect(parseCliArgs(['add', 'command', '--name', 'status', '--description', 'Status'])).toMatchObject({
+      command: 'add',
+      addTarget: 'command',
+      name: 'status',
+      description: 'Status',
+    })
     expect(() => parseCliArgs(['add', 'ui', '--order', 'nope'])).toThrow('integer')
-    expect(parseCliArgs(['add', 'tool', '--name', 'status', '--description', 'Status', '--dry-run', '--json'])).toMatchObject({ command: 'add', addTarget: 'tool', name: 'status', description: 'Status', dryRun: true, json: true })
+    expect(parseCliArgs(['add', 'tool', '--name', 'status', '--description', 'Status', '--dry-run', '--json'])).toMatchObject({
+      command: 'add',
+      addTarget: 'tool',
+      name: 'status',
+      description: 'Status',
+      dryRun: true,
+      json: true,
+    })
   })
 })
 describe('CLI commands', () => {
@@ -133,16 +174,24 @@ describe('CLI commands', () => {
     const code = await runCli(['build'], {
       io: streams,
       runtime: {
+        ...offlineChecks,
         resolveConfig: async () => value,
         checkManifest: async () => [],
-        buildHost: async () => { calls.push('host'); return {} as never },
-        buildClient: async () => { calls.push('client'); return {} as never },
+        buildHost: async () => {
+          calls.push('host')
+          return {} as never
+        },
+        buildClient: async () => {
+          calls.push('client')
+          return {} as never
+        },
         ensureProfile: vi.fn(),
       },
     })
     expect(code).toBe(0)
     expect(calls).toEqual(expect.arrayContaining(['host', 'client']))
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     await expect(text(streams.out)).resolves.toContain('Built @test/plugin')
   })
 
@@ -155,10 +204,17 @@ describe('CLI commands', () => {
     const code = await runCli(['build'], {
       io: streams,
       runtime: {
+        ...offlineChecks,
         resolveConfig: async () => clientOnly,
         checkManifest: async () => [],
-        buildHost: async options => { calls.push(`host:${options.entry ?? 'stub'}`); return {} as never },
-        buildClient: async () => { calls.push('client'); return {} as never },
+        buildHost: async options => {
+          calls.push(`host:${options.entry ?? 'stub'}`)
+          return {} as never
+        },
+        buildClient: async () => {
+          calls.push('client')
+          return {} as never
+        },
       },
     })
     expect(code).toBe(0)
@@ -178,7 +234,7 @@ describe('CLI commands', () => {
     const buildHost = vi.fn()
     const code = await runCli(['build'], {
       io: streams,
-      runtime: { resolveConfig: async () => invalid, checkManifest: async () => [], buildHost },
+      runtime: { ...offlineChecks, resolveConfig: async () => invalid, checkManifest: async () => [], buildHost },
     })
     expect(code).toBe(1)
     expect(buildHost).not.toHaveBeenCalled()
@@ -191,10 +247,11 @@ describe('CLI commands', () => {
     const streams = io()
     const value = project()
     const ensure = vi.fn()
-    const code = await runCli(['check', '--json'], {
+    const code = await runCli(['check', '--runtime', '--json'], {
       io: streams,
       version: 'test-version',
       runtime: {
+        ...offlineChecks,
         resolveConfig: async () => value,
         checkManifest: async () => [],
         resolveDsh: async () => profile(value).dsh,
@@ -235,9 +292,10 @@ describe('CLI commands', () => {
       version: '0.1.1-rc.2',
       support: 'verified' as const,
     }
-    const code = await runCli(['check', '--json'], {
+    const code = await runCli(['check', '--runtime', '--json'], {
       io: streams,
       runtime: {
+        ...offlineChecks,
         resolveConfig: async () => narrow,
         checkManifest: async () => [],
         resolveDsh: async () => installed,
@@ -264,19 +322,27 @@ describe('CLI commands', () => {
     const code = await runCli(['check', '--fix', '--dry-run', '--json'], {
       io: streams,
       runtime: {
+        ...offlineChecks,
         resolveConfig: async () => value,
         resolveDsh: async () => profile(value).dsh,
         inspectProfile: async () => ({ state: 'linked' as const, profile: value.profile, packageId: value.packageId, root: value.root }),
         checkManifest: async () => [],
         inspectRuntimePlugins: () => ({ plugins: [], diagnostics: [] }),
         inspectBridgeStatus: async () => ({ state: 'disabled' as const, diagnostics: [] }),
-        createRepairPlan: async () => ({ root: value.root, files: [{ file: value.packageFile, before: '{}', after: '{"name":"fixed"}' }], changedFiles: [value.packageFile], diagnostics: [], diff: '--- package.json\n+++ package.json\n' }),
+        createRepairPlan: async () => ({
+          root: value.root,
+          files: [{ file: value.packageFile, before: '{}', after: '{"name":"fixed"}' }],
+          changedFiles: [value.packageFile],
+          diagnostics: [],
+          diff: '--- package.json\n+++ package.json\n',
+        }),
         applyRepairPlan: apply,
       },
     })
     expect(code).toBe(0)
     expect(apply).not.toHaveBeenCalled()
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(JSON.parse(await text(streams.out))).toMatchObject({ fix: { requested: true, dryRun: true, applied: false, changedFiles: [value.packageFile] } })
   })
 
@@ -288,20 +354,28 @@ describe('CLI commands', () => {
     const code = await runCli(['check', '--fix', '--json'], {
       io: streams,
       runtime: {
+        ...offlineChecks,
         resolveConfig: async () => value,
         resolveDsh: async () => profile(value).dsh,
         inspectProfile: async () => ({ state: 'linked' as const, profile: value.profile, packageId: value.packageId, root: value.root }),
         checkManifest,
         inspectRuntimePlugins: () => ({ plugins: [], diagnostics: [] }),
         inspectBridgeStatus: async () => ({ state: 'disabled' as const, diagnostics: [] }),
-        createRepairPlan: async () => ({ root: value.root, files: [{ file: value.packageFile, before: '{}', after: '{"name":"fixed"}' }], changedFiles: [value.packageFile], diagnostics: [], diff: 'planned diff' }),
+        createRepairPlan: async () => ({
+          root: value.root,
+          files: [{ file: value.packageFile, before: '{}', after: '{"name":"fixed"}' }],
+          changedFiles: [value.packageFile],
+          diagnostics: [],
+          diff: 'planned diff',
+        }),
         applyRepairPlan: apply,
       },
     })
     expect(code).toBe(0)
     expect(apply).toHaveBeenCalledOnce()
     expect(checkManifest).toHaveBeenCalledTimes(3)
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(JSON.parse(await text(streams.out))).toMatchObject({ fix: { requested: true, applied: true, dryRun: false } })
   })
 
@@ -313,6 +387,7 @@ describe('CLI commands', () => {
     const code = await runCli(['check', '--fix'], {
       io: streams,
       runtime: {
+        ...offlineChecks,
         resolveConfig: async () => value,
         resolveDsh: async () => profile(value).dsh,
         inspectProfile: async () => ({ state: 'linked' as const, profile: value.profile, packageId: value.packageId, root: value.root }),
@@ -322,14 +397,21 @@ describe('CLI commands', () => {
         },
         inspectRuntimePlugins: () => ({ plugins: [], diagnostics: [] }),
         inspectBridgeStatus: async () => ({ state: 'disabled' as const, diagnostics: [] }),
-        createRepairPlan: async () => ({ root: value.root, files: [{ file: value.packageFile, before: '{}', after: '{"name":"fixed"}' }], changedFiles: [value.packageFile], diagnostics: [], diff: 'planned diff' }),
+        createRepairPlan: async () => ({
+          root: value.root,
+          files: [{ file: value.packageFile, before: '{}', after: '{"name":"fixed"}' }],
+          changedFiles: [value.packageFile],
+          diagnostics: [],
+          diff: 'planned diff',
+        }),
         applyRepairPlan: async () => undefined,
         rollbackRepairPlan: rollback,
       },
     })
     expect(code).toBe(1)
     expect(rollback).toHaveBeenCalledOnce()
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(await text(streams.err)).toContain('DSHX4146')
   })
 
@@ -341,22 +423,33 @@ describe('CLI commands', () => {
       ...base,
       compatibility: {
         ...base.compatibility,
-        runtimePlugins: [{ id: 'tool-cordis', packageName: '@deepseek-ai/dsh-tool-cordis', load: 'module' as const, provides: ['Service', 'Event'], optional: true }],
+        runtimePlugins: [
+          { id: 'tool-cordis', packageName: '@deepseek-ai/dsh-tool-cordis', load: 'module' as const, provides: ['Service', 'Event'], optional: true },
+        ],
       },
     }
-    const code = await runCli(['check', '--json'], {
+    const code = await runCli(['check', '--runtime', '--json'], {
       io: streams,
       runtime: {
+        ...offlineChecks,
         resolveConfig: async () => value,
         checkManifest: async () => [],
         resolveDsh: async () => dsh,
         inspectProfile: async () => ({ state: 'linked', profile: value.profile, packageId: value.packageId, root: value.root }),
-        inspectRuntimePlugins: () => ({ plugins: [{ id: 'tool-cordis', packageName: '@deepseek-ai/dsh-tool-cordis', provides: ['Service', 'Event'], status: 'available' as const }], diagnostics: [] }),
-        inspectBridgeStatus: async () => ({ state: 'running' as const, metadata: { runtimePlugins: [{ id: 'tool-cordis', packageName: '@deepseek-ai/dsh-tool-cordis', provides: ['Service', 'Event'], status: 'loaded' }] }, diagnostics: [] }),
+        inspectRuntimePlugins: () => ({
+          plugins: [{ id: 'tool-cordis', packageName: '@deepseek-ai/dsh-tool-cordis', provides: ['Service', 'Event'], status: 'available' as const }],
+          diagnostics: [],
+        }),
+        inspectBridgeStatus: async () => ({
+          state: 'running' as const,
+          metadata: { runtimePlugins: [{ id: 'tool-cordis', packageName: '@deepseek-ai/dsh-tool-cordis', provides: ['Service', 'Event'], status: 'loaded' }] },
+          diagnostics: [],
+        }),
       },
     })
     expect(code).toBe(0)
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(JSON.parse(await text(streams.out))).toMatchObject({ runtimePlugins: [{ id: 'tool-cordis', status: 'loaded' }], bridge: { state: 'running' } })
   })
 
@@ -430,7 +523,9 @@ describe('CLI commands', () => {
       runtime: {
         resolveConfig: async () => value,
         inspectComposition: async (_project, target) => ({
-          profile: 'web', target, source: 'runtime',
+          profile: 'web',
+          target,
+          source: 'runtime',
           items: [{ name: 'sidebar.footer.action', provider: '@provider/sidebar', kind: 'action', scope: 'global', metadata: { order: 10 } }],
           diagnostics: [],
         }),
@@ -439,7 +534,8 @@ describe('CLI commands', () => {
     })
     expect(code).toBe(0)
     expect(ensure).not.toHaveBeenCalled()
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     const output = JSON.parse(await text(streams.out)) as Record<string, unknown>
     expect(output).toMatchObject({ target: 'slots', source: 'runtime', project: { packageId: value.packageId } })
     expect(output.items).toEqual([{ name: 'sidebar.footer.action', provider: '@provider/sidebar', kind: 'action', scope: 'global', metadata: { order: 10 } }])
@@ -449,17 +545,24 @@ describe('CLI commands', () => {
   it('forwards an exact Slot root to the Inspect runtime', async () => {
     const streams = io()
     const value = project()
-    const inspectComposition = vi.fn(async (_project: ResolvedDshxConfig, target: InspectTarget, options?: InspectOptions) => ({
-      profile: 'web' as const, target, source: 'runtime' as const,
-      items: [{ name: options?.slotRoot ?? 'sidebar', kind: 'list', scope: 'root' }], diagnostics: [],
-    } as const))
+    const inspectComposition = vi.fn(
+      async (_project: ResolvedDshxConfig, target: InspectTarget, options?: InspectOptions) =>
+        ({
+          profile: 'web' as const,
+          target,
+          source: 'runtime' as const,
+          items: [{ name: options?.slotRoot ?? 'sidebar', kind: 'list', scope: 'root' }],
+          diagnostics: [],
+        }) as const,
+    )
     const code = await runCli(['inspect', 'slots', '--root', 'sidebar.footer.action', '--json'], {
       io: streams,
       runtime: { resolveConfig: async () => value, inspectComposition },
     })
     expect(code).toBe(0)
     expect(inspectComposition).toHaveBeenCalledWith(value, 'slots', { slotRoot: 'sidebar.footer.action' })
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(JSON.parse(await text(streams.out))).toMatchObject({ target: 'slots', items: [{ name: 'sidebar.footer.action' }] })
   })
 
@@ -470,11 +573,18 @@ describe('CLI commands', () => {
       io: streams,
       runtime: {
         resolveConfig: async () => value,
-        inspectComposition: async (_project, target) => ({ profile: 'web', target, source: 'runtime', items: [], diagnostics: [{ code: 'DSHX3201', severity: 'error', message: 'No provider', file: value.packageFile, hint: 'Start DSH.' }] }),
+        inspectComposition: async (_project, target) => ({
+          profile: 'web',
+          target,
+          source: 'runtime',
+          items: [],
+          diagnostics: [{ code: 'DSHX3201', severity: 'error', message: 'No provider', file: value.packageFile, hint: 'Start DSH.' }],
+        }),
       },
     })
     expect(code).toBe(1)
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(await text(streams.out)).toContain('Inspect tools')
     expect(await text(streams.err)).toContain('DSHX3201')
   })
@@ -487,13 +597,20 @@ describe('CLI commands', () => {
       io: streams,
       runtime: {
         resolveConfig: async () => value,
-        inspectComposition: async (_project, target) => ({ profile: 'web', target, source: 'runtime', items: [{ name: 'logger', provider: 'core', scope: 'global' }], diagnostics: [] }),
+        inspectComposition: async (_project, target) => ({
+          profile: 'web',
+          target,
+          source: 'runtime',
+          items: [{ name: 'logger', provider: 'core', scope: 'global' }],
+          diagnostics: [],
+        }),
         ensureProfile: ensure,
       },
     })
     expect(code).toBe(0)
     expect(ensure).not.toHaveBeenCalled()
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(JSON.parse(await text(streams.out))).toMatchObject({ target: 'services', source: 'runtime', items: [{ name: 'logger', scope: 'global' }] })
     expect(await text(streams.err)).toBe('')
   })
@@ -506,11 +623,19 @@ describe('CLI commands', () => {
       io: streams,
       runtime: {
         resolveConfig: async () => value,
-        inspectComposition: async (_project, target) => ({ profile: 'web', target, source: 'runtime', items: [], diagnostics: [{ code: 'DSHX3204', severity: 'error', message: 'Unsupported', file: value.packageFile, hint: 'Use a supported adapter.' }], cause }),
+        inspectComposition: async (_project, target) => ({
+          profile: 'web',
+          target,
+          source: 'runtime',
+          items: [],
+          diagnostics: [{ code: 'DSHX3204', severity: 'error', message: 'Unsupported', file: value.packageFile, hint: 'Use a supported adapter.' }],
+          cause,
+        }),
       },
     })
     expect(code).toBe(1)
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(await text(streams.out)).toContain('Inspect events')
     const errorOutput = await text(streams.err)
     expect(errorOutput).toContain('DSHX3204')
@@ -527,7 +652,8 @@ describe('CLI commands', () => {
     })
     expect(code).toBe(2)
     expect(addUi).not.toHaveBeenCalled()
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(await text(streams.err)).toContain('DSHX6101')
   })
 
@@ -538,7 +664,8 @@ describe('CLI commands', () => {
     const code = await runCli(['add', 'tool'], { io: streams, runtime: { resolveConfig: async () => value, addTool } })
     expect(code).toBe(2)
     expect(addTool).not.toHaveBeenCalled()
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(await text(streams.err)).toContain('DSHX6201')
   })
 
@@ -549,7 +676,8 @@ describe('CLI commands', () => {
     const code = await runCli(['add', 'command'], { io: streams, runtime: { resolveConfig: async () => value, addCommand } })
     expect(code).toBe(2)
     expect(addCommand).not.toHaveBeenCalled()
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(await text(streams.err)).toContain('DSHX6501')
   })
 })

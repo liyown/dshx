@@ -1,3 +1,7 @@
 export { checkProjectManifest } from './manifest.js'
 export { applyManifestRepairPlan, createManifestRepairPlan, rollbackManifestRepairPlan } from './repair.js'
 export type { ManifestRepairOptions, ManifestRepairPlan } from './repair.js'
+export { checkMigrationDiagnostics } from './migrations.js'
+export { checkPackageTargets } from './package-targets.js'
+export { typecheckProject } from './typecheck.js'
+export type { ProjectTypecheckResult } from './typecheck.js'

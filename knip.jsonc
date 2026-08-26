@@ -10,6 +10,7 @@
     "catalogReferences",
   ],
   "ignoreBinaries": ["dshx"],
+  "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
   "workspaces": {
     "packages/dshx": {
       "entry": [

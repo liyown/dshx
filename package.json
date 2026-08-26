@@ -36,13 +36,16 @@
     "smoke:dsh": "pnpm run build && node scripts/smoke-dsh.mjs"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
     "@changesets/cli": "^3.0.1",
     "@eslint/js": "^9.32.0",
+    "@playwright/cli": "0.1.18",
     "@types/node": "catalog:",
     "eslint": "^9.32.0",
     "globals": "^15.15.0",
     "knip": "6.32.2",
     "prettier": "catalog:",
+    "publint": "0.3.24",
     "typescript": "catalog:",
     "typescript-eslint": "^8.56.1",
     "vitest": "catalog:"

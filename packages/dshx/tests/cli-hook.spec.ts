@@ -7,7 +7,18 @@ import type { ResolvedDshxConfig } from '../src/config/types.js'
 
 function project(): ResolvedDshxConfig {
   return {
-    root: '/project/plugin', packageFile: '/project/plugin/package.json', configDependencies: [], packageId: 'demo-plugin', name: 'demo-plugin', hostEntry: '/project/plugin/src/host.ts', outDir: '/project/plugin/dist', profile: 'web', dev: { hostRestart: 'manual' }, build: { sourcemap: true }, compatibility: { allowUnsupported: false }, manifest: { name: 'demo-plugin' },
+    root: '/project/plugin',
+    packageFile: '/project/plugin/package.json',
+    configDependencies: [],
+    packageId: 'demo-plugin',
+    name: 'demo-plugin',
+    hostEntry: '/project/plugin/src/host.ts',
+    outDir: '/project/plugin/dist',
+    profile: 'web',
+    dev: { hostRestart: 'manual' },
+    build: { sourcemap: true },
+    compatibility: { allowUnsupported: false },
+    manifest: { name: 'demo-plugin' },
   }
 }
 
@@ -29,13 +40,31 @@ async function text(stream: PassThrough): Promise<string> {
 
 describe('add hook CLI', () => {
   it('parses hook options and invokes the injected generator', async () => {
-    expect(parseCliArgs(['add', 'hook', '--event', 'agent.ready', '--file', 'src/hooks/ready.ts', '--dry-run', '--json'])).toMatchObject({ command: 'add', addTarget: 'hook', event: 'agent.ready', file: 'src/hooks/ready.ts', dryRun: true, json: true })
+    expect(parseCliArgs(['add', 'hook', '--event', 'agent.ready', '--file', 'src/hooks/ready.ts', '--dry-run', '--json'])).toMatchObject({
+      command: 'add',
+      addTarget: 'hook',
+      event: 'agent.ready',
+      file: 'src/hooks/ready.ts',
+      dryRun: true,
+      json: true,
+    })
     const streams = io()
-    const addHook = vi.fn(async (value: { event: string; dryRun?: boolean }) => ({ root: '/project/plugin', event: value.event, changedFiles: ['/project/plugin/src/hooks/ready.ts'], generatedFiles: ['/project/plugin/src/hooks/ready.ts'], diagnostics: [], dryRun: value.dryRun ?? false }))
-    const code = await runCli(['add', 'hook', '--event', 'agent.ready', '--dry-run', '--json'], { io: streams, runtime: { resolveConfig: async () => project(), addHook } })
+    const addHook = vi.fn(async (value: { event: string; dryRun?: boolean }) => ({
+      root: '/project/plugin',
+      event: value.event,
+      changedFiles: ['/project/plugin/src/hooks/ready.ts'],
+      generatedFiles: ['/project/plugin/src/hooks/ready.ts'],
+      diagnostics: [],
+      dryRun: value.dryRun ?? false,
+    }))
+    const code = await runCli(['add', 'hook', '--event', 'agent.ready', '--dry-run', '--json'], {
+      io: streams,
+      runtime: { resolveConfig: async () => project(), addHook },
+    })
     expect(code).toBe(0)
     expect(addHook).toHaveBeenCalledWith(expect.objectContaining({ event: 'agent.ready', dryRun: true }))
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     expect(JSON.parse(await text(streams.out))).toMatchObject({ event: 'agent.ready', dryRun: true, diagnostics: [] })
   })
 
@@ -43,8 +72,8 @@ describe('add hook CLI', () => {
     const streams = io()
     const code = await runCli(['add', 'hook'], { io: streams, runtime: { resolveConfig: async () => project() } })
     expect(code).toBe(2)
-    streams.out.end(); streams.err.end()
+    streams.out.end()
+    streams.err.end()
     await expect(text(streams.err)).resolves.toContain('DSHX6301')
   })
 })
-

@@ -96,7 +96,7 @@ function modifyHost(source: string, hostFile: string, toolFile: string, name: st
   const identifier = toolIdentifier(name)
   let importPath = relative(dirname(hostFile), toolFile).replaceAll('\\', '/')
   if (!importPath.startsWith('.')) importPath = `./${importPath}`
-  importPath = importPath.replace(/\.ts$/, '')
+  importPath = importPath.replace(/\.ts$/, '.js')
   const imports = sourceFile.statements.filter(ts.isImportDeclaration)
   const importEnd = imports.length === 0 ? 0 : imports[imports.length - 1]!.end
   const edits: Array<{ start: number; end: number; text: string }> = [
@@ -126,7 +126,7 @@ function modifyHost(source: string, hostFile: string, toolFile: string, name: st
 function newHostSource(toolFile: string, hostFile: string, name: string): string {
   let importPath = relative(dirname(hostFile), toolFile).replaceAll('\\', '/')
   if (!importPath.startsWith('.')) importPath = `./${importPath}`
-  importPath = importPath.replace(/\.ts$/, '')
+  importPath = importPath.replace(/\.ts$/, '.js')
   return `import { defineHost } from '@becomeopc/dshx/host'\nimport { ${toolIdentifier(name)} } from ${JSON.stringify(importPath)}\n\nexport default defineHost({\n  tools: [${toolIdentifier(name)}],\n})\n`
 }
 

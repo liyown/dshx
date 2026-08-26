@@ -7,8 +7,18 @@ import type { ResolvedDshxConfig } from '../src/config/types.js'
 
 function project(root: string, hostEntry?: string, configFile?: string): ResolvedDshxConfig {
   return {
-    root, packageFile: resolve(root, 'package.json'), ...(configFile === undefined ? {} : { configFile }), configDependencies: [], packageId: '@demo/plugin', name: '@demo/plugin',
-    ...(hostEntry === undefined ? {} : { hostEntry }), outDir: resolve(root, 'dist'), profile: 'web', dev: { hostRestart: 'manual' }, build: { sourcemap: true }, compatibility: { allowUnsupported: false },
+    root,
+    packageFile: resolve(root, 'package.json'),
+    ...(configFile === undefined ? {} : { configFile }),
+    configDependencies: [],
+    packageId: '@demo/plugin',
+    name: '@demo/plugin',
+    ...(hostEntry === undefined ? {} : { hostEntry }),
+    outDir: resolve(root, 'dist'),
+    profile: 'web',
+    dev: { hostRestart: 'manual' },
+    build: { sourcemap: true },
+    compatibility: { allowUnsupported: false },
     manifest: { name: '@demo/plugin', type: 'module', exports: { '.': './dist/index.js' }, dsh: { bundle: { patch: './cordis.patch.yml' } } },
   }
 }
@@ -16,10 +26,14 @@ function project(root: string, hostEntry?: string, configFile?: string): Resolve
 async function setup(host: 'define' | 'native' | 'missing' | 'disabled'): Promise<{ root: string; project: ResolvedDshxConfig; cleanup: () => Promise<void> }> {
   const root = await mkdtemp(join(tmpdir(), 'dshx-add-tool-'))
   await mkdir(resolve(root, 'src'), { recursive: true })
-  await writeFile(resolve(root, 'package.json'), JSON.stringify({ name: '@demo/plugin', type: 'module', exports: { '.': './dist/index.js' }, dsh: { bundle: { patch: './cordis.patch.yml' } } }))
+  await writeFile(
+    resolve(root, 'package.json'),
+    JSON.stringify({ name: '@demo/plugin', type: 'module', exports: { '.': './dist/index.js' }, dsh: { bundle: { patch: './cordis.patch.yml' } } }),
+  )
   await writeFile(resolve(root, 'cordis.patch.yml'), '- insert:\n    - id: demo\n')
   let configFile: string | undefined
-  if (host === 'define') await writeFile(resolve(root, 'src/host.ts'), "import { defineHost } from '@becomeopc/dshx/host'\n\nexport default defineHost({ setup() {} })\n")
+  if (host === 'define')
+    await writeFile(resolve(root, 'src/host.ts'), "import { defineHost } from '@becomeopc/dshx/host'\n\nexport default defineHost({ setup() {} })\n")
   if (host === 'native') await writeFile(resolve(root, 'src/host.ts'), 'export const name = "demo"\nexport function apply() {}\n')
   if (host === 'disabled') {
     configFile = resolve(root, 'dshx.config.ts')
@@ -27,7 +41,11 @@ async function setup(host: 'define' | 'native' | 'missing' | 'disabled'): Promis
     await writeFile(resolve(root, 'src/client.tsx'), 'export default {}\n')
   }
   const manifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')) as Record<string, unknown>
-  return { root, project: project(root, host === 'missing' || host === 'disabled' ? undefined : resolve(root, 'src/host.ts'), configFile), cleanup: () => rm(root, { recursive: true, force: true }) }
+  return {
+    root,
+    project: project(root, host === 'missing' || host === 'disabled' ? undefined : resolve(root, 'src/host.ts'), configFile),
+    cleanup: () => rm(root, { recursive: true, force: true }),
+  }
 }
 
 describe('add tool scaffold', () => {
@@ -41,9 +59,11 @@ describe('add tool scaffold', () => {
       expect(tool).toContain('parameters: {}')
       expect(tool).toContain("schema: { type: 'string' }")
       const host = await readFile(resolve(value.root, 'src/host.ts'), 'utf8')
-      expect(host).toContain('from "./tools/status"')
+      expect(host).toContain('from "./tools/status.js"')
       expect(host).toContain('tools: [statusTool]')
-    } finally { await value.cleanup() }
+    } finally {
+      await value.cleanup()
+    }
   })
 
   it('creates a missing conventional Host and supports dry-run', async () => {
@@ -56,7 +76,9 @@ describe('add tool scaffold', () => {
       const result = await createToolScaffold({ project: value.project, name: 'status' }, { checkManifest: async () => [] })
       expect(result.diagnostics).toEqual([])
       expect(await readFile(resolve(value.root, 'src/host.ts'), 'utf8')).toContain('defineHost')
-    } finally { await value.cleanup() }
+    } finally {
+      await value.cleanup()
+    }
   })
 
   it('is idempotent and rejects unsafe Host shapes without changing files', async () => {
@@ -69,8 +91,12 @@ describe('add tool scaffold', () => {
       try {
         const result = await createToolScaffold({ project: native.project, name: 'status' }, { checkManifest: async () => [] })
         expect(result.diagnostics[0]?.code).toBe('DSHX6204')
-      } finally { await native.cleanup() }
-    } finally { await value.cleanup() }
+      } finally {
+        await native.cleanup()
+      }
+    } finally {
+      await value.cleanup()
+    }
   })
 
   it('rejects an explicitly disabled Host and rolls back checker failures', async () => {
@@ -78,12 +104,19 @@ describe('add tool scaffold', () => {
     try {
       const result = await createToolScaffold({ project: disabled.project, name: 'status' }, { checkManifest: async () => [] })
       expect(result.diagnostics[0]?.code).toBe('DSHX6203')
-    } finally { await disabled.cleanup() }
+    } finally {
+      await disabled.cleanup()
+    }
     const value = await setup('define')
     try {
-      const result = await createToolScaffold({ project: value.project, name: 'status' }, { checkManifest: async () => [{ code: 'DSHX4210', severity: 'error', message: 'bad', file: value.project.packageFile, hint: 'fix' }] })
+      const result = await createToolScaffold(
+        { project: value.project, name: 'status' },
+        { checkManifest: async () => [{ code: 'DSHX4210', severity: 'error', message: 'bad', file: value.project.packageFile, hint: 'fix' }] },
+      )
       expect(result.diagnostics[0]?.code).toBe('DSHX6208')
       await expect(readFile(resolve(value.root, 'src/tools/status.ts'), 'utf8')).rejects.toThrow()
-    } finally { await value.cleanup() }
+    } finally {
+      await value.cleanup()
+    }
   })
 })

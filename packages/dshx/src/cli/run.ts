@@ -3,13 +3,22 @@ import { createRequire } from 'node:module'
 import { resolve as resolvePath } from 'node:path'
 import { isCancel, select, text } from '@clack/prompts'
 import { buildClient, buildHost } from '../compiler/index.js'
-import { resolveDshxConfig } from '../config/index.js'
+import { resolveDshxConfig } from '../config/resolve.js'
 import { startDevSession } from '../dev/index.js'
 import type { DevEvent, DevSession } from '../dev/index.js'
 import { DshxError } from '../diagnostics.js'
 import { ensureProjectProfile, inspectProjectProfile, resolveDshInstallation } from '../profile/index.js'
 import type { PreparedProjectProfile, ProjectProfileLink, ResolvedDshInstallation } from '../profile/types.js'
-import { applyManifestRepairPlan, checkProjectManifest, createManifestRepairPlan, rollbackManifestRepairPlan } from '../project/index.js'
+import {
+  applyManifestRepairPlan,
+  checkMigrationDiagnostics,
+  checkPackageTargets,
+  checkProjectManifest,
+  createManifestRepairPlan,
+  rollbackManifestRepairPlan,
+  typecheckProject,
+} from '../project/index.js'
+import type { ProjectTypecheckResult } from '../project/index.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import { inspectProjectComposition } from '../inspect/index.js'
 import type { InspectResult, InspectTarget } from '../inspect/index.js'
@@ -43,6 +52,9 @@ export interface CliIO {
 export interface CliRuntime {
   readonly resolveConfig?: typeof resolveDshxConfig
   readonly checkManifest?: typeof checkProjectManifest
+  readonly checkMigrations?: typeof checkMigrationDiagnostics
+  readonly checkPackageTargets?: typeof checkPackageTargets
+  readonly typecheckProject?: typeof typecheckProject
   readonly resolveDsh?: typeof resolveDshInstallation
   readonly inspectProfile?: typeof inspectProjectProfile
   readonly ensureProfile?: typeof ensureProjectProfile
@@ -257,7 +269,13 @@ async function runBuild(args: CliArgs, options: CliRunOptions, project: Resolved
       hint: `Verified boundaries are ${compatibility.verified.minimum} and ${compatibility.verified.latest}.`,
     })
   }
-  const diagnostics = [...versionDiagnostics, ...(await (runtime.checkManifest ?? checkProjectManifest)(project, { compatibility }))]
+  const typecheck = await (runtime.typecheckProject ?? typecheckProject)(project.root)
+  const diagnostics = [
+    ...versionDiagnostics,
+    ...(await (runtime.checkManifest ?? checkProjectManifest)(project, { compatibility })),
+    ...(await (runtime.checkMigrations ?? checkMigrationDiagnostics)(project)),
+    ...typecheck.diagnostics,
+  ]
   for (const item of diagnostics) printDiagnostic(io, item)
   if (hasErrors(diagnostics)) return 1
   const jobs: Array<{ readonly fallback: string; readonly task: Promise<unknown> }> = []
@@ -274,6 +292,8 @@ async function runBuild(args: CliArgs, options: CliRunOptions, project: Resolved
       ...(project.hostEntry === undefined ? {} : { entry: project.hostEntry }),
       outDir: project.outDir,
       sourcemap: project.build.sourcemap,
+      declarations: project.build.declarations ?? true,
+      ...(project.hostVitePlugins === undefined ? {} : { vite: { plugins: project.hostVitePlugins } }),
       compatibility,
     }),
   })
@@ -294,6 +314,8 @@ async function runBuild(args: CliArgs, options: CliRunOptions, project: Resolved
         entry: project.clientEntry,
         outDir: project.outDir,
         sourcemap: project.build.sourcemap,
+        declarations: project.build.declarations ?? true,
+        ...(project.clientVitePlugins === undefined ? {} : { vite: { plugins: project.clientVitePlugins } }),
         external,
         inject,
         compatibility,
@@ -318,6 +340,9 @@ async function runBuild(args: CliArgs, options: CliRunOptions, project: Resolved
     if (names.length === 0 && fallback !== undefined) artifacts.push(fallback)
   })
   if (failed) return 1
+  const targetDiagnostics = await (runtime.checkPackageTargets ?? checkPackageTargets)(project)
+  for (const item of targetDiagnostics) printDiagnostic(io, item)
+  if (hasErrors(targetDiagnostics)) return 1
   write(io.stdout, `Built ${project.packageId} in ${project.outDir}\n`)
   for (const artifact of artifacts) write(io.stdout, `  ${artifact}\n`)
   return 0
@@ -326,12 +351,19 @@ async function runBuild(args: CliArgs, options: CliRunOptions, project: Resolved
 interface CheckResult {
   readonly project: ResolvedDshxConfig
   readonly diagnostics: readonly DshxDiagnostic[]
+  readonly staticDiagnostics: readonly DshxDiagnostic[]
+  readonly runtimeDiagnostics: readonly DshxDiagnostic[]
   readonly dsh?: ResolvedDshInstallation
   readonly profile?: ProjectProfileLink
   readonly runtimePlugins: RuntimePluginReport
   readonly bridge: InspectBridgeStatus
   readonly connection: ConnectionReport
   readonly compatibility: DshProjectCompatibilityAssessment
+  readonly typecheck: ProjectTypecheckResult
+  readonly runtime: {
+    readonly requested: boolean
+    readonly status: 'skipped' | 'passed' | 'failed'
+  }
 }
 
 interface ConnectionReport {
@@ -351,54 +383,68 @@ interface CheckFixResult {
   readonly diagnostics: readonly DshxDiagnostic[]
 }
 
-async function collectCheck(options: CliRunOptions, project: ResolvedDshxConfig): Promise<CheckResult> {
+async function collectCheck(options: CliRunOptions, project: ResolvedDshxConfig, requireRuntime: boolean): Promise<CheckResult> {
   const runtime = options.runtime ?? {}
-  let diagnostics: DshxDiagnostic[] = []
+  const runtimeDiagnostics: DshxDiagnostic[] = []
   let dsh: ResolvedDshInstallation | undefined
   let profile: ProjectProfileLink | undefined
   let runtimePlugins: RuntimePluginReport = { plugins: [], diagnostics: [] }
   let bridge: InspectBridgeStatus = { state: 'disabled', diagnostics: [] }
-  try {
-    dsh = await (runtime.resolveDsh ?? resolveDshInstallation)(project)
-    diagnostics.push(...dsh.diagnostics)
-    profile = await (runtime.inspectProfile ?? inspectProjectProfile)(project)
-    if (profile.state === 'absent')
-      diagnostics.push({
-        code: 'DSHX4305',
-        severity: 'error',
-        message: `Project ${JSON.stringify(project.packageId)} is not linked in profile ${JSON.stringify(project.profile)}.`,
-        file: project.packageFile,
-        hint: `Run "dshx dev" or "pnpm exec dsh plugin --profile ${project.profile} add ${project.root}".`,
-      })
-  } catch (error) {
-    diagnostics.push(diagnosticFromError(error, project.packageFile))
+  if (requireRuntime) {
+    try {
+      dsh = await (runtime.resolveDsh ?? resolveDshInstallation)(project)
+      runtimeDiagnostics.push(...dsh.diagnostics)
+      profile = await (runtime.inspectProfile ?? inspectProjectProfile)(project)
+      if (profile.state === 'absent')
+        runtimeDiagnostics.push({
+          code: 'DSHX4305',
+          severity: 'error',
+          message: `Project ${JSON.stringify(project.packageId)} is not linked in profile ${JSON.stringify(project.profile)}.`,
+          file: project.packageFile,
+          hint: `Run "dshx dev" or "pnpm exec dsh plugin --profile ${project.profile} add ${project.root}".`,
+        })
+    } catch (error) {
+      runtimeDiagnostics.push(diagnosticFromError(error, project.packageFile))
+    }
   }
-  const compatibilityAssessment = assessProjectCompatibility(project.manifest, dsh?.version)
-  diagnostics.push(...projectCompatibilityDiagnostics(compatibilityAssessment, project.packageFile, project.compatibility))
+  const installedVersion = dsh?.version ?? detectInstalledDshVersion(project.packageFile)
+  const compatibilityAssessment = assessProjectCompatibility(project.manifest, installedVersion)
   const compatibility = compatibilityAssessment.compatibility
   const connectionSpec = compatibility.connection
   const connection: ConnectionReport =
     connectionSpec === undefined
       ? { provider: 'unavailable', package: '@deepseek-ai/dsh-client-connection', hostApi: false, clientApi: false, status: 'unavailable' }
       : { provider: 'runtime', package: connectionSpec.packageName, hostApi: connectionSpec.hostRpc, clientApi: connectionSpec.clientRpc, status: 'available' }
-  runtimePlugins = await (runtime.inspectRuntimePlugins ?? inspectRuntimePlugins)(project, compatibility)
-  bridge = await (runtime.inspectBridgeStatus ?? inspectBridgeStatus)(project)
-  runtimePlugins = mergeRuntimePluginStatus(runtimePlugins, bridge)
-  diagnostics = [
+  if (requireRuntime) {
+    runtimePlugins = await (runtime.inspectRuntimePlugins ?? inspectRuntimePlugins)(project, compatibility)
+    bridge = await (runtime.inspectBridgeStatus ?? inspectBridgeStatus)(project)
+    runtimePlugins = mergeRuntimePluginStatus(runtimePlugins, bridge)
+    runtimeDiagnostics.push(...runtimePlugins.diagnostics, ...bridge.diagnostics)
+  }
+  const typecheck = await (runtime.typecheckProject ?? typecheckProject)(project.root)
+  const staticDiagnostics = [
     ...(await (runtime.checkManifest ?? checkProjectManifest)(project, { compatibility })),
-    ...runtimePlugins.diagnostics,
-    ...bridge.diagnostics,
-    ...diagnostics,
+    ...(await (runtime.checkMigrations ?? checkMigrationDiagnostics)(project)),
+    ...typecheck.diagnostics,
+    ...projectCompatibilityDiagnostics(compatibilityAssessment, project.packageFile, project.compatibility),
   ]
+  const diagnostics = [...staticDiagnostics, ...runtimeDiagnostics]
   const result: CheckResult = {
     project,
     diagnostics,
+    staticDiagnostics,
+    runtimeDiagnostics,
     ...(dsh === undefined ? {} : { dsh }),
     ...(profile === undefined ? {} : { profile }),
     runtimePlugins,
     bridge,
     connection,
     compatibility: compatibilityAssessment,
+    typecheck,
+    runtime: {
+      requested: requireRuntime,
+      status: requireRuntime ? (hasErrors(runtimeDiagnostics) ? 'failed' : 'passed') : 'skipped',
+    },
   }
   return result
 }
@@ -417,7 +463,7 @@ function fixSummary(value: CheckFixResult): Record<string, unknown> {
 async function runCheck(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
   const io = options.io ?? defaultIO()
   const runtime = options.runtime ?? {}
-  let result = await collectCheck(options, project)
+  let result = await collectCheck(options, project, args.runtime)
   let fix: CheckFixResult = { requested: args.fix, dryRun: args.dryRun, applied: false, changedFiles: [], diff: '', diagnostics: [] }
 
   if (args.fix) {
@@ -463,9 +509,9 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
               file: project.packageFile,
               hint: 'Review the reported manifest errors and repair ambiguous fields manually.',
             })
-            result = await collectCheck(options, project)
+            result = await collectCheck(options, project, args.runtime)
           } else {
-            result = await collectCheck(options, refreshed)
+            result = await collectCheck(options, refreshed, args.runtime)
           }
         } catch (error) {
           await (runtime.rollbackRepairPlan ?? rollbackManifestRepairPlan)(plan)
@@ -477,7 +523,7 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
             file: project.packageFile,
             hint: 'Run dshx check --fix again after resolving the project configuration error.',
           })
-          result = await collectCheck(options, project)
+          result = await collectCheck(options, project, args.runtime)
         }
       }
     }
@@ -494,11 +540,13 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
   if (args.json) {
     write(
       io.stdout,
-      `${JSON.stringify({ project: projectSummary(result.project), diagnostics, compatibility: compatibilitySummary(result.compatibility, options.version ?? VERSION), dsh: installationSummary(result.dsh), profile: result.profile ?? null, runtimePlugins: result.runtimePlugins.plugins, bridge: { state: result.bridge.state, metadata: result.bridge.metadata ?? null }, connection: result.connection, fix: fixSummary(fix) }, null, 2)}\n`,
+      `${JSON.stringify({ project: projectSummary(result.project), diagnostics, static: { status: hasErrors([...result.staticDiagnostics, ...fix.diagnostics]) ? 'failed' : 'passed' }, typecheck: { status: result.typecheck.status, configFile: result.typecheck.configFile }, runtime: result.runtime, compatibility: compatibilitySummary(result.compatibility, options.version ?? VERSION), dsh: installationSummary(result.dsh), profile: result.profile ?? null, runtimePlugins: result.runtimePlugins.plugins, bridge: { state: result.bridge.state, metadata: result.bridge.metadata ?? null }, connection: result.connection, fix: fixSummary(fix) }, null, 2)}\n`,
     )
   } else {
     for (const item of diagnostics) printDiagnostic(io, item)
     printCompatibilitySummary(io, result.compatibility, options.version ?? VERSION)
+    write(io.stdout, `Typecheck: ${result.typecheck.status}\n`)
+    write(io.stdout, `Runtime: ${result.runtime.status}${result.runtime.requested ? '' : ' (use dshx check --runtime to require it)'}\n`)
     if (args.fix && fix.diff !== '') {
       write(io.stdout, `${fix.applied ? 'Applied' : 'Planned'} manifest repair:\n${fix.diff}`)
     }
@@ -948,7 +996,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
   if (args.help) {
     write(
       io.stdout,
-      'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ncheck: --fix --dry-run\ndev: --open\ninspect targets: slots, tools, services, events\ninspect slots: --root <slot-name>\nadd targets: ui, tool, command, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd command options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n',
+      'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ncheck: --runtime --fix --dry-run\ndev: --open\ninspect targets: slots, tools, services, events\ninspect slots: --root <slot-name>\nadd targets: ui, tool, command, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd command options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n',
     )
     return 0
   }

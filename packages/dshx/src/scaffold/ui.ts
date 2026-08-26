@@ -229,7 +229,7 @@ function generatedSource(slot: SlotSummary, provider: string, id: string, order:
 function relativeImport(fromFile: string, targetFile: string): string {
   let value = relative(dirname(fromFile), targetFile).replaceAll('\\', '/')
   if (!value.startsWith('.')) value = `./${value}`
-  return value.replace(/\.(?:tsx?|jsx?)$/, '')
+  return value.replace(/\.(?:tsx?|jsx?)$/, '.js')
 }
 
 function findDefaultDefineClient(sourceFile: ts.SourceFile): ts.CallExpression | undefined {
