@@ -56,7 +56,7 @@ class FakeProjectWatcher implements DevProjectWatcher {
   }
 }
 
-function project(faces: 'host' | 'client' | 'full' = 'full', hostRestart: 'manual' | 'auto' = 'manual'): ResolvedDshxConfig {
+function project(faces: 'host' | 'client' | 'full' = 'full', hostRestart: 'manual' | 'auto' = 'auto'): ResolvedDshxConfig {
   const root = '/project/plugin'
   return {
     root,
@@ -180,7 +180,7 @@ describe('development process orchestration', () => {
   })
 
   it('marks manual Host rebuilds and clears the flag after an explicit restart', async () => {
-    const projectValue = project('host')
+    const projectValue = project('host', 'manual')
     const host = new FakeWatcher()
     const children: FakeChild[] = []
     const session = await startDevSession(projectValue, {
@@ -206,8 +206,8 @@ describe('development process orchestration', () => {
     await session.close()
   })
 
-  it('serializes automatic Host restarts', async () => {
-    const projectValue = project('host', 'auto')
+  it('serializes automatic Host restarts under the default policy', async () => {
+    const projectValue = project('host')
     const host = new FakeWatcher()
     const children: FakeChild[] = []
     const session = await startDevSession(projectValue, {

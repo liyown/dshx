@@ -72,7 +72,7 @@ describe('resolveDshxConfig', () => {
       hostEntry,
       outDir: resolve(nestedRoot, 'dist'),
       profile: 'web',
-      dev: { hostRestart: 'manual' },
+      dev: { hostRestart: 'auto' },
       build: { sourcemap: true },
       compatibility: { allowUnsupported: false },
     })
@@ -119,6 +119,16 @@ describe('resolveDshxConfig', () => {
     expect(resolved.clientEntry).toBeUndefined()
     expect(resolved.configFile).toBe(resolve(root, 'dshx.config.ts'))
     expect(resolved.configDependencies).toContain(resolve(root, 'config-values.ts'))
+  })
+
+  it('keeps manual Host restarts available as an explicit override', async () => {
+    const { root } = await temporaryProject()
+    await source(root, 'src/host.ts')
+    await writeFile(resolve(root, 'dshx.config.ts'), "export default { dev: { hostRestart: 'manual' } }\n")
+
+    await expect(resolveDshxConfig({ cwd: root })).resolves.toMatchObject({
+      dev: { hostRestart: 'manual' },
+    })
   })
 
   it('resolves any independently enabled Host or Client entry', async () => {

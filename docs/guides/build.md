@@ -65,6 +65,8 @@ String face shorthand was removed. Resolution rules are exact:
 
 DSHX reads only `dshx.config.ts`; it does not read `vite.config.*` and does not accept arbitrary Vite `UserConfig` fields.
 
+`dev.hostRestart` defaults to `"auto"`: every successful Host rebuild serially restarts DSH so only one child process is active. Set it to `"manual"` when Host restarts must wait for an explicit `r` command.
+
 ## Vite plugin contract
 
 `plugins` accepts native Vite `PluginOption[]`, including nested arrays and promises. Vite `enforce` and `apply` ordering is retained. DSHX entry/browser guards run before user transformations; protocol, capability, and artifact guards run after them.

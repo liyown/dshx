@@ -94,7 +94,7 @@ export const gettingStarted = defineDocsChapter({
                 },
                 {
                   title: "Edit the Host",
-                  body: "Host changes rebuild the Node entry. Press r in the interactive session when a Host restart is required, or q to close it.",
+                  body: "Host changes rebuild the Node entry and restart DSH automatically. Set dev.hostRestart to manual when restarts must wait for r; press q to close the session.",
                 },
                 {
                   title: "Validate",
@@ -184,7 +184,7 @@ export const gettingStarted = defineDocsChapter({
                 },
                 {
                   title: "修改 Host",
-                  body: "Host 修改会重新构建 Node 入口；需要重启时在交互会话中按 r，按 q 关闭。",
+                  body: "Host 修改会重新构建 Node 入口并自动重启 DSH。只有将 dev.hostRestart 设为 manual 时才需要按 r；按 q 关闭会话。",
                 },
                 {
                   title: "执行验证",

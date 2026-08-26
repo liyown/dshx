@@ -46,7 +46,7 @@ dshx dev [--cwd <project>] [--open] [--verbose]
 
 Dev uses Vite build-watch with `command: 'build'` in development mode, links the package through the official DSH Profile CLI when needed, and launches DSH only after required initial builds succeed. It is not a Vite dev server.
 
-Interactive input maps `r` to one explicit Host restart and `q`/Ctrl-C to bounded shutdown. `dev.hostRestart: 'auto'` restarts the Host after successful Host rebuilds. Client rebuilds use official DSH HMR. Config/dependency reloads keep the last-good session until replacement watchers resolve and build successfully.
+Successful Host rebuilds restart the Host automatically by default. Set `dev.hostRestart: 'manual'` to require an explicit restart instead. Interactive input maps `r` to one explicit Host restart under either policy and `q`/Ctrl-C to bounded shutdown. Client rebuilds use official DSH HMR. Config/dependency reloads keep the last-good session until replacement watchers resolve and build successfully.
 
 ## `dshx inspect`
 

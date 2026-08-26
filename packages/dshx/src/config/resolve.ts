@@ -132,7 +132,7 @@ function validateConfig(value: unknown, file: string): DshxConfig {
     if (value.dev.hostRestart !== undefined && value.dev.hostRestart !== 'manual' && value.dev.hostRestart !== 'auto') {
       throw new DshxError('DSHX4004', 'dev.hostRestart must be "manual" or "auto".', {
         file,
-        hint: 'Choose "manual" or "auto", or remove the field to use "manual".',
+        hint: 'Choose "manual" or "auto", or remove the field to use "auto".',
       })
     }
   }
@@ -275,7 +275,7 @@ export async function resolveDshxConfig(options: ResolveDshxConfigOptions = {}):
     ...(clientVitePlugins.length === 0 ? {} : { clientVitePlugins }),
     outDir: resolve(root, 'dist'),
     profile: loaded.config.profile ?? 'web',
-    dev: { hostRestart: loaded.config.dev?.hostRestart ?? 'manual' },
+    dev: { hostRestart: loaded.config.dev?.hostRestart ?? 'auto' },
     build: { sourcemap: loaded.config.build?.sourcemap ?? true, declarations: loaded.config.build?.declarations ?? true },
     compatibility: { allowUnsupported: loaded.config.compatibility?.allowUnsupported ?? false },
     manifest,

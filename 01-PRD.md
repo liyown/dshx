@@ -428,9 +428,8 @@ pnpm create dshx
 
 Host 改动默认行为：
 
-- 构建成功后提示 `press r to restart host`。
-- 不在 v0.1 默认自动重启正在运行的 DSH。
-- 提供显式配置 `dev.hostRestart = 'auto' | 'manual'`，默认 `manual`。
+- 构建成功后自动重启正在运行的 DSH，并串行化 stop/start，避免多个 DSH child 并存。
+- 提供显式配置 `dev.hostRestart = 'auto' | 'manual'`，默认 `auto`；需要人工控制时配置为 `manual` 并按 `r` 重启。
 
 ### 8.2 `dshx build`
 
