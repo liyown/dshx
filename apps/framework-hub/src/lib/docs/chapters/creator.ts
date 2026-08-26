@@ -32,7 +32,7 @@ export const creator = defineDocsChapter({
       intro:
         "Choose the feature set and styling pipeline independently. The generator writes only the provider edges and dependencies used by that combination.",
       description:
-        "CLI selectors, Starter and Showcase contents, CSS Modules, Tailwind, no-style output, and programmatic creation.",
+        "Use CLI selectors to choose Starter or Showcase with CSS Modules, Tailwind or no styling. You can also create a project programmatically.",
       sections: [
         {
           id: "selectors",
@@ -134,7 +134,7 @@ export const creator = defineDocsChapter({
       title: "Creator 模板与样式",
       intro: "分别选择功能集和样式管线；生成器只写入该组合实际使用的 Provider edge 和依赖。",
       description:
-        "CLI 选择器、Starter/Showcase 内容、CSS Modules、Tailwind、无样式输出与程序化创建。",
+        "使用 CLI 选择 Starter 或 Showcase，并搭配 CSS Modules、Tailwind 或无样式输出；也可以通过 API 创建项目。",
       sections: [
         {
           id: "selectors",

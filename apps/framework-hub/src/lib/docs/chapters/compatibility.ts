@@ -35,7 +35,7 @@ export const compatibility = defineDocsChapter({
       eyebrow: "10 · Experimental Tooling",
       title: "Diagnostics, compatibility, and project tooling",
       intro:
-        "Use one Node-only entry for config resolution, builds, compatibility analysis, CLI embedding, diagnostics, and transactional project repair.",
+        "Use a single Node-only entry to resolve config, run builds, analyze compatibility, embed the CLI, produce diagnostics, and repair projects transactionally.",
       description:
         "@becomeopc/dshx/tooling exports, protocol-1 capabilities, provider edges, offline migration diagnostics, and support boundaries.",
       sections: [
@@ -160,7 +160,7 @@ export const compatibility = defineDocsChapter({
       eyebrow: "10 · Experimental Tooling",
       title: "诊断、兼容性与项目工具",
       intro:
-        "通过一个 Node-only 入口使用 config resolver、build、兼容性分析、CLI embedding、诊断和事务式项目修复。",
+        "通过单一 Node-only 入口解析 config、执行 build、分析兼容性、嵌入 CLI、生成诊断并事务式修复项目。",
       description:
         "@becomeopc/dshx/tooling export、protocol-1 能力、Provider edge、离线迁移诊断与支持边界。",
       sections: [

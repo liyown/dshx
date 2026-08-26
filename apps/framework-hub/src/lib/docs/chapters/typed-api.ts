@@ -68,7 +68,7 @@ export const typedApi = defineDocsChapter({
       eyebrow: "06 · API Candidate",
       title: "Typed Host–Client API",
       intro:
-        "Define unary methods once, implement every method on the Host, and call the inferred imperative or query client from React.",
+        "Define unary methods once and implement each one on the Host. From React, call them through the inferred imperative client or query client.",
       description:
         "Standard Schema transforms, exact Host handlers, imperative calls, useApiQuery states, cancellation, and errors.",
       sections: [
@@ -244,7 +244,7 @@ export const typedApi = defineDocsChapter({
       eyebrow: "06 · API Candidate",
       title: "类型化 Host–Client API",
       intro:
-        "只定义一次一元 method，在 Host 精确实现每个 method，再从 React 调用推断后的 imperative 或 query client。",
+        "一元 method 只需定义一次，并在 Host 端逐一实现。在 React 中，通过推断出的 imperative client 或 query client 调用。",
       description:
         "Standard Schema transform、精确 Host handler、imperative 调用、useApiQuery 状态、取消与错误。",
       sections: [

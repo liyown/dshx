@@ -56,7 +56,7 @@ export const settings = defineDocsChapter({
       eyebrow: "05 · API Candidate",
       title: "Settings API",
       intro:
-        "Define one Schemastery contract, register its Host ownership once, and read the same identity from Client components.",
+        "Define one Schemastery contract, register it once on the Host, and use that same contract object from Client components.",
       description:
         "Contract inference, Host facets, Client state, writes, decoder failures, and fail-closed secret schemas.",
       sections: [
@@ -216,7 +216,7 @@ export const settings = defineDocsChapter({
       eyebrow: "05 · API Candidate",
       title: "Settings API",
       intro:
-        "定义一个 Schemastery contract，Host 只声明一次所有权，Client Component 使用同一对象身份读取。",
+        "定义一个 Schemastery contract，在 Host 端注册一次，并在 Client Component 中使用同一个 contract 对象。",
       description:
         "Contract 推断、Host facet、Client 状态、写入、decoder 失败与 secret schema fail-closed 规则。",
       sections: [

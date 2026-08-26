@@ -49,7 +49,7 @@ export const conversation = defineDocsChapter({
       eyebrow: "08 · Experimental",
       title: "Conversation lifecycle component",
       intro:
-        "Fold official Session events with pure lifecycle functions and render the projected data with one React component contribution.",
+        "Use pure lifecycle functions to fold official Session events, then render the projected data with a single React component contribution.",
       description:
         "Experimental defineConversation lifecycle, renderer props, registration, replay ownership, and Host interaction.",
       sections: [
@@ -189,7 +189,7 @@ export const conversation = defineDocsChapter({
       eyebrow: "08 · Experimental",
       title: "Conversation 生命周期组件",
       intro:
-        "用纯生命周期函数 fold 官方 Session event，再用一个 React Component Contribution 渲染投影数据。",
+        "先用纯生命周期函数 fold 官方 Session event，再由单个 React Component Contribution 渲染投影数据。",
       description:
         "Experimental defineConversation 生命周期、renderer props、注册、replay 所有权与 Host 交互。",
       sections: [
