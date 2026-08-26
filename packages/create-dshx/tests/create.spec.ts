@@ -3,7 +3,7 @@ import { PassThrough } from 'node:stream'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createProject, DEFAULT_DSH_RANGE, DEFAULT_DSH_VERSION, detectPackageManager, validateProjectName } from '../src/index.js'
+import { createProject, DEFAULT_DSH_RANGE, DEFAULT_DSH_VERSION, detectPackageManager, packageVersion, validateProjectName } from '../src/index.js'
 import { DEFAULT_COMPATIBILITY } from '../../dshx/src/compat/index.js'
 import { defaultFileSystem } from '../src/fs.js'
 import { runCreate } from '../src/cli.js'
@@ -58,7 +58,7 @@ describe('create-dshx', () => {
       scripts: Record<string, string>
       dsh: { client: { inject: string[] } }
     }
-    expect(manifest.devDependencies['@becomeopc/dshx']).toBe('0.1.1')
+    expect(manifest.devDependencies['@becomeopc/dshx']).toBe(packageVersion())
     expect(manifest.devDependencies['@deepseek-ai/dsh']).toBe(DEFAULT_DSH_VERSION)
     expect(manifest.peerDependencies['@deepseek-ai/dsh']).toBe(DEFAULT_DSH_RANGE)
     expect(manifest.scripts).toEqual({
