@@ -88,7 +88,7 @@ const documents = {
   community: {
     en: {
       title: "Community policy",
-      intro: "A concise standard for useful marketplace participation.",
+      intro: "Rules for reviews, replies and other marketplace activity.",
       sections: [
         [
           "Be specific",
@@ -106,7 +106,7 @@ const documents = {
     },
     zh: {
       title: "社区规范",
-      intro: "帮助市场保持有用与可信的简明规则。",
+      intro: "评价、回复及其他市场活动的规则。",
       sections: [
         ["提供具体信息", "评价实际使用过的插件，说明环境，并把观察到的事实与猜测区分开。"],
         ["尊重边界", "禁止威胁、仇恨、骚扰、泄露隐私、冒充他人和反复发送未经请求的推广。"],

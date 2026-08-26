@@ -54,7 +54,7 @@ export function AccountOverview() {
   return (
     <AccountShell
       title="Your marketplace"
-      intro="Bookmarks are public by default. Follows drive notification events without creating a public activity feed."
+      intro="Bookmarks are public by default. Following a plugin or publisher creates notifications without adding the action to a public activity feed."
     >
       {error ? (
         <AccountAccess message={error} />
@@ -174,7 +174,7 @@ export function SubmissionsPage() {
   return (
     <AccountShell
       title="Plugin submissions"
-      intro="Submit a GitHub repository root. The operations Agent discovers packages, verifies archive contents and publishes only qualified bundles."
+      intro="Submit the root of a GitHub repository. The operations Agent finds its packages, verifies the archive contents and publishes only bundles that pass verification."
     >
       {error ? (
         <AccountAccess message={error} />
@@ -352,7 +352,7 @@ export function AppealsPage() {
   return (
     <AccountShell
       title="Appeals"
-      intro="An appeal creates a high-risk approval. An administrator reviews an immutable evidence snapshot before any sanction is reversed."
+      intro="Submitting an appeal starts a high-risk approval. Before reversing a sanction, an administrator reviews its immutable evidence snapshot."
     >
       {error ? (
         <AccountAccess message={error} />

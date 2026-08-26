@@ -7,16 +7,17 @@ import { cn } from "@/lib/utils";
 const copy = {
   en: {
     idle: "Copy development prompt",
-    copied: "Copied — paste into your Agent",
-    failed: "Copy failed — try again",
+    copied: "Copied. Paste it into your Agent",
+    failed: "Copy failed. Try again",
     title:
-      "Copy a prompt that installs the current DSHX development Skill, reads the API guide, and separates offline checks from real DSH smoke",
+      "Copy a prompt for your Agent to install the current DSHX development Skill, read the API guide, and distinguish offline checks from a real DSH smoke test.",
   },
   zh: {
     idle: "复制开发 Prompt",
     copied: "已复制，粘贴给 Agent",
     failed: "复制失败，请重试",
-    title: "复制一段会安装当前 DSHX 开发 Skill、读取 API 指引并区分离线检查与真实 DSH smoke 的 Prompt",
+    title:
+      "复制一段 Prompt，让 Agent 安装当前 DSHX 开发 Skill、读取 API 指引，并区分离线检查与真实 DSH smoke test。",
   },
 } as const;
 

@@ -91,8 +91,8 @@ export function ReportDialog({
         <DialogHeader>
           <DialogTitle>Report this {targetType}</DialogTitle>
           <DialogDescription>
-            Reports include the current target snapshot. Clear violations may be handled
-            automatically; ambiguous cases remain reviewable.
+            Each report includes a snapshot of the item being reported. The system may handle clear
+            violations automatically and leave ambiguous cases for review.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -259,8 +259,8 @@ export function ClaimPluginDialog({ slug }: { slug: string }) {
         <DialogHeader>
           <DialogTitle>Claim this plugin</DialogTitle>
           <DialogDescription>
-            The challenge expires in 24 hours. Commit the generated file to the repository default
-            branch, then verification creates the maintainer relationship.
+            The challenge expires after 24 hours. Commit the generated file to the repository's
+            default branch. Successful verification creates the maintainer relationship.
           </DialogDescription>
         </DialogHeader>
         {result ? (
@@ -342,7 +342,8 @@ export function AddToCollectionDialog({ pluginId }: { pluginId: string }) {
         <DialogHeader>
           <DialogTitle>Add to a collection</DialogTitle>
           <DialogDescription>
-            Collections are public by default. Privacy can be changed from account settings.
+            Collections are public by default. You can make them private from the Collections page
+            in your account.
           </DialogDescription>
         </DialogHeader>
         <Turnstile key={challenge} onToken={setToken} />
