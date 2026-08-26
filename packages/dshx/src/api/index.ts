@@ -1,18 +1,25 @@
 export { defineApi, method } from './define.js'
-export { apiChannel, createApiClient, registerApi } from './runtime.js'
-export { ApiError } from './types.js'
+export { isApiError } from './runtime.js'
 export type {
+  AnyApiMethodDefinition,
   ApiCallOptions,
   ApiCallResult,
   ApiClient,
+  ApiClientInput,
+  ApiClientOutput,
   ApiContract,
+  ApiError,
   ApiErrorKind,
   ApiHandler,
   ApiHandlerContext,
+  ApiHostInput,
   ApiHostOptions,
   ApiHostRegistration,
+  ApiHostOutput,
   ApiMethodDefinition,
   ApiMethodOptions,
+  ApiQueryOptions,
+  ApiQueryResult,
   ApiQueryState,
   ApiSchema,
 } from './types.js'

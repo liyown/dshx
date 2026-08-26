@@ -1,8 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { createApiClientRuntime, startApiQueryEffect } from '../src/api/client.js'
 import { defineApi, method } from '../src/api/define.js'
+import * as publicApi from '../src/api/index.js'
 import { apiChannel, apiConnectionAvailable, createApiClient, registerApi, subscribeApiConnection } from '../src/api/runtime.js'
-import { ApiError } from '../src/api/types.js'
+
+function schema<Input, Output>(validate: (value: unknown) => StandardSchemaV1.Result<Output>): StandardSchemaV1<Input, Output> {
+  return { '~standard': { version: 1, vendor: 'dshx-test', validate } }
+}
 
 const api = defineApi({
   id: 'status',
@@ -14,6 +19,11 @@ const api = defineApi({
 })
 
 describe('generic API runtime', () => {
+  it('does not expose transport construction helpers', () => {
+    expect(publicApi).not.toHaveProperty('createApiClient')
+    expect(publicApi).not.toHaveProperty('registerApi')
+    expect(publicApi).not.toHaveProperty('apiChannel')
+  })
   it('creates a stable single-segment channel', () => {
     expect(apiChannel('@scope/plugin', 'status')).toMatch(/^\/dshx-[0-9a-f]+$/)
     expect(apiChannel('@scope/plugin', 'status')).toBe(apiChannel('@scope/plugin', 'status'))
@@ -142,10 +152,10 @@ describe('generic API runtime', () => {
     expect(get).toHaveBeenCalledTimes(3)
   })
 
-  it('keeps explicit API declarations as compatible eager bindings', () => {
+  it('does not eagerly bind contracts before useApi requests one', () => {
     const get = vi.fn(() => ({ rpc: { call: vi.fn() } }))
-    const client = createApiClientRuntime({ get }, '@scope/plugin', [api])
-    expect(get).toHaveBeenCalledOnce()
+    const client = createApiClientRuntime({ get }, '@scope/plugin')
+    expect(get).not.toHaveBeenCalled()
     expect(client.client(api)).toBe(client.client(api))
     expect(get).toHaveBeenCalledOnce()
   })
@@ -209,13 +219,12 @@ describe('generic API runtime', () => {
 
   it('returns Standard Schema transformed output from the Host boundary', async () => {
     let handler: ((endpoint: string, payload: unknown, signal: AbortSignal) => Promise<any>) | undefined
+    const validateOutput = vi.fn((value: unknown) => ({ value: String(value).toUpperCase() }))
     const transformed = defineApi({
       id: 'transformed',
       version: 1,
       methods: {
-        get: method<void, string>({
-          output: { '~standard': { validate: value => ({ value: String(value).toUpperCase() }) } },
-        }),
+        get: method({ output: schema<string, string>(validateOutput) }),
       },
     })
     const context = {
@@ -248,33 +257,75 @@ describe('generic API runtime', () => {
       ok: true,
       value: { output: 'READY' },
     })
+    expect(validateOutput).toHaveBeenCalledOnce()
+  })
+
+  it('checks the JSON boundary before transforming Client input into a Host-only value', async () => {
+    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal) => Promise<any>) | undefined
+    const transformed = defineApi({
+      id: 'host-input-transform',
+      version: 1,
+      methods: {
+        parse: method({
+          input: schema<{ raw: string }, { parsed: bigint }>(value => ({
+            value: { parsed: BigInt((value as { raw: string }).raw) },
+          })),
+        }),
+      },
+    })
+    const context = {
+      get: () => ({
+        rpc: {
+          handle(_channel: string, value: typeof handler) {
+            handler = value
+            return async () => undefined
+          },
+        },
+      }),
+      effect(setup: () => unknown) {
+        setup()
+      },
+    }
+    const implementation = vi.fn(({ input }: { input: { parsed: bigint } }) => input.parsed.toString())
+    await registerApi(context as never, '@scope/plugin', transformed.host({ parse: implementation }))
+
+    await expect(handler?.('parse', { version: 1, input: { raw: '9007199254740993' } }, new AbortController().signal)).resolves.toMatchObject({
+      ok: true,
+      value: { output: '9007199254740993' },
+    })
+    expect(implementation).toHaveBeenCalledWith(expect.objectContaining({ input: { parsed: 9007199254740993n } }))
   })
 
   it('maps JSON-safe and schema failures to contract errors', async () => {
-    const call = vi.fn(async (): Promise<{ readonly ok: true; readonly value: unknown }> => ({
-      ok: true,
-      value: { version: 1, output: { value: 'ready' } },
-    }))
+    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal) => Promise<any>) | undefined
+    const validateInput = vi.fn(() => ({ issues: [{ message: 'nope' }] }))
     const contract = defineApi({
       id: 'validated',
       version: 1,
       methods: {
-        get: method<{ readonly accepted?: boolean }, { value: string }>({
-          input: { '~standard': { validate: () => ({ issues: [{ message: 'nope' }] }) } },
-        }),
+        get: method({ input: schema<{ readonly accepted?: boolean }, { readonly accepted: boolean }>(validateInput) }),
       },
     })
-    const client = createApiClient(
-      {
-        get(name: string) {
-          return name === 'connection' ? { rpc: { call } } : undefined
+    const context = {
+      get: () => ({
+        rpc: {
+          handle(_channel: string, value: typeof handler) {
+            handler = value
+            return async () => undefined
+          },
+          call(_channel: string, endpoint: string, payload: unknown, signal?: AbortSignal) {
+            return handler?.(endpoint, payload, signal ?? new AbortController().signal)
+          },
         },
-      } as never,
-      contract,
-      '@scope/plugin',
-    )
+      }),
+      effect(setup: () => unknown) {
+        setup()
+      },
+    }
+    await registerApi(context as never, '@scope/plugin', contract.host({ get: () => ({ value: 'ready' }) }))
+    const client = createApiClient(context as never, contract, '@scope/plugin')
     await expect(client.get({})).rejects.toMatchObject({ kind: 'contract', retryable: false })
-    expect(call).not.toHaveBeenCalled()
+    expect(validateInput).toHaveBeenCalledOnce()
   })
 
   it('exposes the official Host description lifecycle to query adapters', () => {
@@ -323,7 +374,7 @@ describe('generic API runtime', () => {
         return () => listeners.delete(listener)
       },
       invoke,
-      onLoading: vi.fn(),
+      onPending: vi.fn(),
       onSuccess: vi.fn(),
       onError: vi.fn(),
       onReconnect,
@@ -341,7 +392,7 @@ describe('generic API runtime', () => {
     let connected = true
     const listeners = new Set<() => void>()
     let requestSignal: AbortSignal | undefined
-    const onLoading = vi.fn()
+    const onPending = vi.fn()
     const onError = vi.fn()
     const onReconnect = vi.fn()
     const dispose = startApiQueryEffect({
@@ -353,10 +404,10 @@ describe('generic API runtime', () => {
       invoke(signal) {
         requestSignal = signal
         return new Promise((_resolve, reject) => {
-          signal.addEventListener('abort', () => reject(new ApiError('aborted', 'aborted', 'status', 'get', false)), { once: true })
+          signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
         })
       },
-      onLoading,
+      onPending,
       onSuccess: vi.fn(),
       onError,
       onReconnect,
@@ -366,11 +417,27 @@ describe('generic API runtime', () => {
     for (const listener of listeners) listener()
     await Promise.resolve()
     expect(requestSignal?.aborted).toBe(true)
-    expect(onLoading).toHaveBeenCalledTimes(2)
+    expect(onPending).toHaveBeenCalledTimes(2)
     expect(onError).not.toHaveBeenCalled()
     connected = true
     for (const listener of listeners) listener()
     expect(onReconnect).toHaveBeenCalledOnce()
     dispose()
+  })
+
+  it('infers all four Standard Schema stages and checks exact handlers', () => {
+    const input = schema<{ raw: string }, { parsed: number }>(value => ({ value: { parsed: Number((value as { raw: string }).raw) } }))
+    const output = schema<{ count: number }, { text: string }>(value => ({ value: { text: String((value as { count: number }).count) } }))
+    const contract = defineApi({ id: 'four-stage', version: 1, methods: { convert: method({ input, output }) } })
+    contract.host({
+      convert({ input: hostInput }) {
+        expectTypeOf(hostInput).toEqualTypeOf<{ parsed: number }>()
+        return { count: hostInput.parsed }
+      },
+    })
+    const client = createApiClient(undefined, contract)
+    expectTypeOf(client.convert).parameter(0).toEqualTypeOf<{ raw: string }>()
+    expectTypeOf(client.convert).returns.resolves.toEqualTypeOf<{ text: string }>()
+    expect(() => contract.host({ convert: () => ({ count: 1 }), extra: () => 1 } as never)).toThrow('unexpected')
   })
 })

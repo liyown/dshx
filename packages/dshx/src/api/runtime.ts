@@ -1,12 +1,35 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type { ApiCallOptions, ApiClient, ApiContract, ApiError, ApiHostRegistration, ApiMethodDefinition } from './types.js'
-import { ApiError as ApiErrorClass } from './types.js'
+import type { AnyApiMethodDefinition, ApiCallOptions, ApiClient, ApiContract, ApiError, ApiErrorKind, ApiHostRegistration } from './types.js'
+import { apiHostRegistrationParts } from './define.js'
 
 const MAX_JSON_BYTES = 1024 * 1024
 const channelOwners = new WeakMap<object, Map<string, string>>()
 
 class ContractViolation extends Error {
   override readonly name = 'ContractViolation'
+}
+
+const API_ERROR = Symbol('dshx.api-error')
+
+class InternalApiError extends Error {
+  override readonly name = 'ApiError' as const
+  readonly [API_ERROR] = true
+
+  constructor(
+    readonly kind: ApiErrorKind,
+    message: string,
+    readonly apiId: string,
+    readonly method: string,
+    readonly retryable: boolean,
+    readonly remoteCode?: string,
+    options?: { readonly cause?: unknown },
+  ) {
+    super(message, options)
+  }
+}
+
+export function isApiError(value: unknown): value is ApiError {
+  return value instanceof InternalApiError || (typeof value === 'object' && value !== null && (value as Record<PropertyKey, unknown>)[API_ERROR] === true)
 }
 
 type RpcResult = { readonly ok: true; readonly value: unknown } | { readonly ok: false; readonly error?: { readonly code?: string; readonly message?: string } }
@@ -69,14 +92,18 @@ async function validate(schema: unknown, value: unknown): Promise<unknown> {
   const validator = (schema as { '~standard'?: { validate?: (input: unknown) => unknown | Promise<unknown> } })['~standard']?.validate
   if (typeof validator !== 'function') throw new ContractViolation('API schema does not implement Standard Schema validate().')
   const result = await validator(value)
-  if (result !== undefined && typeof result === 'object' && result !== null && 'issues' in result) {
+  if (result === undefined || typeof result !== 'object' || result === null) {
+    throw new ContractViolation('API schema returned an invalid Standard Schema result.')
+  }
+  if ((result as { readonly issues?: unknown }).issues !== undefined) {
     throw new ContractViolation('API schema validation failed.')
   }
-  return result !== undefined && typeof result === 'object' && result !== null && 'value' in result ? (result as { value: unknown }).value : value
+  if (!Object.hasOwn(result, 'value')) throw new ContractViolation('API schema success result is missing value.')
+  return (result as { readonly value: unknown }).value
 }
 
 function error(kind: ApiError['kind'], message: string, apiId: string, method: string, retryable: boolean, cause?: unknown, remoteCode?: string): ApiError {
-  return new ApiErrorClass(kind, message, apiId, method, retryable, remoteCode, cause === undefined ? undefined : { cause })
+  return new InternalApiError(kind, message, apiId, method, retryable, remoteCode, cause === undefined ? undefined : { cause }) as unknown as ApiError
 }
 
 function aborted(apiId: string, method: string, cause?: unknown): ApiError {
@@ -97,12 +124,9 @@ function errorFromRemote(result: Extract<RpcResult, { readonly ok: false }>, api
   return error('remote', message, apiId, method, false, undefined, code)
 }
 
-function registrationContract(registration: ApiHostRegistration): ApiContract {
-  return registration.contract
-}
-
 export async function registerApi(ctx: Context, packageId: string, registration: ApiHostRegistration): Promise<void> {
-  const contract = registrationContract(registration)
+  const registrationParts = apiHostRegistrationParts(registration)
+  const contract = registrationParts.contract
   const connection = ctx.get('connection') as ConnectionLike | undefined
   if (connection?.rpc?.handle === undefined) {
     console.warn(`API ${contract.id} is unavailable because the DSH Connection provider is not loaded.`)
@@ -119,7 +143,7 @@ export async function registerApi(ctx: Context, packageId: string, registration:
     channel,
     async (endpoint, payload, signal) => {
       const methodDefinition = contract.methods[endpoint]
-      const handler = registration.handlers[endpoint]
+      const handler = registrationParts.handlers[endpoint]
       if (methodDefinition === undefined || typeof handler !== 'function') {
         return { ok: false, error: { code: 'bad-request', message: `Unknown API method ${endpoint}.` } }
       }
@@ -130,20 +154,20 @@ export async function registerApi(ctx: Context, packageId: string, registration:
         const envelope = payload as { version?: unknown; input?: unknown }
         if (envelope.version !== contract.version)
           throw error('contract', `API version mismatch for ${contract.id}.`, contract.id, endpoint, false, undefined, 'DSHX6401')
+        jsonBytes(envelope.input)
         const input = await validate(methodDefinition.input, envelope.input)
-        jsonBytes(input)
         throwIfAborted(signal, contract.id, endpoint)
         const output = await validate(methodDefinition.output, await handler({ input, ctx, signal } as never))
         throwIfAborted(signal, contract.id, endpoint)
         jsonBytes(output)
         return { ok: true, value: { version: contract.version, output } }
       } catch (cause) {
-        if (cause instanceof ApiErrorClass) return { ok: false, error: { code: cause.remoteCode ?? 'internal', message: cause.message } }
+        if (isApiError(cause)) return { ok: false, error: { code: cause.remoteCode ?? 'internal', message: cause.message } }
         if (cause instanceof ContractViolation) return { ok: false, error: { code: 'contract', message: cause.message } }
         return { ok: false, error: { code: 'internal', message: cause instanceof Error ? cause.message : String(cause) } }
       }
     },
-    { authority: registration.authority },
+    { authority: registrationParts.authority },
   )
   owners.set(channel, owner)
   channelOwners.set(ctx, owners)
@@ -160,7 +184,7 @@ export async function registerApi(ctx: Context, packageId: string, registration:
   }
 }
 
-export function createApiClient<const Methods extends Record<string, ApiMethodDefinition<any, any>>>(
+export function createApiClient<const Methods extends Record<string, AnyApiMethodDefinition>>(
   context: ContextLike | Context | undefined,
   contract: ApiContract<Methods>,
   packageId = 'plugin',
@@ -171,23 +195,20 @@ export function createApiClient<const Methods extends Record<string, ApiMethodDe
     if (rpc?.call === undefined) throw error('unavailable', 'The DSH Connection provider is unavailable.', contract.id, name, true)
     try {
       throwIfAborted(options?.signal, contract.id, name)
-      const methodDefinition = contract.methods[name]
-      if (methodDefinition === undefined) throw error('contract', `Unknown API method ${name}.`, contract.id, name, false)
-      const validated = await validate(methodDefinition.input, input)
-      jsonBytes(validated)
+      if (contract.methods[name] === undefined) throw error('contract', `Unknown API method ${name}.`, contract.id, name, false)
+      jsonBytes(input)
       throwIfAborted(options?.signal, contract.id, name)
-      const result = await rpc.call(apiChannel(packageId, contract.id), name, { version: contract.version, input: validated }, options?.signal)
+      const result = await rpc.call(apiChannel(packageId, contract.id), name, { version: contract.version, input }, options?.signal)
       throwIfAborted(options?.signal, contract.id, name)
       if (!result.ok) throw errorFromRemote(result, contract.id, name)
       const envelope = result.value as { version?: unknown; output?: unknown }
       if (envelope.version !== contract.version)
         throw error('contract', `API version mismatch for ${contract.id}.`, contract.id, name, false, undefined, 'DSHX6401')
-      const output = await validate(methodDefinition.output, envelope.output)
-      jsonBytes(output)
+      jsonBytes(envelope.output)
       throwIfAborted(options?.signal, contract.id, name)
-      return output
+      return envelope.output
     } catch (cause) {
-      if (cause instanceof ApiErrorClass) throw cause
+      if (isApiError(cause)) throw cause
       if (options?.signal?.aborted) throw aborted(contract.id, name, cause)
       if (cause instanceof ContractViolation) throw error('contract', cause.message, contract.id, name, false, cause)
       throw error('transport', cause instanceof Error ? cause.message : String(cause), contract.id, name, true, cause)
@@ -201,7 +222,7 @@ export function createApiClient<const Methods extends Record<string, ApiMethodDe
       try {
         return { ok: true, value: await invoke(input, options) }
       } catch (cause) {
-        return { ok: false, error: cause instanceof ApiErrorClass ? cause : error('transport', String(cause), contract.id, name, true, cause) }
+        return { ok: false, error: isApiError(cause) ? cause : error('transport', String(cause), contract.id, name, true, cause) }
       }
     }
   }
