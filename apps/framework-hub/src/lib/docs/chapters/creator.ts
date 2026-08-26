@@ -1,15 +1,15 @@
 import { defineDocsChapter } from "../types";
 
 const commands = `# Interactive: asks for template and style
-pnpm create dshx my-plugin
+pnpm create dshx@preview my-plugin
 
 # Explicit combinations
-pnpm create dshx my-plugin --template starter --style css-modules
-pnpm create dshx my-plugin --template showcase --style tailwind
-pnpm create dshx my-plugin --template starter --style none
+pnpm create dshx@preview my-plugin --template starter --style css-modules
+pnpm create dshx@preview my-plugin --template showcase --style tailwind
+pnpm create dshx@preview my-plugin --template starter --style none
 
 # Non-interactive defaults: starter + css-modules
-pnpm create dshx my-plugin --yes`;
+pnpm create dshx@preview my-plugin --yes`;
 
 const programmatic = `import { createProject } from 'create-dshx'
 
@@ -46,7 +46,7 @@ export const creator = defineDocsChapter({
                 {
                   name: "--template starter",
                   type: "minimal",
-                  body: "One Host Tool, one visible Client Slot, and the minimum manifest/package/config files.",
+                  body: "One Host Tool, one typed defineLocale() contribution, one visible Client Slot, and the minimum manifest/package/config files.",
                 },
                 {
                   name: "--template showcase",
@@ -86,8 +86,9 @@ export const creator = defineDocsChapter({
               items: [
                 "check runs the offline project and TypeScript checks.",
                 "build runs type checking and emits Host, Client, sourcemaps, and declarations.",
-                "dev opens the DSH build-watch loop.",
-                "prepack runs check and build before packaging.",
+                "dev runs dshx dev --open and opens the real DSH build-watch loop.",
+                "prepack uses npm run check && npm run build so every selected package manager can invoke it.",
+                "Starter registers typed zh/en dictionaries without LocaleNamespaceMap declaration merging and includes the official Locale provider edge.",
                 "The six template/style combinations contain no workspace:* specifiers and declare only the selected official provider edges.",
               ],
             },
@@ -148,7 +149,7 @@ export const creator = defineDocsChapter({
                 {
                   name: "--template starter",
                   type: "最小项目",
-                  body: "一个 Host Tool、一个可见 Client Slot，以及最小 manifest/package/config 文件。",
+                  body: "一个 Host Tool、一个类型化 defineLocale() 贡献、一个可见 Client Slot，以及最小 manifest/package/config 文件。",
                 },
                 {
                   name: "--template showcase",
@@ -184,8 +185,9 @@ export const creator = defineDocsChapter({
               items: [
                 "check 运行离线项目检查和 TypeScript 检查。",
                 "build 先检查类型，再输出 Host、Client、sourcemap 和 declaration。",
-                "dev 启动 DSH build-watch 循环。",
-                "prepack 在打包前运行 check 和 build。",
+                "dev 通过 dshx dev --open 启动真实 DSH build-watch 循环。",
+                "prepack 使用 npm run check && npm run build，因此所有已选择的包管理器都能调用。",
+                "Starter 无需 LocaleNamespaceMap declaration merging 即可注册类型化 zh/en 词典，并包含官方 Locale Provider edge。",
                 "六种 template/style 组合都不含 workspace:* specifier，且只声明选中的官方 Provider edge。",
               ],
             },

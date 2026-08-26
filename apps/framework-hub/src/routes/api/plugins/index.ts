@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { pluginListQuerySchema } from "@/lib/catalog/contracts";
-import { listCatalogPlugins } from "@/lib/catalog/repository.server";
+import { listCatalogDiscovery } from "@/lib/catalog/repository.server";
 import { requireDatabase } from "@/lib/db/client";
 import { jsonError } from "@/lib/http";
 
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/api/plugins/")({
               ? Number(url.searchParams.get("limit"))
               : undefined,
           });
-          return Response.json(await listCatalogPlugins(requireDatabase(context), query));
+          return Response.json(await listCatalogDiscovery(requireDatabase(context), query));
         } catch (error) {
           return jsonError(error);
         }

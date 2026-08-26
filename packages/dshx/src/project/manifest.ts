@@ -3,7 +3,14 @@ import { resolve } from 'node:path'
 import { parse } from 'yaml'
 import { DEFAULT_COMPATIBILITY } from '../compat/index.js'
 import type { DshCompatibility } from '../compat/types.js'
-import { clientUsesApi, clientUsesConversationComponents, clientUsesSettings } from '../compiler/client/capabilities.js'
+import {
+  CLIENT_SETUP_SERVICE_CAPABILITIES,
+  clientSetupServices,
+  clientUsesApi,
+  clientUsesConversationComponents,
+  clientUsesLocales,
+  clientUsesSettings,
+} from '../compiler/client/capabilities.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
 import type { DshxDiagnostic, DshxDiagnosticSeverity } from '../diagnostics.js'
 
@@ -286,6 +293,56 @@ async function checkConversationCapability(diagnostics: DshxDiagnostic[], config
   )
 }
 
+async function checkLocaleCapability(diagnostics: DshxDiagnostic[], config: ResolvedDshxConfig, manifest: Record<string, unknown>): Promise<void> {
+  if (config.clientEntry === undefined || !(await clientUsesLocales(config.clientEntry, config.root))) return
+  const dsh = isObject(manifest.dsh) ? manifest.dsh : undefined
+  const client = isObject(dsh?.client) ? dsh.client : undefined
+  const inject = Array.isArray(client?.inject) ? client.inject : []
+  if (inject.includes('@deepseek-ai/dsh-client-locale')) return
+  diagnostics.push(
+    issue(
+      'DSHX4221',
+      'error',
+      'defineLocale() contributions require @deepseek-ai/dsh-client-locale in dsh.client.inject.',
+      config.packageFile,
+      'Add "@deepseek-ai/dsh-client-locale" to dsh.client.inject so DSH loads the official Locale provider first.',
+    ),
+  )
+}
+
+async function checkSetupServiceCapabilities(diagnostics: DshxDiagnostic[], config: ResolvedDshxConfig, manifest: Record<string, unknown>): Promise<void> {
+  if (config.clientEntry === undefined) return
+  const analysis = await clientSetupServices(config.clientEntry, config.root)
+  const dsh = isObject(manifest.dsh) ? manifest.dsh : undefined
+  const client = isObject(dsh?.client) ? dsh.client : undefined
+  const packageInject = Array.isArray(client?.inject) ? client.inject : []
+  for (const service of analysis.services) {
+    if (analysis.inject !== undefined && !analysis.inject.includes(service) && !analysis.autoInject.includes(service)) {
+      diagnostics.push(
+        issue(
+          'DSHX4219',
+          'error',
+          `defineClient().setup uses ctx.${service}, but defineClient.inject does not declare ${JSON.stringify(service)}.`,
+          analysis.sourceFile ?? resolve(config.root, config.clientEntry),
+          `Add inject: [${JSON.stringify(service)}] to defineClient({...}). dsh.client.inject loads provider packages; it does not inject runtime Cordis services.`,
+        ),
+      )
+    }
+    const provider = CLIENT_SETUP_SERVICE_CAPABILITIES[service].provider
+    if (!packageInject.includes(provider) && !analysis.autoInject.includes(service)) {
+      diagnostics.push(
+        issue(
+          'DSHX4220',
+          'error',
+          `ctx.${service} requires ${provider} in dsh.client.inject.`,
+          config.packageFile,
+          `Add ${JSON.stringify(provider)} to dsh.client.inject so DSH loads the provider before this Client.`,
+        ),
+      )
+    }
+  }
+}
+
 /** Collect current package and bundle metadata issues without changing project files. */
 export async function checkProjectManifest(config: ResolvedDshxConfig, options: { readonly compatibility?: DshCompatibility } = {}): Promise<DshxDiagnostic[]> {
   const diagnostics: DshxDiagnostic[] = []
@@ -377,6 +434,8 @@ export async function checkProjectManifest(config: ResolvedDshxConfig, options: 
   await checkSettingsCapability(diagnostics, config, manifest)
   await checkApiCapability(diagnostics, config, manifest)
   await checkConversationCapability(diagnostics, config, manifest)
+  await checkLocaleCapability(diagnostics, config, manifest)
+  await checkSetupServiceCapabilities(diagnostics, config, manifest)
   checkPublishingHints(diagnostics, manifest, config.packageFile)
   return diagnostics
 }

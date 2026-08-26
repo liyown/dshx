@@ -236,6 +236,81 @@ describe('checkProjectManifest', () => {
     expect(diagnostics).not.toContainEqual(expect.objectContaining({ code: 'DSHX4218' }))
   })
 
+  it('checks both defineClient service injection and the locale provider package edge', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      [
+        "import { defineClient } from '@becomeopc/dshx/client'",
+        "export default defineClient({ setup(ctx) { ctx.effect(() => ctx.locale.register('demo', {})) } })",
+        '',
+      ].join('\n'),
+    )
+
+    const missingBoth = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(missingBoth).toContainEqual(
+      expect.objectContaining({ code: 'DSHX4219', severity: 'error', file: resolve(root, 'src/client.tsx'), hint: expect.stringContaining('defineClient') }),
+    )
+    expect(missingBoth).toContainEqual(
+      expect.objectContaining({ code: 'DSHX4220', severity: 'error', file: resolve(root, 'package.json'), hint: expect.stringContaining('dsh.client.inject') }),
+    )
+
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      [
+        "import { defineClient } from '@becomeopc/dshx/client'",
+        "export default defineClient({ inject: ['locale'], setup(ctx) { ctx.effect(() => ctx['locale'].register('demo', {})) } })",
+        '',
+      ].join('\n'),
+    )
+    const manifest = fullManifest()
+    ;(manifest.dsh as { client: { inject: string[] } }).client.inject.push('@deepseek-ai/dsh-client-locale')
+    await writeManifest(root, manifest)
+
+    const complete = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(complete).not.toContainEqual(expect.objectContaining({ code: 'DSHX4219' }))
+    expect(complete).not.toContainEqual(expect.objectContaining({ code: 'DSHX4220' }))
+  })
+
+  it('treats non-empty declarative locales as the locale service injection while still requiring the provider edge', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      [
+        "import { defineClient, defineLocale } from '@becomeopc/dshx/client'",
+        "const copy = defineLocale('demo', { zh: { title: '标题' }, en: { title: 'Title' } })",
+        "export default defineClient({ locales: [copy], setup(ctx) { return ctx.locale.bind('demo') } })",
+        '',
+      ].join('\n'),
+    )
+
+    const missingProvider = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(missingProvider).not.toContainEqual(expect.objectContaining({ code: 'DSHX4219' }))
+    expect(missingProvider).not.toContainEqual(expect.objectContaining({ code: 'DSHX4220' }))
+    expect(missingProvider).toContainEqual(
+      expect.objectContaining({ code: 'DSHX4221', severity: 'error', hint: expect.stringContaining('@deepseek-ai/dsh-client-locale') }),
+    )
+
+    const manifest = fullManifest()
+    ;(manifest.dsh as { client: { inject: string[] } }).client.inject.push('@deepseek-ai/dsh-client-locale')
+    await writeManifest(root, manifest)
+    const complete = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(complete).not.toContainEqual(expect.objectContaining({ code: 'DSHX4219' }))
+    expect(complete).not.toContainEqual(expect.objectContaining({ code: 'DSHX4220' }))
+    expect(complete).not.toContainEqual(expect.objectContaining({ code: 'DSHX4221' }))
+  })
+
+  it('does not mistake base Context methods for optional setup services', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      ["import { defineClient } from '@becomeopc/dshx/client'", "export default defineClient({ setup(ctx) { ctx.effect(() => 'ready') } })", ''].join('\n'),
+    )
+    const diagnostics = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
+    expect(diagnostics).not.toContainEqual(expect.objectContaining({ code: 'DSHX4219' }))
+    expect(diagnostics).not.toContainEqual(expect.objectContaining({ code: 'DSHX4220' }))
+  })
+
   it('previews Conversation component provider edges from defineClient()', async () => {
     const root = await temporaryProject()
     await writeFile(

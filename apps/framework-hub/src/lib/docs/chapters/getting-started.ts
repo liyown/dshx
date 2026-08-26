@@ -34,7 +34,7 @@ export const gettingStarted = defineDocsChapter({
             {
               kind: "terminal",
               lines: [
-                { text: "pnpm create dshx my-plugin", kind: "cmd" },
+                { text: "pnpm create dshx@preview my-plugin", kind: "cmd" },
                 { text: "# or: --template showcase --style tailwind", kind: "dim" },
                 { text: "cd my-plugin", kind: "cmd" },
                 { text: "pnpm dev", kind: "cmd" },
@@ -58,7 +58,7 @@ export const gettingStarted = defineDocsChapter({
             {
               kind: "code",
               title: "terminal",
-              code: "pnpm add -D @becomeopc/dshx @deepseek-ai/dsh",
+              code: "pnpm add -D @becomeopc/dshx@preview @deepseek-ai/dsh",
             },
             {
               kind: "note",
@@ -86,7 +86,7 @@ export const gettingStarted = defineDocsChapter({
               items: [
                 {
                   title: "Start the session",
-                  body: "pnpm dev builds both entries, links the current package, starts watchers, and opens DSH after the initial build succeeds.",
+                  body: "pnpm dev builds both entries, links the current package, starts watchers, and opens DSH after the initial build succeeds. Pass -- --port 0 when the default Web port is occupied.",
                 },
                 {
                   title: "Edit the Client",
@@ -124,7 +124,7 @@ export const gettingStarted = defineDocsChapter({
             {
               kind: "terminal",
               lines: [
-                { text: "pnpm create dshx my-plugin", kind: "cmd" },
+                { text: "pnpm create dshx@preview my-plugin", kind: "cmd" },
                 { text: "# 或：--template showcase --style tailwind", kind: "dim" },
                 { text: "cd my-plugin", kind: "cmd" },
                 { text: "pnpm dev", kind: "cmd" },
@@ -148,7 +148,7 @@ export const gettingStarted = defineDocsChapter({
             {
               kind: "code",
               title: "terminal",
-              code: "pnpm add -D @becomeopc/dshx @deepseek-ai/dsh",
+              code: "pnpm add -D @becomeopc/dshx@preview @deepseek-ai/dsh",
             },
             {
               kind: "note",
@@ -176,7 +176,7 @@ export const gettingStarted = defineDocsChapter({
               items: [
                 {
                   title: "启动会话",
-                  body: "pnpm dev 构建两个入口、关联当前包、启动 watcher，并在首次构建成功后打开 DSH。",
+                  body: "pnpm dev 构建两个入口、关联当前包、启动 watcher，并在首次构建成功后打开 DSH；默认 Web 端口被占用时传入 -- --port 0。",
                 },
                 {
                   title: "修改 Client",

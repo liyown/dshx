@@ -1,8 +1,10 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { defineClient, defineSlot } from '../src/client/index.js'
+import { defineClient, defineLocale, defineSlot } from '../src/client/index.js'
+import type { LocaleDefinition, LocaleKeyOf, PropsLocaleOf } from '../src/client/index.js'
 import { slotContributionParts } from '../src/client/define.js'
+import { localeDefinitionParts } from '../src/client/locale.js'
 import type { ClientConversationContribution } from '../src/client/types.js'
 import { defineConversation } from '../src/conversation/index.js'
 import { getConversationContributionParts } from '../src/conversation/define.js'
@@ -14,6 +16,9 @@ import Schema from '@deepseek-ai/schemastery'
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     'test.slot': { kind: 'list'; scope: 'root' }
+  }
+  interface LocaleNamespaceMap {
+    'test.native': 'native-label'
   }
 }
 
@@ -58,6 +63,39 @@ describe('defineClient', () => {
     expectTypeOf(contribution).toMatchTypeOf<import('../src/client/types.js').SlotContribution<'test.slot'>>()
     // @ts-expect-error Unknown SlotMap keys must be provided by an official augmentation.
     defineSlot('missing.slot', { component })
+  })
+
+  it('defines balanced Locale dictionaries and retains namespace and key types', () => {
+    const copy = defineLocale('test.copy', {
+      zh: { title: '标题', body: '正文' },
+      en: { title: 'Title', body: 'Body' },
+    })
+    expect(localeDefinitionParts(copy)).toEqual({
+      namespace: 'test.copy',
+      dictionaries: {
+        zh: { title: '标题', body: '正文' },
+        en: { title: 'Title', body: 'Body' },
+      },
+    })
+    expectTypeOf<LocaleKeyOf<typeof copy>>().toEqualTypeOf<'title' | 'body'>()
+    expectTypeOf<PropsLocaleOf<typeof copy>['t']>().parameter(0).toEqualTypeOf<'title' | 'body' | import('@deepseek-ai/dsh-client-ui-slots').CommonKeyOf>()
+
+    defineLocale('test.missing-key', {
+      zh: { title: '标题', body: '正文' },
+      // @ts-expect-error Every shipped locale must expose exactly the same keys.
+      en: { title: 'Title' },
+    })
+    defineLocale('test.extra-locale', {
+      zh: { title: '标题' },
+      en: { title: 'Title' },
+      // @ts-expect-error Only LocaleId keys are accepted.
+      fr: { title: 'Titre' },
+    })
+    defineLocale('test.invalid-value', {
+      zh: { title: '标题' },
+      // @ts-expect-error Locale values must be strings.
+      en: { title: 1 },
+    })
   })
 })
 describe('Client runtime adapter', () => {
@@ -112,6 +150,68 @@ describe('Client runtime adapter', () => {
     } as unknown as Context)
     expect(calls).toEqual(['inject:test.slot', 'register:first', 'inject:test.slot', 'register:second', 'setup'])
     expect(registered).toHaveLength(2)
+  })
+
+  it('registers Locale effects before Slots and setup, auto-injects locale, and normalizes a Locale handle', () => {
+    const calls: string[] = []
+    const dispose = vi.fn()
+    const copy = defineLocale('test.copy', {
+      zh: { title: '标题' },
+      en: { title: 'Title' },
+    })
+    const component = (_props: PropsRuntime<'test.slot'> & PropsLocaleOf<typeof copy>) => null
+    const slot = defineSlot('test.slot', { id: 'localized', locale: copy, component })
+    const plugin = createClientPlugin(
+      {
+        inject: ['locale', 'locale'],
+        locales: [copy],
+        slots: [slot],
+        setup() {
+          calls.push('setup')
+        },
+      },
+      { packageId: '@test/plugin' },
+    )
+    expect(plugin.inject).toEqual(['locale', 'slots'])
+    const registered: unknown[] = []
+    plugin.apply({
+      effect(register: () => unknown) {
+        calls.push('effect')
+        return register()
+      },
+      locale: {
+        register(namespace: string, dictionaries: unknown) {
+          calls.push(`locale:${namespace}`)
+          registered.push({ namespace, dictionaries })
+          return dispose
+        },
+      },
+      slots: {
+        inject(name: string, register: () => unknown) {
+          calls.push(`inject:${name}`)
+          return register()
+        },
+        register(options: Record<string, unknown>, registeredComponent: unknown) {
+          calls.push(`slot:${String(options.locale)}`)
+          registered.push({ options, component: registeredComponent })
+          return vi.fn()
+        },
+      },
+    } as unknown as Context)
+    expect(calls).toEqual(['effect', 'locale:test.copy', 'inject:test.slot', 'slot:test.copy', 'setup'])
+    expect(registered[0]).toEqual({ namespace: 'test.copy', dictionaries: localeDefinitionParts(copy).dictionaries })
+    expect(registered[1]).toEqual({ options: { name: 'test.slot', id: 'localized', locale: 'test.copy' }, component })
+    expect(dispose).not.toHaveBeenCalled()
+  })
+
+  it('preserves native string Locale namespaces for advanced Slot declarations', () => {
+    const component = (_props: PropsRuntime<'test.slot'> & PropsLocale<'test.native'>) => null
+    const slot = defineSlot('test.slot', { id: 'native', locale: 'test.native', component })
+    const register = vi.fn()
+    const plugin = createClientPlugin({ slots: [slot] }, { packageId: '@test/plugin' })
+    expect(plugin.inject).toEqual(['slots'])
+    plugin.apply({ slots: { inject: (_name: string, apply: () => unknown) => apply(), register } } as unknown as Context)
+    expect(register).toHaveBeenCalledWith({ name: 'test.slot', id: 'native', locale: 'test.native' }, component)
   })
 
   it('does not inject or register an empty Slot list', () => {
@@ -315,11 +415,41 @@ describe('Client runtime adapter', () => {
   })
 
   it.each([
+    ['empty namespace', '', { zh: { title: '标题' }, en: { title: 'Title' } }],
+    ['whitespace namespace', ' test.copy ', { zh: { title: '标题' }, en: { title: 'Title' } }],
+    ['non-object dictionaries', 'test.copy', null],
+    ['missing locale', 'test.copy', { zh: { title: '标题' } }],
+    ['extra locale', 'test.copy', { zh: { title: '标题' }, en: { title: 'Title' }, fr: { title: 'Titre' } }],
+    ['non-object dictionary', 'test.copy', { zh: { title: '标题' }, en: [] }],
+    ['non-string value', 'test.copy', { zh: { title: '标题' }, en: { title: 1 } }],
+    ['empty key', 'test.copy', { zh: { '': '标题' }, en: { '': 'Title' } }],
+    ['unbalanced keys', 'test.copy', { zh: { title: '标题', body: '正文' }, en: { title: 'Title' } }],
+  ])('rejects a dynamic Locale with %s', (_label, namespace, dictionaries) => {
+    const unsafeDefineLocale = defineLocale as (name: unknown, values: unknown) => LocaleDefinition
+    const locale = unsafeDefineLocale(namespace, dictionaries)
+    expect(() => createClientPlugin({ locales: [locale] }, { packageId: '@test/plugin', sourceFile: '/project/src/client.tsx' })).toThrow(
+      expect.objectContaining({ code: 'DSHX2402', file: '/project/src/client.tsx', hint: expect.any(String) }),
+    )
+  })
+
+  it('rejects duplicate, forged, and copied Locale contributions with stable diagnostics', () => {
+    const first = defineLocale('test.copy', { zh: { title: '标题' }, en: { title: 'Title' } })
+    const second = defineLocale('test.copy', { zh: { title: '另一个标题' }, en: { title: 'Another title' } })
+    expect(() => createClientPlugin({ locales: [first, second] }, { packageId: '@test/plugin' })).toThrow(
+      expect.objectContaining({ code: 'DSHX2402', message: expect.stringContaining('duplicate') }),
+    )
+    expect(() => createClientPlugin({ locales: [{}] }, { packageId: '@test/plugin' })).toThrow(expect.objectContaining({ code: 'DSHX2401' }))
+    expect(() => createClientPlugin({ locales: [{ ...first }] }, { packageId: '@test/plugin' })).toThrow(expect.objectContaining({ code: 'DSHX2401' }))
+  })
+
+  it.each([
     ['non-object definition', null, 'DSHX2101'],
     ['unknown field', { unknown: true }, 'DSHX2102'],
     ['empty name', { name: '' }, 'DSHX2102'],
     ['invalid inject', { inject: [''] }, 'DSHX2102'],
     ['invalid setup', { setup: true }, 'DSHX2102'],
+    ['invalid locales', { locales: {} }, 'DSHX2402'],
+    ['invalid Locale contribution', { locales: [{}] }, 'DSHX2401'],
     ['invalid conversations', { conversations: {} }, 'DSHX2302'],
     ['invalid Conversation contribution', { conversations: [{}] }, 'DSHX2301'],
     ['copied Conversation contribution', { conversations: [{ ...conversationContribution() }] }, 'DSHX2301'],

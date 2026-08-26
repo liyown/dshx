@@ -26,7 +26,7 @@ import { runMaintenanceAudit } from "./maintenance.js";
 import { checkMedia, uploadMedia } from "./media.js";
 import { submitMetrics } from "./metrics.js";
 import { submitTargetVerification } from "./targets.js";
-import { verifyEvidenceManifest } from "./validate.js";
+import { CHECKER_VERSION, verifyEvidenceManifest } from "./validate.js";
 
 const hubArgs = {
   hub: { type: "string", description: "Hub base URL.", valueHint: "url" },
@@ -326,7 +326,7 @@ async function syncCommand() {
           idempotencyKey,
           expectedItems,
           cliVersion: await cliVersion(),
-          checkerVersion: "3",
+          checkerVersion: CHECKER_VERSION,
         }),
       }),
     );

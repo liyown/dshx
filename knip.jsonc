@@ -25,6 +25,15 @@
       "entry": ["src/host.ts"],
       "ignoreDependencies": ["@deepseek-ai/dsh"],
     },
+    "packages/plugin-marketplace": {
+      "entry": [
+        "dshx.config.ts",
+        "src/host.ts",
+        "src/client.tsx",
+        "vitest.smoke.config.ts",
+        "tests/self-bootstrap.smoke.ts",
+      ],
+    },
     "apps/framework-hub": {
       "entry": ["src/lib/email/previews/*.tsx"],
     },

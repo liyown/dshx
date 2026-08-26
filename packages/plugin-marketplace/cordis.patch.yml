@@ -1,0 +1,3 @@
+- insert:
+    - id: dshx-plugin-marketplace
+      name: '@becomeopc/dshx-plugin-marketplace'

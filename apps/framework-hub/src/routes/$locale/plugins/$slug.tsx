@@ -33,6 +33,7 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
       };
     }
     const p = loaderData.plugin;
+    const primaryTarget = selectInstallTarget(loaderData.installTargets, p.scope, p.version);
     const canonical = `${loaderData.siteUrl}/${params.locale}/plugins/${p.slug}`;
     const socialImage = loaderData.media[0]
       ? `${loaderData.siteUrl}/api/media/${loaderData.media[0].id}`
@@ -45,7 +46,7 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
       applicationCategory: "DeveloperApplication",
       softwareVersion: p.version,
       operatingSystem: "Cross-platform",
-      downloadUrl: loaderData.installTargets[0]?.spec,
+      ...(primaryTarget ? { downloadUrl: primaryTarget.spec } : {}),
       author: { "@type": "Person", name: p.author },
       ...(loaderData.rating && loaderData.rating.count >= 2
         ? {
@@ -125,15 +126,69 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
 const sections = ["overview", "releases", "dependencies", "media", "reviews"] as const;
 type DetailSection = (typeof sections)[number];
 
+function selectInstallTarget(
+  targets: Array<{
+    spec: string;
+    package_name: string;
+    version: string;
+    status: string;
+    is_primary: number;
+  }>,
+  packageName: string,
+  version: string,
+) {
+  const candidates = targets.filter(
+    (target) =>
+      target.is_primary === 1 &&
+      target.status === "active" &&
+      target.package_name === packageName &&
+      target.version === version,
+  );
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+function parseHttpUrl(value: string | null): URL | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatCatalogDate(value: string | number | null, locale: "en" | "zh"): string | null {
+  if (value === null) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
 function PluginDetail() {
   const detail = Route.useLoaderData();
   const { plugin } = detail;
   const { locale, t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [active, setActive] = useState<DetailSection>("overview");
-  const primaryTarget =
-    detail.installTargets.find((target) => target.is_primary === 1) ?? detail.installTargets[0];
-  const install = `dsh plugin add ${String(primaryTarget?.spec ?? plugin.scope)}`;
+  const primaryTarget = selectInstallTarget(detail.installTargets, plugin.scope, plugin.version);
+  const install = primaryTarget ? `dsh plugin --profile <profile> add ${primaryTarget.spec}` : null;
+  const repositoryUrl = parseHttpUrl(detail.repositoryUrl);
+  const unavailable = t("plugin.unavailable");
+  const facts = [
+    [t("plugin.latestVersion"), `v${plugin.version}`],
+    [t("plugin.compatibility"), plugin.compat],
+    [t("plugin.license"), detail.license ?? unavailable],
+    [t("plugin.repository"), repositoryUrl?.hostname ?? unavailable],
+    [t("plugin.published"), formatCatalogDate(plugin.publishedAt, locale) ?? unavailable],
+    [t("plugin.updated"), formatCatalogDate(plugin.updated, locale) ?? unavailable],
+    [t("plugin.downloads"), plugin.downloads],
+    [t("plugin.stars"), plugin.stars === null ? "—" : String(plugin.stars)],
+    [t("plugin.category"), plugin.category],
+  ] as const;
 
   const related = detail.related;
 
@@ -181,23 +236,32 @@ function PluginDetail() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => {
-                void navigator.clipboard?.writeText(install);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1600);
-              }}
-              className="inline-flex h-10 items-center gap-3 rounded-[10px] border border-ink-border bg-ink px-3.5 font-mono text-[12.5px] text-ink-foreground transition-colors hover:border-ink-accent/60"
-            >
-              <span className="text-ink-accent">$</span>
-              {install}
-              <span className={cn("text-[11px]", copied ? "text-ok" : "text-ink-muted")}>
-                {copied ? t("plugin.copied") : t("plugin.copy")}
+            {install ? (
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(install);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1600);
+                }}
+                className="inline-flex h-10 items-center gap-3 rounded-[10px] border border-ink-border bg-ink px-3.5 font-mono text-[12.5px] text-ink-foreground transition-colors hover:border-ink-accent/60"
+              >
+                <span className="text-ink-accent">$</span>
+                {install}
+                <span className={cn("text-[11px]", copied ? "text-ok" : "text-ink-muted")}>
+                  {copied ? t("plugin.copied") : t("plugin.copy")}
+                </span>
+              </button>
+            ) : (
+              <span className="inline-flex h-10 items-center rounded-[10px] border border-border px-3.5 font-mono text-[12px] text-muted-foreground">
+                {t("plugin.installUnavailable")}
               </span>
-            </button>
-            <ButtonLink href={detail.repositoryUrl ?? "#"} variant="outline">
-              {t("plugin.openGithub")}
-            </ButtonLink>
+            )}
+            {repositoryUrl ? (
+              <ButtonLink href={repositoryUrl.href} variant="outline">
+                {t("plugin.openGithub")}
+              </ButtonLink>
+            ) : null}
           </div>
         </div>
 
@@ -206,6 +270,7 @@ function PluginDetail() {
             <div className="flex flex-wrap gap-5 border-b border-border pb-3">
               {sections.map((s) => (
                 <button
+                  type="button"
                   key={s}
                   onClick={() => setActive(s)}
                   className={cn(
@@ -236,19 +301,7 @@ function PluginDetail() {
 
           <aside>
             <div className="space-y-px overflow-hidden rounded-xl border border-border bg-border">
-              {[
-                ["Latest version", `v${plugin.version}`],
-                ["Compatibility", plugin.compat],
-                ["License", detail.license ?? "Unknown"],
-                [
-                  "Repository",
-                  detail.repositoryUrl ? new URL(detail.repositoryUrl).hostname : "Unknown",
-                ],
-                ["Updated", plugin.updated],
-                ["Downloads", plugin.downloads],
-                ["Stars", String(plugin.stars)],
-                ["Category", plugin.category],
-              ].map(([k, v]) => (
+              {facts.map(([k, v]) => (
                 <div key={k} className="flex items-center justify-between bg-surface px-4 py-3">
                   <span className="text-[12.5px] text-muted-foreground">{k}</span>
                   <span className="font-mono text-[12px]">{v}</span>
@@ -314,7 +367,7 @@ function OverviewPanel({
                 className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <code className="font-mono text-xs text-ink-foreground">
-                  dsh plugin add {target.spec}
+                  dsh plugin --profile &lt;profile&gt; add {target.spec}
                 </code>
                 <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
                   {target.kind} · {target.status}
@@ -356,6 +409,7 @@ function ReleasesPanel({
 }: {
   releases: ReturnType<typeof Route.useLoaderData>["releases"];
 }) {
+  const { locale, t } = useI18n();
   if (!releases.length) return <EmptyPanel>No release records are available.</EmptyPanel>;
   return (
     <div className="divide-y divide-border border-y border-border">
@@ -366,6 +420,7 @@ function ReleasesPanel({
           compatibility_range: string | null;
           git_tag: string | null;
           release_notes_url: string | null;
+          published_at: number | null;
         }) => (
           <article
             key={release.version}
@@ -375,6 +430,11 @@ function ReleasesPanel({
               <div className="font-mono text-sm">v{release.version}</div>
               <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
                 {release.channel}
+              </div>
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                {t("plugin.releasePublished", {
+                  value: formatCatalogDate(release.published_at, locale) ?? t("plugin.unavailable"),
+                })}
               </div>
             </div>
             <div className="text-sm text-muted-foreground">

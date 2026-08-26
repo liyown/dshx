@@ -21,7 +21,7 @@ const require = createRequire(import.meta.url)
 export const DEFAULT_DSH_VERSION = '0.1.1-rc.2'
 
 /** Public DSH range owned by the current protocol generation. */
-export const DEFAULT_DSH_RANGE = '>=0.1.0-rc.8 <0.2.0-0'
+export const DEFAULT_DSH_RANGE = '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2'
 export const DEFAULT_TEMPLATE = 'starter' as const
 export const DEFAULT_STYLE = 'css-modules' as const
 

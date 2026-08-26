@@ -57,6 +57,8 @@ import { Route as ApiAdminApprovalsIndexRouteImport } from './routes/api/admin/a
 import { Route as ApiAdminApprovalsIdRouteImport } from './routes/api/admin/approvals/$id'
 import { Route as ApiClaimsIdVerifyRouteImport } from './routes/api/claims/$id/verify'
 import { Route as ApiCliAuthorizationsIndexRouteImport } from './routes/api/cli/authorizations/index'
+import { Route as ApiMarketplacePluginsIndexRouteImport } from './routes/api/marketplace/plugins/index'
+import { Route as ApiMarketplacePluginsSlugRouteImport } from './routes/api/marketplace/plugins/$slug'
 import { Route as ApiMeAppealsIndexRouteImport } from './routes/api/me/appeals/index'
 import { Route as ApiMeBlocksUserIdRouteImport } from './routes/api/me/blocks/$userId'
 import { Route as ApiMeCollectionsIndexRouteImport } from './routes/api/me/collections/index'
@@ -339,6 +341,18 @@ const ApiCliAuthorizationsIndexRoute =
     path: '/api/cli/authorizations/',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiMarketplacePluginsIndexRoute =
+  ApiMarketplacePluginsIndexRouteImport.update({
+    id: '/api/marketplace/plugins/',
+    path: '/api/marketplace/plugins/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiMarketplacePluginsSlugRoute =
+  ApiMarketplacePluginsSlugRouteImport.update({
+    id: '/api/marketplace/plugins/$slug',
+    path: '/api/marketplace/plugins/$slug',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMeAppealsIndexRoute = ApiMeAppealsIndexRouteImport.update({
   id: '/api/me/appeals/',
   path: '/api/me/appeals/',
@@ -583,6 +597,7 @@ export interface FileRoutesByFullPath {
   '/api/reports/': typeof ApiReportsIndexRoute
   '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
   '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
+  '/api/marketplace/plugins/$slug': typeof ApiMarketplacePluginsSlugRoute
   '/api/me/blocks/$userId': typeof ApiMeBlocksUserIdRoute
   '/api/me/collections/$id': typeof ApiMeCollectionsIdRouteWithChildren
   '/api/ops/approvals/$id': typeof ApiOpsApprovalsIdRouteWithChildren
@@ -599,6 +614,7 @@ export interface FileRoutesByFullPath {
   '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
   '/api/admin/approvals/': typeof ApiAdminApprovalsIndexRoute
   '/api/cli/authorizations/': typeof ApiCliAuthorizationsIndexRoute
+  '/api/marketplace/plugins/': typeof ApiMarketplacePluginsIndexRoute
   '/api/me/appeals/': typeof ApiMeAppealsIndexRoute
   '/api/me/collections/': typeof ApiMeCollectionsIndexRoute
   '/api/me/notifications/': typeof ApiMeNotificationsIndexRoute
@@ -668,6 +684,7 @@ export interface FileRoutesByTo {
   '/api/reports': typeof ApiReportsIndexRoute
   '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
   '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
+  '/api/marketplace/plugins/$slug': typeof ApiMarketplacePluginsSlugRoute
   '/api/me/blocks/$userId': typeof ApiMeBlocksUserIdRoute
   '/api/me/collections/$id': typeof ApiMeCollectionsIdRouteWithChildren
   '/api/ops/approvals/$id': typeof ApiOpsApprovalsIdRouteWithChildren
@@ -684,6 +701,7 @@ export interface FileRoutesByTo {
   '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
   '/api/admin/approvals': typeof ApiAdminApprovalsIndexRoute
   '/api/cli/authorizations': typeof ApiCliAuthorizationsIndexRoute
+  '/api/marketplace/plugins': typeof ApiMarketplacePluginsIndexRoute
   '/api/me/appeals': typeof ApiMeAppealsIndexRoute
   '/api/me/collections': typeof ApiMeCollectionsIndexRoute
   '/api/me/notifications': typeof ApiMeNotificationsIndexRoute
@@ -755,6 +773,7 @@ export interface FileRoutesById {
   '/api/reports/': typeof ApiReportsIndexRoute
   '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
   '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
+  '/api/marketplace/plugins/$slug': typeof ApiMarketplacePluginsSlugRoute
   '/api/me/blocks/$userId': typeof ApiMeBlocksUserIdRoute
   '/api/me/collections/$id': typeof ApiMeCollectionsIdRouteWithChildren
   '/api/ops/approvals/$id': typeof ApiOpsApprovalsIdRouteWithChildren
@@ -771,6 +790,7 @@ export interface FileRoutesById {
   '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
   '/api/admin/approvals/': typeof ApiAdminApprovalsIndexRoute
   '/api/cli/authorizations/': typeof ApiCliAuthorizationsIndexRoute
+  '/api/marketplace/plugins/': typeof ApiMarketplacePluginsIndexRoute
   '/api/me/appeals/': typeof ApiMeAppealsIndexRoute
   '/api/me/collections/': typeof ApiMeCollectionsIndexRoute
   '/api/me/notifications/': typeof ApiMeNotificationsIndexRoute
@@ -843,6 +863,7 @@ export interface FileRouteTypes {
     | '/api/reports/'
     | '/api/admin/approvals/$id'
     | '/api/claims/$id/verify'
+    | '/api/marketplace/plugins/$slug'
     | '/api/me/blocks/$userId'
     | '/api/me/collections/$id'
     | '/api/ops/approvals/$id'
@@ -859,6 +880,7 @@ export interface FileRouteTypes {
     | '/api/reviews/$id/replies'
     | '/api/admin/approvals/'
     | '/api/cli/authorizations/'
+    | '/api/marketplace/plugins/'
     | '/api/me/appeals/'
     | '/api/me/collections/'
     | '/api/me/notifications/'
@@ -928,6 +950,7 @@ export interface FileRouteTypes {
     | '/api/reports'
     | '/api/admin/approvals/$id'
     | '/api/claims/$id/verify'
+    | '/api/marketplace/plugins/$slug'
     | '/api/me/blocks/$userId'
     | '/api/me/collections/$id'
     | '/api/ops/approvals/$id'
@@ -944,6 +967,7 @@ export interface FileRouteTypes {
     | '/api/reviews/$id/replies'
     | '/api/admin/approvals'
     | '/api/cli/authorizations'
+    | '/api/marketplace/plugins'
     | '/api/me/appeals'
     | '/api/me/collections'
     | '/api/me/notifications'
@@ -1014,6 +1038,7 @@ export interface FileRouteTypes {
     | '/api/reports/'
     | '/api/admin/approvals/$id'
     | '/api/claims/$id/verify'
+    | '/api/marketplace/plugins/$slug'
     | '/api/me/blocks/$userId'
     | '/api/me/collections/$id'
     | '/api/ops/approvals/$id'
@@ -1030,6 +1055,7 @@ export interface FileRouteTypes {
     | '/api/reviews/$id/replies'
     | '/api/admin/approvals/'
     | '/api/cli/authorizations/'
+    | '/api/marketplace/plugins/'
     | '/api/me/appeals/'
     | '/api/me/collections/'
     | '/api/me/notifications/'
@@ -1083,6 +1109,7 @@ export interface RootRouteChildren {
   ApiReportsIndexRoute: typeof ApiReportsIndexRoute
   ApiAdminApprovalsIdRoute: typeof ApiAdminApprovalsIdRouteWithChildren
   ApiClaimsIdVerifyRoute: typeof ApiClaimsIdVerifyRoute
+  ApiMarketplacePluginsSlugRoute: typeof ApiMarketplacePluginsSlugRoute
   ApiMeBlocksUserIdRoute: typeof ApiMeBlocksUserIdRoute
   ApiMeCollectionsIdRoute: typeof ApiMeCollectionsIdRouteWithChildren
   ApiOpsApprovalsIdRoute: typeof ApiOpsApprovalsIdRouteWithChildren
@@ -1096,6 +1123,7 @@ export interface RootRouteChildren {
   ApiReviewsIdRepliesRoute: typeof ApiReviewsIdRepliesRoute
   ApiAdminApprovalsIndexRoute: typeof ApiAdminApprovalsIndexRoute
   ApiCliAuthorizationsIndexRoute: typeof ApiCliAuthorizationsIndexRoute
+  ApiMarketplacePluginsIndexRoute: typeof ApiMarketplacePluginsIndexRoute
   ApiMeAppealsIndexRoute: typeof ApiMeAppealsIndexRoute
   ApiMeCollectionsIndexRoute: typeof ApiMeCollectionsIndexRoute
   ApiMeNotificationsIndexRoute: typeof ApiMeNotificationsIndexRoute
@@ -1447,6 +1475,20 @@ declare module '@tanstack/react-router' {
       path: '/api/cli/authorizations'
       fullPath: '/api/cli/authorizations/'
       preLoaderRoute: typeof ApiCliAuthorizationsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/marketplace/plugins/': {
+      id: '/api/marketplace/plugins/'
+      path: '/api/marketplace/plugins'
+      fullPath: '/api/marketplace/plugins/'
+      preLoaderRoute: typeof ApiMarketplacePluginsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/marketplace/plugins/$slug': {
+      id: '/api/marketplace/plugins/$slug'
+      path: '/api/marketplace/plugins/$slug'
+      fullPath: '/api/marketplace/plugins/$slug'
+      preLoaderRoute: typeof ApiMarketplacePluginsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/me/appeals/': {
@@ -1849,6 +1891,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiReportsIndexRoute: ApiReportsIndexRoute,
   ApiAdminApprovalsIdRoute: ApiAdminApprovalsIdRouteWithChildren,
   ApiClaimsIdVerifyRoute: ApiClaimsIdVerifyRoute,
+  ApiMarketplacePluginsSlugRoute: ApiMarketplacePluginsSlugRoute,
   ApiMeBlocksUserIdRoute: ApiMeBlocksUserIdRoute,
   ApiMeCollectionsIdRoute: ApiMeCollectionsIdRouteWithChildren,
   ApiOpsApprovalsIdRoute: ApiOpsApprovalsIdRouteWithChildren,
@@ -1862,6 +1905,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiReviewsIdRepliesRoute: ApiReviewsIdRepliesRoute,
   ApiAdminApprovalsIndexRoute: ApiAdminApprovalsIndexRoute,
   ApiCliAuthorizationsIndexRoute: ApiCliAuthorizationsIndexRoute,
+  ApiMarketplacePluginsIndexRoute: ApiMarketplacePluginsIndexRoute,
   ApiMeAppealsIndexRoute: ApiMeAppealsIndexRoute,
   ApiMeCollectionsIndexRoute: ApiMeCollectionsIndexRoute,
   ApiMeNotificationsIndexRoute: ApiMeNotificationsIndexRoute,

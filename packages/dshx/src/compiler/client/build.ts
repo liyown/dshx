@@ -8,7 +8,7 @@ import { DshxError } from '../../diagnostics.js'
 import { artifactDeclarationPlugin, buildReport, buildWatcher, kernelBoundaryPlugin, resolveUserPlugins } from '../kernel.js'
 import type { BuildReport, BuildWatcher, ViteExtensionOptions } from '../types.js'
 import { clientCssPlugin } from './css.js'
-import { clientUsesConversationComponents } from './capabilities.js'
+import { CLIENT_SETUP_SERVICE_CAPABILITIES, clientSetupServices, clientUsesConversationComponents, clientUsesLocales } from './capabilities.js'
 import { clientGuardPlugin, singleClientChunkPlugin } from './guards.js'
 
 const VIRTUAL_CLIENT_ENTRY = '\0virtual:dshx-client-entry'
@@ -24,8 +24,10 @@ const SETTINGS_CAPABILITY_GLOBAL = '__DSHX_CLIENT_SETTINGS_CAPABILITY__'
 const API_PROVIDER_PACKAGE = '@deepseek-ai/dsh-client-connection'
 const API_CAPABILITY_GLOBAL = '__DSHX_CLIENT_API_CAPABILITY__'
 const CONVERSATION_PROVIDER_PACKAGES = ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation'] as const
+const LOCALE_PROVIDER_PACKAGE = '@deepseek-ai/dsh-client-locale'
 const CLIENT_RUNTIME_PATH = fileURLToPath(new URL('../../client/runtime.js', import.meta.url))
 const CLIENT_DEFINE_PATH = fileURLToPath(new URL('../../client/define.js', import.meta.url))
+const CLIENT_LOCALE_PATH = fileURLToPath(new URL('../../client/locale.js', import.meta.url))
 const CLIENT_API_PATH = fileURLToPath(new URL('../../api/client.js', import.meta.url))
 const API_DEFINE_PATH = fileURLToPath(new URL('../../api/define.js', import.meta.url))
 const API_RUNTIME_PATH = fileURLToPath(new URL('../../api/runtime.js', import.meta.url))
@@ -89,6 +91,7 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
       if (id === VIRTUAL_CLIENT_PUBLIC)
         return [
           `export { defineClient, defineSlot } from ${JSON.stringify(CLIENT_DEFINE_PATH)}`,
+          `export { defineLocale } from ${JSON.stringify(CLIENT_LOCALE_PATH)}`,
           `export { useApi, useApiQuery } from ${JSON.stringify(VIRTUAL_CLIENT_API_HOOKS)}`,
           `export { useSettings } from ${JSON.stringify(VIRTUAL_CLIENT_SETTINGS_HOOK)}`,
           '',
@@ -125,7 +128,7 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
       const metadata = {
         packageId: options.packageId,
         logicalName: name,
-        sourceFile: paths.entry,
+        sourceFile: relative(paths.root, paths.entry).replaceAll('\\', '/'),
       }
       return [
         `import * as source from ${JSON.stringify(paths.entry)}`,
@@ -180,6 +183,43 @@ async function validateConversationProviderEdges(paths: Awaited<ReturnType<typeo
   })
 }
 
+async function validateLocaleProviderEdge(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildClientOptions): Promise<void> {
+  if (!(await clientUsesLocales(paths.entry, paths.root)) || (options.inject ?? []).includes(LOCALE_PROVIDER_PACKAGE)) return
+  throw new DshxError('DSHX1203', 'defineLocale() contributions require the official Locale provider package edge.', {
+    file: paths.entry,
+    hint: `Add ${JSON.stringify(LOCALE_PROVIDER_PACKAGE)} to package.json dsh.client.inject, then rebuild.`,
+  })
+}
+
+async function validateSetupServiceEdges(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildClientOptions): Promise<void> {
+  const analysis = await clientSetupServices(paths.entry, paths.root)
+  for (const service of analysis.services) {
+    if (analysis.inject !== undefined && !analysis.inject.includes(service) && !analysis.autoInject.includes(service)) {
+      throw new DshxError('DSHX1204', `defineClient().setup uses ctx.${service}, but defineClient.inject does not declare ${JSON.stringify(service)}.`, {
+        file: analysis.sourceFile ?? paths.entry,
+        hint: `Add inject: [${JSON.stringify(service)}] to defineClient({...}). dsh.client.inject loads provider packages; it does not inject runtime Cordis services.`,
+      })
+    }
+    const provider = CLIENT_SETUP_SERVICE_CAPABILITIES[service].provider
+    if (!(options.inject ?? []).includes(provider) && !analysis.autoInject.includes(service)) {
+      throw new DshxError('DSHX1203', `ctx.${service} requires the official ${service} provider package edge.`, {
+        file: analysis.sourceFile ?? paths.entry,
+        hint: `Add ${JSON.stringify(provider)} to package.json dsh.client.inject, then rebuild.`,
+      })
+    }
+  }
+}
+
+function clientSetupServiceGuardPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildClientOptions): Plugin {
+  return {
+    name: 'dshx-client-setup-service-guard',
+    async buildStart() {
+      await validateSetupServiceEdges(paths, options)
+      await validateLocaleProviderEdge(paths, options)
+    },
+  }
+}
+
 async function resolveOptions(options: BuildClientOptions) {
   if (options.packageId.trim() === '') {
     throw new DshxError('DSHX1001', 'Client package id must not be empty.')
@@ -226,6 +266,7 @@ async function clientConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, o
     logLevel: 'error',
     plugins: [
       clientEntryPlugin(paths, options),
+      ...(watch ? [clientSetupServiceGuardPlugin(paths, options)] : []),
       clientGuardPlugin(externals, options.packageId),
       ...userPlugins,
       artifactDeclarationPlugin('client', paths.outDir, options.declarations ?? true),
@@ -277,6 +318,8 @@ async function clientConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, o
 /** Start a Client watcher without awaiting a successful initial build. */
 export async function watchClient(options: BuildClientOptions): Promise<BuildWatcher> {
   const paths = await resolveOptions(options)
+  await validateSetupServiceEdges(paths, options)
+  await validateLocaleProviderEdge(paths, options)
   await validateConversationProviderEdges(paths, options)
   const config = await clientConfig(paths, options, true)
   return buildWatcher(
@@ -292,6 +335,8 @@ export async function watchClient(options: BuildClientOptions): Promise<BuildWat
 /** Build a DSH-compatible client factory with Vite/Rolldown. */
 export async function buildClient(options: BuildClientOptions): Promise<ClientBuildResult> {
   const paths = await resolveOptions(options)
+  await validateSetupServiceEdges(paths, options)
+  await validateLocaleProviderEdge(paths, options)
   await validateConversationProviderEdges(paths, options)
   const config = await clientConfig(paths, options, false)
   const declarations = options.declarations ?? true

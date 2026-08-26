@@ -124,7 +124,7 @@ describe('DSH installation resolution', () => {
       support: 'experimental',
       adapterId: 'protocol-1',
       protocolGeneration: 'protocol-1',
-      supportedRange: '>=0.1.0-rc.8 <0.2.0-0',
+      supportedRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
     })
     expect(installation.diagnostics).toEqual([expect.objectContaining({ code: 'DSHX5101', severity: 'warning', file: project.packageFile })])
   })

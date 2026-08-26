@@ -6,7 +6,10 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { validateCatalogPage } from "../src/catalog.js";
-import { calculateContentSourceHash } from "../src/catalog-schema.js";
+import {
+  calculateContentSourceHash,
+  type CatalogProposalV2,
+} from "../src/catalog-schema.js";
 import { helpText } from "../src/help.js";
 import { checkMedia } from "../src/media.js";
 
@@ -140,7 +143,7 @@ function proposal() {
       requestedSlug: "fixture-plugin",
       packageName: "@fixture/plugin",
       latestVersion: "1.0.0",
-      compatibilityRange: "dsh >=0.1",
+      compatibilityRange: ">=0.1.0-rc.8 <0.2.0-0",
       licenseSpdx: "MIT",
       homepageUrl: null,
       repositoryUrl: "https://github.com/fixture/plugin",
@@ -163,7 +166,7 @@ function proposal() {
         channel: "stable" as const,
         gitTag: "v1.0.0",
         commitSha: null,
-        compatibilityRange: "dsh >=0.1",
+        compatibilityRange: ">=0.1.0-rc.8 <0.2.0-0",
         compatibilitySource: "manifest" as const,
         releaseNotesUrl: null,
         deprecated: false,
@@ -204,6 +207,92 @@ describe("stable Agent-to-Hub operations", () => {
     expect(() =>
       validateCatalogPage({ items: [candidate] }, ["tools"]),
     ).toThrow("Unknown controlled categories");
+  });
+
+  it("rejects compatibility claims that are not semver ranges", () => {
+    const candidate = proposal();
+    candidate.plugin.compatibilityRange = "dsh >=0.1";
+    expect(() =>
+      validateCatalogPage({ items: [candidate] }, ["tools"]),
+    ).toThrow("compatibilityRange must be a valid semver range");
+  });
+
+  it("keeps artifact evidence path-free and reuses attestation checks for promotion", () => {
+    const candidate = proposal() as unknown as CatalogProposalV2;
+    candidate.verification.checks = [
+      {
+        code: "artifact.size",
+        status: "pass",
+        message: "artifact size is within the safe limit",
+        observed: { file: "plugin.tgz", bytes: 1_024 },
+        evidenceUrl: candidate.sources[1]!.url,
+        evidenceSha: candidate.verification.artifactSha256,
+      },
+    ];
+    candidate.repositoryPackage.checks = structuredClone(
+      candidate.verification.checks,
+    );
+    expect(
+      validateCatalogPage({ items: [candidate] }, ["tools"]),
+    ).toMatchObject({ valid: true });
+
+    const leaked = structuredClone(candidate);
+    leaked.verification.checks[0]!.observed = {
+      path: "/Users/example/private/plugin.tgz",
+      bytes: 1_024,
+    };
+    leaked.repositoryPackage.checks = structuredClone(
+      leaked.verification.checks,
+    );
+    expect(() => validateCatalogPage({ items: [leaked] }, ["tools"])).toThrow(
+      "artifact size evidence must not include a local path",
+    );
+
+    const mismatched = structuredClone(candidate);
+    mismatched.repositoryPackage.checks[0]!.observed = {
+      file: "plugin.tgz",
+      bytes: 2_048,
+    };
+    expect(() =>
+      validateCatalogPage({ items: [mismatched] }, ["tools"]),
+    ).toThrow(
+      "repository package checks must match verification attestation checks",
+    );
+  });
+
+  it("accepts only immutable npm and GitHub primary install specs", () => {
+    const mutableNpm = proposal();
+    mutableNpm.repositoryPackage.installSpec = "@fixture/plugin@latest";
+    mutableNpm.installTargets[0]!.spec = "@fixture/plugin@latest";
+    expect(() =>
+      validateCatalogPage({ items: [mutableNpm] }, ["tools"]),
+    ).toThrow("immutable install spec");
+
+    const github = structuredClone(proposal()) as unknown as CatalogProposalV2;
+    github.identity = {
+      kind: "github",
+      repositoryId: github.repository.githubId,
+      subdirectory: "",
+    };
+    github.verification.identityKey = `github:${github.repository.githubId}:`;
+    github.repositoryPackage.npmPackageName = null;
+    github.repositoryPackage.npmRegistryUrl = null;
+    github.repositoryPackage.installKind = "github";
+    github.repositoryPackage.installSpec = "github:fixture/plugin#v1.0.0";
+    github.installTargets[0] = {
+      ...github.installTargets[0]!,
+      kind: "github",
+      spec: "github:fixture/plugin#v1.0.0",
+    };
+    expect(validateCatalogPage({ items: [github] }, ["tools"])).toMatchObject({
+      valid: true,
+    });
+
+    github.repositoryPackage.installSpec = "github:fixture/plugin#main";
+    github.installTargets[0]!.spec = "github:fixture/plugin#main";
+    expect(() => validateCatalogPage({ items: [github] }, ["tools"])).toThrow(
+      "immutable install spec",
+    );
   });
 
   it("keeps volatile metrics outside the editorial content hash", () => {

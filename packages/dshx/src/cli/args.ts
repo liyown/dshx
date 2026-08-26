@@ -14,6 +14,7 @@ export interface CliArgs {
   readonly json: boolean
   readonly runtime: boolean
   readonly open: boolean
+  readonly port?: number
   readonly slot?: string
   readonly name?: string
   readonly description?: string
@@ -35,7 +36,7 @@ export class CliUsageError extends Error {
   }
 }
 
-const valueOptions = new Set(['--cwd', '--root', '--slot', '--name', '--description', '--event', '--provider', '--file', '--id', '--order'])
+const valueOptions = new Set(['--cwd', '--root', '--slot', '--name', '--description', '--event', '--provider', '--file', '--id', '--order', '--port'])
 const booleanOptions = new Set(['--help', '-h', '--version', '-V', '--verbose', '--json', '--runtime', '--open', '--dry-run', '--fix'])
 
 const sharedArgs = {
@@ -56,6 +57,11 @@ const sharedArgs = {
   json: { type: 'boolean', description: 'Emit stable machine-readable JSON.' },
   runtime: { type: 'boolean', description: 'Require a linked and reachable DSH runtime when checking.' },
   open: { type: 'boolean', description: 'Open the development URL.' },
+  port: {
+    type: 'string',
+    description: 'Set the DSH Web development port; use 0 to let the OS choose.',
+    valueHint: 'port',
+  },
   slot: {
     type: 'string',
     description: 'Select a Slot by name.',
@@ -202,6 +208,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   const json = parsed.json ?? false
   const runtime = parsed.runtime ?? false
   const open = parsed.open ?? false
+  let port: number | undefined
   const slot = parsed.slot
   const name = parsed.name
   const description = parsed.description
@@ -218,10 +225,16 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     if (!Number.isInteger(value)) throw new CliUsageError('--order requires an integer value.')
     order = value
   }
+  if (parsed.port !== undefined) {
+    const value = Number(parsed.port)
+    if (!Number.isInteger(value) || value < 0 || value > 65_535) throw new CliUsageError('--port requires an integer from 0 to 65535.')
+    port = value
+  }
 
   if (json && command !== undefined && command !== 'check' && command !== 'inspect' && command !== 'add')
     throw new CliUsageError('--json is only valid with check, inspect, or add.')
   if (open && command !== undefined && command !== 'dev') throw new CliUsageError('--open is only valid with dev.')
+  if (port !== undefined && command !== 'dev') throw new CliUsageError('--port is only valid with dev.')
   if (dryRun && command !== 'add' && !(command === 'check' && fix))
     throw new CliUsageError('DSHX4147: --dry-run is only valid with add commands or check --fix.')
   if (fix && command !== 'check') throw new CliUsageError('DSHX4147: --fix is only valid with check.')
@@ -232,7 +245,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     throw new CliUsageError('add name options are only valid with add tool or add command.')
   if (event !== undefined && command !== 'add') throw new CliUsageError('--event is only valid with add hook.')
   if (root !== undefined && (command !== 'inspect' || inspectTarget !== 'slots')) throw new CliUsageError('--root is only valid with inspect slots.')
-  if ((json || open) && command === undefined) throw new CliUsageError('An option requires a command.')
+  if ((json || open || port !== undefined) && command === undefined) throw new CliUsageError('An option requires a command.')
   if (command !== 'inspect' && inspectTarget !== undefined) throw new CliUsageError('Inspect targets are only valid with the inspect command.')
   if (command !== 'add' && addTarget !== undefined) throw new CliUsageError('Add targets are only valid with the add command.')
   if (command === 'inspect' && inspectTarget === undefined && !help && !version)
@@ -260,6 +273,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
       ...(file === undefined ? {} : { file }),
       ...(id === undefined ? {} : { id }),
       ...(order === undefined ? {} : { order }),
+      ...(port === undefined ? {} : { port }),
       verbose,
       json,
       runtime,
@@ -284,6 +298,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     ...(file === undefined ? {} : { file }),
     ...(id === undefined ? {} : { id }),
     ...(order === undefined ? {} : { order }),
+    ...(port === undefined ? {} : { port }),
     verbose,
     json,
     runtime,

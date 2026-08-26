@@ -6,3 +6,4 @@ coverage/
 *.tsbuildinfo
 apps/framework-hub/bun.lock
 .playwright-cli/
+output/

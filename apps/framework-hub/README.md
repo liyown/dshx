@@ -44,6 +44,13 @@ when the `DB` binding is absent or unreachable. Public catalog pages and
 `/api/plugins` read D1 directly; synthetic plugin records only exist inside the
 integration tests and are never seeded into production.
 
+`GET /api/plugins` is the public discovery/SEO feed and intentionally includes
+published verification placeholders. `GET /api/marketplace/plugins` is the
+installable subset: every result is verified and has exactly one active primary
+target whose package name and version match the current catalog release. Both
+list responses include localized `categories`; marketplace detail is available
+at `GET /api/marketplace/plugins/:slug` under the same eligibility rule.
+
 Before the first remote deployment, create the D1 database and replace the
 all-zero `database_id` in `wrangler.jsonc` with the ID returned by Cloudflare:
 
@@ -289,7 +296,7 @@ GitHub
 Primary CTA:
 Get Started
 
-“Plugins” should already exist in the navigation even if the first release only shows a preview / coming-soon ecosystem page.
+“Plugins” links to the live installable catalog. The first Preview also identifies `@becomeopc/dshx-plugin-marketplace` as the official self-hosting reference bundle.
 
 This makes the product feel like a framework with an ecosystem, not a one-page tool.
 
@@ -311,7 +318,7 @@ View on GitHub
 
 Below the CTA, show:
 
-pnpm create dshx my-plugin
+pnpm create dshx@preview my-plugin
 cd my-plugin
 pnpm dev
 
@@ -511,7 +518,7 @@ typed Slot props
 
 Use one polished example rather than several generic cards.
 
-SECTION — PLUGIN ECOSYSTEM PREVIEW
+SECTION — PLUGIN ECOSYSTEM
 
 This section is critical for future expansion.
 
@@ -519,9 +526,9 @@ Headline:
 
 “Built for an ecosystem.”
 
-Introduce a preview of the future DSH plugin community.
+Introduce the current installable DSH plugin catalog and its verification boundary.
 
-Show a marketplace-like layout containing 6–8 fictional plugin cards.
+Render real catalog entries; do not invent fictional plugins, ratings, download counts, or compatibility claims. Include the official marketplace package with its source and explicit Profile installation command.
 
 Examples:
 

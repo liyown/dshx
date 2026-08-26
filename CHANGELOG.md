@@ -2,7 +2,12 @@
 
 ## Unreleased
 
+- Prepare the first npm `preview` channel with guarded Changesets pre mode, package-content smoke, and a release runbook that preserves `latest`.
+- Add `defineLocale()` with exact `zh`/`en` dictionary keys, typed Slot translation props, automatic Client Locale registration, provider-edge diagnostics, and starter coverage without declaration merging.
+- Add `dshx dev --port`, including port `0` for an OS-assigned loopback Web port that is preserved across a development session.
+- Add `@becomeopc/dshx-plugin-marketplace` as a self-hosted reference bundle backed by dedicated validated Framework Hub marketplace endpoints.
 - Separate DSH, plugin, and DSHX versions: generated plugins pin one local DSH version, publish a DSH peer range, and select the `protocol-1` adapter from the actual installation.
+- Spell verified cross-patch DSH prereleases explicitly in public peer ranges so npm and pnpm accept the same support boundary as DSHX diagnostics.
 - Make `dshx build`, `dev`, and `check` reject invalid, partially supported, cross-generation, or locally mismatched compatibility declarations while reporting adapter capabilities and lifecycle.
 - Replace the version-named DSH smoke with one parameterized real-runtime scenario and a generation-derived CI boundary matrix.
 - Distinguish exact `verified`, stable `compatible`, prerelease `experimental`, and `unsupported` DSH status without treating semver membership as real-runtime verification.

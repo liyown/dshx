@@ -8,7 +8,7 @@ export const PROTOCOL_1_COMPATIBILITY: DshCompatibility = {
   protocolGeneration: 'protocol-1',
   lifecycle: 'active',
   version: '0.1.0-rc.8',
-  dshRange: '>=0.1.0-rc.8 <0.2.0-0',
+  dshRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
   verified: {
     minimum: VERIFIED_PROTOCOL_1_VERSIONS[0],
     latest: VERIFIED_PROTOCOL_1_VERSIONS[1],

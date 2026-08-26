@@ -15,16 +15,18 @@ They do not map one-to-one. A plugin declares public DSH support and pins one co
 ```json
 {
   "peerDependencies": {
-    "@deepseek-ai/dsh": ">=0.1.0-rc.8 <0.2.0-0"
+    "@deepseek-ai/dsh": ">=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2"
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.1.1-rc.2",
-    "@becomeopc/dshx": "^0.1.2"
+    "@becomeopc/dshx": "0.1.4-preview.0"
   }
 }
 ```
 
 `peerDependencies` is the plugin's public compatibility claim. `devDependencies` selects the concrete DSH used by that repository for build, development, and local verification. The installed package/executable is the runtime source of truth; DSHX semver is independent.
+
+`0.1.4-preview.0` is the first planned Preview identifier; use the npm `preview` tag to receive the current Preview patch instead of copying this example indefinitely. Preview does not widen the verified DSH boundary: `protocol-1` remains verified at `0.1.0-rc.8` and `0.1.1-rc.2` and supports the declared range below.
 
 ## Protocol-generation source of truth
 
@@ -35,7 +37,7 @@ They do not map one-to-one. A plugin declares public DSH support and pins one co
 - Profile, manifest, loader, Host contribution, Client, Inspect, connection, and optional runtime-plugin capabilities;
 - minimum/latest smoke boundaries and the exact versions actually verified.
 
-The current `protocol-1` adapter covers `>=0.1.0-rc.8 <0.2.0-0`. Its minimum and latest verified boundaries are `0.1.0-rc.8` and `0.1.1-rc.2`. The range reflects current evidence, not an assumption that every DSH minor changes protocol. If DSH `0.2` preserves all relevant contracts, the same adapter may be extended after real smoke; if a seam breaks, a new protocol adapter is required.
+The current `protocol-1` adapter uses the npm-safe peer range `>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2`. Its minimum and latest verified boundaries are `0.1.0-rc.8` and `0.1.1-rc.2`. The explicit rc.2 arm is required because package managers exclude prereleases with a different patch tuple from an otherwise broad semver comparator set; DSHX's internal compatibility classifier still evaluates the protocol range with prereleases included. The range reflects current evidence, not an assumption that every DSH minor changes protocol. If DSH `0.2` preserves all relevant contracts, the same adapter may be extended after real smoke; if a seam breaks, a new protocol adapter is required.
 
 One DSHX release may ship multiple adapters. The actual installed DSH version automatically selects one of them.
 

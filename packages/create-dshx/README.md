@@ -3,7 +3,7 @@
 Create a reproducible DeepSeek Harness plugin project with typed Host and Client entry points.
 
 ```bash
-pnpm create dshx my-plugin
+pnpm create dshx@preview my-plugin
 cd my-plugin
 pnpm dev
 ```
@@ -11,24 +11,24 @@ pnpm dev
 Choose a feature template and an independent Client styling setup:
 
 ```bash
-pnpm create dshx my-plugin --template starter --style css-modules
-pnpm create dshx my-plugin --template showcase --style tailwind
-pnpm create dshx my-plugin --template starter --style none
+pnpm create dshx@preview my-plugin --template starter --style css-modules
+pnpm create dshx@preview my-plugin --template showcase --style tailwind
+pnpm create dshx@preview my-plugin --template starter --style none
 ```
 
-- `starter` contains one Host Tool and one visible Client Slot.
+- `starter` contains one Host Tool and one localized visible Client Slot. Its `defineLocale()` contribution supplies typed `zh`/`en` copy without `LocaleNamespaceMap` declaration merging.
 - `showcase` adds a Prompt Section, dynamic Prompt Context, Settings contract, typed API, and Runtime Deck Slot. Experimental Conversation APIs are intentionally excluded.
 - `css-modules` uses the standard Vite CSS Modules pipeline.
 - `tailwind` uses Tailwind v4's Vite plugin, CSS-first configuration, a `dshx:` prefix, and omits Preflight so the plugin cannot reset the shared DSH page.
 - `none` emits no stylesheet or styling dependency.
 
-Every generated project provides `check`, `build`, `dev`, and `prepack`; `prepack` runs the offline check and production build. The initializer refuses to overwrite an existing directory, pins the matching DSHX release, installs the latest verified DSH boundary for local development, and only declares dependencies and provider edges used by the selected combination.
+Every generated project provides `check`, `build`, `dev --open`, and `prepack`; `prepack` runs the offline check and production build through the selected package manager. The initializer refuses to overwrite an existing directory, pins the matching DSHX release, installs the latest verified DSH boundary for local development, and only declares dependencies and provider edges used by the selected combination. A starter that uses `defineLocale()` includes the required `@deepseek-ai/dsh-client-locale` provider edge automatically.
 
 ## Automation
 
 ```bash
-pnpm create dshx my-plugin --yes --no-install
-pnpm create dshx my-plugin --package-manager pnpm
+pnpm create dshx@preview my-plugin --yes --no-install
+pnpm create dshx@preview my-plugin --package-manager pnpm
 ```
 
 - `--yes` disables interactive questions.

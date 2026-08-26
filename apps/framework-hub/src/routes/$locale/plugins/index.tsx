@@ -4,27 +4,33 @@ import { useEffect, useState } from "react";
 
 import { PluginCard, PluginRow } from "@/components/dshx/plugin-card";
 import { Chip, Container, SectionLabel } from "@/components/dshx/primitives";
-import { loadCatalog } from "@/lib/catalog/functions";
+import { marketplaceSortValues, type MarketplaceListQuery } from "@/lib/catalog/contracts";
+import { loadMarketplaceCatalog } from "@/lib/catalog/functions";
 import { createTranslator, parseLocale, useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const sortValues = ["featured", "trending", "updated", "new", "stars", "downloads"] as const;
-type CatalogSort = (typeof sortValues)[number];
+type MarketplaceSort = MarketplaceListQuery["sort"];
 
-function isCatalogSort(value: unknown): value is CatalogSort {
-  return typeof value === "string" && sortValues.includes(value as CatalogSort);
+function isMarketplaceSort(value: unknown): value is MarketplaceSort {
+  return typeof value === "string" && marketplaceSortValues.includes(value as MarketplaceSort);
 }
+
+const sortLabels = {
+  stars: "plugins.sortStars",
+  downloads: "plugins.sortDownloads",
+  latest: "plugins.sortLatest",
+} as const;
 
 export const Route = createFileRoute("/$locale/plugins/")({
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search["q"] === "string" ? search["q"].slice(0, 80) : "",
     category: typeof search["category"] === "string" ? search["category"] : "",
-    sort: isCatalogSort(search["sort"]) ? search["sort"] : ("featured" as CatalogSort),
+    sort: isMarketplaceSort(search["sort"]) ? search["sort"] : ("latest" as MarketplaceSort),
     cursor: typeof search["cursor"] === "string" ? search["cursor"] : "",
   }),
   loaderDeps: ({ search }) => search,
   loader: ({ params, deps }) =>
-    loadCatalog({
+    loadMarketplaceCatalog({
       data: {
         locale: parseLocale(params.locale),
         q: deps.q,
@@ -37,7 +43,7 @@ export const Route = createFileRoute("/$locale/plugins/")({
   head: ({ params, match }) => {
     const t = createTranslator(parseLocale(params.locale));
     const hasIndexVariant = Object.values(match.search).some(
-      (value) => Boolean(value) && value !== "featured",
+      (value) => Boolean(value) && value !== "latest",
     );
     return {
       meta: [
@@ -108,6 +114,7 @@ function PluginsPage() {
 
         <div className="mt-5 flex flex-wrap gap-1.5">
           <button
+            type="button"
             onClick={() => updateSearch({ category: "" })}
             className={cn(
               "rounded-md border px-2.5 py-1 font-mono text-[11.5px] transition-colors",
@@ -120,6 +127,7 @@ function PluginsPage() {
           </button>
           {catalog.categories.map((category) => (
             <button
+              type="button"
               key={category.slug}
               onClick={() =>
                 updateSearch({ category: category.slug === search.category ? "" : category.slug })
@@ -137,11 +145,17 @@ function PluginsPage() {
         </div>
 
         <div className="mt-10 flex items-end justify-between gap-5 border-b border-border">
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {sortValues.map((sort) => (
+          <div
+            className="flex flex-wrap gap-x-5 gap-y-2"
+            role="group"
+            aria-label={t("plugins.sortLabel")}
+          >
+            {marketplaceSortValues.map((sort) => (
               <button
+                type="button"
                 key={sort}
                 onClick={() => updateSearch({ sort })}
+                aria-pressed={search.sort === sort}
                 className={cn(
                   "relative pb-3 text-[13.5px] transition-colors",
                   search.sort === sort
@@ -149,17 +163,7 @@ function PluginsPage() {
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {sort === "featured"
-                  ? t("plugins.featured")
-                  : sort === "trending"
-                    ? t("plugins.trending")
-                    : sort === "updated"
-                      ? t("plugins.recentlyUpdated")
-                      : sort === "new"
-                        ? t("plugins.new")
-                        : sort === "stars"
-                          ? "Most starred"
-                          : "Most downloaded"}
+                {t(sortLabels[sort])}
                 {search.sort === sort ? (
                   <span className="absolute -bottom-px left-0 h-px w-full bg-accent" />
                 ) : null}
@@ -169,6 +173,7 @@ function PluginsPage() {
           <div className="mb-2 flex gap-1">
             {(["grid", "list"] as const).map((value) => (
               <button
+                type="button"
                 key={value}
                 onClick={() => setView(value)}
                 aria-label={`${value} view`}

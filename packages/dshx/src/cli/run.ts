@@ -936,7 +936,7 @@ async function runDev(args: CliArgs, options: CliRunOptions, project: ResolvedDs
     session = await (runtime.startDev ?? startDevSession)(project, {
       preparedProfile: profile,
       inspectBridge: true,
-      dshArgs: args.open ? ['--open'] : [],
+      dshArgs: [...(args.port === undefined ? [] : ['--port', String(args.port)]), ...(args.open ? ['--open'] : [])],
     })
   } catch (error) {
     const item = diagnosticFromError(error, project.packageFile)
@@ -996,7 +996,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
   if (args.help) {
     write(
       io.stdout,
-      'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ncheck: --runtime --fix --dry-run\ndev: --open\ninspect targets: slots, tools, services, events\ninspect slots: --root <slot-name>\nadd targets: ui, tool, command, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd command options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n',
+      'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ncheck: --runtime --fix --dry-run\ndev: --open --port <port>\ninspect targets: slots, tools, services, events\ninspect slots: --root <slot-name>\nadd targets: ui, tool, command, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd command options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n',
     )
     return 0
   }

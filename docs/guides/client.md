@@ -10,6 +10,7 @@
 interface ClientDefinition {
   readonly name?: string;
   readonly inject?: readonly string[];
+  readonly locales?: readonly LocaleDefinition[];
   readonly conversations?: readonly ConversationContribution[];
   readonly slots?: readonly SlotContribution[];
   readonly setup?: (ctx: Context) => void | Promise<void>;
@@ -20,23 +21,65 @@ There are no Client `api`, `apis`, or `settings` fields. Calling `useApi`, `useA
 
 ```tsx
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar/client";
-import { defineClient, defineSlot } from "@becomeopc/dshx/client";
+import {
+  defineClient,
+  defineLocale,
+  defineSlot,
+  type PropsLocaleOf,
+} from "@becomeopc/dshx/client";
 
-function Status() {
-  return <p>Plugin ready</p>;
+const copy = defineLocale("my-plugin.status", {
+  zh: { ready: "插件已就绪" },
+  en: { ready: "Plugin ready" },
+});
+
+function Status({ t }: PropsLocaleOf<typeof copy>) {
+  return <p>{t("ready")}</p>;
 }
 
 const statusSlot = defineSlot("sidebar.footer.action", {
   id: "my-plugin.status",
   order: 0,
+  locale: copy,
   component: Status,
 });
 
 export default defineClient({
   name: "my-plugin",
+  locales: [copy],
   slots: [statusSlot],
 });
 ```
+
+## `defineLocale(namespace, dictionaries)`
+
+`defineLocale()` creates one opaque, plugin-owned Locale contribution and preserves its namespace and key union without requiring declaration merging:
+
+```ts
+const copy = defineLocale("my-plugin.status", {
+  zh: { ready: "插件已就绪" },
+  en: { ready: "Plugin ready" },
+});
+
+type CopyKey = LocaleKeyOf<typeof copy>; // "ready"
+type CopyProps = PropsLocaleOf<typeof copy>; // { t(key): string }
+```
+
+Both `zh` and `en` are required, must contain exactly the same keys, and accept string values only. Pass the definition to `defineClient({ locales: [...] })` to register and dispose its dictionaries, and to `defineSlot(..., { locale: copy })` to infer the component's typed `t()` prop. Locale definitions register before Conversations, Slots, and `setup(ctx)`.
+
+The Client package manifest must still load the official provider:
+
+```json
+{
+  "dsh": {
+    "client": {
+      "inject": ["@deepseek-ai/dsh-client-locale"]
+    }
+  }
+}
+```
+
+Non-empty `locales` automatically requests the Cordis `locale` service, including when `setup(ctx)` also uses `ctx.locale`; do not repeat `"locale"` in `defineClient.inject`. A missing package edge is reported by offline check (`DSHX4221`) and build/dev (`DSHX1203`). A raw `locale: "provider.namespace"` remains supported for advanced integration with an official or augmented `LocaleNamespaceMap`, but it neither registers nor disposes dictionaries.
 
 ## `defineSlot(name, options)`
 
@@ -60,11 +103,12 @@ The helper preserves keyed/list/chain/session/maybe behavior from the official S
 
 Client registration order is:
 
-1. Experimental Conversation contributions and their keyed chat renderers.
-2. Slots, in array order.
-3. `setup(ctx)`.
+1. Locale contributions, in array order.
+2. Experimental Conversation contributions and their keyed chat renderers.
+3. Slots, in array order.
+4. `setup(ctx)`.
 
-Non-empty Conversations add `conversationEvents` and `slots`. Non-empty Slots add `slots`. Hook capabilities add `connection` or `settingsScope` only when the corresponding Hook module survives final tree-shaking.
+Non-empty Locales add `locale`. Non-empty Conversations add `conversationEvents` and `slots`. Non-empty Slots add `slots`. Hook capabilities add `connection` or `settingsScope` only when the corresponding Hook module survives final tree-shaking.
 
 Slot and Conversation components are wrapped with the current Client Fiber's API and Settings contexts. Contract identity maps belong to that Fiber and disappear on dispose/HMR; DSHX does not retain a global scope or API cache.
 

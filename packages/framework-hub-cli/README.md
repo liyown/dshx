@@ -19,6 +19,8 @@ The CLI is JSON-first and designed for repeatable human or agent-operated workfl
 
 Local verification never runs third-party package scripts. Privileged writes require an authenticated Hub token and preserve idempotency, approval, and recovery boundaries.
 
+The artifact path passed to `catalog verify` is input-only. Its attestation records the safe archive basename and byte count as `artifact.size.observed.file` and `bytes`; it never retains the local directory or absolute path. When assembling `CatalogProposalV2`, copy `attestation.checks` unchanged into `repositoryPackage.checks` so local validation and Hub promotion verify the same evidence.
+
 ```bash
 dshx-hub auth login --hub https://dshx.io
 dshx-hub catalog verify --input evidence.json --output verified.json

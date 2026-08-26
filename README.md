@@ -12,10 +12,12 @@
 
 DSHX is a build-time toolchain for out-of-tree [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) plugins. It provides typed Host/Client authoring, a bounded Vite build, offline diagnostics, Profile-aware development, and reproducible templates. Official DSH/Cordis services still own execution, registries, scopes, transport, persistence, assembly, HMR, and disposal.
 
+The first usable release is distributed through the npm `preview` tag. The existing `latest` tag remains on the earlier development build until Preview verification is complete.
+
 ## Create a project
 
 ```bash
-pnpm create dshx my-plugin
+pnpm create dshx@preview my-plugin
 cd my-plugin
 pnpm check
 pnpm dev
@@ -24,10 +26,20 @@ pnpm dev
 The default is a minimal `starter + css-modules` project with one Host Tool and one visible Client Slot. Generate the complete Candidate API example with optional Tailwind:
 
 ```bash
-pnpm create dshx my-plugin --template showcase --style tailwind
+pnpm create dshx@preview my-plugin --template showcase --style tailwind
 ```
 
 Templates are `starter | showcase`; styles are `css-modules | tailwind | none`. Tailwind uses the standard v4 Vite plugin, a `dshx:` prefix, and no Preflight.
+
+## Reference plugin
+
+[`@becomeopc/dshx-plugin-marketplace`](./packages/plugin-marketplace/README.md) is the workspace's official self-hosting reference plugin. It mounts **Settings → Plugins → Marketplace** as an ordinary DSH bundle and exercises `defineHost`, `defineSettings`, `defineApi`, `defineClient`, `defineLocale`, `defineSlot`, Standard Schema validation, `useApiQuery`, CSS Modules, Profile-aware installation, and Client HMR together.
+
+Run its real DSH development Profile with:
+
+```bash
+pnpm --filter @becomeopc/dshx-plugin-marketplace dev
+```
 
 ## Authoring example
 
@@ -61,27 +73,39 @@ export default defineHost({
 ```tsx
 // src/client.tsx
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar/client";
-import { defineClient, defineSlot, useApiQuery } from "@becomeopc/dshx/client";
+import {
+  defineClient,
+  defineLocale,
+  defineSlot,
+  useApiQuery,
+  type PropsLocaleOf,
+} from "@becomeopc/dshx/client";
 import { statusApi } from "./api/status.js";
 
-function Status() {
+const copy = defineLocale("my-plugin.status", {
+  zh: { ready: "就绪", unavailable: "不可用" },
+  en: { ready: "Ready", unavailable: "Unavailable" },
+});
+
+function Status({ t }: PropsLocaleOf<typeof copy>) {
   const query = useApiQuery(statusApi, "get", { enabled: true });
   if (query.status === "pending") return <p>{query.fetchStatus}</p>;
   if (query.status === "error")
     return <button onClick={query.refetch}>Retry</button>;
-  return <p>{query.data.ready ? "Ready" : "Unavailable"}</p>;
+  return <p>{t(query.data.ready ? "ready" : "unavailable")}</p>;
 }
 
 const statusSlot = defineSlot("sidebar.footer.action", {
   id: "my-plugin.status",
   order: 0,
+  locale: copy,
   component: Status,
 });
 
-export default defineClient({ slots: [statusSlot] });
+export default defineClient({ locales: [copy], slots: [statusSlot] });
 ```
 
-`useApiQuery` surviving final tree-shaking drives the `connection` capability automatically; Client definitions do not repeat API contracts or Settings ownership.
+`defineLocale` infers one exact key set, registers its dictionaries before Slots, and gives the component a typed `t()`. The package still declares `@deepseek-ai/dsh-client-locale` in `dsh.client.inject`; `create-dshx` writes this provider edge. `useApiQuery` surviving final tree-shaking drives the `connection` capability automatically.
 
 ## Public surfaces
 
@@ -89,7 +113,7 @@ export default defineClient({ slots: [statusSlot] });
 | ------------------------------- | ---------------------- | -------------------------------------------------------------------- |
 | `@becomeopc/dshx` and `/config` | API Candidate          | Browser-safe `defineConfig` and `DshxConfig` only                    |
 | `/host`                         | API Candidate          | Host definitions, Tools, Commands, Prompt contributions              |
-| `/client`                       | API Candidate          | Client definitions, Slots, API/Settings Hooks                        |
+| `/client`                       | API Candidate          | Client definitions, Locales, Slots, API/Settings Hooks               |
 | `/api`                          | API Candidate          | Shared typed unary API contracts and opaque errors                   |
 | `/settings`                     | API Candidate          | Shared Schemastery-backed Settings contracts                         |
 | `/experimental/conversation`    | Experimental           | Pure official event lifecycle plus React renderer                    |
@@ -99,19 +123,21 @@ API Candidate is the intended `0.1.x` authoring shape; it is not a 1.0 stability
 
 ## Technical documentation
 
-| Chapter                                       | APIs and behavior                                                  |
-| --------------------------------------------- | ------------------------------------------------------------------ |
-| [Host](./docs/guides/host.md)                 | `defineHost`, contribution order, injects, lifecycle               |
-| [Client and Slots](./docs/guides/client.md)   | `defineClient`, `defineSlot`, official props, capability inference |
-| [Typed API](./docs/guides/api.md)             | Standard Schema, handlers, imperative calls, `useApiQuery`, errors |
-| [Settings](./docs/guides/settings.md)         | contract, Host facet, decoder, secrets, Hook state and mutations   |
-| [Prompt](./docs/guides/prompt.md)             | Section, Context, ordering, assembly ownership                     |
-| [Conversation](./docs/guides/conversation.md) | experimental `initial/reduce/project/render` lifecycle             |
-| [Build](./docs/guides/build.md)               | bounded Vite plugins, CSS/assets, Tailwind, declarations, watch    |
-| [Creator](./docs/guides/creator.md)           | template/style matrix and programmatic generation                  |
-| [Tooling](./docs/guides/tooling.md)           | programmatic build/watch, compatibility, diagnostics, repair       |
+| Chapter                                              | APIs and behavior                                                       |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| [Host](./docs/guides/host.md)                        | `defineHost`, contribution order, injects, lifecycle                    |
+| [Client, Locale, and Slots](./docs/guides/client.md) | `defineClient`, `defineLocale`, `defineSlot`, official props and wiring |
+| [Typed API](./docs/guides/api.md)                    | Standard Schema, handlers, imperative calls, `useApiQuery`, errors      |
+| [Settings](./docs/guides/settings.md)                | contract, Host facet, decoder, secrets, Hook state and mutations        |
+| [Prompt](./docs/guides/prompt.md)                    | Section, Context, ordering, assembly ownership                          |
+| [Conversation](./docs/guides/conversation.md)        | experimental `initial/reduce/project/render` lifecycle                  |
+| [Build](./docs/guides/build.md)                      | bounded Vite plugins, CSS/assets, Tailwind, declarations, watch         |
+| [Creator](./docs/guides/creator.md)                  | template/style matrix and programmatic generation                       |
+| [Tooling](./docs/guides/tooling.md)                  | programmatic build/watch, compatibility, diagnostics, repair            |
 
 Also see the [CLI reference](./docs/cli-reference.md), [Compatibility](./docs/compatibility.md), and [Architecture](./docs/architecture.md).
+
+Preview scope and known limits are recorded in [Preview](./docs/preview.md); plugin package release requirements are in [Publishing](./docs/guides/publishing.md).
 
 ## CLI
 
@@ -128,7 +154,7 @@ dshx add ui --slot <slot-name>
 
 ## Compatibility
 
-The active `protocol-1` adapter covers `>=0.1.0-rc.8 <0.2.0-0`; verified real-runtime boundaries are `0.1.0-rc.8` and `0.1.1-rc.2`. Plugin public support belongs in `peerDependencies`; one concrete development version belongs in `devDependencies`.
+The active `protocol-1` adapter publishes the npm-safe peer range `>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2`; verified real-runtime boundaries are `0.1.0-rc.8` and `0.1.1-rc.2`. The explicit rc.2 arm avoids npm's cross-patch prerelease exclusion. Plugin public support belongs in `peerDependencies`; one concrete development version belongs in `devDependencies`.
 
 Conversation remains Experimental because the published protocol has no out-of-tree durable event-vocabulary registry. It accepts official `SessionEventMap` keys only.
 

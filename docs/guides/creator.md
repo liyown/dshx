@@ -7,9 +7,9 @@
 ## CLI
 
 ```bash
-pnpm create dshx my-plugin --template starter --style css-modules
-pnpm create dshx my-plugin --template showcase --style tailwind
-pnpm create dshx my-plugin --template starter --style none
+pnpm create dshx@preview my-plugin --template starter --style css-modules
+pnpm create dshx@preview my-plugin --template showcase --style tailwind
+pnpm create dshx@preview my-plugin --template starter --style none
 ```
 
 ```text
@@ -29,7 +29,7 @@ Template and style are independent, producing six supported combinations.
 
 | Template   | Generated capabilities                                                                               |
 | ---------- | ---------------------------------------------------------------------------------------------------- |
-| `starter`  | One Host Tool, one visible Client Slot, minimal Host/Client/config/manifest/package files            |
+| `starter`  | One Host Tool, one typed `defineLocale()` contribution, one visible Client Slot, and project files   |
 | `showcase` | Status Tool, Prompt Section, dynamic Prompt Context, Settings contract, typed API, Runtime Deck Slot |
 
 `showcase` intentionally excludes the experimental Conversation API.
@@ -51,13 +51,15 @@ Every generated package contains:
   "scripts": {
     "check": "dshx check",
     "build": "dshx build",
-    "dev": "dshx dev",
-    "prepack": "pnpm check && pnpm build"
+    "dev": "dshx dev --open",
+    "prepack": "npm run check && npm run build"
   }
 }
 ```
 
 `check` is offline; use `pnpm exec dshx check --runtime` only when the project is linked to a running Profile and runtime readiness is part of the check.
+
+The starter owns its copy with `defineLocale(namespace, { zh, en })`, passes the returned definition to both `defineClient({ locales })` and `defineSlot({ locale })`, and derives the component prop from `PropsLocaleOf<typeof copy>`. No `LocaleNamespaceMap` declaration merging is required. The generated manifest includes `@deepseek-ai/dsh-client-locale` in `dsh.client.inject`, peers, and development dependencies because the official Locale provider remains a runtime package edge.
 
 ## Programmatic API
 

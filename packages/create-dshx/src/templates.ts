@@ -20,6 +20,7 @@ interface StyleDefinition {
 
 const sidebarProvider = '@deepseek-ai/dsh-client-ui-sidebar'
 const connectionProvider = '@deepseek-ai/dsh-client-connection'
+const localeProvider = '@deepseek-ai/dsh-client-locale'
 const settingsProvider = '@deepseek-ai/dsh-client-ui-settings'
 
 function packageSlug(packageId: string): string {
@@ -71,14 +72,25 @@ export default defineHost({
 
 function renderStarterClient(context: TemplateContext, style: ProjectStyle): string {
   return `import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { defineClient, defineSlot } from '@becomeopc/dshx/client'
+import { defineClient, defineLocale, defineSlot, type PropsLocaleOf } from '@becomeopc/dshx/client'
 ${styleImport(style)}
-function PluginStatus() {
+const copy = defineLocale('${packageSlug(context.packageId)}.status', {
+  zh: {
+    eyebrow: 'DSHX 插件',
+    connected: 'Host 与 Client 已连接。',
+  },
+  en: {
+    eyebrow: 'DSHX plugin',
+    connected: 'Host and Client are connected.',
+  },
+})
+
+function PluginStatus({ t }: PropsLocaleOf<typeof copy>) {
   return (
     <section${classAttribute(style, 'card', 'dshx:w-[252px] dshx:rounded-xl dshx:border dshx:border-slate-700 dshx:bg-slate-950 dshx:p-4 dshx:text-slate-100 dshx:shadow-xl')}>
-      <p${classAttribute(style, 'eyebrow', 'dshx:m-0 dshx:text-xs dshx:font-semibold dshx:uppercase dshx:tracking-widest dshx:text-emerald-300')}>DSHX plugin</p>
+      <p${classAttribute(style, 'eyebrow', 'dshx:m-0 dshx:text-xs dshx:font-semibold dshx:uppercase dshx:tracking-widest dshx:text-emerald-300')}>{t('eyebrow')}</p>
       <h2${classAttribute(style, 'title', 'dshx:mt-2 dshx:mb-0 dshx:text-lg dshx:font-semibold')}>${context.packageId}</h2>
-      <p${classAttribute(style, 'body', 'dshx:mt-2 dshx:mb-0 dshx:text-sm dshx:leading-6 dshx:text-slate-300')}>Host and Client are connected.</p>
+      <p${classAttribute(style, 'body', 'dshx:mt-2 dshx:mb-0 dshx:text-sm dshx:leading-6 dshx:text-slate-300')}>{t('connected')}</p>
     </section>
   )
 }
@@ -86,11 +98,13 @@ function PluginStatus() {
 const statusSlot = defineSlot('sidebar.footer.action', {
   id: '${context.packageId}.status',
   order: 0,
+  locale: copy,
   component: PluginStatus,
 })
 
 export default defineClient({
   name: '${context.packageId}',
+  locales: [copy],
   slots: [statusSlot],
 })
 `
@@ -325,13 +339,14 @@ export const TEMPLATE_REGISTRY = {
   starter: {
     label: 'Starter',
     description: 'A minimal Host Tool and visible Client Slot.',
-    clientProviders: [sidebarProvider],
+    clientProviders: [localeProvider, sidebarProvider],
     devDependencies: context => ({
       '@becomeopc/dshx': context.dshxVersion,
       '@deepseek-ai/dsh': context.dshVersion,
       '@deepseek-ai/dsh-cordis-host-runner': context.dshVersion,
       '@deepseek-ai/dsh-tool-cordis': context.dshVersion,
       '@deepseek-ai/dsh-tools': context.dshVersion,
+      [localeProvider]: context.dshVersion,
       [sidebarProvider]: context.dshVersion,
       '@types/node': '^22.19.0',
       '@types/react': '~18.3.31',
@@ -341,6 +356,7 @@ export const TEMPLATE_REGISTRY = {
     peerDependencies: context => ({
       '@deepseek-ai/dsh': context.dshRange,
       '@deepseek-ai/dsh-tools': context.dshRange,
+      [localeProvider]: context.dshRange,
       [sidebarProvider]: context.dshRange,
     }),
     files: (context, style) => [
@@ -483,6 +499,8 @@ pnpm dev
 \`\`\`
 
 The \`prepack\` script runs the offline project check and production build before packaging.
+
+Client dependencies have two distinct layers: \`package.json#dsh.client.inject\` loads provider packages, while \`defineClient({ inject: [...] })\` declares Cordis services read directly by \`setup(ctx)\`. Declarative \`defineLocale()\` contributions add the \`locale\` service automatically, but still require \`@deepseek-ai/dsh-client-locale\` in the package edge list.
 `
 }
 

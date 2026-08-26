@@ -79,7 +79,7 @@ const commands: Record<string, HelpEntry> = {
     input:
       "EvidenceManifestV1 with local npm/git tar path, identity, and source evidence.",
     output:
-      "Checks and VerificationAttestationV1 when qualified; exit code 2 when rejected.",
+      "Checks and VerificationAttestationV1 with path-free artifact basename/bytes when qualified; exit code 2 when rejected.",
     writes:
       "Only optional local output; never calls GitHub, npm, or package scripts.",
     recovery:

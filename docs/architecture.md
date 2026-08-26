@@ -73,6 +73,7 @@ Inspect is read-only and requires a running supported Composition. The Host-owne
 
 - `packages/dshx`: authoring APIs, compiler kernel, compatibility, CLI, Inspect, and scaffolds.
 - `packages/create-dshx`: template/style initializer.
+- `packages/plugin-marketplace`: official self-hosting reference plugin built and run entirely through DSHX's public authoring workflow.
 - `packages/framework-hub-cli`: Hub verification and privileged operations client.
 - `apps/framework-hub`: bilingual Hub and catalog/community application.
 - `fixtures`: compatibility fixtures, not user-facing project modes.

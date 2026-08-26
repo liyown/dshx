@@ -70,7 +70,16 @@ describe("documentation registry", () => {
   it.each(["en", "zh"] as const)("documents every primary public API in %s", (locale) => {
     const requiredApis = {
       creator: ["--template", "--style", "createProject"],
-      "project-model": ["defineClient", "defineSlot", "useSettings", "useApi", "useApiQuery"],
+      "project-model": [
+        "defineClient",
+        "defineLocale",
+        "LocaleKeyOf",
+        "PropsLocaleOf",
+        "defineSlot",
+        "useSettings",
+        "useApi",
+        "useApiQuery",
+      ],
       "host-contributions": [
         "defineHost",
         "defineTool",

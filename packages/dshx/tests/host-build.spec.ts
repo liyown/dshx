@@ -50,6 +50,8 @@ describe('host compiler', () => {
     const output = resolve(root, 'dist/index.js')
     const code = await readFile(output, 'utf8')
     expect(code).not.toMatch(/from ['"]dshx\/(?:host|internal-host-runtime)['"]/)
+    expect(code).not.toContain(JSON.stringify(root))
+    expect(code).toContain('src/host.ts')
     const plugin = (await import(`${pathToFileURL(output).href}?test=${Date.now()}`)) as {
       name: string
       inject: readonly string[]
@@ -130,7 +132,12 @@ describe('host compiler', () => {
         '',
       ].join('\n'),
     )
-    await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist' })
+    await buildHost({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/host.ts',
+      outDir: 'dist',
+    })
     const output = resolve(root, 'dist/index.js')
     await expect(import(`${pathToFileURL(output).href}?test=${Date.now()}`)).rejects.toThrow('Invalid API id')
     expect(await readFile(output, 'utf8')).not.toContain('@becomeopc/dshx/api')
@@ -147,7 +154,12 @@ describe('host compiler', () => {
         '',
       ].join('\n'),
     )
-    await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist' })
+    await buildHost({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/host.ts',
+      outDir: 'dist',
+    })
     const output = resolve(root, 'dist/index.js')
     const code = await readFile(output, 'utf8')
     expect(code).not.toContain('@becomeopc/dshx/host')
@@ -180,7 +192,12 @@ describe('host compiler', () => {
         '',
       ].join('\n'),
     )
-    await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist' })
+    await buildHost({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/host.ts',
+      outDir: 'dist',
+    })
     const output = resolve(root, 'dist/index.js')
     const code = await readFile(output, 'utf8')
     expect(code).not.toContain('@becomeopc/dshx/host')
@@ -201,8 +218,14 @@ describe('host compiler', () => {
     })
     expect(plugin.inject).toEqual(['systemPrompt'])
     expect(registered).toEqual([
-      { kind: 'section', value: expect.objectContaining({ name: 'plugin:guidance', order: 150 }) },
-      { kind: 'context', value: expect.objectContaining({ name: 'plugin:runtime', order: 0 }) },
+      {
+        kind: 'section',
+        value: expect.objectContaining({ name: 'plugin:guidance', order: 150 }),
+      },
+      {
+        kind: 'context',
+        value: expect.objectContaining({ name: 'plugin:runtime', order: 0 }),
+      },
     ])
   })
 
@@ -219,7 +242,12 @@ describe('host compiler', () => {
         '',
       ].join('\n'),
     )
-    await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist' })
+    await buildHost({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/host.ts',
+      outDir: 'dist',
+    })
     const code = await readFile(resolve(root, 'dist/index.js'), 'utf8')
     expect(code).not.toContain('@becomeopc/dshx/settings')
     expect(code).not.toContain('@becomeopc/dshx/host')
@@ -245,7 +273,12 @@ describe('host compiler', () => {
     )
     await writeFile(resolve(root, 'src/host-helper.ts'), "export default 'dshx-host'\n")
 
-    const report = await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist' })
+    const report = await buildHost({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/host.ts',
+      outDir: 'dist',
+    })
 
     const code = await readFile(resolve(root, 'dist/index.js'), 'utf8')
     const map = JSON.parse(await readFile(resolve(root, 'dist/index.js.map'), 'utf8')) as {
@@ -264,7 +297,12 @@ describe('host compiler', () => {
 
   it('builds a client-only project with the standard no-op Host entry', async () => {
     const root = await temporaryProject()
-    await buildHost({ packageId: '@dshx/phase-a-fixture', logicalName: 'client-only-host', root, outDir: 'dist' })
+    await buildHost({
+      packageId: '@dshx/phase-a-fixture',
+      logicalName: 'client-only-host',
+      root,
+      outDir: 'dist',
+    })
     const output = resolve(root, 'dist/index.js')
     expect(await readFile(output, 'utf8')).toContain('function apply()')
     const plugin = (await import(`${pathToFileURL(output).href}?test=${Date.now()}`)) as { name: string; apply(): unknown }
@@ -284,7 +322,13 @@ describe('host compiler', () => {
         '',
       ].join('\n'),
     )
-    await buildHost({ packageId: '@dshx/phase-a-fixture', logicalName: 'fallback-name', root, entry: 'src/host.ts', outDir: 'dist' })
+    await buildHost({
+      packageId: '@dshx/phase-a-fixture',
+      logicalName: 'fallback-name',
+      root,
+      entry: 'src/host.ts',
+      outDir: 'dist',
+    })
     const output = resolve(root, 'dist/index.js')
     const plugin = (await import(`${pathToFileURL(output).href}?test=${Date.now()}`)) as {
       name: string
@@ -310,18 +354,44 @@ describe('host compiler', () => {
         return id.endsWith('/src/host.ts') ? code.replace('host-before', 'host-after') : null
       },
     }
-    await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist', vite: { plugins: [transform] } })
+    await buildHost({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/host.ts',
+      outDir: 'dist',
+      vite: { plugins: [transform] },
+    })
     expect(await readFile(resolve(root, 'dist/index.js'), 'utf8')).toContain('host-after')
 
-    const override: Plugin = { name: 'host-output-override', config: () => ({ build: { rollupOptions: { output: { format: 'cjs' } } } }) }
-    await expect(buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist', vite: { plugins: [override] } })).rejects.toThrow(
-      'DSHX1403',
-    )
+    const override: Plugin = {
+      name: 'host-output-override',
+      config: () => ({
+        build: { rollupOptions: { output: { format: 'cjs' } } },
+      }),
+    }
+    await expect(
+      buildHost({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/host.ts',
+        outDir: 'dist',
+        vite: { plugins: [override] },
+      }),
+    ).rejects.toThrow('DSHX1403')
 
-    const corrupt: Plugin = { name: 'corrupt-host-protocol', renderChunk: () => 'export const broken = true' }
-    await expect(buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist', vite: { plugins: [corrupt] } })).rejects.toThrow(
-      'DSHX1302',
-    )
+    const corrupt: Plugin = {
+      name: 'corrupt-host-protocol',
+      renderChunk: () => 'export const broken = true',
+    }
+    await expect(
+      buildHost({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/host.ts',
+        outDir: 'dist',
+        vite: { plugins: [corrupt] },
+      }),
+    ).rejects.toThrow('DSHX1302')
   })
 
   it('can omit generated artifact declarations explicitly', async () => {
@@ -341,7 +411,12 @@ describe('host compiler', () => {
     const root = await temporaryProject()
     await mkdir(resolve(root, 'dist'), { recursive: true })
     await writeFile(resolve(root, 'dist/client.js'), 'window.__ModuleLoader__\n')
-    await buildHost({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/host.ts', outDir: 'dist' })
+    await buildHost({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/host.ts',
+      outDir: 'dist',
+    })
     expect(await readFile(resolve(root, 'dist/client.js'), 'utf8')).toBe('window.__ModuleLoader__\n')
   })
 

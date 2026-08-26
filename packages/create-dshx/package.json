@@ -1,6 +1,6 @@
 {
   "name": "create-dshx",
-  "version": "0.1.3",
+  "version": "0.1.4-preview.0",
   "description": "Create a DeepSeek Harness plugin project.",
   "keywords": [
     "deepseek",

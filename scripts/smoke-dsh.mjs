@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { createServer } from 'node:net'
 import { fileURLToPath } from 'node:url'
 import { apiChannel } from '../packages/dshx/dist/api/runtime.js'
 import { classifyCompatibility, DEFAULT_COMPATIBILITY } from '../packages/dshx/dist/compat/index.js'
@@ -333,6 +334,7 @@ const commandLifecycleView = commandLifecycle.render(CommandLifecycleNode)
 async function startTailwindBrowser(webUrl, packageId) {
   const session = `dshx-${randomUUID()}`
   const output = join(workspace, 'output/playwright/dsh-smoke')
+  const conversationDiagnosticScreenshot = join(output, `${session}-conversation-navigation.png`)
   await mkdir(output, { recursive: true })
   const command = args => expectSuccess(playwrightCli, [`-s=${session}`, ...args], { cwd: output })
   const evaluate = async expression => {
@@ -343,6 +345,37 @@ async function startTailwindBrowser(webUrl, packageId) {
   // Snapshot before inspecting the page, as required by the browser smoke workflow.
   await command(['snapshot'])
   await command(['run-code', `async (page) => { await page.getByRole('heading', { name: ${JSON.stringify(packageId)} }).waitFor({ timeout: ${timeoutMs} }) }`])
+  const dismissOptionalOnboarding = () =>
+    command([
+      'run-code',
+      `async (page) => {
+        const findVisibleAction = async (names, waitMs) => {
+          const deadline = Date.now() + waitMs
+          do {
+            for (const name of names) {
+              const action = page.getByRole('button', { name, exact: true })
+              if (await action.count() > 0 && await action.first().isVisible()) return action.first()
+            }
+            await page.waitForTimeout(100)
+          } while (Date.now() < deadline)
+          return undefined
+        }
+        const dismiss = async (names, waitMs) => {
+          const action = await findVisibleAction(names, waitMs)
+          if (action === undefined) return false
+          const dialog = action.locator('xpath=ancestor::*[@role="dialog"][1]')
+          if (await dialog.count() !== 1) {
+            throw new Error('Optional onboarding action did not belong to exactly one dialog: ' + names.join('/'))
+          }
+          await action.click()
+          await dialog.waitFor({ state: 'hidden', timeout: 30000 })
+          return true
+        }
+        const welcomed = await dismiss(['继续', 'Continue'], 3000)
+        await dismiss(['稍后配置', 'Configure later'], welcomed ? 10000 : 3000)
+      }`,
+    ])
+  await dismissOptionalOnboarding()
   const readStyle = () =>
     evaluate(`() => {
       const heading = [...document.querySelectorAll('h2')].find(node => node.textContent === ${JSON.stringify(packageId)})
@@ -409,18 +442,49 @@ async function startTailwindBrowser(webUrl, packageId) {
         `async (page) => {
           await page.reload({ waitUntil: 'domcontentloaded' })
           await page.getByRole('heading', { name: ${JSON.stringify(packageId)} }).waitFor({ timeout: ${timeoutMs} })
-          const titled = page.getByRole('treeitem', { name: ${JSON.stringify(title)} })
-          if (await titled.count() > 0) {
-            await titled.first().evaluate(node => node.click())
-            return
+        }`,
+      ])
+      await dismissOptionalOnboarding()
+      await command([
+        'run-code',
+        `async (page) => {
+          const deadline = Date.now() + 85000
+          const exactTitle = page.getByText(${JSON.stringify(title)}, { exact: true })
+          const titled = page.getByRole('treeitem').filter({ has: exactTitle })
+          while (Date.now() < deadline) {
+            const titledCount = await titled.count()
+            if (titledCount > 1) {
+              throw new Error('Conversation title matched multiple session rows: ' + ${JSON.stringify(title)} + '; count=' + titledCount)
+            }
+            if (titledCount === 1 && await titled.first().isVisible()) {
+              await titled.first().click()
+              return
+            }
+            const collapsed = page.locator('[role="treeitem"][aria-expanded="false"]:visible')
+            if (await collapsed.count() > 0) {
+              await collapsed.evaluateAll(nodes => nodes.forEach(node => node.click()))
+            }
+            await page.waitForTimeout(200)
           }
-          const groups = page.locator('[role="treeitem"][aria-expanded="false"]')
-          for (let index = 0; index < await groups.count(); index += 1) await groups.nth(index).evaluate(node => node.click())
-          const sessions = page.locator('[role="treeitem"]:not([aria-expanded])')
-          await sessions.first().waitFor({ timeout: 30000 })
-          const labels = await sessions.allTextContents()
-          if (labels.length !== 1) throw new Error('Expected one Conversation session row, got ' + JSON.stringify(labels))
-          await sessions.first().evaluate(node => node.click())
+          const summarize = async selector => page.locator(selector).evaluateAll(nodes => nodes.slice(0, 80).map(node => ({
+            text: (node.textContent ?? '').trim().replace(/\\s+/g, ' ').slice(0, 240),
+            role: node.getAttribute('role'),
+            label: node.getAttribute('aria-label'),
+            expanded: node.getAttribute('aria-expanded'),
+            href: node.getAttribute('href'),
+            visible: node instanceof HTMLElement && Boolean(node.offsetWidth || node.offsetHeight || node.getClientRects().length),
+          })))
+          const diagnostic = {
+            url: page.url(),
+            treeitems: await summarize('[role="treeitem"]'),
+            dialogs: await summarize('[role="dialog"]'),
+            buttons: await summarize('button'),
+            links: await summarize('a'),
+            visibleText: await page.locator('body').innerText().then(text => text.replace(/\\s+/g, ' ').slice(0, 4000)),
+            screenshot: ${JSON.stringify(conversationDiagnosticScreenshot)},
+          }
+          await page.screenshot({ path: ${JSON.stringify(conversationDiagnosticScreenshot)}, fullPage: true })
+          throw new Error('Conversation session did not hydrate: ' + ${JSON.stringify(title)} + '; diagnostic=' + JSON.stringify(diagnostic))
         }`,
       ])
     },
@@ -790,8 +854,27 @@ function summarizeInspect(value) {
   }
 }
 
+async function availableLoopbackPort() {
+  const server = createServer()
+  server.unref()
+  await new Promise((resolveResult, rejectResult) => {
+    server.once('error', rejectResult)
+    server.listen(0, '127.0.0.1', resolveResult)
+  })
+  const address = server.address()
+  if (address === null || typeof address === 'string') {
+    await new Promise(resolveResult => server.close(resolveResult))
+    throw new Error(`Could not allocate an isolated DSH smoke port: ${String(address)}`)
+  }
+  await new Promise((resolveResult, rejectResult) => {
+    server.close(error => (error === undefined ? resolveResult() : rejectResult(error)))
+  })
+  return address.port
+}
+
 async function startDev(root, env) {
-  const child = spawn('pnpm', ['exec', 'dshx', 'dev'], {
+  const port = await availableLoopbackPort()
+  const child = spawn('pnpm', ['exec', 'dshx', 'dev', '--port', String(port)], {
     cwd: root,
     env: { ...process.env, ...env },
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -841,9 +924,11 @@ async function startDev(root, env) {
   })
   await readyPromise
   if (webUrl === undefined) throw new Error(`dshx dev did not report a Web URL\n${stdout}\n${stderr}`)
+  if (Number(new URL(webUrl).port) !== port) throw new Error(`dshx dev reported ${webUrl} instead of isolated port ${port}\n${stdout}\n${stderr}`)
   await new Promise(resolveResult => setTimeout(resolveResult, 750))
   return {
     child,
+    port,
     webUrl: () => webUrl,
     output: () => ({ stdout, stderr }),
     waitForOutput: async text => {
@@ -1073,11 +1158,33 @@ async function main() {
       await verifySettingsAfterRestart(fullDev.webUrl(), settingsRevision)
       const afterHostRestartStyle = await browser.assertOwnedStyle()
       if (afterHostRestartStyle.ownedStyles !== 1) throw new Error(`Host restart left stale owned styles: ${JSON.stringify(afterHostRestartStyle)}`)
+      const uiRebuilt = fullDev.waitForOutput('client rebuilt')
+      void uiRebuilt.catch(() => undefined)
+      const uiScaffold = await expectSuccess(
+        'pnpm',
+        ['exec', 'dshx', 'add', 'ui', '--slot', 'settings.general.item', '--provider', '@deepseek-ai/dsh-client-ui-settings', '--json'],
+        {
+          cwd: projects.fullA,
+          env: { DSH_HOME: join(dshHome, 'multi') },
+        },
+      )
+      const uiScaffoldResult = JSON.parse(uiScaffold.stdout)
+      if (uiScaffoldResult.diagnostics?.some?.(item => item?.severity === 'error')) {
+        throw new Error(`Real UI scaffold failed: ${uiScaffold.stdout}`)
+      }
+      const generatedUiFile = join(projects.fullA, 'src/slots/settings.general.item.tsx')
+      const generatedUiSource = await readFile(generatedUiFile, 'utf8')
+      const generatedClientSource = await readFile(join(projects.fullA, 'src/client.tsx'), 'utf8')
+      if (!generatedUiSource.includes('defineSlot("settings.general.item"') || !generatedClientSource.includes('./slots/settings.general.item.js')) {
+        throw new Error('Real UI scaffold did not generate and attach the requested Settings contribution')
+      }
+      await uiRebuilt
       const check = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['check', '--runtime'])
       if (check.diagnostics.some(item => item.severity === 'error')) throw new Error('Full plugin check failed after dev link')
       const inspectEnv = { DSH_HOME: join(dshHome, 'multi') }
       const slots = await inspectMaybeAvailable(projects.fullA, inspectEnv, ['inspect', 'slots'])
       const exact = await inspectMaybeAvailable(projects.fullA, inspectEnv, ['inspect', 'slots', '--root', 'sidebar.footer.action'])
+      const generatedUiExact = await inspectMaybeAvailable(projects.fullA, inspectEnv, ['inspect', 'slots', '--root', 'settings.general.item'])
       const services = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['inspect', 'services'])
       const events = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['inspect', 'events'])
       console.log(
@@ -1090,7 +1197,12 @@ async function main() {
               support: resolution.support,
             },
             projects: Object.fromEntries(Object.entries(projects).map(([name, project]) => [name, project])),
-            inspect: [slots, exact, services, events].map(summarizeInspect),
+            inspect: [slots, exact, generatedUiExact, services, events].map(summarizeInspect),
+            scaffold: {
+              ui: 'verified',
+              slot: 'settings.general.item',
+              clientHmr: 'verified',
+            },
             api: {
               clientHookWiring: 'verified',
               unary: 'verified',
@@ -1128,6 +1240,7 @@ async function main() {
               hostRestart: 'verified',
             },
             browser: {
+              port: fullDev.port,
               tailwindComputedStyle: 'verified',
               clientHmr: 'verified',
               ownedStyleCleanup: 'verified',

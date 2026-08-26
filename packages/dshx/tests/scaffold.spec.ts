@@ -12,7 +12,7 @@ const compatibility = {
   protocolGeneration: 'protocol-1',
   lifecycle: 'active' as const,
   version: '0.1.0-rc.8',
-  dshRange: '>=0.1.0-rc.8 <0.2.0-0',
+  dshRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
   verified: { minimum: '0.1.0-rc.8', latest: '0.1.0-rc.8' },
   verifiedVersions: ['0.1.0-rc.8'],
   nodeRange: '^22.19.0 || >=24.0.0',

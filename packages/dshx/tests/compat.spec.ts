@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { satisfies } from 'semver'
 import {
   analyzeDeclaredDshRange,
   assessProjectCompatibility,
@@ -68,6 +69,12 @@ describe('DSH protocol compatibility generations', () => {
     expect(classifyCompatibility('0.1.0-rc.9')).toMatchObject({ compatibility: PROTOCOL_1_COMPATIBILITY, support: 'experimental' })
   })
 
+  it('publishes a peer range accepted by package managers for every verified prerelease', () => {
+    for (const version of PROTOCOL_1_COMPATIBILITY.verifiedVersions) {
+      expect(satisfies(version, PROTOCOL_1_COMPATIBILITY.dshRange)).toBe(true)
+    }
+  })
+
   it('rejects a DSH version outside every supported protocol generation', () => {
     expect(() => resolveCompatibility('0.2.0')).toThrow('DSHX5101')
     expect(classifyCompatibility('0.2.0')).toBeUndefined()
@@ -77,12 +84,12 @@ describe('DSH protocol compatibility generations', () => {
   it('uses peerDependencies for public support and keeps devDependencies independent', () => {
     const manifest = {
       devDependencies: { '@deepseek-ai/dsh': '0.1.1-rc.2', '@becomeopc/dshx': '9.4.0' },
-      peerDependencies: { '@deepseek-ai/dsh': '>=0.1.0-rc.8 <0.2.0-0' },
+      peerDependencies: { '@deepseek-ai/dsh': '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2' },
     }
     expect(resolveDeclaredCompatibility(manifest)).toMatchObject({ compatibility: PROTOCOL_1_COMPATIBILITY, support: 'compatible' })
     expect(resolveDeclaredCompatibility({ devDependencies: manifest.devDependencies })).toBeUndefined()
     expect(assessProjectCompatibility(manifest, '0.1.0-rc.8')).toMatchObject({
-      declaredRange: '>=0.1.0-rc.8 <0.2.0-0',
+      declaredRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
       developmentSpecifier: '0.1.1-rc.2',
       installedVersion: '0.1.0-rc.8',
       installedWithinDeclaredRange: true,

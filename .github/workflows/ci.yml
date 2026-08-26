@@ -89,6 +89,23 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm smoke:packages
 
+  marketplace-smoke:
+    name: Plugin Marketplace self-bootstrap
+    needs: [core-create, hub]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm smoke:marketplace
+
   native-keyring:
     name: Native keyring module / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

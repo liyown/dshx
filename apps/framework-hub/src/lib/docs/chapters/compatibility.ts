@@ -128,13 +128,14 @@ export const compatibility = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "The verified DSH boundaries remain 0.1.0-rc.8 and 0.1.1-rc.2. protocol-1 records Host Tool, Command, Prompt Section/Context, Settings and API capabilities plus Client Settings Scope, Slot, Hook-driven API/Settings inference, and the available Experimental Conversation seams.",
+              text: "The npm Preview does not widen compatibility evidence. Verified DSH boundaries remain 0.1.0-rc.8 and 0.1.1-rc.2. protocol-1 records Host Tool, Command, Prompt Section/Context, Settings and API capabilities plus Client Locale, Settings Scope, Slot, Hook-driven API/Settings inference, and the available Experimental Conversation seams.",
             },
             {
               kind: "list",
               items: [
                 "Prompt requires the official dsh-system-prompt package edge.",
                 "Host Settings requires dsh-settings and Schemastery; useSettings requires dsh-client-ui-settings.",
+                "defineLocale requires the dsh-client-locale package edge; its declarative contribution adds the Locale service automatically.",
                 "useApi and useApiQuery require dsh-client-connection.",
                 "Slots and Conversation require the provider packages recorded by the selected Slot/Event adapter.",
                 "An adjacent DSH source checkout is not a published compatibility claim.",
@@ -253,13 +254,14 @@ export const compatibility = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "已验证 DSH 边界仍是 0.1.0-rc.8 和 0.1.1-rc.2。protocol-1 记录 Host Tool、Command、Prompt Section/Context、Settings 和 API 能力，以及 Client Settings Scope、Slot、Hook 驱动 API/Settings 推断和可用 Experimental Conversation seam。",
+              text: "npm Preview 不会扩大兼容性证据。已验证 DSH 边界仍是 0.1.0-rc.8 和 0.1.1-rc.2。protocol-1 记录 Host Tool、Command、Prompt Section/Context、Settings 和 API 能力，以及 Client Locale、Settings Scope、Slot、Hook 驱动 API/Settings 推断和可用 Experimental Conversation seam。",
             },
             {
               kind: "list",
               items: [
                 "Prompt 需要官方 dsh-system-prompt package edge。",
                 "Host Settings 需要 dsh-settings 和 Schemastery；useSettings 需要 dsh-client-ui-settings。",
+                "defineLocale 需要 dsh-client-locale package edge；它的声明式贡献会自动添加 Locale Service。",
                 "useApi 和 useApiQuery 需要 dsh-client-connection。",
                 "Slot 和 Conversation 需要选中 Slot/Event adapter 记录的 Provider package。",
                 "相邻 DSH source checkout 不构成已发布兼容性声明。",

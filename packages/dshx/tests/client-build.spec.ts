@@ -40,18 +40,31 @@ describe('client compiler', () => {
       sourcesContent?: Array<string | null>
     }
     expect(code).toMatch(/window\.__ModuleLoader__\.load\(\{\s*id: "@dshx\/phase-a-fixture"/)
+    expect(code).not.toContain(JSON.stringify(root))
+    expect(JSON.stringify(map)).not.toContain(root)
+    expect(code).toContain('src/client.tsx')
     expect(code).toContain('require("react/jsx-runtime")')
     expect(code).not.toContain('react.production.min')
     expect(code).toMatch(/sourceMappingURL=client\.js\.map/)
     expect(map.sources.some(source => source.endsWith('/src/client.tsx') || source.endsWith('src/client.tsx'))).toBe(true)
     expect(map.sourcesContent?.some(source => source?.includes('Build. Ship. Observe.') === true)).toBe(true)
 
-    let registration: { id: string; factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } | undefined
-    const styles: Array<{ dataset: Record<string, string>; textContent: string }> = []
+    let registration:
+      | {
+          id: string
+          factory: (requireModule: (id: string) => unknown) => Record<string, unknown>
+        }
+      | undefined
+    const styles: Array<{
+      dataset: Record<string, string>
+      textContent: string
+    }> = []
     const document = {
       querySelector: () => null,
       createElement: () => ({ dataset: {}, textContent: '' }),
-      head: { appendChild: (style: { dataset: Record<string, string>; textContent: string }) => styles.push(style) },
+      head: {
+        appendChild: (style: { dataset: Record<string, string>; textContent: string }) => styles.push(style),
+      },
     }
     vm.runInNewContext(code, {
       document,
@@ -71,7 +84,10 @@ describe('client compiler', () => {
         const context = { Provider: 'provider' }
         return {
           createContext: () => context,
-          createElement: (type: unknown, props: unknown, child: unknown) => ({ type, props: { ...(props as object), children: child } }),
+          createElement: (type: unknown, props: unknown, child: unknown) => ({
+            type,
+            props: { ...(props as object), children: child },
+          }),
           useContext: () => undefined,
           useEffect: () => undefined,
           useMemo: (factory: () => unknown) => factory(),
@@ -91,7 +107,11 @@ describe('client compiler', () => {
     expect(styles[0]?.dataset.pluginCss).toBe('@dshx/phase-a-fixture/client.css')
     expect(styles[0]?.textContent).toContain('background: #101b2a')
     const registered: unknown[] = []
-    const clientPlugin = plugin as unknown as { name: string; inject: readonly string[]; apply(ctx: unknown): unknown }
+    const clientPlugin = plugin as unknown as {
+      name: string
+      inject: readonly string[]
+      apply(ctx: unknown): unknown
+    }
     expect(clientPlugin.name).toBe('@dshx/phase-a-fixture')
     expect(clientPlugin.inject).toEqual(['slots', 'connection'])
     await clientPlugin.apply({
@@ -104,7 +124,14 @@ describe('client compiler', () => {
       },
     })
     expect(registered).toHaveLength(1)
-    const component = (registered[0] as { component: () => { type: unknown; props: { children: { type: string; props: { className: string } } } } }).component
+    const component = (
+      registered[0] as {
+        component: () => {
+          type: unknown
+          props: { children: { type: string; props: { className: string } } }
+        }
+      }
+    ).component
     const element = component()
     expect(element.type).toBe('provider')
     expect(typeof element.props.children.type).toBe('function')
@@ -133,13 +160,192 @@ describe('client compiler', () => {
     })
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
     expect(code).not.toMatch(/(?:from|require)\(["']dshx\/client/)
-    const registration: { factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } = {} as never
+    const registration: {
+      factory: (requireModule: (id: string) => unknown) => Record<string, unknown>
+    } = {} as never
     vm.runInNewContext(code, {
-      window: { __ModuleLoader__: { load: (value: typeof registration) => Object.assign(registration, value) } },
+      window: {
+        __ModuleLoader__: {
+          load: (value: typeof registration) => Object.assign(registration, value),
+        },
+      },
     })
-    const plugin = registration.factory(() => ({})) as { name: string; inject: string[] }
+    const plugin = registration.factory(() => ({})) as {
+      name: string
+      inject: string[]
+    }
     expect(plugin.name).toBe('explicit-client')
     expect(plugin.inject).toEqual(['remote'])
+  })
+
+  it('fails before runtime when setup uses locale without a defineClient service injection', async () => {
+    const root = await temporaryProject()
+    const entry = resolve(root, 'src/client.tsx')
+    await writeFile(
+      entry,
+      ["import { defineClient } from '@becomeopc/dshx/client'", "export default defineClient({ setup(ctx) { ctx.locale.register('demo', {}) } })", ''].join(
+        '\n',
+      ),
+    )
+
+    await expect(
+      buildClient({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/client.tsx',
+        outDir: 'dist',
+        inject: ['@deepseek-ai/dsh-client-locale'],
+      }),
+    ).rejects.toMatchObject({
+      code: 'DSHX1204',
+      file: expect.stringContaining('/src/client.tsx'),
+      hint: expect.stringContaining('defineClient'),
+    })
+  })
+
+  it('requires both the locale runtime service and its provider package edge', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      [
+        "import { defineClient } from '@becomeopc/dshx/client'",
+        "export default defineClient({ inject: ['locale'], setup({ locale }) { locale.register('demo', {}) } })",
+        '',
+      ].join('\n'),
+    )
+
+    await expect(
+      buildClient({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/client.tsx',
+        outDir: 'dist',
+      }),
+    ).rejects.toMatchObject({
+      code: 'DSHX1203',
+      hint: expect.stringContaining('@deepseek-ai/dsh-client-locale'),
+    })
+
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+      inject: ['@deepseek-ai/dsh-client-locale'],
+    })
+    const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
+    const registration: {
+      factory: (requireModule: (id: string) => unknown) => Record<string, unknown>
+    } = {} as never
+    vm.runInNewContext(code, {
+      window: {
+        __ModuleLoader__: {
+          load: (value: typeof registration) => Object.assign(registration, value),
+        },
+      },
+    })
+    expect((registration.factory(() => ({})) as { inject: string[] }).inject).toEqual(['locale'])
+  })
+
+  it('builds declarative locales through the virtual Client API without a duplicate service injection', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      [
+        "import { defineClient, defineLocale } from '@becomeopc/dshx/client'",
+        "const copy = defineLocale('demo', { zh: { title: '标题' }, en: { title: 'Title' } })",
+        "export default defineClient({ locales: [copy], setup(ctx) { return ctx.locale.bind('demo') } })",
+        '',
+      ].join('\n'),
+    )
+
+    await expect(
+      buildClient({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/client.tsx',
+        outDir: 'dist',
+      }),
+    ).rejects.toMatchObject({
+      code: 'DSHX1203',
+      message: expect.stringContaining('defineLocale'),
+      hint: expect.stringContaining('@deepseek-ai/dsh-client-locale'),
+    })
+
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+      inject: ['@deepseek-ai/dsh-client-locale'],
+    })
+    const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
+    expect(code).not.toContain("require('@deepseek-ai/dsh-client-locale")
+    const registration: {
+      factory: (requireModule: (id: string) => unknown) => Record<string, unknown>
+    } = {} as never
+    vm.runInNewContext(code, {
+      window: {
+        __ModuleLoader__: {
+          load: (value: typeof registration) => Object.assign(registration, value),
+        },
+      },
+    })
+    const plugin = registration.factory(() => ({})) as {
+      inject: string[]
+      apply(ctx: unknown): unknown
+    }
+    expect(plugin.inject).toEqual(['locale'])
+    const register = vi.fn(() => vi.fn())
+    const bind = vi.fn()
+    plugin.apply({
+      effect: (callback: () => unknown) => callback(),
+      locale: { register, bind },
+    })
+    expect(register).toHaveBeenCalledWith('demo', {
+      zh: { title: '标题' },
+      en: { title: 'Title' },
+    })
+    expect(bind).toHaveBeenCalledWith('demo')
+  })
+
+  it('applies the same setup-service validation to the dev watcher', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      ["import { defineClient } from '@becomeopc/dshx/client'", 'export default defineClient({ setup(ctx) { return ctx.locale } })', ''].join('\n'),
+    )
+    await expect(
+      watchClient({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/client.tsx',
+        outDir: 'dist',
+        inject: ['@deepseek-ai/dsh-client-locale'],
+      }),
+    ).rejects.toMatchObject({ code: 'DSHX1204' })
+  })
+
+  it('does not infer setup services when a later object spread can replace setup', async () => {
+    const root = await temporaryProject()
+    await writeFile(
+      resolve(root, 'src/client.tsx'),
+      [
+        "import { defineClient } from '@becomeopc/dshx/client'",
+        'const dynamic = Math.random() > 2 ? { setup() {} } : {}',
+        'export default defineClient({ setup(ctx) { return ctx.locale }, ...dynamic })',
+        '',
+      ].join('\n'),
+    )
+    await expect(
+      buildClient({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/client.tsx',
+        outDir: 'dist',
+        inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation'],
+      }),
+    ).resolves.toEqual(expect.objectContaining({ face: 'client' }))
   })
 
   it('retains declarative Conversation contributions and wires both official registries', async () => {
@@ -173,11 +379,20 @@ describe('client compiler', () => {
     expect(code).not.toContain('dshx.conversation-component.v1')
     expect(code).toContain('getConversationContributionParts')
     expect(code).not.toContain('@becomeopc/dshx/experimental/conversation')
-    const registration: { factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } = {} as never
+    const registration: {
+      factory: (requireModule: (id: string) => unknown) => Record<string, unknown>
+    } = {} as never
     vm.runInNewContext(code, {
-      window: { __ModuleLoader__: { load: (value: typeof registration) => Object.assign(registration, value) } },
+      window: {
+        __ModuleLoader__: {
+          load: (value: typeof registration) => Object.assign(registration, value),
+        },
+      },
     })
-    const plugin = registration.factory(() => ({})) as { inject: string[]; apply(ctx: unknown): void }
+    const plugin = registration.factory(() => ({})) as {
+      inject: string[]
+      apply(ctx: unknown): void
+    }
     expect(plugin.inject).toEqual(['conversationEvents', 'slots'])
 
     const calls: string[] = []
@@ -237,7 +452,12 @@ describe('client compiler', () => {
         '',
       ].join('\n'),
     )
-    await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
   })
 
   it('does not require Conversation provider edges for a retained contract without a component contribution', async () => {
@@ -255,7 +475,12 @@ describe('client compiler', () => {
         '',
       ].join('\n'),
     )
-    await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
   })
 
   it('does not require Conversation provider edges for an empty contribution list', async () => {
@@ -264,7 +489,12 @@ describe('client compiler', () => {
       resolve(root, 'src/client.tsx'),
       ["import { defineClient } from '@becomeopc/dshx/client'", 'export default defineClient({ conversations: [] })', ''].join('\n'),
     )
-    await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
   })
 
   it('resolves an indirect defineClient config before requiring Conversation providers', async () => {
@@ -278,7 +508,12 @@ describe('client compiler', () => {
         '',
       ].join('\n'),
     )
-    await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
   })
 
   it('embeds the same API contract validation in the lazy Client factory', async () => {
@@ -293,11 +528,22 @@ describe('client compiler', () => {
         '',
       ].join('\n'),
     )
-    await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
-    const registration: { factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } = {} as never
+    const registration: {
+      factory: (requireModule: (id: string) => unknown) => Record<string, unknown>
+    } = {} as never
     vm.runInNewContext(code, {
-      window: { __ModuleLoader__: { load: (value: typeof registration) => Object.assign(registration, value) } },
+      window: {
+        __ModuleLoader__: {
+          load: (value: typeof registration) => Object.assign(registration, value),
+        },
+      },
     })
     expect(() => registration.factory(() => ({}))).toThrow('Invalid API id')
     expect(code).not.toContain('@becomeopc/dshx/api')
@@ -315,11 +561,23 @@ describe('client compiler', () => {
         '',
       ].join('\n'),
     )
-    await buildClient({ packageId: '@dshx/phase-a-fixture', logicalName: 'logical-client', root, entry: 'src/client.tsx', outDir: 'dist' })
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      logicalName: 'logical-client',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
-    const registration: { factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } = {} as never
+    const registration: {
+      factory: (requireModule: (id: string) => unknown) => Record<string, unknown>
+    } = {} as never
     vm.runInNewContext(code, {
-      window: { __ModuleLoader__: { load: (value: typeof registration) => Object.assign(registration, value) } },
+      window: {
+        __ModuleLoader__: {
+          load: (value: typeof registration) => Object.assign(registration, value),
+        },
+      },
     })
     const plugin = registration.factory(() => ({})) as {
       name: string
@@ -405,9 +663,15 @@ describe('client compiler', () => {
     expect(code).toContain('settingsCapability: true')
     expect(code).not.toContain('@becomeopc/dshx/settings')
 
-    const registration: { factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } = {} as never
+    const registration: {
+      factory: (requireModule: (id: string) => unknown) => Record<string, unknown>
+    } = {} as never
     vm.runInNewContext(code, {
-      window: { __ModuleLoader__: { load: (value: typeof registration) => Object.assign(registration, value) } },
+      window: {
+        __ModuleLoader__: {
+          load: (value: typeof registration) => Object.assign(registration, value),
+        },
+      },
     })
     const plugin = registration.factory(id => {
       if (id === 'react') return {}
@@ -423,7 +687,12 @@ describe('client compiler', () => {
       resolve(root, 'src/client.tsx'),
       ["import { defineClient, useSettings } from '@becomeopc/dshx/client'", 'void useSettings', 'export default defineClient({ setup() {} })', ''].join('\n'),
     )
-    await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
     expect(code).not.toContain('dshx.settings-hook.v1')
     expect(code).toContain('settingsCapability: false')
@@ -441,7 +710,14 @@ describe('client compiler', () => {
         '',
       ].join('\n'),
     )
-    await expect(buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })).rejects.toThrow('DSHX1203')
+    await expect(
+      buildClient({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/client.tsx',
+        outDir: 'dist',
+      }),
+    ).rejects.toThrow('DSHX1203')
   })
 
   it('infers Connection from a retained useApi hook without Client api/apis', async () => {
@@ -470,9 +746,15 @@ describe('client compiler', () => {
     expect(code).not.toContain('@becomeopc/dshx/api')
     expect(code).not.toContain('@becomeopc/dshx/client')
 
-    const registration: { factory: (requireModule: (id: string) => unknown) => Record<string, unknown> } = {} as never
+    const registration: {
+      factory: (requireModule: (id: string) => unknown) => Record<string, unknown>
+    } = {} as never
     vm.runInNewContext(code, {
-      window: { __ModuleLoader__: { load: (value: typeof registration) => Object.assign(registration, value) } },
+      window: {
+        __ModuleLoader__: {
+          load: (value: typeof registration) => Object.assign(registration, value),
+        },
+      },
     })
     const plugin = registration.factory(() => ({})) as { inject: string[] }
     expect(plugin.inject).toEqual(['slots', 'connection'])
@@ -509,7 +791,12 @@ describe('client compiler', () => {
       resolve(root, 'src/client.tsx'),
       ["import { defineClient, useApi } from '@becomeopc/dshx/client'", 'void useApi', 'export default defineClient({ setup() {} })', ''].join('\n'),
     )
-    await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
     expect(code).not.toContain('dshx.api-hook.v1')
     expect(code).toContain('apiCapability: false')
@@ -526,7 +813,12 @@ describe('client compiler', () => {
         '',
       ].join('\n'),
     )
-    await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
     expect(code).toContain('dshx.api-hook.v1')
     expect(code).toContain('apiCapability: false')
@@ -559,22 +851,40 @@ describe('client compiler', () => {
     const root = await temporaryProject()
     await writeFile(resolve(root, 'src/icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="2" cy="2" r="2"/></svg>')
     await writeFile(resolve(root, 'src/client.tsx'), "import icon from './icon.svg'\nexport const name = icon\nexport function apply() {}\n")
-    const report = await buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })
+    const report = await buildClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
     expect(await readFile(resolve(root, 'dist/client.js'), 'utf8')).toContain('data:image/svg+xml')
     expect(report.output.filter(item => item.type === 'asset' && !item.fileName.endsWith('.map'))).toEqual([])
   })
 
   it('rejects protected config overrides and unsupported emitted assets', async () => {
     const root = await temporaryProject()
-    const override: Plugin = { name: 'override-target', config: () => ({ build: { target: 'es2018' } }) }
+    const override: Plugin = {
+      name: 'override-target',
+      config: () => ({ build: { target: 'es2018' } }),
+    }
     await expect(
-      buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist', vite: { plugins: [override] } }),
+      buildClient({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/client.tsx',
+        outDir: 'dist',
+        vite: { plugins: [override] },
+      }),
     ).rejects.toThrow('DSHX1403')
 
     const emit: Plugin = {
       name: 'emit-asset',
       generateBundle() {
-        this.emitFile({ type: 'asset', fileName: 'unsupported.txt', source: 'nope' })
+        this.emitFile({
+          type: 'asset',
+          fileName: 'unsupported.txt',
+          source: 'nope',
+        })
       },
     }
     await expect(
@@ -588,7 +898,10 @@ describe('client compiler', () => {
       }),
     ).rejects.toThrow('DSHX1102')
 
-    const corrupt: Plugin = { name: 'corrupt-client-protocol', renderChunk: () => 'module.exports = {}' }
+    const corrupt: Plugin = {
+      name: 'corrupt-client-protocol',
+      renderChunk: () => 'module.exports = {}',
+    }
     await expect(
       buildClient({
         packageId: '@dshx/phase-a-fixture',
@@ -623,7 +936,15 @@ describe('client compiler', () => {
       entry: 'src/client.tsx',
       outDir: 'dist',
       inject: ['@deepseek-ai/dsh-client-connection'],
-      vite: { plugins: [{ name: 'build-with-optional-server-hook', configureServer, transform: () => null }] },
+      vite: {
+        plugins: [
+          {
+            name: 'build-with-optional-server-hook',
+            configureServer,
+            transform: () => null,
+          },
+        ],
+      },
     })
     await watcher.close()
     expect(configureServer).not.toHaveBeenCalled()
@@ -642,7 +963,14 @@ describe('client compiler', () => {
         '',
       ].join('\n'),
     )
-    await expect(buildClient({ packageId: '@dshx/phase-a-fixture', root, entry: 'src/client.tsx', outDir: 'dist' })).rejects.toThrow('DSHX1203')
+    await expect(
+      buildClient({
+        packageId: '@dshx/phase-a-fixture',
+        root,
+        entry: 'src/client.tsx',
+        outDir: 'dist',
+      }),
+    ).rejects.toThrow('DSHX1203')
   })
 
   it('does not remove the Host artifact from the shared output directory', async () => {
@@ -695,6 +1023,104 @@ describe('client compiler', () => {
       await writeFile(sourcePath, source.replace('Build. Ship. Observe.', 'Build. Ship. Observe. Rebuilt'))
       const second = await waitForArtifact(code => code.includes('Build. Ship. Observe. Rebuilt'))
       expect(first).not.toBe(second)
+    } finally {
+      await result.close()
+    }
+  })
+
+  it('reruns setup-service diagnostics on every watched Client rebuild and recovers after a fix', async () => {
+    const root = await temporaryProject()
+    const sourcePath = resolve(root, 'src/client.tsx')
+    const clientSource = (inject: boolean, marker: string) =>
+      [
+        "import { defineClient } from '@becomeopc/dshx/client'",
+        `export default defineClient({ ${inject ? "inject: ['locale'], " : ''}setup(ctx) { ctx.locale.register('demo', { marker: '${marker}' }) } })`,
+        '',
+      ].join('\n')
+    await writeFile(sourcePath, clientSource(true, 'initial-locale'))
+
+    const result = await watchClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+      inject: ['@deepseek-ai/dsh-client-locale'],
+    })
+    const events: Array<{ code: string; error?: unknown }> = []
+    result.on('event', event => events.push(event))
+    const waitFor = async (predicate: () => boolean | Promise<boolean>, label: string): Promise<void> => {
+      const deadline = Date.now() + 10_000
+      while (Date.now() < deadline) {
+        if (await predicate()) return
+        await new Promise(resolveTimer => setTimeout(resolveTimer, 20))
+      }
+      throw new Error(`timed out waiting for ${label}; events: ${events.map(event => event.code).join(', ')}`)
+    }
+
+    try {
+      await waitFor(async () => (await readFile(resolve(root, 'dist/client.js'), 'utf8').catch(() => '')).includes('initial-locale'), 'initial Client build')
+      const beforeFailure = events.length
+      await writeFile(sourcePath, clientSource(false, 'missing-locale'))
+      await waitFor(() => events.slice(beforeFailure).some(event => event.code === 'ERROR'), 'incremental setup-service error')
+      const failure = events.slice(beforeFailure).find(event => event.code === 'ERROR')
+      expect(String(failure?.error)).toContain('DSHX1204')
+
+      const beforeRecovery = events.length
+      await writeFile(sourcePath, clientSource(true, 'fixed-locale'))
+      await waitFor(() => events.slice(beforeRecovery).some(event => event.code === 'END'), 'incremental recovery')
+      await waitFor(async () => (await readFile(resolve(root, 'dist/client.js'), 'utf8').catch(() => '')).includes('fixed-locale'), 'recovered Client artifact')
+    } finally {
+      await result.close()
+    }
+  })
+
+  it('reruns declarative Locale provider diagnostics on watched rebuilds', async () => {
+    const root = await temporaryProject()
+    const sourcePath = resolve(root, 'src/client.tsx')
+    const clientSource = (locales: boolean, marker: string) =>
+      locales
+        ? [
+            "import { defineClient, defineLocale } from '@becomeopc/dshx/client'",
+            `const copy = defineLocale('demo', { zh: { title: '${marker}' }, en: { title: '${marker}' } })`,
+            'export default defineClient({ locales: [copy] })',
+            '',
+          ].join('\n')
+        : ["import { defineClient } from '@becomeopc/dshx/client'", `export default defineClient({ name: '${marker}' })`, ''].join('\n')
+    await writeFile(sourcePath, clientSource(false, 'initial-client'))
+
+    const result = await watchClient({
+      packageId: '@dshx/phase-a-fixture',
+      root,
+      entry: 'src/client.tsx',
+      outDir: 'dist',
+    })
+    const events: Array<{ code: string; error?: unknown }> = []
+    result.on('event', event => events.push(event))
+    const waitFor = async (predicate: () => boolean | Promise<boolean>, label: string): Promise<void> => {
+      const deadline = Date.now() + 10_000
+      while (Date.now() < deadline) {
+        if (await predicate()) return
+        await new Promise(resolveTimer => setTimeout(resolveTimer, 20))
+      }
+      throw new Error(`timed out waiting for ${label}; events: ${events.map(event => event.code).join(', ')}`)
+    }
+
+    try {
+      await waitFor(async () => (await readFile(resolve(root, 'dist/client.js'), 'utf8').catch(() => '')).includes('initial-client'), 'initial Client build')
+      const beforeFailure = events.length
+      await writeFile(sourcePath, clientSource(true, 'missing-provider'))
+      await waitFor(() => events.slice(beforeFailure).some(event => event.code === 'ERROR'), 'incremental Locale provider error')
+      const failure = events.slice(beforeFailure).find(event => event.code === 'ERROR')
+      expect(String(failure?.error)).toContain('DSHX1203')
+      expect(String(failure?.error)).toContain('defineLocale')
+
+      const beforeRecovery = events.length
+      await writeFile(sourcePath, clientSource(false, 'recovered-client'))
+      await waitFor(() => events.slice(beforeRecovery).some(event => event.code === 'END'), 'incremental Locale recovery')
+      await waitFor(
+        async () => (await readFile(resolve(root, 'dist/client.js'), 'utf8').catch(() => '')).includes('recovered-client'),
+        'recovered Client artifact',
+      )
     } finally {
       await result.close()
     }

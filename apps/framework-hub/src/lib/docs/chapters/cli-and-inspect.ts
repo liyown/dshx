@@ -178,6 +178,11 @@ export const cliAndInspect = defineDocsChapter({
                   type: "build-watch",
                   body: "Watches both faces and reloads config/dependencies. A bad new config leaves the last-good session active until the fix is valid.",
                 },
+                {
+                  name: "dshx dev --port <0-65535>",
+                  type: "Web port",
+                  body: "Passes a validated DSH Web port to the development session. Zero asks the OS for an available loopback port and remains stable for that session.",
+                },
               ],
             },
             {
@@ -356,6 +361,11 @@ export const cliAndInspect = defineDocsChapter({
                   name: "dshx dev",
                   type: "build-watch",
                   body: "监听两个 face 以及 config/依赖变化；新 config 失败时保留 last-good session，修复后再切换。",
+                },
+                {
+                  name: "dshx dev --port <0-65535>",
+                  type: "Web 端口",
+                  body: "向开发会话传入已验证的 DSH Web 端口；0 让操作系统分配可用 loopback 端口，并在本次会话内保持稳定。",
                 },
               ],
             },

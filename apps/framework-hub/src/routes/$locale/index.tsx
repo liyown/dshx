@@ -15,14 +15,15 @@ import { RuntimeDiagram } from "@/components/dshx/runtime-diagram";
 import { PluginCard } from "@/components/dshx/plugin-card";
 import { useHydratedReducedMotion } from "@/components/dshx/use-hydrated-reduced-motion";
 import { useSiteScrollMotion } from "@/components/dshx/use-site-scroll-motion";
-import { loadCatalog } from "@/lib/catalog/functions";
+import { loadMarketplaceCatalog } from "@/lib/catalog/functions";
 import type { CatalogCard } from "@/lib/catalog/types";
 import { createTranslator, localizedPath, parseLocale, useI18n } from "@/lib/i18n";
+import { DSHX_VERSION, MARKETPLACE_REFERENCE_PLUGIN } from "@/lib/reference-plugin";
 
 export const Route = createFileRoute("/$locale/")({
   loader: ({ params }) =>
-    loadCatalog({
-      data: { locale: parseLocale(params.locale), q: "", sort: "featured", limit: 6 },
+    loadMarketplaceCatalog({
+      data: { locale: parseLocale(params.locale), q: "", sort: "latest", limit: 6 },
     }),
   head: ({ params }) => {
     const locale = parseLocale(params.locale);
@@ -90,7 +91,7 @@ function Hero() {
       <Container className="relative grid gap-14 py-20 md:py-28 lg:grid-cols-[1.05fr_1fr] lg:items-center">
         <div data-scroll-surface>
           <div className="flex items-center gap-2" data-motion-hero="meta">
-            <Chip tone="accent">v0.1.2</Chip>
+            <Chip tone="accent">v{DSHX_VERSION}</Chip>
             <span className="font-mono text-[11.5px] text-muted-foreground">
               {t("home.compatible")}
             </span>
@@ -217,6 +218,7 @@ function Capabilities() {
 
 function Ecosystem({ plugins }: { plugins: CatalogCard[] }) {
   const { locale, t } = useI18n();
+  const reference = MARKETPLACE_REFERENCE_PLUGIN;
   return (
     <Section index="03" label={t("home.ecosystemLabel")}>
       <div className="flex flex-wrap items-end justify-between gap-6">
@@ -232,6 +234,47 @@ function Ecosystem({ plugins }: { plugins: CatalogCard[] }) {
           <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </Link>
       </div>
+
+      <article className="mt-12 overflow-hidden rounded-xl border border-border bg-surface lg:grid lg:grid-cols-[1.25fr_0.75fr]">
+        <div className="p-6 md:p-8">
+          <Chip tone="accent">{t("home.referenceBadge")}</Chip>
+          <h3 className="mt-5 max-w-2xl text-[clamp(1.4rem,2.8vw,2rem)] leading-tight font-medium tracking-[-0.025em]">
+            {t("home.referenceTitle")}
+          </h3>
+          <p className="mt-4 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
+            {t("home.referenceBody")}
+          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[11.5px] text-muted-foreground">
+            <span className="text-foreground">{reference.packageName}</span>
+            <span aria-hidden="true" className="text-border-strong">
+              /
+            </span>
+            <span>v{reference.version}</span>
+          </div>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <ButtonLink href={reference.sourceUrl} variant="outline">
+              {t("home.referenceSource")}
+            </ButtonLink>
+            <Link
+              to="/$locale/plugins"
+              params={{ locale }}
+              search={{ q: reference.packageName, category: "", sort: "latest", cursor: "" }}
+              className="inline-flex h-10 items-center justify-center rounded-[10px] px-4 text-[13.5px] font-medium text-accent transition-colors hover:bg-accent-soft"
+            >
+              {t("home.referenceMarketplace")}
+            </Link>
+          </div>
+        </div>
+        <div className="flex min-h-48 flex-col justify-center border-t border-ink-border bg-ink p-6 text-ink-foreground lg:border-t-0 lg:border-l md:p-8">
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">
+            {t("home.referenceInstall")}
+          </span>
+          <code className="mt-5 block overflow-x-auto whitespace-nowrap font-mono text-[13px]">
+            <span className="text-ink-accent">$ </span>
+            {reference.installCommand}
+          </code>
+        </div>
+      </article>
 
       <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {plugins.slice(0, 6).map((p) => (

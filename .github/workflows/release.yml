@@ -27,7 +27,26 @@ jobs:
           node-version: 24
       - run: pnpm install --frozen-lockfile
       - run: pnpm version:check
+      - name: Check Preview pre mode
+        id: preview
+        run: |
+          node --input-type=module <<'EOF'
+          import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+
+          if (!existsSync('.changeset/pre.json')) {
+            console.log('Preview pre mode has not been entered; refusing to create a stable version PR.')
+            appendFileSync(process.env.GITHUB_OUTPUT, 'ready=false\n')
+            process.exit(0)
+          }
+
+          const state = JSON.parse(readFileSync('.changeset/pre.json', 'utf8'))
+          if (state.mode !== 'pre' || state.tag !== 'preview') {
+            throw new Error('Expected Changesets pre mode with the preview tag.')
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, 'ready=true\n')
+          EOF
       - name: Open or update the Changesets version PR
+        if: steps.preview.outputs.ready == 'true'
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

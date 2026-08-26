@@ -101,13 +101,22 @@ describe("local deterministic catalog verification", () => {
       qualified: true,
       identityKey: "npm:@fixture/plugin",
       attestation: {
-        checkerVersion: "3",
+        checkerVersion: "4",
         packageName: "@fixture/plugin",
         packageVersion: "1.0.0",
         patchPath: "dsh.patch.json",
         dshxDetected: true,
       },
     });
+    const artifactSize = result.attestation?.checks.find(
+      (check) => check.code === "artifact.size",
+    );
+    expect(artifactSize?.observed).toEqual({
+      file: "plugin.tgz",
+      bytes: expect.any(Number),
+    });
+    expect(artifactSize?.observed).not.toHaveProperty("path");
+    expect(JSON.stringify(result)).not.toContain(fixture.root);
     await expect(access(join(fixture.root, "executed"))).rejects.toThrow();
   });
 

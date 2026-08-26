@@ -6,9 +6,10 @@ export type CatalogCard = {
   author: string;
   version: string;
   compat: string;
+  publishedAt: string | null;
   updated: string;
   category: string;
-  stars: number;
+  stars: number | null;
   downloads: string;
   badge: "official" | "verified" | "community";
   glyph: string;

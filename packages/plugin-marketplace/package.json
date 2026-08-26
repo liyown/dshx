@@ -1,0 +1,117 @@
+{
+  "name": "@becomeopc/dshx-plugin-marketplace",
+  "version": "0.1.0-preview.0",
+  "description": "A self-hosted Framework Hub marketplace for DSH profiles.",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "plugins",
+    "marketplace"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/liyown/dshx.git",
+    "directory": "packages/plugin-marketplace"
+  },
+  "bugs": {
+    "url": "https://github.com/liyown/dshx/issues"
+  },
+  "homepage": "https://dshx.io/plugins/dshx-plugin-marketplace",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ],
+      "external": [],
+      "immediately": false
+    }
+  },
+  "scripts": {
+    "check": "dshx check",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "dshx build",
+    "dev": "dshx dev --open",
+    "prepack": "pnpm check && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "dependencies": {
+    "execa": "catalog:",
+    "semver": "7.8.5",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@becomeopc/dshx": "workspace:*",
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-app-boot": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-connection": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-locale": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-cordis-host-runner": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-settings": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-tool-cordis": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.8",
+    "@deepseek-ai/schemastery": "3.18.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "catalog:",
+    "@types/react": "~18.3.31",
+    "@types/react-dom": "~18.3.7",
+    "@types/semver": "^7.7.1",
+    "jsdom": "^26.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh": ">=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2",
+    "@deepseek-ai/dsh-app-boot": ">=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-connection": ">=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2",
+    "@deepseek-ai/dsh-settings": ">=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "react": ">=18 <20"
+  }
+}

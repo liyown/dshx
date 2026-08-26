@@ -1,12 +1,14 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { DshxError } from '../diagnostics.js'
-import type { ClientConversationContribution, ClientDefinition, SlotContribution } from './types.js'
+import type { ClientConversationContribution, ClientDefinition, LocaleDefinition, LocaleDictionaries, SlotContribution } from './types.js'
 import { isSlotContribution, slotContributionParts } from './define.js'
+import { isLocaleDefinition, localeDefinitionParts } from './locale.js'
 import { getConversationContributionParts, isConversationContribution } from '../conversation/define.js'
 import { createApiClientRuntime, provideApiContext } from '../api/client.js'
 import { createSettingsClientRuntime, provideSettingsContext } from '../settings/client.js'
 
-const CLIENT_DEFINITION_KEYS = new Set(['name', 'inject', 'conversations', 'slots', 'setup'])
+const CLIENT_DEFINITION_KEYS = new Set(['name', 'inject', 'locales', 'conversations', 'slots', 'setup'])
+const LOCALE_IDS = ['zh', 'en'] as const
 
 /** Project identity embedded by the Client compiler. */
 export interface ClientPluginMetadata {
@@ -34,13 +36,18 @@ interface ClientConversationEventsService {
   register(definition: unknown): unknown
 }
 
+interface ClientLocaleService {
+  register(namespace: string, dictionaries: LocaleDictionaries): () => void
+}
+
 type ClientRuntimeContext = Context & {
   readonly conversationEvents: ClientConversationEventsService
+  readonly locale: ClientLocaleService
   readonly slots: ClientSlotsService
 }
 
 function fail(
-  code: 'DSHX2101' | 'DSHX2102' | 'DSHX2201' | 'DSHX2202' | 'DSHX2301' | 'DSHX2302',
+  code: 'DSHX2101' | 'DSHX2102' | 'DSHX2201' | 'DSHX2202' | 'DSHX2301' | 'DSHX2302' | 'DSHX2401' | 'DSHX2402',
   message: string,
   metadata: ClientPluginMetadata,
   hint: string,
@@ -89,7 +96,80 @@ function validateContribution(value: unknown, metadata: ClientPluginMetadata, in
       'Pass component: YourReactComponent to defineSlot().',
     )
   }
+  const locale = (parts.options as Record<string, unknown>).locale
+  if (locale !== undefined && !isLocaleDefinition(locale) && (typeof locale !== 'string' || locale.trim() === '' || locale !== locale.trim())) {
+    fail(
+      'DSHX2202',
+      `Client slot contribution at index ${index} has an invalid locale option.`,
+      metadata,
+      'Pass a non-empty native Locale namespace string or a value returned by defineLocale().',
+    )
+  }
   return value as SlotContribution
+}
+
+function validateLocaleContribution(value: unknown, metadata: ClientPluginMetadata, index: number): LocaleDefinition {
+  if (!isLocaleDefinition(value)) {
+    fail(
+      'DSHX2401',
+      `Client Locale contribution at index ${index} must be an object returned by defineLocale().`,
+      metadata,
+      'Use defineLocale("namespace", { zh: { ... }, en: { ... } }) inside defineClient({ locales: [...] }).',
+    )
+  }
+  const { namespace, dictionaries } = localeDefinitionParts(value)
+  if (typeof namespace !== 'string' || namespace.trim() === '' || namespace !== namespace.trim()) {
+    fail(
+      'DSHX2402',
+      `Client Locale contribution at index ${index} must have a non-empty namespace without surrounding whitespace.`,
+      metadata,
+      'Use a stable namespace such as "settings.myPlugin" as the first defineLocale() argument.',
+    )
+  }
+  if (typeof dictionaries !== 'object' || dictionaries === null || Array.isArray(dictionaries)) {
+    fail(
+      'DSHX2402',
+      `Client Locale contribution at index ${index} must provide complete zh/en dictionaries.`,
+      metadata,
+      'Pass { zh: { key: "..." }, en: { key: "..." } } as the second defineLocale() argument.',
+    )
+  }
+  const localeIds = Object.keys(dictionaries)
+  if (localeIds.length !== LOCALE_IDS.length || LOCALE_IDS.some(locale => !Object.hasOwn(dictionaries, locale))) {
+    fail(
+      'DSHX2402',
+      `Client Locale contribution at index ${index} must provide exactly the zh and en dictionaries.`,
+      metadata,
+      'Add the missing shipped locale or remove unsupported locale ids.',
+    )
+  }
+  let expectedKeys: readonly string[] | undefined
+  for (const locale of LOCALE_IDS) {
+    const dictionary = dictionaries[locale] as unknown
+    if (typeof dictionary !== 'object' || dictionary === null || Array.isArray(dictionary)) {
+      fail('DSHX2402', `Client Locale contribution at index ${index} has an invalid ${locale} dictionary.`, metadata, 'Use a flat key-to-string object.')
+    }
+    const entries = Object.entries(dictionary)
+    if (entries.some(([key, text]) => key.trim() === '' || typeof text !== 'string')) {
+      fail(
+        'DSHX2402',
+        `Client Locale contribution at index ${index} has an invalid ${locale} dictionary entry.`,
+        metadata,
+        'Use non-empty keys and string translation values.',
+      )
+    }
+    const keys = entries.map(([key]) => key).sort()
+    if (expectedKeys !== undefined && (keys.length !== expectedKeys.length || keys.some((key, keyIndex) => key !== expectedKeys?.[keyIndex]))) {
+      fail(
+        'DSHX2402',
+        `Client Locale contribution at index ${index} must use identical keys in every dictionary.`,
+        metadata,
+        'Add or remove keys until the zh and en dictionaries have the same shape.',
+      )
+    }
+    expectedKeys = keys
+  }
+  return value
 }
 
 function validateConversationContribution(value: unknown, metadata: ClientPluginMetadata, index: number): ClientConversationContribution {
@@ -137,6 +217,30 @@ function validateDefinition(value: unknown, metadata: ClientPluginMetadata): Cli
       )
     }
   }
+  if (source.locales !== undefined) {
+    if (!Array.isArray(source.locales)) {
+      fail(
+        'DSHX2402',
+        'Client definition locales must be an array of defineLocale() contributions.',
+        metadata,
+        'Use locales: [defineLocale("namespace", { zh: { ... }, en: { ... } })] or remove locales.',
+      )
+    }
+    const namespaces = new Set<string>()
+    source.locales.forEach((locale, index) => {
+      const contribution = validateLocaleContribution(locale, metadata, index)
+      const namespace = localeDefinitionParts(contribution).namespace
+      if (namespaces.has(namespace)) {
+        fail(
+          'DSHX2402',
+          `Client definition contains duplicate Locale namespace ${JSON.stringify(namespace)}.`,
+          metadata,
+          'Register each Locale namespace exactly once in defineClient({ locales: [...] }).',
+        )
+      }
+      namespaces.add(namespace)
+    })
+  }
   if (source.conversations !== undefined) {
     if (!Array.isArray(source.conversations)) {
       fail(
@@ -167,6 +271,19 @@ function validateDefinition(value: unknown, metadata: ClientPluginMetadata): Cli
 
 type ComponentDecorator = (component: unknown) => unknown
 
+function normalizedSlotOptions(options: object): object {
+  const locale = (options as Record<string, unknown>).locale
+  if (!isLocaleDefinition(locale)) return options
+  return { ...options, locale: localeDefinitionParts(locale).namespace }
+}
+
+function registerLocales(client: ClientRuntimeContext, definition: ClientDefinition): void {
+  for (const locale of definition.locales ?? []) {
+    const { namespace, dictionaries } = localeDefinitionParts(locale)
+    client.effect(() => client.locale.register(namespace, dictionaries))
+  }
+}
+
 function registerContributions(client: ClientRuntimeContext, definition: ClientDefinition, decorate: ComponentDecorator): void {
   for (const conversation of definition.conversations ?? []) {
     const { definition: conversationDefinition, renderer } = getConversationContributionParts(conversation)
@@ -175,18 +292,20 @@ function registerContributions(client: ClientRuntimeContext, definition: ClientD
   }
   for (const slot of definition.slots ?? []) {
     const { name, options, component } = slotContributionParts(slot)
-    client.slots.inject(name, () => client.slots.register({ name, ...options }, decorate(component)))
+    client.slots.inject(name, () => client.slots.register({ name, ...normalizedSlotOptions(options) }, decorate(component)))
   }
 }
 
 /** Convert a definition into the standard Cordis Client module contract. */
 export function createClientPlugin(value: unknown, metadata: ClientPluginMetadata): CreatedClientPlugin {
   const definition = validateDefinition(value, metadata)
+  const hasLocales = (definition.locales?.length ?? 0) > 0
   const hasConversations = (definition.conversations?.length ?? 0) > 0
   const hasApiCapability = metadata.apiCapability === true
   const inject = [
     ...new Set([
       ...(definition.inject ?? []),
+      ...(hasLocales ? ['locale'] : []),
       ...(hasConversations ? ['conversationEvents'] : []),
       ...((definition.slots?.length ?? 0) > 0 || hasConversations ? ['slots'] : []),
       ...(hasApiCapability ? ['connection'] : []),
@@ -198,6 +317,7 @@ export function createClientPlugin(value: unknown, metadata: ClientPluginMetadat
     inject,
     apply(ctx) {
       const client = ctx as ClientRuntimeContext
+      registerLocales(client, definition)
       const settings = metadata.settingsCapability === true ? createSettingsClientRuntime(ctx) : undefined
       if (!hasApiCapability) {
         registerContributions(client, definition, component => (settings === undefined ? component : provideSettingsContext(component as any, settings)))

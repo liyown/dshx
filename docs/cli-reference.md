@@ -41,12 +41,14 @@ Build runs the offline manifest, migration, compatibility, and TypeScript checks
 ## `dshx dev`
 
 ```bash
-dshx dev [--cwd <project>] [--open] [--verbose]
+dshx dev [--cwd <project>] [--port <0-65535>] [--open] [--verbose]
 ```
 
 Dev uses Vite build-watch with `command: 'build'` in development mode, links the package through the official DSH Profile CLI when needed, and launches DSH only after required initial builds succeed. It is not a Vite dev server.
 
 Successful Host rebuilds restart the Host automatically by default. Set `dev.hostRestart: 'manual'` to require an explicit restart instead. Interactive input maps `r` to one explicit Host restart under either policy and `q`/Ctrl-C to bounded shutdown. Client rebuilds use official DSH HMR. Config/dependency reloads keep the last-good session until replacement watchers resolve and build successfully.
+
+`--port 0` asks DSH to allocate an available Web port. Use a concrete port when browser state or an external test must keep the same address across automatic Host restarts. If omitted, DSHX follows the configured/default DSH Web port.
 
 ## `dshx inspect`
 
@@ -81,12 +83,13 @@ All add commands accept `--file`, `--dry-run`, and `--json`. They generate sourc
 | `--fix`               | check               | Apply deterministic manifest repairs          |
 | `--dry-run`           | check --fix, add    | Produce a plan/diff without writing           |
 | `--open`              | dev                 | Open the development URL                      |
+| `--port <0-65535>`    | dev                 | Select the DSH Web port; `0` allocates one    |
 | `--help`, `--version` | all                 | Print CLI metadata                            |
 
 ## `create-dshx`
 
 ```bash
-pnpm create dshx <name> \
+pnpm create dshx@preview <name> \
   [--template starter|showcase] \
   [--style css-modules|tailwind|none] \
   [--cwd <path>] \

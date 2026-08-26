@@ -41,6 +41,13 @@ function isInside(parent: string, child: string): boolean {
 
 function hostEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, options: BuildHostOptions): Plugin {
   const name = options.logicalName ?? options.packageId
+  const rootFromOutput = relative(paths.outDir, paths.root)
+  const rootUrl = isAbsolute(rootFromOutput)
+    ? undefined
+    : `${(rootFromOutput || '.')
+        .split(/[\\/]/)
+        .map(segment => encodeURIComponent(segment))
+        .join('/')}/`
   return {
     name: 'dshx-host-entry',
     enforce: 'pre',
@@ -81,14 +88,14 @@ function hostEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, opti
       const metadata = {
         packageId: options.packageId,
         logicalName: name,
-        sourceFile: paths.entry,
-        root: paths.root,
+        sourceFile: relative(paths.root, paths.entry).replaceAll('\\', '/'),
         compatibility: options.compatibility,
       }
       return [
         `import * as source from ${JSON.stringify(paths.entry)}`,
         `import { createHostModule } from ${JSON.stringify(HOST_RUNTIME_PATH)}`,
-        `const plugin = createHostModule(source, ${JSON.stringify(metadata)})`,
+        ...(rootUrl === undefined ? [] : [`import { fileURLToPath as dshxFileURLToPath } from 'node:url'`]),
+        `const plugin = createHostModule(source, { ...${JSON.stringify(metadata)}${rootUrl === undefined ? '' : `, root: dshxFileURLToPath(new URL(${JSON.stringify(rootUrl)}, import.meta.url))`} })`,
         'export const name = plugin.name',
         'export const inject = plugin.inject',
         'export const Config = plugin.Config',
@@ -146,7 +153,15 @@ async function hostConfig(paths: Awaited<ReturnType<typeof resolveOptions>>, opt
       hostEntryPlugin(paths, options),
       ...userPlugins,
       artifactDeclarationPlugin('host', paths.outDir, options.declarations ?? true),
-      kernelBoundaryPlugin({ face: 'host', root: paths.root, input: VIRTUAL_HOST_ENTRY, target: 'es2024', assetsInlineLimit, external, output }),
+      kernelBoundaryPlugin({
+        face: 'host',
+        root: paths.root,
+        input: VIRTUAL_HOST_ENTRY,
+        target: 'es2024',
+        assetsInlineLimit,
+        external,
+        output,
+      }),
       singleHostChunkPlugin(),
     ],
     build: {

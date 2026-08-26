@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { validRange } from "semver";
 import { z } from "zod";
 
 const url = z.string().url().max(2_048);
@@ -7,6 +8,31 @@ const nullableUrl = url.nullable().optional();
 const dateTime = z.string().datetime({ offset: true });
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
 const locale = z.enum(["en", "zh"]);
+const compatibilityRange = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .refine((value) => validRange(value, { includePrerelease: true }) !== null, {
+    message: "compatibilityRange must be a valid semver range",
+  });
+
+function isSafeArtifactBasename(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > 255 ||
+    value === "." ||
+    value === ".." ||
+    value.includes("/") ||
+    value.includes("\\")
+  )
+    return false;
+  return ![...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127;
+  });
+}
 
 export const sourceObservationSchema = z.object({
   kind: z.string().trim().min(1).max(100),
@@ -38,14 +64,42 @@ export const catalogIdentitySchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-export const verificationCheckSchema = z.object({
-  code: z.string().min(1).max(100),
-  status: z.enum(["pass", "fail", "warn"]),
-  message: z.string().max(1_000).optional(),
-  observed: z.record(z.string(), z.unknown()).nullable().optional(),
-  evidenceUrl: nullableUrl,
-  evidenceSha: z.string().max(128).nullable().optional(),
-});
+export const verificationCheckSchema = z
+  .object({
+    code: z.string().min(1).max(100),
+    status: z.enum(["pass", "fail", "warn"]),
+    message: z.string().max(1_000).optional(),
+    observed: z.record(z.string(), z.unknown()).nullable().optional(),
+    evidenceUrl: nullableUrl,
+    evidenceSha: z.string().max(128).nullable().optional(),
+  })
+  .superRefine((check, ctx) => {
+    if (check.code !== "artifact.size" || check.observed == null) return;
+    if (Object.hasOwn(check.observed, "path"))
+      ctx.addIssue({
+        code: "custom",
+        path: ["observed", "path"],
+        message: "artifact size evidence must not include a local path",
+      });
+    const file = check.observed["file"];
+    if (file !== undefined && !isSafeArtifactBasename(file))
+      ctx.addIssue({
+        code: "custom",
+        path: ["observed", "file"],
+        message: "artifact size evidence file must be a safe basename",
+      });
+    const bytes = check.observed["bytes"];
+    if (
+      bytes !== undefined &&
+      bytes !== null &&
+      (typeof bytes !== "number" || !Number.isSafeInteger(bytes) || bytes < 0)
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["observed", "bytes"],
+        message: "artifact size evidence bytes must be a non-negative integer",
+      });
+  });
 
 export const verificationAttestationV1Schema = z.object({
   schemaVersion: z.literal(1),
@@ -123,7 +177,7 @@ const release = z.object({
   channel: z.enum(["stable", "prerelease"]).default("stable"),
   gitTag: z.string().max(255).nullable().optional(),
   commitSha: z.string().max(128).nullable().optional(),
-  compatibilityRange: z.string().max(200).nullable().optional(),
+  compatibilityRange: compatibilityRange.nullable().optional(),
   compatibilitySource: z
     .enum(["manifest", "peer-dependency", "inferred", "unknown"])
     .default("unknown"),
@@ -167,7 +221,7 @@ export const catalogProposalV2Schema = z
         .optional(),
       packageName: z.string().min(1).max(214),
       latestVersion: z.string().min(1).max(100),
-      compatibilityRange: z.string().min(1).max(200),
+      compatibilityRange,
       licenseSpdx: z.string().max(100).nullable().optional(),
       homepageUrl: nullableUrl,
       repositoryUrl: url,
@@ -255,6 +309,23 @@ export const catalogProposalV2Schema = z
         path: ["verification"],
         message: "package facts must match a passing verification attestation",
       });
+    if (
+      JSON.stringify(proposal.verification.checks) !==
+      JSON.stringify(proposal.repositoryPackage.checks)
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["repositoryPackage", "checks"],
+        message:
+          "repository package checks must match verification attestation checks",
+      });
+    if (proposal.plugin.repositoryUrl !== proposal.repository.canonicalUrl)
+      ctx.addIssue({
+        code: "custom",
+        path: ["plugin", "repositoryUrl"],
+        message:
+          "plugin repository URL must match the verified canonical repository",
+      });
     if (proposal.identity.kind === "npm") {
       if (
         proposal.repositoryPackage.installKind !== "npm" ||
@@ -290,18 +361,34 @@ export const catalogProposalV2Schema = z
       (target) => target.primary,
     );
     const primaryTarget = primaryTargets[0];
+    const latestStableRelease = proposal.releases.find(
+      (release) =>
+        release.version === proposal.plugin.latestVersion &&
+        release.channel === "stable" &&
+        typeof release.gitTag === "string" &&
+        release.gitTag.length > 0,
+    );
+    const exactInstallSpec =
+      proposal.identity.kind === "npm"
+        ? `${proposal.plugin.packageName}@${proposal.plugin.latestVersion}`
+        : latestStableRelease?.gitTag
+          ? `github:${proposal.repository.fullName}#${latestStableRelease.gitTag}`
+          : undefined;
     if (
       primaryTargets.length !== 1 ||
       !primaryTarget ||
+      exactInstallSpec === undefined ||
+      proposal.repositoryPackage.installSpec !== exactInstallSpec ||
       primaryTarget.kind !== proposal.repositoryPackage.installKind ||
-      primaryTarget.spec !== proposal.repositoryPackage.installSpec ||
+      primaryTarget.spec !== exactInstallSpec ||
       primaryTarget.packageName !== proposal.repositoryPackage.packageName ||
       primaryTarget.version !== proposal.repositoryPackage.packageVersion
     )
       ctx.addIssue({
         code: "custom",
         path: ["installTargets"],
-        message: "exactly one primary target must match the verified package",
+        message:
+          "exactly one primary target must use the verified package's immutable install spec",
       });
     if (
       new Set(
@@ -473,7 +560,10 @@ export const targetSubmissionV2Schema = z
     (input) =>
       new Set(input.results.map((result) => result.repositoryPackageId))
         .size === input.results.length,
-    { path: ["results"], message: "target observations must be unique" },
+    {
+      path: ["results"],
+      message: "target observations must be unique",
+    },
   );
 
 export const mediaUploadV2Schema = z.object({

@@ -1,13 +1,7 @@
 # Releasing
 
-Changesets owns package versions. `@becomeopc/dshx` and `create-dshx` form a fixed group; `@becomeopc/dshx-hub-cli` is independent. GitHub only opens or updates the version PR. A developer publishes packages locally with npm 2FA after the complete verification suite passes; see the [release runbook](docs/releasing.md).
+The first usable DSHX line is published as a Changesets prerelease through the npm `preview` tag. Planned first versions are `@becomeopc/dshx` and `create-dshx` `0.1.4-preview.0`, plus `@becomeopc/dshx-plugin-marketplace` `0.1.0-preview.0`. The existing npm `latest` channel remains unchanged.
 
-All public packages stay on `0.1.x` until the project explicitly adopts a new release line. Use patch changesets for every release during this period, including API Candidate breaking changes; the changeset and migration chapter must list them. `pnpm version:check` prevents accidental `0.2.0` or higher bumps.
+Do not version or publish directly from this summary. Follow the complete [Preview release runbook](docs/releasing.md): finalize changesets, enter Changesets pre mode, run the full package/Hub/real-DSH gates, inspect `publish-plan`, publish locally with npm 2FA, promote the exact marketplace catalog target, and then run the required published-Hub smoke.
 
-The website is deployed only from a Cloudflare-authenticated development machine:
-
-```bash
-pnpm hub:deploy
-```
-
-That command runs all checks including the generic real DSH smoke, applies remote D1 migrations, deploys the Worker and verifies `https://dshx.io`.
+`pnpm release` and `pnpm release:preview` share the same clean-main/pre-state/publish-plan gate. GitHub only creates a Preview version PR after `.changeset/pre.json` explicitly selects the `preview` tag; it has no npm credentials and creates no GitHub Release. Framework Hub deployment is a separate authenticated operation.

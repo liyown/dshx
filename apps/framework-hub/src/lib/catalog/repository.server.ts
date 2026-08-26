@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
-import type { PluginListQuery } from "./contracts";
+import type { MarketplaceListQuery, PluginListQuery } from "./contracts";
 import type { CatalogCard } from "./types";
 
 export type { CatalogCard } from "./types";
@@ -18,6 +18,7 @@ type ListRow = {
   category: string;
   badge: CatalogCard["badge"];
   featured: number;
+  latest_published_at: number | null;
   updated_at: number;
   github_stars: number | null;
   npm_downloads_week: number | null;
@@ -28,7 +29,8 @@ type ListRow = {
 };
 
 function formatDownloads(value: number | null): string {
-  const count = value ?? 0;
+  if (value === null) return "—";
+  const count = value;
   return count >= 1_000 ? `${(count / 1_000).toFixed(count >= 10_000 ? 0 : 1)}k` : String(count);
 }
 
@@ -41,9 +43,11 @@ function toCard(row: ListRow): CatalogCard {
     author: row.author_handle,
     version: row.latest_version,
     compat: row.compatibility_range,
+    publishedAt:
+      row.latest_published_at === null ? null : new Date(row.latest_published_at).toISOString(),
     updated: new Date(row.updated_at).toISOString().slice(0, 10),
     category: row.category,
-    stars: row.github_stars ?? 0,
+    stars: row.github_stars,
     downloads: formatDownloads(row.npm_downloads_week),
     badge: row.badge,
     glyph: row.name.slice(0, 1).toUpperCase(),
@@ -54,7 +58,8 @@ function toCard(row: ListRow): CatalogCard {
     },
     featured: row.featured === 1,
     trending: (row.trend_score_7d ?? 0) > 0,
-    isNew: Date.now() - row.updated_at < 30 * 86_400_000,
+    isNew:
+      row.latest_published_at !== null && Date.now() - row.latest_published_at < 30 * 86_400_000,
   };
 }
 
@@ -81,7 +86,54 @@ function decodeCursor(value?: string | null): [number, number, string] | null {
   }
 }
 
-export async function listCatalogPlugins(db: Database, query: PluginListQuery) {
+const marketplaceEligibility = sql`p.verification_status = 'verified'
+  and (select count(*) from plugin_install_targets primary_target
+       where primary_target.plugin_id = p.id
+         and primary_target.is_primary = 1
+         and primary_target.status = 'active') = 1
+  and exists(select 1 from plugin_install_targets install_target
+             where install_target.plugin_id = p.id
+               and install_target.is_primary = 1
+               and install_target.status = 'active'
+               and install_target.package_name = p.package_name
+               and install_target.version = p.latest_version
+               and (
+                 (install_target.kind = 'npm'
+                  and install_target.spec = (p.package_name || '@' || p.latest_version))
+                 or
+                 (install_target.kind = 'github'
+                  and (select count(*) from plugin_releases exact_release
+                       where exact_release.plugin_id = p.id
+                         and exact_release.version = p.latest_version
+                         and exact_release.channel = 'stable'
+                         and exact_release.git_tag is not null
+                         and trim(exact_release.git_tag) != '') = 1
+                  and exists(select 1 from repositories exact_repository
+                             where exact_repository.id = p.primary_repository_id)
+                  and install_target.spec = (
+                    'github:' ||
+                    (select exact_repository.full_name from repositories exact_repository
+                     where exact_repository.id = p.primary_repository_id) ||
+                    '#' ||
+                    (select exact_release.git_tag from plugin_releases exact_release
+                     where exact_release.plugin_id = p.id
+                       and exact_release.version = p.latest_version
+                       and exact_release.channel = 'stable')
+                  ))
+               ))`;
+
+const latestPublishedAt = sql`coalesce(
+  (select release.published_at from plugin_releases release
+   where release.plugin_id = p.id and release.version = p.latest_version
+   order by release.published_at desc limit 1),
+  p.published_at
+)`;
+
+async function listCatalogPluginPage(
+  db: Database,
+  query: PluginListQuery | MarketplaceListQuery,
+  marketplaceOnly: boolean,
+) {
   const cursor = decodeCursor(query.cursor);
   const search = query.q.trim();
   const primarySort =
@@ -89,19 +141,23 @@ export async function listCatalogPlugins(db: Database, query: PluginListQuery) {
       ? sql`coalesce(m.github_stars, 0)`
       : query.sort === "downloads"
         ? sql`coalesce(m.npm_downloads_week, 0)`
-        : query.sort === "trending"
-          ? sql`coalesce(m.trend_score_7d, 0)`
-          : query.sort === "featured"
-            ? sql`p.featured`
-            : sql`p.updated_at`;
+        : query.sort === "latest"
+          ? sql`coalesce(${latestPublishedAt}, 0)`
+          : query.sort === "trending"
+            ? sql`coalesce(m.trend_score_7d, 0)`
+            : query.sort === "featured"
+              ? sql`p.featured`
+              : sql`p.updated_at`;
+  const secondarySort = query.sort === "latest" ? sql`cast(0 as integer)` : sql`p.updated_at`;
   const conditions = [
     sql`p.status = 'published'`,
     sql`p.lifecycle_status in ('active', 'unmaintained')`,
   ];
+  if (marketplaceOnly) conditions.push(marketplaceEligibility);
   if (query.category) conditions.push(sql`p.category = ${query.category}`);
   if (cursor)
     conditions.push(
-      sql`(${primarySort} < ${cursor[0]} or (${primarySort} = ${cursor[0]} and (p.updated_at < ${cursor[1]} or (p.updated_at = ${cursor[1]} and p.id < ${cursor[2]}))))`,
+      sql`(${primarySort} < ${cursor[0]} or (${primarySort} = ${cursor[0]} and (${secondarySort} < ${cursor[1]} or (${secondarySort} = ${cursor[1]} and p.id < ${cursor[2]}))))`,
     );
   if (search) {
     const searchExpression = `"${search.replaceAll('"', '""')}"`;
@@ -109,7 +165,7 @@ export async function listCatalogPlugins(db: Database, query: PluginListQuery) {
       sql`p.id in (select plugin_id from plugin_search where plugin_search match ${searchExpression} and locale = ${query.locale})`,
     );
   }
-  const order = sql`${primarySort} desc, p.updated_at desc, p.id desc`;
+  const order = sql`${primarySort} desc, ${secondarySort} desc, p.id desc`;
   const rows = await db.all<ListRow>(sql`
     select p.id, p.slug, p.package_name,
       coalesce(case when requested.translation_status = 'ready' then requested.display_name end,
@@ -117,7 +173,8 @@ export async function listCatalogPlugins(db: Database, query: PluginListQuery) {
       coalesce(case when requested.translation_status = 'ready' then requested.short_description end,
                case when fallback.translation_status = 'ready' then fallback.short_description end, p.description) as description,
       p.author_handle, p.latest_version, p.compatibility_range, p.category, p.badge,
-      p.featured, p.updated_at, m.github_stars, m.npm_downloads_week, m.trend_score_7d,
+      p.featured, ${latestPublishedAt} latest_published_at, p.updated_at,
+      m.github_stars, m.npm_downloads_week, m.trend_score_7d,
       pub.login publisher_login, pub.avatar_url publisher_avatar_url,
       (select pm.id from plugin_media pm
        where pm.plugin_id=p.id and pm.kind='icon' and pm.status='active'
@@ -143,16 +200,23 @@ export async function listCatalogPlugins(db: Database, query: PluginListQuery) {
               ? (last.github_stars ?? 0)
               : query.sort === "downloads"
                 ? (last.npm_downloads_week ?? 0)
-                : query.sort === "trending"
-                  ? (last.trend_score_7d ?? 0)
-                  : query.sort === "featured"
-                    ? last.featured
-                    : last.updated_at,
-            last.updated_at,
+                : query.sort === "latest"
+                  ? (last.latest_published_at ?? 0)
+                  : query.sort === "trending"
+                    ? (last.trend_score_7d ?? 0)
+                    : query.sort === "featured"
+                      ? last.featured
+                      : last.updated_at,
+            query.sort === "latest" ? 0 : last.updated_at,
             last.id,
           )
         : null,
   };
+}
+
+/** Discovery/SEO catalog. Published placeholders intentionally remain visible here. */
+export function listCatalogPlugins(db: Database, query: PluginListQuery) {
+  return listCatalogPluginPage(db, query, false);
 }
 
 type DetailRow = ListRow & {
@@ -209,7 +273,8 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
   `);
   const canonicalSlug = aliases[0]?.slug ?? slug;
   const rows = await db.all<DetailRow>(sql`
-    select p.*, coalesce(requested.display_name, fallback.display_name, p.name) as name,
+    select p.*, ${latestPublishedAt} latest_published_at,
+      coalesce(requested.display_name, fallback.display_name, p.name) as name,
       coalesce(requested.short_description, fallback.short_description, p.description) as description,
       coalesce(requested.overview_markdown, fallback.overview_markdown) as overview_markdown,
       coalesce(requested.install_notes_markdown, fallback.install_notes_markdown) as install_notes_markdown,
@@ -265,7 +330,8 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
     ),
     db.all<ListRow>(
       sql`select p.id, p.slug, p.package_name, p.name, p.description, p.author_handle,
-        p.latest_version, p.compatibility_range, p.category, p.badge, p.featured, p.updated_at,
+        p.latest_version, p.compatibility_range, p.category, p.badge, p.featured,
+        ${latestPublishedAt} latest_published_at, p.updated_at,
         m.github_stars, m.npm_downloads_week, m.trend_score_7d,
         pub.login publisher_login, pub.avatar_url publisher_avatar_url,
         (select pm.id from plugin_media pm
@@ -321,4 +387,36 @@ export async function listCatalogCategories(db: Database, locale: "en" | "zh") {
     left join category_localizations cl on cl.category_id=c.id and cl.locale=${locale}
     where c.active=1 order by c.sort_order
   `);
+}
+
+/** Discovery response, extended additively without changing its existing page fields. */
+export async function listCatalogDiscovery(db: Database, query: PluginListQuery) {
+  const [page, categories] = await Promise.all([
+    listCatalogPlugins(db, query),
+    listCatalogCategories(db, query.locale),
+  ]);
+  return { ...page, categories };
+}
+
+/** Installable marketplace response. Only one exact, active primary target is accepted. */
+export async function listCatalogMarketplace(db: Database, query: MarketplaceListQuery) {
+  const [page, categories] = await Promise.all([
+    listCatalogPluginPage(db, query, true),
+    listCatalogCategories(db, query.locale),
+  ]);
+  return { ...page, categories };
+}
+
+export async function getCatalogMarketplacePlugin(db: Database, slug: string, locale: "en" | "zh") {
+  const detail = await getCatalogPlugin(db, slug, locale);
+  if (!detail) return null;
+  const eligible = await db.get<{ eligible: number }>(sql`
+    select case when
+      p.status = 'published'
+      and p.lifecycle_status in ('active', 'unmaintained')
+      and ${marketplaceEligibility}
+      then 1 else 0 end eligible
+    from plugins p where p.id = ${detail.id}
+  `);
+  return eligible?.eligible === 1 ? detail : null;
 }

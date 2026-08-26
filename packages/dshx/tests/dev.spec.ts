@@ -86,7 +86,7 @@ function prepared(projectValue: ResolvedDshxConfig): PreparedProjectProfile {
       version: '0.1.0-rc.8',
       adapterId: 'protocol-1',
       protocolGeneration: 'protocol-1',
-      supportedRange: '>=0.1.0-rc.8 <0.2.0-0',
+      supportedRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
       support: 'verified',
       diagnostics: [],
       compatibility: DSH_0_1_COMPATIBILITY,

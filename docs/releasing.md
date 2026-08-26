@@ -1,50 +1,89 @@
-# Releasing DSHX packages
+# Releasing the first DSHX Preview
 
-GitHub maintains the Changesets version pull request, but it does not publish npm packages, create npm provenance, tag releases, or create GitHub Releases. Publication is an explicit developer-machine operation. Framework Hub deployment is also local-only through `pnpm hub:deploy`.
+The first public Preview is a coordinated, local npm-2FA release. GitHub may open the Changesets version pull request, but it has no npm token, does not publish packages, does not push package tags, and does not create a GitHub Release. Framework Hub deployment is a separate, Cloudflare-authenticated operation.
 
-## Version policy
+## Target and channel
 
-- `@becomeopc/dshx` and `create-dshx` are a fixed Changesets group and always release together.
-- `@becomeopc/dshx-hub-cli` versions independently.
-- All public packages remain on `0.1.x` until an explicit release-policy decision changes the line. Every changeset is `patch` during this period, including new features and breaking development changes; release notes must call out any breaking behavior.
-- Node.js support remains `^22.19.0 || >=24.0.0` until a deliberate compatibility release changes it.
+| Package                              | First Preview target | npm tag   |
+| ------------------------------------ | -------------------- | --------- |
+| `@becomeopc/dshx`                    | `0.1.4-preview.0`    | `preview` |
+| `create-dshx`                        | `0.1.4-preview.0`    | `preview` |
+| `@becomeopc/dshx-plugin-marketplace` | `0.1.0-preview.0`    | `preview` |
 
-The serialized `release.yml` workflow has only repository write permissions and opens or updates the Changesets version PR. It has no npm token, OIDC permission, or publish command. Do not configure `release.yml` as an npm Trusted Publisher while this local-publication policy is active.
+Core and Creator are a fixed Changesets group and must share a version. Marketplace begins at `0.0.0` in the repository so its one initial `minor` changeset produces `0.1.0-preview.0`; subsequent public-package changesets remain `patch` while the project stays on `0.1.x`. Hub CLI versions independently and is not part of this Preview unless a separate changeset explicitly adds it.
 
-## Local publication
+The existing npm `latest` channel remains untouched. Do not create an aggregate `v0.1.4` tag or GitHub Release for this Preview; Changesets creates package-scoped local tags only for packages it actually publishes.
 
-After the version PR is merged, start from a clean, current `main` on a trusted development machine:
+## 1. Freeze the release inputs
 
-```sh
+Finish code, documentation, Skill, migration notes, and every final changeset before entering pre mode. Confirm the intended stable-bump plan without consuming changesets:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm version:check
+pnpm changeset status
+```
+
+At this point the expected ordinary plan is Core/Creator `0.1.4` and Marketplace `0.1.0`. Do not run `version-packages` early: it deletes consumed changeset files and rewrites package versions and changelogs.
+
+## 2. Enter Preview pre mode and version
+
+Only after the release inputs are final:
+
+```bash
+pnpm preview:enter
+pnpm version-packages
+```
+
+Review and commit `.changeset/pre.json`, package manifests, lockfile, changelogs, and removed changeset files. The resulting versions must be Core/Creator `0.1.4-preview.0` and Marketplace `0.1.0-preview.0`.
+
+The serialized `release.yml` workflow refuses to create a stable version PR while `.changeset/pre.json` is absent, and only runs Changesets Action for `mode: pre` with `tag: preview`. It has repository write permission only. If the pre-state/version commit is prepared locally, the Action should find no additional version work; if pre mode is committed before versioning, it may open the corresponding Preview version PR.
+
+Do not run `changeset pre exit` for this release. Exiting pre mode is a later, explicit stable-promotion decision.
+
+## 3. Run the complete gates
+
+Start from a clean, current `main` on a trusted development machine:
+
+```bash
 pnpm install --frozen-lockfile
 pnpm check:all
-pnpm smoke:packages
 pnpm smoke:dsh -- --version 0.1.0-rc.8
 pnpm smoke:dsh -- --version 0.1.1-rc.2
-pnpm version:check
-npm login
-pnpm release
-git push --follow-tags
+pnpm release:plan
+pnpm release:preview:check
 ```
 
-Complete npm 2FA interactively. `pnpm release` runs `changeset publish`, publishes only packages whose versions are not yet present, and creates the corresponding local git tags. Never commit npm credentials or `.npmrc` authentication material.
+`check:all` includes lint, formatting, dependency and production-audit checks, Core/Creator/Marketplace tests and builds, Hub checks, generalized public-package tarball smoke, the latest verified real-DSH smoke, and the marketplace self-bootstrap smoke. The two explicit DSH commands protect both recorded `protocol-1` boundaries.
 
-Before publishing, `check:all` covers lint, formatting, dependency checks, production audit, typecheck, unit tests, builds, package tarball/bin smoke, and Hub checks. Run both representative `protocol-1` boundaries explicitly for an API Candidate or build-kernel release. `smoke:packages` verifies packed public subpaths, NodeNext/Bundler consumers, publint, Are The Types Wrong, and declared exports/types/bin files.
+`release:preview:check` is intentionally stricter than a build: it requires clean `main`, the exact three Preview version shapes, public package metadata, `pre.json` in Preview mode, and an actual Changesets `publish-plan` containing only those packages with `tag: preview`. It must fail before pre mode or from a dirty worktree.
 
-After publication, verify:
+Changesets v3.0.1 rejects an explicit `changeset publish --tag preview` while pre mode is active. Therefore `pnpm release:preview` uses the validated pre-state and then invokes bare `changeset publish`; the publish plan is the authoritative proof that npm receives the `preview` tag. The ordinary `pnpm release` alias calls this same guarded command and cannot select `latest`.
 
-- package metadata points to `https://dshx.io` and `liyown/dshx`;
-- each tarball contains README, LICENSE, declarations, and its declared binary;
-- `dshx`, `create-dshx`, and `dshx-hub` return the published version;
-- the expected npm versions and git tags exist.
+## 4. Deploy the endpoint, publish, and promote the catalog
 
-For a Core/Creator release, repeat creation from npm in fresh temporary directories rather than the workspace:
+Perform external operations only with explicit authorization and authenticated accounts:
 
-```sh
-pnpm create dshx@<version> starter-css --template starter --style css-modules
-pnpm create dshx@<version> showcase-tailwind --template showcase --style tailwind
-```
+1. Deploy Framework Hub so `/api/marketplace/plugins` and exact detail routes exist, then run `node scripts/smoke-hub.mjs https://dshx.io`. This base smoke checks the endpoint and reports catalog promotion as pending.
+2. Confirm npm identity, package write access, and interactive 2FA: `npm whoami` and `npm access list packages`.
+3. Run `pnpm release:preview`. Record every published version and locally created package tag. Do not rerun with a different command after an uncertain response; inspect npm first.
+4. From clean temporary directories, create Starter and Showcase with `pnpm create dshx@preview`, then run their `check` and `build`. Install `@becomeopc/dshx-plugin-marketplace@preview` into a disposable DSH Profile and verify the real Settings → Plugins → Marketplace path.
+5. Promote the exact marketplace package/version and valid DSH compatibility range into the Hub catalog.
+6. Run `pnpm hub:smoke:published`. This requires the public list route, the exact marketplace detail with one active primary target matching the package manifest, and the localized homepage containing the marketplace package name.
+7. Publish the matching standalone DSHX Skill and verify its public raw URL. Push only the reviewed package tags with `git push --follow-tags` after npm and Hub verification succeeds.
 
-Run each generated package's `check` and `build`, then link/load it through a real DSH Profile. Verify that the Tailwind project contains no Preflight reset and materializes one owned Client style. Deploy Framework Hub only after npm installation succeeds and its documentation/Skill references the published version.
+Do not silently skip the catalog-presence smoke. A deployed endpoint with an empty or stale catalog is not a complete Marketplace release.
 
-Local npm publication does not produce GitHub OIDC Trusted Publishing provenance. Reintroducing provenance requires an explicit policy change that authorizes CI publishing.
+## 5. Post-publication evidence
+
+Verify with clean npm metadata and actual archives:
+
+- `npm view <package>@preview version dist-tags repository homepage engines peerDependencies`;
+- each archive contains README, LICENSE, declarations, declared exports, and only intended runtime files;
+- `dshx --version` and the generated project's pinned DSHX dependency match the Preview;
+- Starter owns its `defineLocale()` dictionaries without declaration merging and includes the Locale provider edge;
+- Client HMR and automatic Host restart both work in a real Profile;
+- Marketplace installs one local test bundle, updates the Profile manifest/bundle list, and loads it after restart;
+- npm `latest` values are unchanged and no GitHub Release was created.
+
+Local npm publication does not produce GitHub OIDC Trusted Publishing provenance. Adding CI publication or provenance requires a separate policy change and credential design.

@@ -1,3 +1,4 @@
+import { validRange } from "semver";
 import { z } from "zod";
 
 export const localeSchema = z.enum(["en", "zh"]);
@@ -7,6 +8,31 @@ const boundedUrl = z.string().url().max(2_048);
 const nullableUrl = boundedUrl.nullable().optional();
 const isoDateTime = z.string().datetime({ offset: true });
 const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/);
+const compatibilityRangeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .refine((value) => validRange(value, { includePrerelease: true }) !== null, {
+    message: "compatibilityRange must be a valid semver range",
+  });
+
+function isSafeArtifactBasename(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > 255 ||
+    value === "." ||
+    value === ".." ||
+    value.includes("/") ||
+    value.includes("\\")
+  )
+    return false;
+  return ![...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127;
+  });
+}
 
 export const capabilityKinds = [
   "tool",
@@ -87,13 +113,41 @@ export const repositorySchema = z.object({
   pushedAt: isoDateTime.nullable().optional(),
 });
 
-export const verificationCheckSchema = z.object({
-  code: z.string().min(1).max(100),
-  status: z.enum(["pass", "fail", "warn"]),
-  observed: z.record(z.string(), z.unknown()).nullable().optional(),
-  evidenceUrl: nullableUrl,
-  evidenceSha: z.string().max(128).nullable().optional(),
-});
+export const verificationCheckSchema = z
+  .object({
+    code: z.string().min(1).max(100),
+    status: z.enum(["pass", "fail", "warn"]),
+    observed: z.record(z.string(), z.unknown()).nullable().optional(),
+    evidenceUrl: nullableUrl,
+    evidenceSha: z.string().max(128).nullable().optional(),
+  })
+  .superRefine((check, ctx) => {
+    if (check.code !== "artifact.size" || check.observed == null) return;
+    if (Object.hasOwn(check.observed, "path"))
+      ctx.addIssue({
+        code: "custom",
+        path: ["observed", "path"],
+        message: "artifact size evidence must not include a local path",
+      });
+    const file = check.observed["file"];
+    if (file !== undefined && !isSafeArtifactBasename(file))
+      ctx.addIssue({
+        code: "custom",
+        path: ["observed", "file"],
+        message: "artifact size evidence file must be a safe basename",
+      });
+    const bytes = check.observed["bytes"];
+    if (
+      bytes !== undefined &&
+      bytes !== null &&
+      (typeof bytes !== "number" || !Number.isSafeInteger(bytes) || bytes < 0)
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["observed", "bytes"],
+        message: "artifact size evidence bytes must be a non-negative integer",
+      });
+  });
 
 export const verificationAttestationV1Schema = z.object({
   schemaVersion: z.literal(1),
@@ -155,7 +209,7 @@ export const releaseSchema = z.object({
   channel: z.enum(["stable", "prerelease"]).default("stable"),
   gitTag: z.string().max(255).nullable().optional(),
   commitSha: z.string().max(128).nullable().optional(),
-  compatibilityRange: z.string().max(200).nullable().optional(),
+  compatibilityRange: compatibilityRangeSchema.nullable().optional(),
   compatibilitySource: z
     .enum(["manifest", "peer-dependency", "inferred", "unknown"])
     .default("unknown"),
@@ -183,7 +237,7 @@ export const catalogSyncItemV1Schema = z
       badge: z.enum(["official", "verified", "community"]).default("community"),
       trustTier: z.enum(["official", "community"]).default("community"),
       latestVersion: z.string().min(1).max(100),
-      compatibilityRange: z.string().min(1).max(200),
+      compatibilityRange: compatibilityRangeSchema,
       licenseSpdx: z.string().max(100).nullable().optional(),
       homepageUrl: nullableUrl,
       repositoryUrl: boundedUrl,
@@ -304,7 +358,7 @@ const proposalPluginSchema = z.object({
     .optional(),
   packageName: z.string().min(1).max(214),
   latestVersion: z.string().min(1).max(100),
-  compatibilityRange: z.string().min(1).max(200),
+  compatibilityRange: compatibilityRangeSchema,
   licenseSpdx: z.string().max(100).nullable().optional(),
   homepageUrl: nullableUrl,
   repositoryUrl: boundedUrl,
@@ -379,6 +433,18 @@ export const catalogProposalV2Schema = z
         path: ["verification"],
         message: "package facts must match a passing verification attestation",
       });
+    if (JSON.stringify(item.repositoryPackage.checks) !== JSON.stringify(item.verification.checks))
+      ctx.addIssue({
+        code: "custom",
+        path: ["repositoryPackage", "checks"],
+        message: "repository package checks must match verification attestation checks",
+      });
+    if (item.plugin.repositoryUrl !== item.repository.canonicalUrl)
+      ctx.addIssue({
+        code: "custom",
+        path: ["plugin", "repositoryUrl"],
+        message: "plugin repository URL must match the verified canonical repository",
+      });
     if (
       item.identity.kind === "github" &&
       !item.releases.some((release) => release.channel === "stable" && release.gitTag)
@@ -396,18 +462,34 @@ export const catalogProposalV2Schema = z
       });
     const primaryTargets = item.installTargets.filter((target) => target.primary);
     const primaryTarget = primaryTargets[0];
+    const latestStableRelease = item.releases.find(
+      (release) =>
+        release.version === item.plugin.latestVersion &&
+        release.channel === "stable" &&
+        typeof release.gitTag === "string" &&
+        release.gitTag.length > 0,
+    );
+    const exactInstallSpec =
+      item.identity.kind === "npm"
+        ? `${item.plugin.packageName}@${item.plugin.latestVersion}`
+        : latestStableRelease?.gitTag
+          ? `github:${item.repository.fullName}#${latestStableRelease.gitTag}`
+          : undefined;
     if (
       primaryTargets.length !== 1 ||
       !primaryTarget ||
+      exactInstallSpec === undefined ||
+      item.repositoryPackage.installSpec !== exactInstallSpec ||
       primaryTarget.kind !== item.repositoryPackage.installKind ||
-      primaryTarget.spec !== item.repositoryPackage.installSpec ||
+      primaryTarget.spec !== exactInstallSpec ||
       primaryTarget.packageName !== item.repositoryPackage.packageName ||
       primaryTarget.version !== item.repositoryPackage.packageVersion
     )
       ctx.addIssue({
         code: "custom",
         path: ["installTargets"],
-        message: "exactly one primary target must match the verified package",
+        message:
+          "exactly one primary target must use the verified package's immutable install spec",
       });
     if (
       new Set(item.installTargets.map((target) => `${target.kind}:${target.spec}`)).size !==
@@ -490,6 +572,74 @@ export const pluginListQuerySchema = z.object({
   limit: z.number().int().min(1).max(50).default(24),
 });
 
+export const marketplaceSortValues = ["stars", "downloads", "latest"] as const;
+
+/** Public installable-marketplace query. Discovery keeps its broader legacy sort contract. */
+export const marketplaceListQuerySchema = pluginListQuerySchema.extend({
+  sort: z.enum(marketplaceSortValues).default("latest"),
+});
+
+const marketplaceCardResponseSchema = z
+  .object({
+    slug: z.string().min(1).max(160),
+    name: z.string().min(1).max(160),
+    scope: z.string().min(1).max(240),
+    description: z.string().max(1_000),
+    version: z.string().min(1).max(100),
+    compat: compatibilityRangeSchema,
+    category: z.string().min(1).max(80),
+    badge: z.enum(["official", "verified", "community"]),
+    glyph: z.string().min(1).max(4),
+    iconUrl: z.string().nullable(),
+  })
+  .passthrough();
+
+/** Standard Schema boundary for the public installable-marketplace page. */
+export const marketplaceListResponseSchema = z.object({
+  items: z.array(marketplaceCardResponseSchema).max(50),
+  nextCursor: z.string().max(500).nullable(),
+  categories: z
+    .array(
+      z.object({
+        slug: z.string().min(1).max(80),
+        name: z.string().min(1).max(100),
+      }),
+    )
+    .max(100),
+});
+
+/** Standard Schema boundary for the Host-owned exact install target lookup. */
+export const marketplaceDetailResponseSchema = z
+  .object({
+    plugin: marketplaceCardResponseSchema,
+    repositoryUrl: boundedUrl,
+    installTargets: z
+      .array(
+        z.object({
+          kind: z.enum(["npm", "github"]),
+          spec: z.string().min(1).max(1_000),
+          package_name: z.string().min(1).max(240),
+          version: z.string().min(1).max(100),
+          integrity: z.string().nullable(),
+          is_primary: z.union([z.literal(0), z.literal(1), z.boolean()]),
+          status: z.enum(["active", "unavailable"]),
+        }),
+      )
+      .max(20),
+    releases: z
+      .array(
+        z
+          .object({
+            version: z.string().min(1).max(100),
+            channel: z.enum(["stable", "prerelease"]),
+            git_tag: z.string().min(1).max(255).nullable(),
+          })
+          .passthrough(),
+      )
+      .max(20),
+  })
+  .passthrough();
+
 export const inventoryQuerySchema = z.object({
   cursor: z.string().max(500).nullable().optional(),
   limit: z.number().int().min(1).max(100).default(100),
@@ -569,7 +719,10 @@ export const targetVerificationPageSchema = z
     (input) =>
       new Set(input.results.map((result) => result.repositoryPackageId)).size ===
       input.results.length,
-    { path: ["results"], message: "target observations must be unique" },
+    {
+      path: ["results"],
+      message: "target observations must be unique",
+    },
   );
 
 export const mediaUploadMetadataV2Schema = z.object({
@@ -686,5 +839,6 @@ export const userRoleSchema = z.object({
 export type CatalogSyncItemV1 = z.infer<typeof catalogSyncItemV1Schema>;
 export type CatalogProposalV2 = z.infer<typeof catalogProposalV2Schema>;
 export type PluginListQuery = z.infer<typeof pluginListQuerySchema>;
+export type MarketplaceListQuery = z.infer<typeof marketplaceListQuerySchema>;
 export type MetricSnapshot = z.infer<typeof metricSnapshotSchema>;
 export type MetricObservationV2 = z.infer<typeof metricObservationV2Schema>;

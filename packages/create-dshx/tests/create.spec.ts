@@ -78,10 +78,18 @@ describe('create-dshx', () => {
     expect(config).toContain('declarations: true')
     expect(config.includes("import tailwindcss from '@tailwindcss/vite'")).toBe(style === 'tailwind')
 
+    const readme = await readFile(resolve(result.root, 'README.md'), 'utf8')
+    expect(readme).toContain('dsh.client.inject')
+    expect(readme).toContain('defineClient({ inject: [...] })')
+    expect(readme).toContain('defineLocale()')
+
     const host = await readFile(resolve(result.root, 'src/host.ts'), 'utf8')
     const client = await readFile(resolve(result.root, 'src/client.tsx'), 'utf8')
     expect(host).toContain('defineTool')
     expect(client).toContain("defineSlot('sidebar.footer.action'")
+    expect(client.includes('defineLocale(')).toBe(template === 'starter')
+    expect(client.includes('locales: [copy]')).toBe(template === 'starter')
+    expect(client).not.toContain('declare module')
     expect(client).not.toMatch(/defineClient\(\{[^}]*\b(?:api|apis|settings)\s*:/s)
     expect(client).not.toContain('useQuery')
     expect(host.includes('definePromptSection')).toBe(template === 'showcase')
@@ -92,8 +100,11 @@ describe('create-dshx', () => {
     expect(client.includes('useSettings(runtimeSettings)')).toBe(template === 'showcase')
     expect(client).not.toContain('Conversation')
 
+    const starterProviders = ['@deepseek-ai/dsh-client-locale', '@deepseek-ai/dsh-client-ui-sidebar']
     const showcaseProviders = ['@deepseek-ai/dsh-client-connection', '@deepseek-ai/dsh-client-ui-sidebar', '@deepseek-ai/dsh-client-ui-settings']
-    expect(manifest.dsh.client.inject).toEqual(template === 'showcase' ? showcaseProviders : ['@deepseek-ai/dsh-client-ui-sidebar'])
+    expect(manifest.dsh.client.inject).toEqual(template === 'showcase' ? showcaseProviders : starterProviders)
+    expect(Boolean(manifest.devDependencies['@deepseek-ai/dsh-client-locale'])).toBe(template === 'starter')
+    expect(Boolean(manifest.peerDependencies['@deepseek-ai/dsh-client-locale'])).toBe(template === 'starter')
     expect(Boolean(manifest.devDependencies['@deepseek-ai/dsh-client-connection'])).toBe(template === 'showcase')
     expect(Boolean(manifest.peerDependencies['@deepseek-ai/dsh-client-connection'])).toBe(template === 'showcase')
     expect(Boolean(manifest.devDependencies['@deepseek-ai/dsh-system-prompt'])).toBe(template === 'showcase')

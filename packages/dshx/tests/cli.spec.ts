@@ -26,7 +26,7 @@ function project(): ResolvedDshxConfig {
       name: '@test/plugin',
       type: 'module',
       devDependencies: { '@deepseek-ai/dsh': '0.1.0-rc.8' },
-      peerDependencies: { '@deepseek-ai/dsh': '>=0.1.0-rc.8 <0.2.0-0' },
+      peerDependencies: { '@deepseek-ai/dsh': '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2' },
     },
   }
 }
@@ -58,7 +58,7 @@ function profile(projectValue: ResolvedDshxConfig): PreparedProjectProfile {
       version: '0.1.0-rc.8',
       adapterId: 'protocol-1',
       protocolGeneration: 'protocol-1',
-      supportedRange: '>=0.1.0-rc.8 <0.2.0-0',
+      supportedRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
       support: 'verified',
       diagnostics: [],
       compatibility: {
@@ -66,7 +66,7 @@ function profile(projectValue: ResolvedDshxConfig): PreparedProjectProfile {
         protocolGeneration: 'protocol-1',
         lifecycle: 'active',
         version: '0.1.0-rc.8',
-        dshRange: '>=0.1.0-rc.8 <0.2.0-0',
+        dshRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
         verified: { minimum: '0.1.0-rc.8', latest: '0.1.0-rc.8' },
         verifiedVersions: ['0.1.0-rc.8'],
         profile: { listCommand: 'plugin-list-json', addCommand: 'plugin-add' },
@@ -88,7 +88,7 @@ describe('CLI argument parser', () => {
   it('parses commands and command-specific options', () => {
     expect(parseCliArgs(['build', '--cwd', '/tmp/project', '--verbose'])).toMatchObject({ command: 'build', cwd: '/tmp/project', verbose: true })
     expect(parseCliArgs(['check', '--json'])).toMatchObject({ command: 'check', json: true })
-    expect(parseCliArgs(['dev', '--open'])).toMatchObject({ command: 'dev', open: true })
+    expect(parseCliArgs(['dev', '--open', '--port', '0'])).toMatchObject({ command: 'dev', open: true, port: 0 })
     expect(parseCliArgs(['add', 'hook', '--event', 'agent.ready', '--file', 'src/ready.ts', '--dry-run', '--json'])).toMatchInlineSnapshot(`
       {
         "addTarget": "hook",
@@ -111,6 +111,8 @@ describe('CLI argument parser', () => {
     expect(() => parseCliArgs([])).toThrow('A command is required')
     expect(() => parseCliArgs(['build', '--json'])).toThrow('--json')
     expect(() => parseCliArgs(['dev', '--cwd'])).toThrow('requires a value')
+    expect(() => parseCliArgs(['dev', '--port', '65536'])).toThrow('0 to 65535')
+    expect(() => parseCliArgs(['check', '--port', '3080'])).toThrow('--port is only valid with dev')
     expect(() => parseCliArgs(['wat'])).toThrow('Unknown argument')
     expect(() => parseCliArgs(['inspect'])).toThrow('requires a target')
     expect(() => parseCliArgs(['inspect', 'unknown-target'])).toThrow('Unknown argument')
@@ -268,14 +270,14 @@ describe('CLI commands', () => {
       diagnostics: [{ code: 'DSHX4305', severity: 'error' }],
       compatibility: {
         dshxVersion: 'test-version',
-        declaredRange: '>=0.1.0-rc.8 <0.2.0-0',
+        declaredRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
         installedVersion: '0.1.0-rc.8',
         rangeStatus: 'single-generation',
         support: 'verified',
         adapterId: 'protocol-1',
         protocolGeneration: 'protocol-1',
       },
-      dsh: { adapterId: 'protocol-1', protocolGeneration: 'protocol-1', supportedRange: '>=0.1.0-rc.8 <0.2.0-0' },
+      dsh: { adapterId: 'protocol-1', protocolGeneration: 'protocol-1', supportedRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2' },
       bridge: { state: 'disabled', metadata: null },
     })
   })
@@ -471,7 +473,7 @@ describe('CLI commands', () => {
   it('passes the prepared Profile into dev and exits on non-TTY DSH failure', async () => {
     const streams = io()
     const value = project()
-    let received: unknown
+    let received: { readonly profile: unknown; readonly dshArgs: readonly string[] | undefined } | undefined
     const fakeSession: DevSession = {
       state: { hostBuild: 'building', clientBuild: 'building', hostRestartRequired: false, dshProcess: 'stopped' },
       diagnostics: [],
@@ -491,7 +493,7 @@ describe('CLI commands', () => {
       close: async () => undefined,
     }
     const prepared = profile(value)
-    const code = await runCli(['dev'], {
+    const code = await runCli(['dev', '--port', '0'], {
       io: streams,
       version: 'test-version',
       runtime: {
@@ -499,19 +501,20 @@ describe('CLI commands', () => {
         checkManifest: async () => [],
         ensureProfile: async () => prepared,
         startDev: async (_project, options) => {
-          received = options?.preparedProfile
+          received = { profile: options?.preparedProfile, dshArgs: options?.dshArgs }
           return fakeSession
         },
       },
     })
     expect(code).toBe(1)
-    expect(received).toBe(prepared)
+    expect(received?.profile).toBe(prepared)
+    expect(received?.dshArgs).toEqual(['--port', '0'])
     streams.out.end()
     streams.err.end()
     const output = await text(streams.out)
     expect(output).toContain('DSHX: test-version')
     expect(output).toContain('Installed DSH: 0.1.0-rc.8 (verified)')
-    expect(output).toContain('Plugin peer range: >=0.1.0-rc.8 <0.2.0-0')
+    expect(output).toContain('Plugin peer range: >=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2')
   })
 
   it('inspects runtime slots as clean JSON without linking the Profile', async () => {

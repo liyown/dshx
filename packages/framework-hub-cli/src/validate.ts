@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, posix, resolve } from "node:path";
+import { basename, join, posix, resolve } from "node:path";
 
 import { t as listTar, x as extractTar } from "tar";
 import { isSeq, parseDocument } from "yaml";
@@ -14,7 +14,7 @@ import {
   type VerificationAttestationV1,
 } from "./catalog-schema.js";
 
-const checkerVersion = "3";
+export const CHECKER_VERSION = "4";
 const maxArchiveBytes = 50 * 1024 * 1024;
 const maxExpandedBytes = 100 * 1024 * 1024;
 const maxEntries = 20_000;
@@ -169,7 +169,12 @@ export async function verifyEvidenceManifest(raw: unknown): Promise<{
     ),
     "artifact size is within the safe limit",
     "artifact must be a non-empty file no larger than 50 MiB",
-    { observed: { path: artifactPath, bytes: artifactStat?.size ?? null } },
+    {
+      observed: {
+        file: basename(artifactPath),
+        bytes: artifactStat?.size ?? null,
+      },
+    },
   );
   if (checks.at(-1)?.status === "fail")
     return { qualified: false, identityKey, checks };
@@ -339,7 +344,7 @@ export async function verifyEvidenceManifest(raw: unknown): Promise<{
       return { qualified: false, identityKey, checks };
     const attestation = verificationAttestationV1Schema.parse({
       schemaVersion: 1,
-      checkerVersion,
+      checkerVersion: CHECKER_VERSION,
       checkedAt: new Date().toISOString(),
       identityKey,
       artifactSha256,

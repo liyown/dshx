@@ -5,6 +5,10 @@ import { Chip } from "./primitives";
 import { cn } from "@/lib/utils";
 import { localizedPath, useI18n } from "@/lib/i18n";
 
+function formatMetric(value: number | null): string {
+  return value === null ? "—" : String(value);
+}
+
 function BadgeTag({ badge }: { badge: Plugin["badge"] }) {
   const { t } = useI18n();
   if (badge === "official") return <Chip tone="accent">{t("plugin.badge.official")}</Chip>;
@@ -122,7 +126,7 @@ export function PluginCard({ plugin }: { plugin: Plugin }) {
         <span className="text-border-strong">/</span>
         <span>{plugin.compat}</span>
         <span className="ml-auto flex items-center gap-3">
-          <span>★ {plugin.stars}</span>
+          <span>★ {formatMetric(plugin.stars)}</span>
           <span>↓ {plugin.downloads}</span>
         </span>
       </div>
@@ -161,7 +165,7 @@ export function PluginRow({ plugin }: { plugin: Plugin }) {
       <div className="pointer-events-none relative z-10 hidden shrink-0 items-center gap-4 font-mono text-[11px] text-muted-foreground sm:flex">
         <span>{plugin.category}</span>
         <span>v{plugin.version}</span>
-        <span>★ {plugin.stars}</span>
+        <span>★ {formatMetric(plugin.stars)}</span>
         <span className={cn("w-24 text-right")}>{plugin.updated}</span>
       </div>
     </article>

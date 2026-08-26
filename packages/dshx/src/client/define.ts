@@ -10,7 +10,7 @@ import type {
   SlotMap,
   StoreDecl,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ClientDefinition, SlotContribution, SlotOptions } from './types.js'
+import type { ClientDefinition, LocaleDefinition, PropsLocaleOf, SlotContribution } from './types.js'
 
 export interface SlotContributionParts {
   readonly name: keyof SlotMap & string
@@ -45,6 +45,54 @@ export function slotContributionParts(value: SlotContribution): SlotContribution
   return parts
 }
 
+export function defineSlot<
+  K extends keyof SlotMap & string,
+  L extends LocaleDefinition,
+  const EntryKey extends EntryKeyOf<K> = EntryKeyOf<K>,
+  const D extends ChildrenDecl = Record<never, never>,
+  H extends StoreDecl | undefined = undefined,
+  M = never,
+  C extends SlotComponent<never> = SlotComponent<never>,
+>(
+  name: K,
+  options: {
+    readonly component: C &
+      SlotComponent<
+        ComposedProps<K, NoInfer<EntryKey>, keyof NoInfer<D> & keyof SlotMap & string, HandleOf<NoInfer<H>>, object, NoInfer<M>, undefined> &
+          PropsLocaleOf<NoInfer<L>>
+      > &
+      RendersCheck<C, D>
+    readonly children?: D
+    readonly store?: H
+    readonly locale: L
+    readonly registrant?: string
+  } & KindOptions<K, EntryKey, M>,
+): SlotContribution<K, WithoutComponent<typeof options>, C>
+export function defineSlot<
+  K extends keyof SlotMap & string,
+  L extends LocaleDefinition,
+  I extends object,
+  const EntryKey extends EntryKeyOf<K> = EntryKeyOf<K>,
+  const D extends ChildrenDecl = Record<never, never>,
+  H extends StoreDecl | undefined = undefined,
+  M = never,
+  C extends SlotComponent<never> = SlotComponent<never>,
+>(
+  name: K,
+  options: {
+    readonly component: C &
+      SlotComponent<
+        ComposedProps<K, NoInfer<EntryKey>, keyof NoInfer<D> & keyof SlotMap & string, HandleOf<NoInfer<H>>, I, NoInfer<M>, undefined> &
+          PropsLocaleOf<NoInfer<L>>
+      > &
+      RendersCheck<C, D>
+    readonly children?: D
+    readonly store?: H
+    readonly inject: (...args: InjectParams<K, H>) => I
+    readonly locale: L
+    readonly registrant?: string
+  } & KindOptions<K, EntryKey, M>,
+): SlotContribution<K, WithoutComponent<typeof options>, C>
 export function defineSlot<
   K extends keyof SlotMap & string,
   const EntryKey extends EntryKeyOf<K> = EntryKeyOf<K>,
@@ -87,7 +135,7 @@ export function defineSlot<
     readonly registrant?: string
   } & KindOptions<K, EntryKey, M>,
 ): SlotContribution<K, WithoutComponent<typeof options>, C>
-export function defineSlot<K extends keyof SlotMap & string, const O extends SlotOptions<K>>(
+export function defineSlot<K extends keyof SlotMap & string, const O extends { readonly component: unknown }>(
   name: K,
   options: O,
 ): SlotContribution<K, Omit<O, 'component'>, O['component']> {

@@ -3,12 +3,21 @@ import { defineDocsChapter } from "../types";
 const clientSignature = `interface ClientDefinition {
   readonly name?: string
   readonly inject?: readonly string[]
+  readonly locales?: readonly LocaleDefinition[]
   readonly conversations?: readonly ConversationContribution[]
   readonly slots?: readonly SlotContribution[]
   readonly setup?: (ctx: Context) => void | Promise<void>
 }
 
 function defineClient<const T extends ClientDefinition>(definition: T): T`;
+
+const localeSignature = `function defineLocale<
+  const Namespace extends string,
+  const Dictionaries extends LocaleDictionaries,
+>(namespace: Namespace, dictionaries: BalancedDictionaries<Dictionaries>): LocaleDefinition
+
+type LocaleKeyOf<D extends LocaleDefinition> = /* exact dictionary key union */
+type PropsLocaleOf<D extends LocaleDefinition> = { readonly t: Translate<LocaleKeyOf<D> | CommonKeyOf> }`;
 
 const slotSignature = `function defineSlot<
   K extends keyof SlotMap & string,
@@ -20,22 +29,35 @@ const slotSignature = `function defineSlot<
 // locale, registrant and provider-specific KindOptions.`;
 
 const example = `import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { defineClient, defineSlot, useApiQuery } from '@becomeopc/dshx/client'
+import {
+  defineClient,
+  defineLocale,
+  defineSlot,
+  type PropsLocaleOf,
+  useApiQuery,
+} from '@becomeopc/dshx/client'
 import { statusApi } from './api/status.js'
 
-function Status() {
+const copy = defineLocale('status.runtime', {
+  zh: { connecting: '连接中…' },
+  en: { connecting: 'Connecting…' },
+})
+
+function Status({ t }: PropsLocaleOf<typeof copy>) {
   const status = useApiQuery(statusApi, 'get', { enabled: true })
-  return <span>{status.data?.project ?? 'Connecting…'}</span>
+  return <span>{status.data?.project ?? t('connecting')}</span>
 }
 
 const statusSlot = defineSlot('sidebar.footer.action', {
   id: 'status.runtime',
   order: 0,
+  locale: copy,
   component: Status,
 })
 
 export default defineClient({
   name: 'status-client',
+  locales: [copy],
   slots: [statusSlot],
 })`;
 
@@ -68,6 +90,11 @@ export const projectModel = defineDocsChapter({
                   body: "Additional Cordis services used by setup or direct official integration. Generated injects are deduplicated against this array.",
                 },
                 {
+                  name: "locales",
+                  type: "readonly LocaleDefinition[]",
+                  body: "Plugin-owned dictionaries returned by defineLocale(). They register before Conversations and Slots and automatically request the Locale service.",
+                },
+                {
                   name: "conversations",
                   type: "readonly ConversationContribution[]",
                   body: "Experimental integrated lifecycle-and-renderer contributions created with defineConversation().render().",
@@ -80,13 +107,49 @@ export const projectModel = defineDocsChapter({
                 {
                   name: "setup",
                   type: "(ctx: Context) => void | Promise<void>",
-                  body: "Runs after Conversations and Slots register. Register cleanup through the official Cordis lifecycle.",
+                  body: "Runs after Locales, Conversations, and Slots register. Register cleanup through the official Cordis lifecycle.",
                 },
               ],
             },
             {
               kind: "note",
               text: "ClientDefinition has no api, apis, or settings field. Retained useApi, useApiQuery, and useSettings calls declare those Client capabilities.",
+            },
+          ],
+        },
+        {
+          id: "locale",
+          title: "defineLocale(namespace, dictionaries)",
+          blocks: [
+            { kind: "code", title: "Signature", code: localeSignature },
+            {
+              kind: "api",
+              rows: [
+                {
+                  name: "zh / en",
+                  type: "exact string dictionaries",
+                  body: "Both locales are required, must contain exactly the same keys, and accept string values only.",
+                },
+                {
+                  name: "LocaleKeyOf",
+                  type: "dictionary key union",
+                  body: "Extracts the exact translation keys retained by the opaque definition.",
+                },
+                {
+                  name: "PropsLocaleOf",
+                  type: "typed Slot locale prop",
+                  body: "Use PropsLocaleOf<typeof copy> for a component passed to defineSlot({ locale: copy }).",
+                },
+                {
+                  name: "provider edge",
+                  type: "dsh.client.inject",
+                  body: "The package must still load @deepseek-ai/dsh-client-locale. Check and build diagnose a missing edge.",
+                },
+              ],
+            },
+            {
+              kind: "note",
+              text: "Plugin-owned dictionaries need no LocaleNamespaceMap declaration merging. A raw locale namespace string remains an advanced provider-owned escape hatch and does not register dictionaries.",
             },
           ],
         },
@@ -154,7 +217,7 @@ export const projectModel = defineDocsChapter({
             },
             {
               kind: "paragraph",
-              text: "Client registration order is Conversations, Slots, then setup(ctx). Official Client Fiber disposal owns bindings, scopes, Slot registrations, and HMR cleanup.",
+              text: "Client registration order is Locales, Conversations, Slots, then setup(ctx). Official Client Fiber disposal owns dictionaries, bindings, scopes, Slot registrations, and HMR cleanup.",
             },
           ],
         },
@@ -185,6 +248,11 @@ export const projectModel = defineDocsChapter({
                   body: "setup 或直接官方集成需要的额外 Cordis Service；与自动 inject 去重。",
                 },
                 {
+                  name: "locales",
+                  type: "readonly LocaleDefinition[]",
+                  body: "defineLocale() 返回的插件自有词典；在 Conversation 与 Slot 前注册，并自动请求 Locale Service。",
+                },
+                {
                   name: "conversations",
                   type: "readonly ConversationContribution[]",
                   body: "defineConversation().render() 生成的 Experimental 生命周期与 renderer 整合贡献。",
@@ -197,13 +265,49 @@ export const projectModel = defineDocsChapter({
                 {
                   name: "setup",
                   type: "(ctx: Context) => void | Promise<void>",
-                  body: "Conversation 和 Slot 注册后执行；通过官方 Cordis 生命周期登记清理。",
+                  body: "Locale、Conversation 和 Slot 注册后执行；通过官方 Cordis 生命周期登记清理。",
                 },
               ],
             },
             {
               kind: "note",
               text: "ClientDefinition 没有 api、apis 或 settings 字段。最终产物中保留的 useApi、useApiQuery 和 useSettings 调用就是 Client 能力声明。",
+            },
+          ],
+        },
+        {
+          id: "locale",
+          title: "defineLocale(namespace, dictionaries)",
+          blocks: [
+            { kind: "code", title: "签名", code: localeSignature },
+            {
+              kind: "api",
+              rows: [
+                {
+                  name: "zh / en",
+                  type: "精确 string 词典",
+                  body: "两种语言都必填，key 必须完全一致，value 只能是 string。",
+                },
+                {
+                  name: "LocaleKeyOf",
+                  type: "词典 key union",
+                  body: "提取 opaque definition 保留的精确翻译 key。",
+                },
+                {
+                  name: "PropsLocaleOf",
+                  type: "类型化 Slot locale prop",
+                  body: "传给 defineSlot({ locale: copy }) 的组件使用 PropsLocaleOf<typeof copy>。",
+                },
+                {
+                  name: "Provider edge",
+                  type: "dsh.client.inject",
+                  body: "package 仍须加载 @deepseek-ai/dsh-client-locale；check 与 build 会诊断缺失 edge。",
+                },
+              ],
+            },
+            {
+              kind: "note",
+              text: "插件自有词典不需要 LocaleNamespaceMap declaration merging。raw locale namespace string 仍是 Provider 自有集成的高级入口，但不会注册词典。",
             },
           ],
         },
@@ -271,7 +375,7 @@ export const projectModel = defineDocsChapter({
             },
             {
               kind: "paragraph",
-              text: "Client 注册顺序是 Conversations → Slots → setup(ctx)。官方 Client Fiber dispose 负责 binding、scope、Slot registration 和 HMR 清理。",
+              text: "Client 注册顺序是 Locales → Conversations → Slots → setup(ctx)。官方 Client Fiber dispose 负责 dictionary、binding、scope、Slot registration 和 HMR 清理。",
             },
           ],
         },
