@@ -4,3 +4,4 @@ export type { HostDefinition, PromptContextContribution, PromptContribution, Pro
 export type { CommandDefinition, CommandInvocation } from '@deepseek-ai/dsh-commands'
 export type { CommandResult } from '@deepseek-ai/dsh-commands/types'
 export type { AssembleContext, PromptContext, PromptSection } from '@deepseek-ai/dsh-system-prompt'
+export type { Context } from '@deepseek-ai/cordis'

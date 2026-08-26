@@ -19,10 +19,19 @@ import type { DshCompatibility } from '../compat/types.js'
 import { loadRuntimePlugins } from './runtime-plugins.js'
 import { inspectBridgeEnabled, ownHostInspectBridge, startHostInspectBridge } from './inspect-bridge.js'
 import { registerApi } from '../api/runtime.js'
+import { isApiHostRegistration } from '../api/define.js'
 import type { SettingsContract, SettingsContribution, SettingsHostContribution } from '../settings/types.js'
-import { settingsSchemaContainsSecret } from '../settings/define.js'
+import {
+  isSettingsContract,
+  isSettingsHostContribution,
+  settingsContributionContract,
+  settingsHostContributionParts,
+  settingsSchemaContainsSecret,
+  settingsSchemaHasUnsafeSecretPath,
+} from '../settings/define.js'
+import { promptContributionKind, promptContributionParts } from './define.js'
 
-const HOST_DEFINITION_KEYS = new Set(['name', 'inject', 'tools', 'commands', 'prompts', 'settings', 'api', 'apis', 'setup'])
+const HOST_DEFINITION_KEYS = new Set(['name', 'inject', 'tools', 'commands', 'prompts', 'settings', 'apis', 'setup'])
 
 /** Project identity embedded by the Host compiler. */
 export interface HostPluginMetadata {
@@ -64,24 +73,20 @@ async function startHostRuntime(ctx: Context, metadata: HostPluginMetadata): Pro
   ownHostInspectBridge(ctx, bridge)
 }
 
-function normalizeApis(definition: HostDefinition): readonly import('../api/types.js').ApiHostRegistration[] {
-  return [...(definition.api === undefined ? [] : [definition.api]), ...(definition.apis ?? [])]
-}
-
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
 }
 
-function settingsContract(contribution: SettingsContribution): SettingsContract {
-  return contribution.kind === 'settings' ? contribution : contribution.contract
+function settingsContract(contribution: SettingsContribution): SettingsContract<any, any> {
+  return settingsContributionContract(contribution)
 }
 
-function validateSettingsContract(value: unknown, metadata: HostPluginMetadata, index: number): SettingsContract {
+function validateSettingsContract(value: unknown, metadata: HostPluginMetadata, index: number): SettingsContract<any, any> {
   const source = record(value)
-  const keys = ['kind', 'namespace', 'schema', 'applies', 'client', 'host']
+  const keys = ['namespace', 'schema', 'applies', 'client', 'host']
   if (
     source === undefined ||
-    source.kind !== 'settings' ||
+    !isSettingsContract(value) ||
     typeof source.namespace !== 'string' ||
     typeof source.schema !== 'function' ||
     (source.applies !== 'live' && source.applies !== 'restart') ||
@@ -112,13 +117,20 @@ function validateSettingsContract(value: unknown, metadata: HostPluginMetadata, 
       'Provide client: { decode(redactedValue) { ... } } and return a Client-safe value with secret fields removed.',
     )
   }
-  return value as SettingsContract
+  if (settingsSchemaHasUnsafeSecretPath(source.schema as SettingsContract['schema'])) {
+    fail(
+      'DSHX2002',
+      `Host Settings ${JSON.stringify(source.namespace)} contains a secret reachable through a union, intersection, transform, or unsupported schema path.`,
+      metadata,
+      'Move secrets under plain object, dict, or array paths; unsupported secret traversal is rejected even when a Client decoder is present.',
+    )
+  }
+  return value as SettingsContract<any, any>
 }
 
 function validateSettingsContribution(value: unknown, metadata: HostPluginMetadata, index: number): SettingsContribution {
-  const source = record(value)
-  if (source?.kind === 'settings') return validateSettingsContract(value, metadata, index)
-  if (source?.kind !== 'settings-host' || Object.keys(source).some(key => key !== 'kind' && key !== 'contract' && key !== 'options')) {
+  if (isSettingsContract(value)) return validateSettingsContract(value, metadata, index)
+  if (!isSettingsHostContribution(value)) {
     fail(
       'DSHX2002',
       `Host definition settings contains a malformed Settings contribution at index ${index}.`,
@@ -126,8 +138,9 @@ function validateSettingsContribution(value: unknown, metadata: HostPluginMetada
       'Use settings: [contract] or settings: [contract.host({ base, validate, setup })].',
     )
   }
-  validateSettingsContract(source.contract, metadata, index)
-  const options = record(source.options)
+  const contribution = settingsHostContributionParts(value)
+  validateSettingsContract(contribution.contract, metadata, index)
+  const options = record(contribution.options)
   if (
     options === undefined ||
     Object.keys(options).some(key => key !== 'base' && key !== 'validate' && key !== 'setup') ||
@@ -147,7 +160,7 @@ function validateSettingsContribution(value: unknown, metadata: HostPluginMetada
 
 function registerSettings(ctx: Context, contribution: SettingsContribution): void {
   const contract = settingsContract(contribution)
-  const options = contribution.kind === 'settings-host' ? contribution.options : undefined
+  const options = isSettingsHostContribution(contribution) ? settingsHostContributionParts(contribution).options : undefined
   const scope = ctx.settings.register(settingsNamespace(contract.namespace), contract.schema, {
     applies: contract.applies,
     ...(options?.base === undefined ? {} : { base: options.base }),
@@ -229,12 +242,8 @@ function validateDefinition(value: unknown, metadata: HostPluginMetadata): HostD
       )
     }
     for (const contribution of source.prompts) {
-      const record =
-        typeof contribution === 'object' && contribution !== null && !Array.isArray(contribution) ? (contribution as Record<string, unknown>) : undefined
-      const section = record?.kind === 'section' && typeof record.section === 'object' && record.section !== null && !Array.isArray(record.section)
-      const context = record?.kind === 'context' && typeof record.context === 'object' && record.context !== null && !Array.isArray(record.context)
-      const expectedKeys = section ? ['kind', 'section'] : context ? ['kind', 'context'] : []
-      if (record === undefined || expectedKeys.length === 0 || Object.keys(record).some(key => !expectedKeys.includes(key))) {
+      const kind = promptContributionKind(contribution)
+      if (kind === undefined || record(promptContributionParts(contribution as import('./types.js').PromptContribution).value) === undefined) {
         fail(
           'DSHX2002',
           'Host definition prompts contains a malformed Prompt contribution.',
@@ -255,13 +264,7 @@ function validateDefinition(value: unknown, metadata: HostPluginMetadata): HostD
     }
     source.settings.forEach((setting, index) => validateSettingsContribution(setting, metadata, index))
   }
-  if (source.api !== undefined && (typeof source.api !== 'object' || source.api === null || Array.isArray(source.api))) {
-    fail('DSHX2002', 'Host api must be a value returned by api.host().', metadata, 'Use api: contract.host({ method() { ... } }) or remove api.')
-  }
-  if (
-    source.apis !== undefined &&
-    (!Array.isArray(source.apis) || source.apis.some(item => typeof item !== 'object' || item === null || Array.isArray(item)))
-  ) {
+  if (source.apis !== undefined && (!Array.isArray(source.apis) || source.apis.some(item => !isApiHostRegistration(item)))) {
     fail('DSHX2002', 'Host apis must be an array of values returned by api.host().', metadata, 'Use apis: [contract.host({ ... })] or remove apis.')
   }
   if (source.setup !== undefined && typeof source.setup !== 'function') {
@@ -278,7 +281,7 @@ export function createHostPlugin(value: unknown, metadata: HostPluginMetadata): 
   if ((definition.commands?.length ?? 0) > 0 && !inject.includes('commands')) inject.push('commands')
   if ((definition.prompts?.length ?? 0) > 0 && !inject.includes('systemPrompt')) inject.push('systemPrompt')
   if ((definition.settings?.length ?? 0) > 0 && !inject.includes('settings')) inject.push('settings')
-  const apis = normalizeApis(definition)
+  const apis = definition.apis ?? []
   if (apis.length > 0 && !inject.includes('connection')) inject.push('connection')
   return {
     name: definition.name ?? fallbackName(metadata),
@@ -287,8 +290,9 @@ export function createHostPlugin(value: unknown, metadata: HostPluginMetadata): 
       for (const tool of definition.tools ?? []) ctx.tools.register(tool)
       for (const command of definition.commands ?? []) ctx.commands.register(command)
       for (const prompt of definition.prompts ?? []) {
-        if (prompt.kind === 'section') ctx.systemPrompt.section(prompt.section)
-        else ctx.systemPrompt.context(prompt.context)
+        const contribution = promptContributionParts(prompt)
+        if (contribution.kind === 'section') ctx.systemPrompt.section(contribution.value)
+        else ctx.systemPrompt.context(contribution.value)
       }
       for (const setting of definition.settings ?? []) registerSettings(ctx, setting)
       if (apis.length === 0) return withRuntime(ctx, definition.setup?.(ctx), metadata)

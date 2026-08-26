@@ -2,19 +2,19 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { CommandDefinition } from '@deepseek-ai/dsh-commands'
 import type { PromptContext, PromptSection } from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import type { ApiHostRegistration, ApiMethodDefinition } from '../api/types.js'
+import type { AnyApiMethodDefinition, ApiHostRegistration } from '../api/types.js'
 import type { SettingsContribution } from '../settings/types.js'
 
 /** A system-prompt section wrapped only to preserve its registration kind. */
+declare const promptContributionBrand: unique symbol
+
 export interface PromptSectionContribution<Section extends PromptSection = PromptSection> {
-  readonly kind: 'section'
-  readonly section: Section
+  readonly [promptContributionBrand]: { readonly kind: 'section'; readonly value: Section }
 }
 
 /** Dynamic runtime context wrapped only to preserve its registration kind. */
 export interface PromptContextContribution<Prompt extends PromptContext = PromptContext> {
-  readonly kind: 'context'
-  readonly context: Prompt
+  readonly [promptContributionBrand]: { readonly kind: 'context'; readonly value: Prompt }
 }
 
 /** One official system-prompt contribution registered by a DSHX Host. */
@@ -28,7 +28,6 @@ export interface HostDefinition {
   readonly commands?: readonly CommandDefinition[]
   readonly prompts?: readonly PromptContribution[]
   readonly settings?: readonly SettingsContribution[]
-  readonly api?: ApiHostRegistration<Record<string, ApiMethodDefinition<any, any>>, any>
-  readonly apis?: readonly ApiHostRegistration<Record<string, ApiMethodDefinition<any, any>>, any>[]
+  readonly apis?: readonly ApiHostRegistration<Record<string, AnyApiMethodDefinition>, any>[]
   readonly setup?: (ctx: Context) => void | Promise<void>
 }

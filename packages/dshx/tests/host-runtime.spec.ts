@@ -13,7 +13,9 @@ import {
   type PromptContext,
   type PromptSection,
 } from '../src/host/index.js'
+import { promptContributionParts } from '../src/host/define.js'
 import { defineSettings } from '../src/settings/index.js'
+import { defineApi, method } from '../src/api/index.js'
 import { createHostModule, createHostPlugin } from '../src/host/runtime.js'
 
 function tool(name: string): ToolDefinition {
@@ -105,21 +107,27 @@ describe('defineHost', () => {
     }
     const promptContext = definePromptContext(contextValue)
 
-    expect(section).toEqual({ kind: 'section', section: sectionValue })
-    expect(section.section).toBe(sectionValue)
-    expect(promptContext).toEqual({ kind: 'context', context: contextValue })
-    expect(promptContext.context).toBe(contextValue)
-    expectTypeOf(section.kind).toEqualTypeOf<'section'>()
-    expectTypeOf(section.section.name).toEqualTypeOf<'plugin:guidance'>()
-    expectTypeOf(section.section.complete).toEqualTypeOf<true>()
-    expectTypeOf(promptContext.kind).toEqualTypeOf<'context'>()
-    expectTypeOf(promptContext.context.name).toEqualTypeOf<'plugin:runtime'>()
+    expect(section).toEqual({})
+    expect(promptContributionParts(section)).toEqual({ kind: 'section', value: sectionValue })
+    expect(promptContext).toEqual({})
+    expect(promptContributionParts(promptContext)).toEqual({ kind: 'context', value: contextValue })
+    expectTypeOf(section).toMatchTypeOf<import('../src/host/types.js').PromptSectionContribution<typeof sectionValue>>()
+    expectTypeOf(promptContext).toMatchTypeOf<import('../src/host/types.js').PromptContextContribution<typeof contextValue>>()
   })
 
   it('rejects unknown definition fields at compile time', () => {
     defineHost({
       // @ts-expect-error Host behavior outside the supported surface belongs in setup(ctx).
       typo: true,
+    })
+  })
+
+  it('accepts only the plural APIs contribution field', () => {
+    const api = defineApi({ id: 'host-status', version: 1, methods: { get: method<void, string>() } })
+    defineHost({ apis: [api.host({ get: () => 'ready' })] })
+    defineHost({
+      // @ts-expect-error Host api was removed in favor of apis.
+      api: api.host({ get: () => 'ready' }),
     })
   })
 })
@@ -310,9 +318,21 @@ describe('Host runtime adapter', () => {
     )
     const effects: Array<() => () => void> = []
     const ctx = {
-      tools: { register: (value: ToolDefinition) => { calls.push(`tool:${value.name}`) } },
-      commands: { register: (value: CommandDefinition) => { calls.push(`command:${value.name}`) } },
-      systemPrompt: { section: (value: PromptSection) => { calls.push(`prompt:${value.name}`) } },
+      tools: {
+        register: (value: ToolDefinition) => {
+          calls.push(`tool:${value.name}`)
+        },
+      },
+      commands: {
+        register: (value: CommandDefinition) => {
+          calls.push(`command:${value.name}`)
+        },
+      },
+      systemPrompt: {
+        section: (value: PromptSection) => {
+          calls.push(`prompt:${value.name}`)
+        },
+      },
       settings: {
         register(namespace: string, schema: unknown, options: Record<string, unknown>) {
           calls.push(`settings:${namespace}`)
@@ -329,15 +349,7 @@ describe('Host runtime adapter', () => {
 
     expect(plugin.inject).toEqual(['settings', 'tools', 'commands', 'systemPrompt'])
     plugin.apply(ctx)
-    expect(calls).toEqual([
-      'tool:status',
-      'command:status',
-      'prompt:plugin:guidance',
-      'settings:direct',
-      'settings:advanced',
-      'settings:setup',
-      'setup',
-    ])
+    expect(calls).toEqual(['tool:status', 'command:status', 'prompt:plugin:guidance', 'settings:direct', 'settings:advanced', 'settings:setup', 'setup'])
     expect(effects).toHaveLength(1)
     expect(effects[0]?.()).toBe(setupDispose)
     expect(setupDispose).not.toHaveBeenCalled()
@@ -349,7 +361,12 @@ describe('Host runtime adapter', () => {
     empty.apply({} as Context)
 
     const contract = defineSettings({ namespace: 'duplicate', schema: Schema.object({ enabled: Schema.boolean() }) })
-    const register = vi.fn().mockReturnValueOnce({}).mockImplementationOnce(() => { throw new Error('official duplicate settings error') })
+    const register = vi
+      .fn()
+      .mockReturnValueOnce({})
+      .mockImplementationOnce(() => {
+        throw new Error('official duplicate settings error')
+      })
     const duplicate = createHostPlugin({ settings: [contract, contract] }, { packageId: '@test/plugin' })
     expect(() => duplicate.apply({ settings: { register } } as unknown as Context)).toThrow('official duplicate settings error')
     expect(register).toHaveBeenCalledTimes(2)

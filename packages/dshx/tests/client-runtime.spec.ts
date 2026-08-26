@@ -1,9 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { defineApi, method } from '../src/api/index.js'
 import { defineClient, defineSlot } from '../src/client/index.js'
+import { slotContributionParts } from '../src/client/define.js'
 import type { ClientConversationContribution } from '../src/client/types.js'
+import { defineConversation } from '../src/conversation/index.js'
+import { getConversationContributionParts } from '../src/conversation/define.js'
 import { createClientModule, createClientPlugin } from '../src/client/runtime.js'
 import { createSettingsClientRuntime } from '../src/settings/client.js'
 import { defineSettings } from '../src/settings/index.js'
@@ -16,32 +18,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 function conversationContribution(kind = 'review-job'): ClientConversationContribution {
-  const contract = {
+  return defineConversation({
     kind,
     events: {
-      'review/job-started': { role: 'start', id: () => kind },
+      'dshx-test/notice': { role: 'start', id: () => kind },
     },
-    component: vi.fn(),
-  }
-  const definition = {
-    kind,
-    target: 'chat',
-    match: vi.fn(),
-    start: vi.fn(),
-    update: vi.fn(),
-    buildViewNode: vi.fn(),
-  }
-  return {
-    kind: 'conversation-component',
-    marker: 'dshx.conversation-component.v1',
-    contract,
-    definition,
-    renderer: {
-      name: 'conversation.chat.node',
-      options: { key: kind, locale: 'conversation' },
-      component: vi.fn(),
-    },
-  }
+    initial: () => ({ ready: true }),
+  }).render(() => null)
 }
 
 describe('defineClient', () => {
@@ -59,14 +42,20 @@ describe('defineClient', () => {
     expectTypeOf(definition.inject).toEqualTypeOf<readonly ['slots']>()
   })
 
+  it('rejects removed Client api declarations at compile time', () => {
+    defineClient({
+      // @ts-expect-error API capability comes only from retained hooks.
+      api: {},
+    })
+  })
+
   it('uses official SlotMap props and preserves a Slot contribution', () => {
     const component = (_props: PropsRuntime<'test.slot'>) => null
     const options = { id: 'test-entry', order: 3, component }
     const contribution = defineSlot('test.slot', options)
-    expect(contribution.name).toBe('test.slot')
-    expect(contribution.options).toEqual({ id: 'test-entry', order: 3 })
-    expect(contribution.component).toBe(component)
-    expectTypeOf(contribution.component).toMatchTypeOf<(props: PropsRuntime<'test.slot'>) => unknown>()
+    expect(contribution).toEqual({})
+    expect(slotContributionParts(contribution)).toEqual({ name: 'test.slot', options: { id: 'test-entry', order: 3 }, component })
+    expectTypeOf(contribution).toMatchTypeOf<import('../src/client/types.js').SlotContribution<'test.slot'>>()
     // @ts-expect-error Unknown SlotMap keys must be provided by an official augmentation.
     defineSlot('missing.slot', { component })
   })
@@ -137,6 +126,8 @@ describe('Client runtime adapter', () => {
     const calls: string[] = []
     const first = conversationContribution('review-job')
     const second = conversationContribution('audit-job')
+    const firstParts = getConversationContributionParts(first)
+    const secondParts = getConversationContributionParts(second)
     const setup = vi.fn(() => {
       calls.push('setup')
     })
@@ -187,10 +178,10 @@ describe('Client runtime adapter', () => {
       'renderer:audit-job',
       'setup',
     ])
-    expect(definitions).toEqual([first.definition, second.definition])
+    expect(definitions).toEqual([firstParts.definition, secondParts.definition])
     expect(renderers).toEqual([
-      { options: { name: 'conversation.chat.node', key: 'review-job', locale: 'conversation' }, component: first.renderer.component },
-      { options: { name: 'conversation.chat.node', key: 'audit-job', locale: 'conversation' }, component: second.renderer.component },
+      { options: { name: 'conversation.chat.node', key: 'review-job', locale: 'conversation' }, component: firstParts.renderer.component },
+      { options: { name: 'conversation.chat.node', key: 'audit-job', locale: 'conversation' }, component: secondParts.renderer.component },
     ])
     expect(disposers).toHaveLength(4)
     expect(disposers.every(dispose => dispose.mock.calls.length === 0)).toBe(true)
@@ -206,11 +197,11 @@ describe('Client runtime adapter', () => {
 
   it('applies API and Settings providers to Conversation renderers without wrapping Definitions', async () => {
     const conversation = conversationContribution()
-    const api = defineApi({ id: 'review-actions', version: 1, methods: { cancel: method<void, void>() } })
+    const parts = getConversationContributionParts(conversation)
     const definitions: unknown[] = []
     const renderers: unknown[] = []
     const get = vi.fn(() => undefined)
-    const plugin = createClientPlugin({ conversations: [conversation], api }, { packageId: '@test/plugin', settingsCapability: true })
+    const plugin = createClientPlugin({ conversations: [conversation] }, { packageId: '@test/plugin', settingsCapability: true, apiCapability: true })
     expect(plugin.inject).toEqual(['conversationEvents', 'slots', 'connection', 'settingsScope'])
     await plugin.apply({
       get,
@@ -226,11 +217,12 @@ describe('Client runtime adapter', () => {
         },
       },
     } as unknown as Context)
-    expect(definitions).toEqual([conversation.definition])
+    expect(definitions).toEqual([parts.definition])
     expect(renderers).toHaveLength(1)
-    expect(renderers[0]).not.toBe(conversation.renderer.component)
+    expect(renderers[0]).not.toBe(parts.renderer.component)
     expect(get).toHaveBeenCalledWith('settingsScope')
-    expect(get).toHaveBeenCalledWith('connection')
+    // Connection remains lazy until the renderer actually calls useApi().
+    expect(get).not.toHaveBeenCalledWith('connection')
   })
 
   it('adds settingsScope from compiler metadata without a Client settings declaration', () => {
@@ -250,7 +242,7 @@ describe('Client runtime adapter', () => {
     } as unknown as Context)
     expect(get).toHaveBeenCalledWith('settingsScope')
     expect(registered).toHaveLength(1)
-    expect(registered[0]).not.toBe(slot.component)
+    expect(registered[0]).not.toBe(slotContributionParts(slot).component)
   })
 
   it('adds Connection and a lazy API provider from compiler metadata without Client api/apis', async () => {
@@ -269,7 +261,7 @@ describe('Client runtime adapter', () => {
       },
     } as unknown as Context)
     expect(registered).toHaveLength(1)
-    expect(registered[0]).not.toBe(slot.component)
+    expect(registered[0]).not.toBe(slotContributionParts(slot).component)
     // Retained-hook contracts bind only when their component invokes useApi().
     expect(get).not.toHaveBeenCalled()
   })
@@ -330,14 +322,9 @@ describe('Client runtime adapter', () => {
     ['invalid setup', { setup: true }, 'DSHX2102'],
     ['invalid conversations', { conversations: {} }, 'DSHX2302'],
     ['invalid Conversation contribution', { conversations: [{}] }, 'DSHX2301'],
-    ['invalid Conversation marker', { conversations: [{ ...conversationContribution(), marker: 'dshx.conversation-component.v2' }] }, 'DSHX2301'],
-    [
-      'inconsistent Conversation contribution',
-      { conversations: [{ ...conversationContribution(), renderer: { ...conversationContribution().renderer, options: { key: 'other' } } }] },
-      'DSHX2302',
-    ],
+    ['copied Conversation contribution', { conversations: [{ ...conversationContribution() }] }, 'DSHX2301'],
     ['invalid slots', { slots: {} }, 'DSHX2202'],
-    ['invalid contribution', { slots: [{}] }, 'DSHX2202'],
+    ['invalid contribution', { slots: [{}] }, 'DSHX2201'],
   ])('rejects %s with a stable diagnostic', (_label, definition, code) => {
     expect(() =>
       createClientPlugin(definition, {

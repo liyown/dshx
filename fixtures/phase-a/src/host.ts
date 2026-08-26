@@ -28,7 +28,7 @@ const statusHostApi = statusApi.host({
 
 export default defineHost({
   tools: [phaseATool],
-  api: statusHostApi,
+  apis: [statusHostApi],
   setup() {
     console.info('DSHX Phase A Host adapter loaded')
   },
