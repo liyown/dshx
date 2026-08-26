@@ -62,11 +62,11 @@
     }
   },
   "scripts": {
-    "check": "dshx check",
+    "check": "pnpm --filter @becomeopc/dshx build && node ../dshx/dist/cli/bin.js check",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "dshx build",
-    "dev": "dshx dev --open",
+    "build": "pnpm --filter @becomeopc/dshx build && node ../dshx/dist/cli/bin.js build",
+    "dev": "pnpm --filter @becomeopc/dshx build && node ../dshx/dist/cli/bin.js dev --open",
     "prepack": "pnpm check && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
