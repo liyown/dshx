@@ -154,7 +154,13 @@ async function listCatalogPluginPage(
     sql`p.lifecycle_status in ('active', 'unmaintained')`,
   ];
   if (marketplaceOnly) conditions.push(marketplaceEligibility);
-  if (query.category) conditions.push(sql`p.category = ${query.category}`);
+  if (query.category)
+    conditions.push(sql`exists(
+      select 1 from plugin_categories category_membership
+      join categories category on category.id = category_membership.category_id
+      where category_membership.plugin_id = p.id
+        and category.slug = ${query.category}
+    )`);
   if (cursor)
     conditions.push(
       sql`(${primarySort} < ${cursor[0]} or (${primarySort} = ${cursor[0]} and (${secondarySort} < ${cursor[1]} or (${secondarySort} = ${cursor[1]} and p.id < ${cursor[2]}))))`,

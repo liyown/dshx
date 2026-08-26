@@ -5,8 +5,10 @@ import { getPlatformProxy } from "wrangler";
 import { sha256 } from "@/lib/auth/tokens.server";
 import { createDatabase, type Database } from "@/lib/db/client";
 import {
+  categories,
   catalogSyncItems,
   catalogSyncRuns,
+  pluginCategories,
   pluginInstallTargets,
   pluginMetricsCurrent,
   pluginReleases,
@@ -214,6 +216,18 @@ describe("CatalogProposalV2 sync with local D1", () => {
     await proxy.dispose();
   });
 
+  async function registerCategoryMembership(category: string, pluginIds: string[]) {
+    const categoryId = `category-${category}`;
+    await db.insert(categories).values({ id: categoryId, slug: category });
+    await db.insert(pluginCategories).values(
+      pluginIds.map((pluginId) => ({
+        pluginId,
+        categoryId,
+        isPrimary: true,
+      })),
+    );
+  }
+
   it("rejects an invalid page without storing valid siblings", async () => {
     const runId = crypto.randomUUID();
     const valid = await proposal(`valid-${runId.slice(0, 8)}`);
@@ -397,6 +411,57 @@ describe("CatalogProposalV2 sync with local D1", () => {
     expect(localized.categories).toContainEqual({ slug: "tools", name: "工具" });
   });
 
+  it("filters discovery and marketplace pages by every normalized plugin category", async () => {
+    const runId = crypto.randomUUID();
+    const secondaryCategory = `multi-category-${runId.slice(0, 8)}`;
+    await db.insert(categories).values({
+      id: `category-${secondaryCategory}`,
+      slug: secondaryCategory,
+    });
+    const candidates = await Promise.all([
+      proposal(`multi-category-a-${runId.slice(0, 8)}`),
+      proposal(`multi-category-b-${runId.slice(0, 8)}`),
+    ]);
+    for (const candidate of candidates) {
+      candidate.categories = ["developer-tools", secondaryCategory, "tools"];
+    }
+    await db.insert(catalogSyncRuns).values({
+      id: runId,
+      mode: "incremental",
+      schemaVersion: 2,
+      idempotencyKey: `test-${runId}`,
+      expectedItems: candidates.length,
+    });
+    const staged = await stageItems(proxy.env.DB, db, runId, candidates);
+    await promoteRun(proxy.env.DB, db, runId);
+    const expectedSlugs = staged.results.map((result) => result.slug).sort();
+    const query = {
+      locale: "en" as const,
+      q: "",
+      category: secondaryCategory,
+      sort: "downloads" as const,
+      limit: 1,
+    };
+
+    const collectSlugs = async (
+      list: typeof listCatalogDiscovery | typeof listCatalogMarketplace,
+    ) => {
+      const slugs: string[] = [];
+      let cursor: string | null | undefined;
+      do {
+        const page = await list(db, { ...query, ...(cursor ? { cursor } : {}) });
+        expect(page.items).toHaveLength(1);
+        expect(page.items[0]?.category).toBe("developer-tools");
+        slugs.push(...page.items.map((item) => item.slug));
+        cursor = page.nextCursor;
+      } while (cursor);
+      return slugs.sort();
+    };
+
+    await expect(collectSlugs(listCatalogDiscovery)).resolves.toEqual(expectedSlugs);
+    await expect(collectSlugs(listCatalogMarketplace)).resolves.toEqual(expectedSlugs);
+  });
+
   it("separates published discovery placeholders from the installable marketplace", async () => {
     const suffix = crypto.randomUUID().slice(0, 8);
     const category = `marketplace-${suffix}`;
@@ -435,6 +500,10 @@ describe("CatalogProposalV2 sync with local D1", () => {
       mutablePrimary,
     ];
     for (const candidate of candidates) await db.insert(plugins).values(candidate);
+    await registerCategoryMembership(
+      category,
+      candidates.map((candidate) => candidate.id),
+    );
 
     const target = (
       plugin: (typeof candidates)[number],
@@ -556,6 +625,10 @@ describe("CatalogProposalV2 sync with local D1", () => {
         repositoryUrl: `https://github.com/fixture/${record.repositoryName}`,
       })),
     );
+    await registerCategoryMembership(
+      category,
+      records.map((record) => record.pluginId),
+    );
     await db.insert(pluginReleases).values(
       records.map((record) => ({
         id: crypto.randomUUID(),
@@ -672,6 +745,10 @@ describe("CatalogProposalV2 sync with local D1", () => {
         npmDownloadsWeek: record.downloads,
       });
     }
+    await registerCategoryMembership(
+      category,
+      records.map((record) => record.id),
+    );
 
     const query = { locale: "en" as const, q: "", category, limit: 24 };
     const byStars = await listCatalogMarketplace(db, { ...query, sort: "stars" });
