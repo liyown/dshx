@@ -178,13 +178,17 @@
 
 /* ---------- DSHX utilities ---------- */
 
+html[data-development-banner-dismissed] .development-banner {
+  display: none;
+}
+
 .github-star-callout {
   pointer-events: none;
   position: absolute;
-  top: calc(100% + 11px);
-  right: 50%;
+  top: calc(100% + 8px);
+  right: calc(100% - 45px);
   width: 220px;
-  height: 76px;
+  height: 56px;
   color: color-mix(in oklch, var(--accent) 80%, transparent);
 }
 
@@ -193,22 +197,22 @@
   position: absolute;
   top: 2px;
   right: 0;
-  width: 88px;
-  height: 58px;
-  border-right: 2.5px solid currentColor;
-  border-bottom: 2.5px solid currentColor;
-  border-bottom-right-radius: 52px;
+  width: 72px;
+  height: 48px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  border-bottom-right-radius: 42px;
 }
 
 .github-star-callout::before {
   content: "";
   position: absolute;
   top: 0;
-  right: -5px;
-  width: 12px;
-  height: 12px;
-  border-top: 2.5px solid currentColor;
-  border-left: 2.5px solid currentColor;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid currentColor;
+  border-left: 2px solid currentColor;
   transform: rotate(45deg);
 }
 

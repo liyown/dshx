@@ -86,16 +86,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "DSHX — The developer framework for DSH plugins" },
+      { title: "DSHX: DSH plugin development framework" },
       {
         name: "description",
         content:
-          "Build DSH plugins with TypeScript, React, typed Host–Client APIs and a fast development loop.",
+          "Build DSH plugins with TypeScript, React, Vite, Client HMR and typed Host–Client APIs.",
       },
-      { property: "og:title", content: "DSHX — The developer framework for DSH plugins" },
+      { property: "og:title", content: "DSHX: DSH plugin development framework" },
       {
         property: "og:description",
-        content: "TypeScript-first authoring for the DSH runtime.",
+        content: "TypeScript and React development for the DSH runtime.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

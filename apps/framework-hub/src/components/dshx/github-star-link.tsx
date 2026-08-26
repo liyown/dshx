@@ -65,7 +65,7 @@ function StarCallout({ children }: { children: string }) {
       className="github-star-callout hidden xl:block"
       style={{ opacity, y: reduceMotion ? 0 : y }}
     >
-      <span className="absolute top-7 left-0 font-hand text-[27px] leading-none font-semibold whitespace-nowrap">
+      <span className="absolute top-6 right-4 font-hand text-[21px] leading-none font-semibold whitespace-nowrap">
         {children}
       </span>
     </motion.div>
