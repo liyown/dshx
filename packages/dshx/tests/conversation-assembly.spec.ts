@@ -15,6 +15,7 @@ import type {
 import type { SessionEvent, SessionEventMap, SessionEventType } from '@deepseek-ai/dsh-session/types'
 import { describe, expect, it } from 'vitest'
 import { defineConversation } from '../src/conversation/index.js'
+import { getConversationContributionParts } from '../src/conversation/define.js'
 
 type PublicClientRuntime = typeof import('@deepseek-ai/dsh-client-runtime/client')
 type TestAssembler = InstanceType<PublicClientRuntime['ConversationNodeAssembler']>
@@ -151,23 +152,21 @@ const reviewConversation = defineConversation({
       publication: 'none',
     },
   },
-})
-
-const reviewComponent = reviewConversation.component({
-  initial({ event }): ReviewState {
+  initial(_context, event): ReviewState {
     return { title: event.data.title, completed: 0 }
   },
-  reduce({ state, event }): ReviewState {
+  reduce(state, _context, event): ReviewState {
     if (event.type === 'dshx-test/assembly-progress') {
       return { ...state, completed: event.data.completed }
     }
     return { ...state, summary: event.data.summary }
   },
-  component: () => null,
 })
+const reviewComponent = reviewConversation.render(() => null)
+const reviewParts = getConversationContributionParts(reviewComponent)
 
 function assembler(): TestAssembler {
-  return new ConversationNodeAssembler(new TestEventDefinitions([reviewComponent.definition]), new TestViewDefinitions([testChatView()]))
+  return new ConversationNodeAssembler(new TestEventDefinitions([reviewParts.definition]), new TestViewDefinitions([testChatView()]))
 }
 
 function snapshotOf(value: TestAssembler): TestSnapshot {

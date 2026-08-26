@@ -1,14 +1,14 @@
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { defineClient, defineSlot, useApi, useQuery } from '@becomeopc/dshx/client'
+import { defineClient, defineSlot, useApi, useApiQuery } from '@becomeopc/dshx/client'
 import { statusApi } from './api/status.js'
 import styles from './Status.module.css'
 
 /** A compact runtime deck that makes the live Host/Client composition visible. */
 export function StatusButton(_props: PropsRuntime<'sidebar.footer.action'>) {
   const api = useApi(statusApi)
-  const status = useQuery(statusApi, 'get')
-  const refresh = () => { void api.refresh({ force: true }).then(() => status.retry()).catch(() => status.retry()) }
+  const status = useApiQuery(statusApi, 'get')
+  const refresh = () => { void api.refresh({ force: true }).finally(() => status.refetch()) }
   return (
     <details className={styles.deck} open>
       <summary className={styles.summary} onClick={(event) => event.stopPropagation()}>
@@ -32,14 +32,14 @@ export function StatusButton(_props: PropsRuntime<'sidebar.footer.action'>) {
         </div>
 
         <ol className={styles.activity} aria-label="Runtime activity">
-          <li><span className={styles.activityMark} /><span>{status.loading ? 'Connecting to Host' : status.error ? 'Host unavailable' : 'Host API connected'}</span><time>{status.error ? 'retry' : 'live'}</time></li>
+          <li><span className={styles.activityMark} /><span>{status.status === 'pending' ? 'Connecting to Host' : status.status === 'error' ? 'Host unavailable' : 'Host API connected'}</span><time>{status.status === 'error' ? 'retry' : 'live'}</time></li>
           <li><span className={styles.activityMark} /><span>Slot registered</span><time>now</time></li>
           <li><span className={styles.activityMark} /><span>{status.data?.project ?? 'Client syncing'}</span><time>{status.data?.startedAt.slice(11, 19) ?? '...'}</time></li>
         </ol>
 
         <div className={styles.footer}>
           <span className={styles.footerPulse} aria-hidden="true" />
-          {status.error ? <button type="button" onClick={status.retry}>Retry connection</button> : <button type="button" onClick={refresh}>Refresh Host state</button>}
+          {status.status === 'error' ? <button type="button" onClick={status.refetch}>Retry connection</button> : <button type="button" onClick={refresh}>Refresh Host state</button>}
         </div>
       </div>
     </details>
