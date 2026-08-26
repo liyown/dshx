@@ -1,5 +1,11 @@
 # @becomeopc/dshx
 
+## 0.1.3
+
+### Patch Changes
+
+- 199f917: Default successful Host rebuilds to automatic DSH restarts. Projects that need explicit control can set `dev.hostRestart` to `manual` and continue to restart with `r`.
+
 ## 0.1.2
 
 ### Patch Changes
