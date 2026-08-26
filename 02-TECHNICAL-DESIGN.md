@@ -1,5 +1,7 @@
 # DSHX 技术设计文档
 
+> **历史基础文档（已由 0.1.2 API Candidate 文档取代）：** 本文记录初始架构事实与实现方向，其中部分 API 示例已经过时。当前实现契约以 [`docs/index.md`](docs/index.md)、各分章 API 文档和 [`docs/migrations/0.1.1-to-0.1.2.zh-CN.md`](docs/migrations/0.1.1-to-0.1.2.zh-CN.md) 为准。
+
 > 文档状态：Implementation Design  
 > 对应 PRD：`01-PRD.md`  
 > 初始兼容目标：DeepSeek Harness `0.1.0-rc.8`  
@@ -149,9 +151,7 @@ ctx.slots.register(...)
 实际插件通常使用：
 
 ```ts
-ctx.slots.inject(slotName, () =>
-  ctx.slots.register(options, Component)
-)
+ctx.slots.inject(slotName, () => ctx.slots.register(options, Component));
 ```
 
 Slot 协议包含：
@@ -359,24 +359,24 @@ defaults
 
 ```ts
 interface DshxConfig {
-  name?: string
+  name?: string;
 
-  host?: string | false
-  client?: string | false
+  host?: string | false;
+  client?: string | false;
 
-  profile?: string
+  profile?: string;
 
   dev?: {
-    hostRestart?: 'manual' | 'auto'
-  }
+    hostRestart?: "manual" | "auto";
+  };
 
   build?: {
-    sourcemap?: boolean
-  }
+    sourcemap?: boolean;
+  };
 
   compatibility?: {
-    allowUnsupported?: boolean
-  }
+    allowUnsupported?: boolean;
+  };
 }
 ```
 
@@ -424,19 +424,19 @@ virtual:dshx-host-entry
 概念生成：
 
 ```ts
-import definition from '/absolute/src/host.ts'
-import { createHostPlugin } from 'dshx/internal-host-runtime'
+import definition from "/absolute/src/host.ts";
+import { createHostPlugin } from "dshx/internal-host-runtime";
 
 const plugin = createHostPlugin(definition, {
-  packageName: 'dsh-example',
-})
+  packageName: "dsh-example",
+});
 
-export const name = plugin.name
-export const inject = plugin.inject
-export const Config = plugin.Config
+export const name = plugin.name;
+export const inject = plugin.inject;
+export const Config = plugin.Config;
 
 export function apply(ctx, config) {
-  return plugin.apply(ctx, config)
+  return plugin.apply(ctx, config);
 }
 ```
 
@@ -452,7 +452,7 @@ export function apply(ctx, config) {
 
 ```ts
 export function defineHost<T extends HostDefinition>(definition: T): T {
-  return definition
+  return definition;
 }
 ```
 
@@ -479,7 +479,7 @@ Tools：
 
 ```ts
 for (const tool of definition.tools ?? []) {
-  ctx.tools.register(tool)
+  ctx.tools.register(tool);
 }
 ```
 
@@ -504,7 +504,7 @@ inject union += 'tools'
 
 export default defineClient({
   slots: [status],
-})
+});
 ```
 
 最终：
@@ -520,17 +520,17 @@ dist/client.js.map
 
 ```js
 window.__ModuleLoader__.load({
-  id: 'dsh-example',
+  id: "dsh-example",
 
   factory(require) {
-    const module = { exports: {} }
-    const exports = module.exports
+    const module = { exports: {} };
+    const exports = module.exports;
 
     // bundler generated CJS body
 
-    return module.exports
+    return module.exports;
   },
-})
+});
 ```
 
 ### 7.2 为什么不用普通 ESM
@@ -581,12 +581,12 @@ export default defineClient(...)
 虚拟入口：
 
 ```ts
-import definition from '/src/client.tsx'
-import { createClientPlugin } from 'dshx/internal-client-runtime'
+import definition from "/src/client.tsx";
+import { createClientPlugin } from "dshx/internal-client-runtime";
 
-const plugin = createClientPlugin(definition)
+const plugin = createClientPlugin(definition);
 
-module.exports = plugin
+module.exports = plugin;
 ```
 
 最终 CJS exports 必须满足 Cordis plugin shape：
@@ -616,7 +616,7 @@ defineClient({
 生成 Client Plugin：
 
 ```ts
-inject = ['remote', 'slots']
+inject = ["remote", "slots"];
 ```
 
 其中：
@@ -632,9 +632,7 @@ inject = ['remote', 'slots']
 {
   "dsh": {
     "client": {
-      "inject": [
-        "@deepseek-ai/dsh-client-runtime"
-      ]
+      "inject": ["@deepseek-ai/dsh-client-runtime"]
     }
   }
 }
@@ -706,14 +704,14 @@ Plugin React instance
 
 ```ts
 interface DshCompatibilityAdapter {
-  version: string
+  version: string;
 
   client: {
-    platformModules: readonly string[]
-    preloadedExternals: readonly string[]
-    clientManifest: ClientManifestRules
-    bundle: BundleContract
-  }
+    platformModules: readonly string[];
+    preloadedExternals: readonly string[];
+    clientManifest: ClientManifestRules;
+    bundle: BundleContract;
+  };
 }
 ```
 
@@ -784,7 +782,7 @@ window.__ModuleLoader__.load({
 用户：
 
 ```tsx
-import css from './Button.module.css'
+import css from "./Button.module.css";
 ```
 
 正常工作。
@@ -810,13 +808,13 @@ DSH HMR 会清理：
 5. 在 Client factory 执行时注入：
 
 ```js
-const tagId = '<plugin-id>'
+const tagId = "<plugin-id>";
 
 if (!document.querySelector(`style[data-plugin="${tagId}"]`)) {
-  const style = document.createElement('style')
-  style.dataset.plugin = tagId
-  style.textContent = compiledCss
-  document.head.appendChild(style)
+  const style = document.createElement("style");
+  style.dataset.plugin = tagId;
+  style.textContent = compiledCss;
+  document.head.appendChild(style);
 }
 ```
 
@@ -957,7 +955,7 @@ function defineSlot<K extends keyof SlotMap & string>(
 ```ts
 for (const slot of definition.slots) {
   ctx.slots.inject(slot.name, () => {
-    const { component, ...registration } = slot.options
+    const { component, ...registration } = slot.options;
 
     return ctx.slots.register(
       {
@@ -965,8 +963,8 @@ for (const slot of definition.slots) {
         ...registration,
       },
       component,
-    )
-  })
+    );
+  });
 }
 ```
 
@@ -1003,8 +1001,8 @@ defineSlot<K> 得到精确类型
 生成示例：
 
 ```ts
-import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { defineSlot } from 'dshx/client'
+import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
+import { defineSlot } from "dshx/client";
 ```
 
 这是比“运行时 JSON → 自己生成完整 Props 类型”更可靠的方案。
@@ -1038,9 +1036,9 @@ DSHX 可以做的抽象：
 
 ```ts
 const settings = defineSettings({
-  namespace: 'weather',
+  namespace: "weather",
   schema,
-})
+});
 ```
 
 Host adapter：
@@ -1085,7 +1083,7 @@ defineEventNode({
   key,
   location,
   component,
-})
+});
 ```
 
 ### 17.2 超出范围
@@ -1123,10 +1121,10 @@ installed package static metadata
 
 ```ts
 interface InspectProvider {
-  listServices(): Promise<ServiceSummary[]>
-  listEvents(): Promise<EventSummary[]>
-  listSlots(): Promise<SlotSummary[]>
-  listTools(): Promise<ToolSummary[]>
+  listServices(): Promise<ServiceSummary[]>;
+  listEvents(): Promise<EventSummary[]>;
+  listSlots(): Promise<SlotSummary[]>;
+  listTools(): Promise<ToolSummary[]>;
 }
 ```
 
@@ -1213,10 +1211,7 @@ setup(ctx) {
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist",
-    "cordis.patch.yml"
-  ],
+  "files": ["dist", "cordis.patch.yml"],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -1305,10 +1300,10 @@ Parent CLI
 
 ```ts
 interface DevState {
-  hostBuild: 'idle' | 'building' | 'ok' | 'error'
-  clientBuild: 'idle' | 'building' | 'ok' | 'error'
-  hostRestartRequired: boolean
-  dshProcess: 'stopped' | 'starting' | 'running' | 'failed'
+  hostBuild: "idle" | "building" | "ok" | "error";
+  clientBuild: "idle" | "building" | "ok" | "error";
+  hostRestartRequired: boolean;
+  dshProcess: "stopped" | "starting" | "running" | "failed";
 }
 ```
 
@@ -1339,10 +1334,10 @@ Verbose 模式再显示完整 compiler / Cordis logs。
 
 ```ts
 class DshxError extends Error {
-  code: string
-  hint?: string
-  file?: string
-  cause?: unknown
+  code: string;
+  hint?: string;
+  file?: string;
+  cause?: unknown;
 }
 ```
 
@@ -1396,7 +1391,7 @@ compat/
 解析：
 
 ```ts
-resolveCompatibility(installedDshVersion)
+resolveCompatibility(installedDshVersion);
 ```
 
 支持状态：
@@ -1501,7 +1496,7 @@ E2E 步骤：
 
 ```tsx
 export function Demo() {
-  return <div className={css.demo}>hello</div>
+  return <div className={css.demo}>hello</div>;
 }
 ```
 

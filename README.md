@@ -1,6 +1,6 @@
 # DSHX
 
-**Build, inspect, and ship typed DeepSeek Harness plugins.**
+**Build, check, and ship typed DeepSeek Harness plugins.**
 
 [![CI](https://github.com/liyown/dshx/actions/workflows/ci.yml/badge.svg)](https://github.com/liyown/dshx/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@becomeopc/dshx?label=%40becomeopc%2Fdshx)](https://www.npmjs.com/package/@becomeopc/dshx)
@@ -10,115 +10,139 @@
 
 [简体中文](./README.zh-CN.md) · [Documentation](./docs/index.md) · [Framework Hub](https://dshx.io) · [Roadmap](./ROADMAP.md)
 
-DSHX is the build-time toolchain for out-of-tree [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) plugins. It gives plugin authors a typed Host and Client authoring model, repeatable builds, live runtime inspection, transactional scaffolding, and a community Hub—without replacing the official DSH runtime.
+DSHX is a build-time toolchain for out-of-tree [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) plugins. It provides typed Host/Client authoring, a bounded Vite build, offline diagnostics, Profile-aware development, and reproducible templates. Official DSH/Cordis services still own execution, registries, scopes, transport, persistence, assembly, HMR, and disposal.
 
-## Start in 60 seconds
+## Create a project
 
 ```bash
 pnpm create dshx my-plugin
 cd my-plugin
+pnpm check
 pnpm dev
 ```
 
-The generated project contains a minimal Host Tool, Prompt contributions, one live Settings contract, and a Client Slot that reads and writes it, pins the matching DSHX release, and links to DSH through the official Profile CLI. Use `--yes` for non-interactive creation and `--no-install` when dependency installation belongs to another step.
-
-## What DSHX provides
-
-- **One authoring workflow:** build Host-only, Client-only, mixed, or native DSH modules without selecting a project mode.
-- **Typed contributions:** define Host Tools, Commands, Prompt Sections and Contexts, Settings ownership, Client Slots, experimental Conversation Components, and unary Host/Client APIs against official DSH contracts.
-- **Live inspection:** inspect adapter-supported Slots, Services, and Events from the running Composition, with explicit diagnostics for unavailable targets—never a fabricated offline catalog.
-- **Safe scaffolding:** preview source changes with `--dry-run`, apply them transactionally, and rerun idempotently.
-- **Runtime-thin development:** DSHX owns build, diagnostics, Profile integration, and compatibility adapters; DSH owns execution, lifecycle, transport, and HMR.
-- **Verified ecosystem:** discover plugins and documentation through the bilingual [DSHX Framework Hub](https://dshx.io).
-
-## Products
-
-| Product                                                   | Purpose                                                                             | Entry point                           |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------- |
-| [`@becomeopc/dshx`](./packages/dshx)                      | Compiler, typed helpers, diagnostics, runtime Inspect, and the `dshx` CLI           | `pnpm add -D @becomeopc/dshx`         |
-| [`create-dshx`](./packages/create-dshx)                   | Project initializer for reproducible Host and Client plugin projects                | `pnpm create dshx`                    |
-| [`@becomeopc/dshx-hub-cli`](./packages/framework-hub-cli) | Deterministic local verification and privileged operations client for Framework Hub | `pnpm add -g @becomeopc/dshx-hub-cli` |
-| [Framework Hub](https://dshx.io)                          | Plugin discovery, documentation, community signals, and verified catalog operations | Web                                   |
-
-## Documentation
-
-Start from the [documentation index](./docs/index.md), then use the focused guides for the contribution you are building:
-
-| Guide                                                     | Covers                                                                                |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [Host contributions](./docs/guides/host-contributions.md) | Tools, Commands, Prompts, Settings ownership, APIs, registration order, and lifecycle |
-| [Settings](./docs/guides/settings.md)                     | Shared contracts, Host facets, Client decoding, mutations, and automatic wiring       |
-| [Typed Host/Client API](./docs/guides/typed-api.md)       | Contracts, Host handlers, `useApi`, `useQuery`, validation, cancellation, and errors  |
-| [Conversation components](./docs/guides/conversation.md)  | Deterministic event folding, view projection, React rendering, and Host interaction   |
-
-Operational and maintainer references remain separate: [CLI](./docs/cli-reference.md), [Compatibility](./docs/compatibility.md), and [Architecture](./docs/architecture.md).
-
-## Everyday commands
+The default is a minimal `starter + css-modules` project with one Host Tool and one visible Client Slot. Generate the complete Candidate API example with optional Tailwind:
 
 ```bash
-dshx build
-dshx check
-dshx check --fix --dry-run
-dshx dev
-dshx inspect slots
-dshx add ui --slot <slot-name>
-dshx add tool --name <tool-name>
-dshx add command --name <command-name>
-dshx add hook --event <event-name>
+pnpm create dshx my-plugin --template showcase --style tailwind
 ```
 
-`build` writes only declared build artifacts and does not rewrite source or manifest metadata. `check` is read-only unless `check --fix` is explicitly requested. `inspect` requires a supported running DSH Composition. Scaffold commands do not install packages, mutate Profiles, or start DSH.
+Templates are `starter | showcase`; styles are `css-modules | tailwind | none`. Tailwind uses the standard v4 Vite plugin, a `dshx:` prefix, and no Preflight.
 
-See the [CLI reference](./docs/cli-reference.md) for command behavior and automation guarantees.
+## Authoring example
+
+```ts
+// src/api/status.ts
+import { defineApi, method } from "@becomeopc/dshx/api";
+
+export const statusApi = defineApi({
+  id: "status",
+  version: 1,
+  methods: {
+    get: method<void, { readonly ready: boolean }>(),
+  },
+});
+```
+
+```ts
+// src/host.ts
+import { defineHost } from "@becomeopc/dshx/host";
+import { statusApi } from "./api/status.js";
+
+export default defineHost({
+  apis: [
+    statusApi.host({
+      get: () => ({ ready: true }),
+    }),
+  ],
+});
+```
+
+```tsx
+// src/client.tsx
+import type {} from "@deepseek-ai/dsh-client-ui-sidebar/client";
+import { defineClient, defineSlot, useApiQuery } from "@becomeopc/dshx/client";
+import { statusApi } from "./api/status.js";
+
+function Status() {
+  const query = useApiQuery(statusApi, "get", { enabled: true });
+  if (query.status === "pending") return <p>{query.fetchStatus}</p>;
+  if (query.status === "error")
+    return <button onClick={query.refetch}>Retry</button>;
+  return <p>{query.data.ready ? "Ready" : "Unavailable"}</p>;
+}
+
+const statusSlot = defineSlot("sidebar.footer.action", {
+  id: "my-plugin.status",
+  order: 0,
+  component: Status,
+});
+
+export default defineClient({ slots: [statusSlot] });
+```
+
+`useApiQuery` surviving final tree-shaking drives the `connection` capability automatically; Client definitions do not repeat API contracts or Settings ownership.
+
+## Public surfaces
+
+| Entry                           | Status                 | Purpose                                                              |
+| ------------------------------- | ---------------------- | -------------------------------------------------------------------- |
+| `@becomeopc/dshx` and `/config` | API Candidate          | Browser-safe `defineConfig` and `DshxConfig` only                    |
+| `/host`                         | API Candidate          | Host definitions, Tools, Commands, Prompt contributions              |
+| `/client`                       | API Candidate          | Client definitions, Slots, API/Settings Hooks                        |
+| `/api`                          | API Candidate          | Shared typed unary API contracts and opaque errors                   |
+| `/settings`                     | API Candidate          | Shared Schemastery-backed Settings contracts                         |
+| `/experimental/conversation`    | Experimental           | Pure official event lifecycle plus React renderer                    |
+| `/tooling`                      | Tooling / Experimental | Node-only compiler, compatibility, diagnostics, CLI, and repair APIs |
+
+API Candidate is the intended `0.1.x` authoring shape; it is not a 1.0 stability guarantee. See the [0.1.1 to 0.1.2 migration](./docs/migrations/0.1.1-to-0.1.2.md) for removed fields, entries, and aliases.
+
+## Technical documentation
+
+| Chapter                                       | APIs and behavior                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------ |
+| [Host](./docs/guides/host.md)                 | `defineHost`, contribution order, injects, lifecycle               |
+| [Client and Slots](./docs/guides/client.md)   | `defineClient`, `defineSlot`, official props, capability inference |
+| [Typed API](./docs/guides/api.md)             | Standard Schema, handlers, imperative calls, `useApiQuery`, errors |
+| [Settings](./docs/guides/settings.md)         | contract, Host facet, decoder, secrets, Hook state and mutations   |
+| [Prompt](./docs/guides/prompt.md)             | Section, Context, ordering, assembly ownership                     |
+| [Conversation](./docs/guides/conversation.md) | experimental `initial/reduce/project/render` lifecycle             |
+| [Build](./docs/guides/build.md)               | bounded Vite plugins, CSS/assets, Tailwind, declarations, watch    |
+| [Creator](./docs/guides/creator.md)           | template/style matrix and programmatic generation                  |
+| [Tooling](./docs/guides/tooling.md)           | programmatic build/watch, compatibility, diagnostics, repair       |
+
+Also see the [CLI reference](./docs/cli-reference.md), [Compatibility](./docs/compatibility.md), and [Architecture](./docs/architecture.md).
+
+## CLI
+
+```bash
+dshx check                 # offline config, manifest, migration, compatibility, TypeScript
+dshx check --runtime       # additionally require Profile, Composition, bridge, runtime readiness
+dshx build                 # typecheck, then build Host and Client artifacts
+dshx dev                   # Vite build-watch plus official DSH development session
+dshx inspect slots
+dshx add ui --slot <slot-name>
+```
+
+`check` is read-only unless `--fix` is explicit. `build` does not rewrite source or manifest metadata. `inspect` requires a supported running Composition. See the [CLI reference](./docs/cli-reference.md) for all commands and JSON fields.
 
 ## Compatibility
 
-DSHX manages DSH support by observable protocol generation, not by creating an adapter for every release or mirroring DSH semver. The current `protocol-1` adapter covers `>=0.1.0-rc.8 <0.2.0-0`; if a future DSH minor preserves the contract, that range can be extended without adding an adapter.
+The active `protocol-1` adapter covers `>=0.1.0-rc.8 <0.2.0-0`; verified real-runtime boundaries are `0.1.0-rc.8` and `0.1.1-rc.2`. Plugin public support belongs in `peerDependencies`; one concrete development version belongs in `devDependencies`.
 
-A plugin declares its public DSH support in `peerDependencies`, installs one concrete DSH version in `devDependencies`, and versions DSHX independently. `build`, `dev`, and `check` select the adapter from the actually installed DSH version and reject a single artifact whose public range crosses incompatible protocol generations.
-
-| Status         | Meaning                                                                                 |
-| -------------- | --------------------------------------------------------------------------------------- |
-| `verified`     | This exact DSH version passed the real-runtime smoke scenario.                          |
-| `compatible`   | A stable version shares a known generation contract but was not smoke-tested exactly.   |
-| `experimental` | An unverified prerelease uses a known generation adapter with an explicit warning.      |
-| `unsupported`  | No adapter owns the version; DSHX rejects it unless the existing override is requested. |
-
-Read [compatibility and verification](./docs/compatibility.md) before changing DSH ranges or adapters.
-
-At the currently verified `protocol-1` boundaries, Conversation Components can fold and render event types already declared by the official `SessionEventMap`. The released Session persistence contract does not expose an out-of-tree vocabulary registry for required durable event types, so DSHX does not claim custom durable Session events yet.
-
-Conversation components call Host code through the existing typed `useApi(contract)` Hook. A retained `useApi` or `useQuery` call now drives Connection injection automatically; `defineClient` does not repeat the API contract.
-
-## Architecture boundary
-
-```text
-plugin source
-    │
-    ▼
-DSHX build + diagnostics + Profile orchestration
-    │
-    ▼
-official DSH artifacts and runtime contracts
-    │
-    ▼
-DeepSeek Harness runtime
-```
-
-DSHX deliberately does not implement a second Tool runtime, Session runtime, dependency container, event bus, connection transport, or HMR system. Conversation Components colocate projection and rendering declarations, while the official assembler still owns replay, ordering, pagination, publication, and lifecycle. The detailed boundary and repository layout are documented in [Architecture](./docs/architecture.md).
+Conversation remains Experimental because the published protocol has no out-of-tree durable event-vocabulary registry. It accepts official `SessionEventMap` keys only.
 
 ## Develop this repository
-
-Requirements: Node.js `^22.19.0 || >=24.0.0` and the pnpm version declared in `package.json`.
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm check:all
+pnpm smoke:packages
+pnpm smoke:dsh -- --version 0.1.0-rc.8
+pnpm smoke:dsh -- --version 0.1.1-rc.2
 ```
 
-The generic real DSH smoke remains a CI gate; unit or simulated-loader tests do not replace it. npm package publication and Framework Hub production deployment are intentionally local-only and are not run by GitHub Actions.
-
-Read [Contributing](./CONTRIBUTING.md), the [dependency policy](./docs/dependency-policy.md), and the [Security policy](./SECURITY.md) before opening a change. Product direction and unfinished capability gates remain visible in the [Roadmap](./ROADMAP.md).
+Read [Contributing](./CONTRIBUTING.md), the [dependency policy](./docs/dependency-policy.md), and [Security](./SECURITY.md) before opening a change.
 
 ## License
 

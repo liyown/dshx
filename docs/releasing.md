@@ -18,6 +18,10 @@ After the version PR is merged, start from a clean, current `main` on a trusted 
 ```sh
 pnpm install --frozen-lockfile
 pnpm check:all
+pnpm smoke:packages
+pnpm smoke:dsh -- --version 0.1.0-rc.8
+pnpm smoke:dsh -- --version 0.1.1-rc.2
+pnpm version:check
 npm login
 pnpm release
 git push --follow-tags
@@ -25,7 +29,7 @@ git push --follow-tags
 
 Complete npm 2FA interactively. `pnpm release` runs `changeset publish`, publishes only packages whose versions are not yet present, and creates the corresponding local git tags. Never commit npm credentials or `.npmrc` authentication material.
 
-Before publishing, `check:all` covers lint, formatting, dependency checks, production audit, typecheck, unit tests, builds, package tarball/bin smoke, Hub checks, and the latest verified real DSH boundary. CI separately runs every generation's minimum/latest compatibility boundary.
+Before publishing, `check:all` covers lint, formatting, dependency checks, production audit, typecheck, unit tests, builds, package tarball/bin smoke, and Hub checks. Run both representative `protocol-1` boundaries explicitly for an API Candidate or build-kernel release. `smoke:packages` verifies packed public subpaths, NodeNext/Bundler consumers, publint, Are The Types Wrong, and declared exports/types/bin files.
 
 After publication, verify:
 
@@ -33,5 +37,14 @@ After publication, verify:
 - each tarball contains README, LICENSE, declarations, and its declared binary;
 - `dshx`, `create-dshx`, and `dshx-hub` return the published version;
 - the expected npm versions and git tags exist.
+
+For a Core/Creator release, repeat creation from npm in fresh temporary directories rather than the workspace:
+
+```sh
+pnpm create dshx@<version> starter-css --template starter --style css-modules
+pnpm create dshx@<version> showcase-tailwind --template showcase --style tailwind
+```
+
+Run each generated package's `check` and `build`, then link/load it through a real DSH Profile. Verify that the Tailwind project contains no Preflight reset and materializes one owned Client style. Deploy Framework Hub only after npm installation succeeds and its documentation/Skill references the published version.
 
 Local npm publication does not produce GitHub OIDC Trusted Publishing provenance. Reintroducing provenance requires an explicit policy change that authorizes CI publishing.

@@ -8,7 +8,21 @@ cd my-plugin
 pnpm dev
 ```
 
-The initializer refuses to overwrite an existing non-empty directory, generates a minimal Host Tool, Prompt Section, dynamic Prompt Context, and one `showActivity` live Settings contract, plus a Client Runtime Deck that reads and writes that contract directly. It pins the matching DSHX release, installs the latest verified DSH boundary for local development, and declares the full `protocol-1` DSH range as a peer dependency.
+Choose a feature template and an independent Client styling setup:
+
+```bash
+pnpm create dshx my-plugin --template starter --style css-modules
+pnpm create dshx my-plugin --template showcase --style tailwind
+pnpm create dshx my-plugin --template starter --style none
+```
+
+- `starter` contains one Host Tool and one visible Client Slot.
+- `showcase` adds a Prompt Section, dynamic Prompt Context, Settings contract, typed API, and Runtime Deck Slot. Experimental Conversation APIs are intentionally excluded.
+- `css-modules` uses the standard Vite CSS Modules pipeline.
+- `tailwind` uses Tailwind v4's Vite plugin, CSS-first configuration, a `dshx:` prefix, and omits Preflight so the plugin cannot reset the shared DSH page.
+- `none` emits no stylesheet or styling dependency.
+
+Every generated project provides `check`, `build`, `dev`, and `prepack`; `prepack` runs the offline check and production build. The initializer refuses to overwrite an existing directory, pins the matching DSHX release, installs the latest verified DSH boundary for local development, and only declares dependencies and provider edges used by the selected combination.
 
 ## Automation
 
@@ -18,6 +32,9 @@ pnpm create dshx my-plugin --package-manager pnpm
 ```
 
 - `--yes` disables interactive questions.
+- `--yes` defaults to `starter` with `css-modules` when no selectors are passed.
+- `--template starter|showcase` selects the feature set.
+- `--style css-modules|tailwind|none` selects the styling setup.
 - `--install` and `--no-install` explicitly control dependency installation.
 - `--package-manager pnpm|yarn|npm` overrides detection.
 - `--cwd <path>` selects the parent directory.

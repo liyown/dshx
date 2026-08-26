@@ -19,7 +19,7 @@ They do not map one-to-one. A plugin declares public DSH support and pins one co
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.1.1-rc.2",
-    "@becomeopc/dshx": "^0.2.0"
+    "@becomeopc/dshx": "^0.1.2"
   }
 }
 ```
@@ -62,29 +62,32 @@ A cross-generation range is not accepted merely because semver intersects each a
 | `experimental` | An unverified prerelease is inside one known generation range and may run with an explicit experimental warning.          |
 | `unsupported`  | No adapter owns the installed version. DSHX rejects it by default or uses `allowUnsupported` as a temporary escape hatch. |
 
-Semver membership never implies real-runtime verification. `dshx dev` prints the DSHX version, plugin peer range, installed DSH version, selected adapter/generation, lifecycle, status, and adapter capabilities. `dshx check --json` exposes the same facts for automation.
+Semver membership never implies real-runtime verification. `dshx dev` prints the DSHX version, plugin peer range, installed DSH version, selected adapter/generation, lifecycle, status, and adapter capabilities. Offline `dshx check --json` reports the static compatibility assessment; `dshx check --runtime --json` additionally reports the resolved Profile, Composition, runtime plugins, bridge, and readiness state.
 
 ## Declarative and native compatibility
 
 DSHX may adapt the declarative surface it owns: Host Tools, Commands, Prompt Sections and Contexts, Host Settings ownership, hook-driven Client Settings scopes, Client Slots and Conversation Components, typed DSHX APIs, generated manifest fields, Profile operations, and compiler output. The adapter is carried into the compiled artifact while official runtime packages remain external.
 
-For Conversation Components, `protocol-1` records the official `conversationEvents` and keyed chat Slot seams separately from Session event vocabulary. Machine-readable capabilities report the component adapter as `experimental`, because replay and HMR are not yet part of the real DSH generation scenario. The component contribution is available, but custom required durable event types are not: the verified rc boundaries expose no out-of-tree vocabulary registry that persistence can consult before history load and resume. Event keys therefore remain limited to the official `SessionEventMap`; a TypeScript-only extension is not a compatibility guarantee.
+For Conversation Components, `protocol-1` records the official `conversationEvents` and keyed chat Slot seams separately from Session event vocabulary. Machine-readable capabilities keep the component adapter `experimental`: the generic real-DSH scenario verifies a minimal official `command/run` + `command/done` replay/render/HMR path, but not the broader pagination and active reconnect matrix. The component contribution is available, but custom required durable event types are not: the verified rc boundaries expose no out-of-tree vocabulary registry that persistence can consult before history load and resume. Event keys therefore remain limited to the official `SessionEventMap`; a TypeScript-only extension is not a compatibility guarantee.
 
-Direct `setup(ctx)` logic and native named DSH modules call official APIs without a DSHX wrapper. Their source types come from the installed official packages, and their cross-version behavior remains the plugin author's responsibility. DSHX does not copy official DSH types into parallel versioned type trees. Settings and API Hooks are narrow exceptions to generic source analysis: `check` previews direct Hook calls in the local Client graph, while build/dev make the authoritative decision from retained bundle code after tree-shaking.
+Direct `setup(ctx)` logic and native named DSH modules call official APIs without a DSHX wrapper. Their source types come from the installed official packages, and their cross-version behavior remains the plugin author's responsibility. DSHX does not copy official DSH types into parallel versioned type trees. Settings and API Hooks are narrow exceptions: static checks validate declared provider edges, while build/dev make the authoritative capability decision from final chunk module metadata after tree-shaking.
 
 ## Generic real-runtime scenario
 
 The single `scripts/smoke-dsh.mjs` scenario creates isolated Full, Host-only, Client-only, and native fixtures, installs the selected official DSH package set, and verifies:
 
-- compiler output and artifact installation;
+- compiler output, declarations, package entry points, and artifact installation;
 - Profile linking and manifest diagnostics;
 - Host and Client loading;
 - Tool, Hook, API, Command, Prompt, and Settings contribution registration;
 - global and Agent-scoped Prompt assembly, shadowing, dynamic context, Tool schema visibility, and disposal;
-- Settings defaults/base/user layering, writes, revision fences, validation recovery, secret redaction, persistence, and restart re-registration;
-- API version mismatch and re-registration after Host restart;
-- Client HMR;
+- Settings defaults/base/user layering, official mutation writes, revision fences, validation recovery, secret redaction, persistence, and restart re-registration; the browser smoke separately verifies Hook-driven capability wiring and rendering;
+- typed API unary transport, Hook-driven capability wiring, version mismatch, and re-registration after Host restart;
+- CSS Modules and no-Preflight Tailwind output, inline assets, Client HMR, and owned-style replacement;
+- experimental Conversation over official `command/run` and `command/done` events, including history replay, reduce/project/render, ordering, Client HMR, and Host restart recovery;
 - runtime Inspect and Bridge behavior.
+
+Standard Schema transform-once semantics, caller abort handling, and query pause/reconnect states are covered by Core boundary tests. Conversation pagination/prepend behavior is covered by the official assembler test; pagination UI and an actively disconnected/reconnected browser have not yet entered the generic real-DSH scenario and are not part of the `verified` compatibility claim.
 
 Select a version through the CLI or environment:
 

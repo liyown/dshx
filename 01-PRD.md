@@ -1,5 +1,7 @@
 # DSHX 产品需求文档（PRD）
 
+> **历史基础文档（已由 0.1.2 API Candidate 文档取代）：** 本文保留最初的产品边界与背景，不再作为当前 API 的开发指引。请从 [`docs/index.md`](docs/index.md) 进入分章 API 文档，并使用 [`docs/migrations/0.1.1-to-0.1.2.zh-CN.md`](docs/migrations/0.1.1-to-0.1.2.zh-CN.md) 迁移旧示例。
+
 > 文档状态：Draft for implementation  
 > 目标版本：v0.1 → v0.3  
 > DSH 基线：DeepSeek Harness `0.1.0-rc.8`（以 2026-08-21 官方 `master` 为设计基线）  
@@ -28,41 +30,41 @@ pnpm dev
 
 ```ts
 // src/host.ts
-import { defineHost, defineTool } from 'dshx/host'
+import { defineHost, defineTool } from "dshx/host";
 
 const hello = defineTool({
-  name: 'hello',
-  description: 'Say hello',
+  name: "hello",
+  description: "Say hello",
   parameters: {
-    name: { type: 'string', required: true },
+    name: { type: "string", required: true },
   },
   async execute({ name }) {
-    return { message: `Hello ${name}` }
+    return { message: `Hello ${name}` };
   },
-})
+});
 
 export default defineHost({
   tools: [hello],
-})
+});
 ```
 
 以及：
 
 ```tsx
 // src/client.tsx
-import { defineClient, defineSlot } from 'dshx/client'
+import { defineClient, defineSlot } from "dshx/client";
 
-const status = defineSlot('sidebar.footer.action', {
+const status = defineSlot("sidebar.footer.action", {
   component: StatusButton,
-})
+});
 
 function StatusButton() {
-  return <button>DSHX</button>
+  return <button>DSHX</button>;
 }
 
 export default defineClient({
   slots: [status],
-})
+});
 ```
 
 开发者无需直接处理 DSH Client 的 lazy-CJS factory、`window.__ModuleLoader__`、构建 external、CSS 生命周期、Profile link 和本地 Client HMR。
@@ -265,7 +267,7 @@ defineSlot(...)
 同一个插件应能从：
 
 ```ts
-defineHost({ tools: [tool] })
+defineHost({ tools: [tool] });
 ```
 
 成长到：
@@ -289,21 +291,19 @@ defineHost({
 例如：
 
 ```ts
-tools: [tool]
+tools: [tool];
 ```
 
 等价于在插件生命周期中注册：
 
 ```ts
-ctx.tools.register(tool)
+ctx.tools.register(tool);
 ```
 
 `defineSlot()` 等价于：
 
 ```ts
-ctx.slots.inject(name, () =>
-  ctx.slots.register(options, Component)
-)
+ctx.slots.inject(name, () => ctx.slots.register(options, Component));
 ```
 
 ### P-03 不隐藏关键运行语义
@@ -341,8 +341,8 @@ src/slots/sidebar.tsx
 推荐：
 
 ```ts
-import { defineHost } from 'dshx/host'
-import { defineClient, defineSlot } from 'dshx/client'
+import { defineHost } from "dshx/host";
+import { defineClient, defineSlot } from "dshx/client";
 ```
 
 不在 v0.x 提供全局 Auto Import。
@@ -516,8 +516,8 @@ v0.1 首批 API 控制在小范围。
 ### `dshx/host`
 
 ```ts
-defineHost()
-defineTool()
+defineHost();
+defineTool();
 ```
 
 `defineTool()` 优先 re-export / 适配 DSH 官方 Tool 定义，不建立第二种 Tool 类型。
@@ -525,14 +525,14 @@ defineTool()
 ### `dshx/client`
 
 ```ts
-defineClient()
-defineSlot()
+defineClient();
+defineSlot();
 ```
 
 ### `dshx/config`
 
 ```ts
-defineConfig()
+defineConfig();
 ```
 
 ### 后续按真实重复度增加
@@ -678,9 +678,9 @@ export default defineClient({
 示例：
 
 ```tsx
-const status = defineSlot('sidebar.footer.action', {
+const status = defineSlot("sidebar.footer.action", {
   component: StatusButton,
-})
+});
 ```
 
 要求：
@@ -711,9 +711,9 @@ P1 Shortcut：
 
 ```tsx
 defineToolView({
-  tool: 'weather',
+  tool: "weather",
   component: WeatherCard,
-})
+});
 ```
 
 底层映射到官方 Tool View Slot。
@@ -780,16 +780,16 @@ P1/P2。
 
 ```js
 window.__ModuleLoader__.load({
-  id: '<package-id>',
+  id: "<package-id>",
   factory(require) {
-    const module = { exports: {} }
-    const exports = module.exports
+    const module = { exports: {} };
+    const exports = module.exports;
 
     // compiled CJS body
 
-    return module.exports
+    return module.exports;
   },
-})
+});
 ```
 
 实现要求：
@@ -1040,36 +1040,36 @@ Use --allow-unsupported to continue.
 
 ## 17. 常见能力覆盖矩阵
 
-| 能力 | v0.1 | P1 | P2 | 方式 |
-|---|---:|---:|---:|---|
-| Host Plugin | ✓ | | | `defineHost` |
-| Client Plugin | ✓ | | | `defineClient` |
-| Tool | ✓ | | | `defineTool` |
-| React Slot | ✓ | | | `defineSlot` |
-| TSX / CSS Modules | ✓ | | | Vite compiler |
-| Client HMR | ✓ | | | DSH native HMR |
-| Profile link | ✓ | | | Official CLI |
-| Build / Check | ✓ | | | CLI |
-| Basic Inspect | ✓ | | | DSH catalog |
-| Agent Event | scaffold | ✓ | | Native `ctx.on` |
-| Tool Pipeline | scaffold | ✓ | | Native `ctx.on` |
-| System Prompt | native | ✓ | | Shortcut + native |
-| Command | scaffold | ✓ | | Shortcut candidate |
-| Tool View | native Slot | ✓ | | `defineToolView` |
-| Settings | native | ✓ | | Host+Client helper |
-| Session Event | scaffold | ✓ | | declaration helper |
-| Conversation Node | scaffold | ✓ | | simple helper + native |
-| Projection | native | scaffold | ✓ | official projection |
-| Theme | native | scaffold | ✓ | official theme |
-| Plugin-private RPC | research | research | candidate | only after static path verified |
-| Service Provider | scaffold | ✓ | | Cordis native |
-| Subagent | scaffold | ✓ | | native provider |
-| LLM Adapter | scaffold | ✓ | | native provider |
-| Sandbox / Approval | native | | | ctx |
-| Jobs / Workflow | native/scaffold | ✓ | | ctx |
-| UI Playground | | ✓ | | separate Vite dev server |
-| Dev Overlay | | ✓ | | diagnostics |
-| Live Catalog types | basic | ✓ | | no duplicated type source |
+| 能力               |            v0.1 |       P1 |        P2 | 方式                            |
+| ------------------ | --------------: | -------: | --------: | ------------------------------- |
+| Host Plugin        |               ✓ |          |           | `defineHost`                    |
+| Client Plugin      |               ✓ |          |           | `defineClient`                  |
+| Tool               |               ✓ |          |           | `defineTool`                    |
+| React Slot         |               ✓ |          |           | `defineSlot`                    |
+| TSX / CSS Modules  |               ✓ |          |           | Vite compiler                   |
+| Client HMR         |               ✓ |          |           | DSH native HMR                  |
+| Profile link       |               ✓ |          |           | Official CLI                    |
+| Build / Check      |               ✓ |          |           | CLI                             |
+| Basic Inspect      |               ✓ |          |           | DSH catalog                     |
+| Agent Event        |        scaffold |        ✓ |           | Native `ctx.on`                 |
+| Tool Pipeline      |        scaffold |        ✓ |           | Native `ctx.on`                 |
+| System Prompt      |          native |        ✓ |           | Shortcut + native               |
+| Command            |        scaffold |        ✓ |           | Shortcut candidate              |
+| Tool View          |     native Slot |        ✓ |           | `defineToolView`                |
+| Settings           |          native |        ✓ |           | Host+Client helper              |
+| Session Event      |        scaffold |        ✓ |           | declaration helper              |
+| Conversation Node  |        scaffold |        ✓ |           | simple helper + native          |
+| Projection         |          native | scaffold |         ✓ | official projection             |
+| Theme              |          native | scaffold |         ✓ | official theme                  |
+| Plugin-private RPC |        research | research | candidate | only after static path verified |
+| Service Provider   |        scaffold |        ✓ |           | Cordis native                   |
+| Subagent           |        scaffold |        ✓ |           | native provider                 |
+| LLM Adapter        |        scaffold |        ✓ |           | native provider                 |
+| Sandbox / Approval |          native |          |           | ctx                             |
+| Jobs / Workflow    | native/scaffold |        ✓ |           | ctx                             |
+| UI Playground      |                 |        ✓ |           | separate Vite dev server        |
+| Dev Overlay        |                 |        ✓ |           | diagnostics                     |
+| Live Catalog types |           basic |        ✓ |           | no duplicated type source       |
 
 ---
 

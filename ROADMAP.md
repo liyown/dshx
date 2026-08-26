@@ -1,192 +1,159 @@
 # DSHX Roadmap
 
-This roadmap describes the path from the current 0.1 development toolchain to a stable 1.0 authoring model. It is a capability roadmap, not a required project-mode matrix: Full, Host-only, Client-only, and native modules remain valid combinations chosen by the plugin author and are used only as compatibility fixtures.
+DSHX remains on `0.1.x`. `0.1.2` establishes an API Candidate authoring surface but does not promise 1.0 stability. Further breaking changes require an explicit migration and must pass both verified DSH boundaries.
 
-## Design Principle
+## Runtime boundary
 
-DSHX has two layers:
+DSHX adds declarations, types, compilation, diagnostics, Profile orchestration, and scaffolding. Official DSH/Cordis continues to own registries, scope, transport, persistence, Prompt assembly, Conversation replay, HMR cleanup, and disposer lifetimes.
 
-- Declarative APIs describe what a plugin contributes.
-- Official DSH/Cordis `ctx` APIs describe how a plugin participates in runtime behavior.
+## 0.1.2 API Candidate
 
-DSHX should add a public symbol only when it removes repeated, error-prone contribution wiring without replacing an official runtime model. DSHX must not mirror every `ctx.*` service or invent a second DI container, Tool runtime, Session runtime, Event runtime, or Provider protocol.
+### Stable entry layout
 
-## Current Baseline
+```text
+@becomeopc/dshx                 defineConfig, DshxConfig only
+@becomeopc/dshx/config          defineConfig, DshxConfig only
+@becomeopc/dshx/host            Host definitions and contributions
+@becomeopc/dshx/client          Client definitions, Slots, React Hooks
+@becomeopc/dshx/api             shared typed unary API contracts
+@becomeopc/dshx/settings        shared Settings contracts
+```
 
-The 0.1 line currently provides:
-
-- Host and Client compilation for independently discovered entries, including native named modules.
-- `defineHost`, official `defineTool`, `defineClient`, and official SlotMap-based `defineSlot`.
-- Runtime Inspect for Slots, exact Slot contracts, Tools, Services, and Events when the verified DSH adapter and live Composition provide them.
-- `dshx dev`, automatic browser handoff for generated projects, Client HMR, Host restart, Profile orchestration, and deterministic `check --fix`.
-- Typed unary Host/Client APIs: `defineApi`, `method`, `useApi`, `useQuery`, and `ApiError` over the official Connection transport.
-- Schemastery-backed Settings contracts: `defineSettings`, Host ownership facets, and hook-driven `useSettings` Client wiring over the official shared mirror.
-- Experimental component-shaped Conversation contributions that bundle one official event-folding definition with its keyed chat renderer.
-
-The current release must continue to preserve direct `setup(ctx)` escape hatches and must not require users to select a Host/Client project mode.
-
-## 1.0 Public Surface
-
-The target stable surface is intentionally small, approximately 15-20 long-lived symbols.
+Contributions are opaque and identity-authenticated. Source helpers and virtual build modules share one implementation; built artifacts retain no DSHX private runtime import.
 
 ### Host
 
-```text
-@becomeopc/dshx/host
-defineHost
-defineTool
-defineCommand
-definePromptSection
-definePromptContext
+```ts
+defineHost({
+  name,
+  inject,
+  tools,
+  commands,
+  prompts,
+  settings,
+  apis,
+  setup(ctx) {},
+});
 ```
 
-`defineHost` remains the primary contribution declaration. It may contain `tools`, `commands`, `prompts`, `settings`, `api`/`apis`, and `setup(ctx)`. Deterministic dependencies are inferred and deduplicated:
+Registration order is Tools → Commands → Prompts → Settings → APIs → setup. Only non-empty lists infer and deduplicate official services. `api` is removed.
 
-```text
-tools    -> tools
-commands -> commands
-prompts  -> systemPrompt
-settings -> settings
-api      -> connection
+### Client and Slots
+
+```ts
+defineClient({
+  name,
+  inject,
+  conversations,
+  slots,
+  setup(ctx) {},
+});
 ```
 
-`defineTool` remains the exact official DSH helper. DSHX must not add a parallel Tool schema or execution DSL.
+Client `api`, `apis`, and Settings declarations are removed. Retained `useApi`, `useApiQuery`, and `useSettings` modules infer capabilities after tree-shaking. `defineSlot` follows the official `SlotMap`, `HandleOf`, inject props, kind options, children, locale, session/maybe, keyed/list/chain, and render checks.
 
-`defineCommand` and the Prompt helpers must remain thin, type-safe adapters over the official registration objects. Ordering, scope, shadowing, cancellation, and disposal remain DSH-owned.
+### Typed API
 
-### Client
+- `method<I, O>()` is `I → I → O → O`.
+- Standard Schema methods infer `ClientInput → HostInput → HostOutput → ClientOutput`.
+- Schemas execute once at the Host boundary.
+- `.host()` requires exact handler keys.
+- Imperative methods use `(input, options)`; no-input Signal calls pass `undefined`.
+- `ApiError` is opaque and tested with `isApiError`.
+- `useApiQuery` has a strict pending/success/error union, generation-aware pause/reconnect, caller abort, and stable JSON input fingerprints.
+- No global cache, dedupe, optimistic state, or business retry.
 
-```text
-@becomeopc/dshx/client
-defineClient
-defineSlot
-useApi
-useQuery
-useSubscription
-useSettings
+### Settings
 
-@becomeopc/dshx/conversation
-defineConversation
+- One Schemastery contract is shared; one Host claims ownership.
+- `.host({ base, validate, setup })` is the Host-only advanced facet.
+- Client decoders throw on invalid redacted data and infer Client value types.
+- Secret paths are fail-closed to safely redacted object/dict/array shapes.
+- `useSettings` exposes only status, value, revision, writable, mode, applies, secrets, read error, mutation pending, set, and unset.
+- No optimistic state, retained submitted value, automatic retry, raw-document migration, or generic form UI.
+
+### Prompt
+
+Prompt Section and Context helpers preserve official object identity and select the official registration method. Ordering, scope, shadowing, duplicates, dynamic provider evaluation, assembly, and disposal remain official behavior.
+
+## Experimental surfaces
+
+### Conversation
+
+```tsx
+const lifecycle = defineConversation({
+  kind,
+  events,
+  initial(context, event) {},
+  reduce(state, context, event) {},
+  project(state, context) {},
+});
+
+const contribution = lifecycle.render(Component);
 ```
 
-`defineSlot` remains the general UI contribution point. DSHX should not grow separate helpers such as `defineToolbarItem`, `definePanel`, or `defineToolView` while the official Slot contract can express those contributions.
+Conversation remains under `@becomeopc/dshx/experimental/conversation`. Pure lifecycle functions fold official `SessionEventMap` events; Hooks belong only in the renderer. It stays Experimental until the upstream durable event vocabulary and real replay/HMR/reconnect lifecycle are stable enough for a long-lived public promise.
 
-`defineConversation` is a focused component contribution over the official conversation-node seams. Its declaration may colocate event matching, state folding, view projection, and the keyed React renderer, but the official assembler must still execute replay, sequence ordering, publication, pagination, location, and disposal. The React component receives projected data; it does not become a second event reducer or Session runtime.
+### Vite compatibility layer
 
-### API and Settings
+`host.vite.plugins` and `client.vite.plugins` accept bounded native Vite `PluginOption[]`. The extension kernel, config-reload last-good behavior, and compatibility rules remain Experimental while Vite/Rolldown hooks evolve. DSHX will not add a parallel build-plugin API.
 
-```text
-@becomeopc/dshx/api
-defineApi
-method
-event
-// stream: only after the official transport has stable semantics
+### Tooling
 
-@becomeopc/dshx/settings
-defineSettings
-```
+`@becomeopc/dshx/tooling` contains Node-only build/watch, config resolution, compatibility, diagnostics, CLI, and repair APIs. `BuildReport` and `BuildWatcher` hide raw Vite return types, but programmatic Tooling remains Experimental during `0.1.x`.
 
-Unary methods are stable only after version checks, JSON-safe validation, lifecycle cleanup, reconnect behavior, and artifact installation are covered. Events and streams require an official subscribe/unsubscribe contract, ordering rules, replay behavior, backpressure, and Host restart semantics.
+## Completed delivery stages
 
-Settings contracts use the official Schemastery package so the same schema can drive Host inference and the official browser decoder. DSH retains persistence, defaults/base/user layering, revisions, secret redaction, validation, recovery, shared mirroring, and lifecycle. DSHX does not add raw-document migrations; schema evolution in this stage is backward-compatible only.
+| Stage                               | Status                              | Gate                                                                                                    |
+| ----------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 1. Typed unary API                  | Candidate                           | transform-once, exact handlers, cancel/reconnect/restart, Hook inference                                |
+| 2. Commands                         | Candidate                           | official registry, array order, lifecycle disposal                                                      |
+| 3. Prompt contributions             | Candidate                           | real assembly, scope shadow, dynamic Context, restart                                                   |
+| 4. Settings contract                | Candidate                           | read/write, revision/recovery, secrets, restart, Hook inference                                         |
+| 5. Conversation component lifecycle | Experimental                        | official event replay and integrated renderer implemented; durable custom events unavailable            |
+| 5.5. API/build stabilization        | Candidate + Experimental extensions | entry cleanup, Vite kernel, standard CSS/assets, Creator matrix, offline check, declarations, migration |
 
-## Delivery Order
+The representative `protocol-1` boundaries remain `0.1.0-rc.8` and `0.1.1-rc.2`.
 
-### Stage 1: Harden the current API
+## Next capability tracks
 
-Status: complete for the current `protocol-1` Connection seam at the verified DSH boundaries. Artifact/source parity, JSON transformation, channel disposal, version-mismatch classification, cancellation, reconnect-aware query scheduling, and hook-driven Client binding are covered. Retained `useApi`/`useQuery` code now infers the Connection capability and lazily reuses contracts by identity within one Client Fiber; explicit `ClientDefinition.api/apis` remains a compatibility form. The parameterized generation smoke verifies real unary calls, Host restart, API re-registration, and Client HMR at representative boundaries; the browser fixture additionally verified `useQuery`, AbortSignal propagation, and reconnect recovery.
+### Adoption and ecosystem
 
-- Keep `defineApi`/`method` compatible with the official Connection API.
-- Verify Host and Client lifecycle, API version mismatch, reconnect, AbortSignal, and HMR behavior against real DSH fixtures.
-- Keep `useQuery` as a deliberately small state model; do not add query caching or optimistic updates.
-- Keep runtime and native module support independent of project mode labels.
+- Keep the Framework Hub examples, copyable development Prompt, and standalone DSHX development Skill aligned with the installed release.
+- Add verified example plugins that demonstrate Candidate APIs without depending on Experimental Conversation.
+- Improve diagnostics from real user failures before adding more helpers.
+- Add scaffolds only for repeated official structures; do not add `dshx add api/settings/prompt/conversation` by default.
 
-### Stage 2: Command Contribution
+### Build extensions
 
-Status: complete for the current `protocol-1` Command seam at the verified DSH boundaries. `defineCommand` preserves the official `CommandDefinition`, Host definitions register commands in declaration order through `ctx.commands.register()`, and Cordis retains collision, scope, cancellation, and Fiber disposal ownership. `dshx add command` is a transactional source scaffold. The parameterized generation smoke verifies the generated Command through the official registry and `commands/execute` parser before and after an automatic Host restart.
+- Verify more ordinary Vite transformation plugins against the protected output boundary.
+- Add PostCSS/framework recipes as documentation and Creator styles only when they need no DSHX runtime abstraction.
+- Keep independent static assets, multi-chunk output, workers, and WASM unsupported until DSH has an ownership/loader contract for them.
 
-- Keep `defineCommand` as a typed identity helper over the official Command object.
-- Keep command scope, parsing, collisions, lifecycle events, cancellation, and disposal in DSH.
-- Keep `dshx add command` local, idempotent, rollback-safe, and independent of Runtime Inspect or Profile mutation.
-- Do not route slash commands through `session.prompt`; the verified `protocol-1` seam is the official Connection `commands/execute` Remote.
+### Official events and streaming
 
-### Stage 3: Prompt Contributions
+- Add API subscription/stream Hooks only after official Connection exposes stable ownership, cancellation, reconnect, and backpressure semantics.
+- Support custom durable Conversation events only after DSH exposes an effect-owned vocabulary registry installed before restore/resume and enforced for append and persisted history.
+- Do not implement private WebSockets, polling protocols, or reuse Inspect for business traffic.
 
-Status: complete for the current `protocol-1` System Prompt seam at the verified DSH boundaries. `definePromptSection` and `definePromptContext` preserve official contribution values inside a small discriminated wrapper, while `defineHost({ prompts })` injects `systemPrompt` and delegates registration, ordering, scope, shadowing, assembly, and disposal to DSH. The generated starter demonstrates one ordered guidance section and one dynamic runtime context. The parameterized real-runtime smoke verifies global and Agent-scoped assembly, shadow/restore, dynamic context, Tool schema visibility, and Host restart cleanup.
+### 1.0 stabilization
 
-- Keep Prompt contribution values compatible with the official `PromptSection` and `PromptContext` contracts.
-- Keep variables, tool-schema providers, complete-prompt policy, scoped registration, ordering, shadowing, and disposal in DSH.
-- Keep `setup(ctx)` as the direct path for Agent-scoped and advanced System Prompt behavior.
-- Do not add a `dshx add prompt` scaffold until repeated authoring patterns justify it.
+An API may be promoted from Candidate only when:
 
-### Stage 4: Settings Contract
+1. the corresponding official seam is public and documented;
+2. the adapter declares the capability;
+3. minimum/latest generation boundaries pass real Composition smoke;
+4. built tarballs load without DSHX private runtime imports;
+5. dispose, restart, HMR, duplicate, abort, reconnect, and failure recovery are covered where applicable;
+6. diagnostics and JSON fields have a migration policy;
+7. at least one external plugin has exercised the API without private workarounds.
 
-Status: complete for the current `protocol-1` Settings and Client Settings Scope seams at the verified DSH boundaries. `defineSettings` preserves one portable Schemastery contract; `defineHost({ settings })` claims namespace ownership, while `useSettings(contract)` directly binds the official shared Client scope without a duplicate Client declaration. Tree-shaken Hook retention drives `settingsScope` injection and package-edge diagnostics. Secret contracts require a Client-safe decoder, and advanced `.host()` facets keep base, validation, setup, and disposer behavior out of Client artifacts.
+## Explicit non-goals
 
-- Keep persistence, layering, revisions, schema validation, write serialization, redaction, recovery, namespace collisions, and scope disposal in DSH/Cordis.
-- Keep Hook mutation state local: no optimistic state, retry loop, cache, or retained write value.
-- Keep Client values decoder-safe while allowing typed writes to Host schema fields, including write-only secrets.
-- Keep the generated Runtime Deck as a concrete custom control; do not add a generic Settings page or form generator.
-- Do not add `dshx add settings` or DSHX raw-document migrations in this stage.
-
-### Stage 5: Conversation Nodes
-
-Status: the component contribution is implemented for the official `protocol-1` Client seams, but Stage 5 remains experimental and open. `defineConversation({ kind, events }).component(...)` produces one contribution for `defineClient({ conversations })`; DSHX registers its official assembler definition before the keyed `conversation.chat.node` renderer and infers the `conversationEvents` and `slots` dependencies. This removes the artificial split between a lifecycle definition and its renderer without moving lifecycle execution into React.
-
-- Keep event keys constrained to the official `SessionEventMap` at the current verified boundaries. TypeScript declaration merging alone does not make a new required event type safe for Session persistence or replay.
-- Keep match, start/update folding, view-node publication, replay, ordering, pagination, location, duplicate handling, and disposal in the official Client runtime.
-- Keep Host interaction compositional: use the existing `defineApi`/`useApi` Connection contract for typed writes, and use official Commands or Agent behavior only when their semantics actually match the operation. Do not add a private Conversation transport or an implicit Host action facet.
-- Do not present custom durable Session events as supported until DSH exposes an effect-owned event-vocabulary registration seam that is active before restore/resume, validates append and persisted history, and distinguishes required from ignorable data.
-- Before marking the stage complete, add a real replay fixture for official events covering step data, publication, update ordering, pagination, location, HMR, reconnect, and duplicate-registration cleanup; then add a separate custom-event fixture only after the upstream vocabulary seam exists.
-
-### Stage 6: Client Events and Subscriptions
-
-Add `event`, `useSubscription`, and eventually `stream` only after the official Connection transport provides stable subscription semantics. Do not implement a private WebSocket, polling protocol, or Inspect-Bridge reuse for business events.
-
-### Stage 7: Ecosystem Scaffolds
-
-Provide generators for official structures where repetition is high:
-
-- Session event declaration merging and test fixtures.
-- Service declaration merging and `inject` checks.
-- LLM, Subagent, Filesystem, Sandbox, Shell, Compaction, and Session Title adapter scaffolds when each official seam is verified.
-
-These generators must not become new runtime abstractions. There is no generic `defineService` or `defineProvider` in the stable core.
-
-## Explicit Non-Goals
-
-- No required Full/Host-only/Client-only/native mode selection.
-- No `defineService`, `provideService`, `useService`, or generic `defineProvider` runtime.
-- No `defineHook` wrapper for `ctx.on`; hooks remain official Cordis events.
-- No React Query cache, stale-time, optimistic update, or normalized cache layer.
-- No arbitrary npm package loading from CLI input.
-- No private RPC or business traffic through the Inspect Bridge.
-- No automatic universal form generation from Settings schemas.
-- No API stabilization based only on TypeScript declarations or simulated loader tests.
-
-## Stabilization Gates
-
-An API enters the stable 1.0 surface only when all conditions hold:
-
-1. The corresponding DSH official seam is public and documented.
-2. A compatibility adapter declares the capability explicitly.
-3. The compatibility generation's representative boundaries pass the generic real Composition scenario.
-4. Host and Client artifacts install through the DSH CLI without private DSHX runtime imports.
-5. Lifecycle tests cover dispose, restart, HMR, duplicate registration, and failure rollback.
-6. JSON output, diagnostics, and `--verbose` behavior are stable where a CLI is involved.
-7. The API has a documented version and migration policy.
-
-Until these gates pass, the capability remains internal or experimental and must not be presented as an offline fallback.
-
-## Verification Matrix
-
-Every capability stage is validated against the combinations that users may freely choose:
-
-- Host definition + Client definition.
-- Host-only source.
-- Client-only source with the required root artifact.
-- Native named Host.
-- Native named Client.
-- Mixed DSHX/native entries.
-
-These combinations test compatibility; they do not constrain authoring choices.
+- No required Full/Host-only/Client-only/native project mode.
+- No second DI container, Tool runtime, Session runtime, Prompt registry, Settings store, Event bus, or Connection transport.
+- No generic `defineService`, `provideService`, `useService`, or provider abstraction.
+- No arbitrary `vite.config.*`, Vite dev server, multi-chunk output, or public static directory.
+- No React Query-style cache, stale time, optimistic mutation, or normalized entity cache.
+- No universal Settings form or automatic raw-document migration.
+- No unsupported API stabilization based only on TypeScript or simulated loaders.

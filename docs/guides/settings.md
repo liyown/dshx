@@ -1,11 +1,14 @@
-# Settings
+# Settings API
 
-Settings use a define-once model: one portable contract carries the namespace, official Schemastery schema, application mode, and optional Client decoder. The Host claims ownership once; Client components consume the same contract directly.
+**Status: API Candidate**
 
-## Define one contract
+**Shared entry: `@becomeopc/dshx/settings`**
+
+**React Hook: `@becomeopc/dshx/client`**
+
+## `defineSettings(definition)`
 
 ```ts
-// settings.ts
 import Schema from "@deepseek-ai/schemastery";
 import { defineSettings } from "@becomeopc/dshx/settings";
 
@@ -18,158 +21,135 @@ export const runtimeSettings = defineSettings({
 });
 ```
 
-The namespace must match `/^[a-z][a-z0-9-]*$/`. `applies` is `"live"` by default and may be `"restart"`. The contract preserves the schema object by identity, and the schema output becomes its Host value type.
-
-Keep this shared module browser-safe. `namespace`, `schema`, `applies`, and `client.decode` may enter a Client artifact. Host-only defaults, validation, setup, and service access belong in the Host facet described below.
+`namespace` must match `/^[a-z][a-z0-9-]*$/`. `schema` must be an official Schemastery object schema; its object value becomes the Host value type. `applies` is `'live' | 'restart'` and defaults to `'live'`. The contract preserves the namespace, schema identity, and inferred types and is safe to share between Host and Client source.
 
 ## Claim Host ownership
 
-The common form is one line:
+Register the contract directly for the normal case:
 
 ```ts
 import { defineHost } from "@becomeopc/dshx/host";
 import { runtimeSettings } from "./settings.js";
 
-export default defineHost({ settings: [runtimeSettings] });
-```
-
-This automatically injects the official `settings` service. DSHX registers the namespace, schema, and `applies` mode with the official Settings provider.
-
-Use `.host()` only for private Host behavior:
-
-```ts
 export default defineHost({
-  settings: [
-    runtimeSettings.host({
-      base: { showActivity: true },
-      validate(value) {
-        if (typeof value.showActivity !== "boolean") {
-          throw new TypeError("showActivity must be boolean");
-        }
-      },
-      setup(scope) {
-        return scope.watch((next) => {
-          console.info("showActivity", next.showActivity);
-        });
-      },
-    }),
-  ],
+  settings: [runtimeSettings],
 });
 ```
 
-`base`, `validate`, and `setup` are absent from the portable contract and cannot leak into the Client bundle. `setup` is synchronous and may return a disposer; DSHX gives that disposer to `ctx.effect()`.
-
-The official provider owns defaults-to-base-to-user layering, schema validation, revisions, watch behavior, duplicate namespaces, replacement, persistence, and disposal.
-
-## Read and write from React
-
-There is no `ClientDefinition.settings` field. Call `useSettings(contract)` from a DSHX Client Slot or Conversation renderer:
-
-```tsx
-import { useSettings } from "@becomeopc/dshx/client";
-import { runtimeSettings } from "./settings.js";
-
-export function ActivityToggle() {
-  const settings = useSettings(runtimeSettings);
-  const visible = settings.value?.showActivity ?? true;
-
-  return (
-    <div>
-      <button
-        type="button"
-        disabled={!settings.writable || settings.mutation.pending}
-        onClick={() => {
-          void settings.set("showActivity", !visible);
-        }}
-      >
-        {settings.mutation.pending
-          ? "Saving…"
-          : visible
-            ? "Hide activity"
-            : "Show activity"}
-      </button>
-      {settings.error ? <p role="status">{settings.error.message}</p> : null}
-      {settings.mutation.error ? (
-        <button type="button" onClick={settings.mutation.clearError}>
-          Clear write error
-        </button>
-      ) : null}
-    </div>
-  );
-}
-```
-
-`useSettings` is backed by `useSyncExternalStore`. Its result contains:
-
-| Field               | Meaning                                                     |
-| ------------------- | ----------------------------------------------------------- |
-| `status`            | `loading`, `ready`, or `unavailable`                        |
-| `value`             | Decoded Client value, or `undefined` before one is accepted |
-| `base`, `user`      | Official scope layer snapshots                              |
-| `revision`          | Current official revision when known                        |
-| `writable`          | Whether the bound scope currently accepts writes            |
-| `mode`              | Official `host` or `memory` mode                            |
-| `applies`           | Registered `live` or `restart` mode                         |
-| `secrets`           | Redacted secret paths and configured state                  |
-| `error`             | Read, binding, decoding, or synchronization problem         |
-| `mutation`          | Hook-local `pending`, `error`, and `clearError()` state     |
-| `set(field, value)` | Set one top-level schema field                              |
-| `unset(field)`      | Remove one top-level user override                          |
-
-Writes are not optimistic, are not retried automatically, and do not store the attempted value in DSHX state. Multiple components using the same contract identity reuse one official bound scope in the current Client Fiber, while each Hook call keeps its own mutation state. The official shared mirror remains the source of Settings data.
-
-## Errors
-
-Read errors use explicit kinds:
-
-| Kind                     | Meaning                                                            |
-| ------------------------ | ------------------------------------------------------------------ |
-| `provider-unavailable`   | The required Client Settings provider is absent                    |
-| `namespace-unregistered` | No active Host owns the contract namespace                         |
-| `decode-failed`          | The Client decoder rejected or failed to decode the redacted value |
-| `sync-failed`            | The official shared mirror reported a synchronization failure      |
-
-An unregistered namespace refuses writes instead of behaving like an ordinary empty value. Write failures reject the returned Promise and appear in `mutation.error`; call `clearError()` only to clear that Hook-local error.
-
-## Secrets
-
-When a schema contains `role("secret")`, provide a Client decoder that removes secret values:
+Use `.host()` only for Host-private behavior:
 
 ```ts
-const secureSettings = defineSettings({
-  namespace: "my-plugin-secure",
+const ownedSettings = runtimeSettings.host({
+  base: { showActivity: true },
+  validate(value) {
+    if (typeof value.showActivity !== "boolean") throw new Error("invalid");
+  },
+  setup(scope, ctx) {
+    return scope.watch((next) => {
+      void next;
+      void ctx;
+    });
+  },
+});
+
+export default defineHost({ settings: [ownedSettings] });
+```
+
+`base`, `validate`, and `setup` stay out of the shared contract and Client bundle. `setup` is synchronous and may return a disposer; DSHX passes it to `ctx.effect()`. The official Settings provider owns schema validation, defaults/base/user layering, revision fences, watches, update/replace behavior, persistence, recovery, duplicate namespaces, and disposal.
+
+## Client-safe decoding
+
+Without a decoder, Client and Host values have the same type. A decoder can infer a narrower redacted Client value:
+
+```ts
+const credentials = defineSettings({
+  namespace: "my-plugin-credentials",
   schema: Schema.object({
-    showActivity: Schema.boolean().default(true),
+    enabled: Schema.boolean().default(true),
     token: Schema.string().role("secret"),
   }),
   client: {
-    decode(value): { showActivity: boolean } | undefined {
+    decode(value): { enabled: boolean } {
       if (
         typeof value !== "object" ||
         value === null ||
-        !("showActivity" in value)
+        !("enabled" in value)
       ) {
-        return undefined;
+        throw new Error("invalid redacted settings");
       }
-      return { showActivity: Boolean(value.showActivity) };
+      return { enabled: Boolean(value.enabled) };
     },
   },
 });
 ```
 
-The decoded Client type exposes `showActivity` but not `token`. Mutations still use the Host schema type, so `settings.set("token", value)` and `settings.unset("token")` remain available without making the secret readable. Host registration diagnoses a secret schema that lacks `client.decode`.
+Decoder failure must throw. Returning `undefined` is rejected and is never a failure sentinel.
 
-DSHX does not persist redacted values, implement secret storage, or infer whether a secret is configured. Those are official Settings responsibilities; the Client sees only the official redacted view and configured state.
+Secret contracts require a decoder. Secret traversal is fail-closed: only plain object, dict, and array paths that the official provider can redact safely are accepted. A reachable secret under a union, intersection, transform, or unknown container is rejected at Host registration even when a decoder exists.
+
+## `useSettings(contract)`
+
+```tsx
+import { useSettings } from "@becomeopc/dshx/client";
+import { runtimeSettings } from "./settings.js";
+
+function ActivityToggle() {
+  const settings = useSettings(runtimeSettings);
+  const visible = settings.value?.showActivity ?? true;
+
+  return (
+    <button
+      type="button"
+      disabled={!settings.writable || settings.mutation.pending}
+      onClick={() => void settings.set("showActivity", !visible)}
+    >
+      {settings.mutation.pending
+        ? "Saving…"
+        : visible
+          ? "Hide activity"
+          : "Show activity"}
+    </button>
+  );
+}
+```
+
+```ts
+interface SettingsState<HostValue, ClientValue> {
+  readonly status: "loading" | "ready" | "unavailable";
+  readonly value: ClientValue | undefined;
+  readonly revision: number | undefined;
+  readonly writable: boolean;
+  readonly mode: "host" | "memory";
+  readonly applies: "live" | "restart";
+  readonly secrets: readonly {
+    readonly path: readonly string[];
+    readonly set: boolean;
+  }[];
+  readonly error: SettingsReadError | null;
+  readonly mutation: { readonly pending: boolean };
+  set<K extends keyof HostValue & string>(
+    key: K,
+    value: HostValue[K],
+  ): Promise<void>;
+  unset<K extends keyof HostValue & string>(key: K): Promise<void>;
+}
+```
+
+`value` uses the decoder's Client type. `set` and `unset` use the Host schema type, so a secret field can be written or cleared without becoming readable. Mutations support official top-level Client-scope fields only.
+
+The mutation Promise resolves when the official queue and recovery sequence finishes; it does not promise that a remote persistence backend committed the value. Mutations are not optimistic, do not retain submitted values, and do not retry. Concurrent writes increment a Hook-local pending counter, so `mutation.pending` stays true until all calls settle.
+
+## Read errors and write refusal
+
+| `error.kind`             | Meaning                                                     |
+| ------------------------ | ----------------------------------------------------------- |
+| `provider-unavailable`   | The official `settingsScope` service is missing             |
+| `namespace-unregistered` | The active Host did not register this namespace             |
+| `decode-failed`          | The redacted Client value could not be decoded              |
+| `sync-failed`            | The official shared mirror reported synchronization failure |
+
+Provider or namespace absence sets `writable: false`; `set`/`unset` reject before calling the official mutation method. Read errors are snapshot state, not a Hook-local mutation error store.
 
 ## Automatic Client wiring
 
-If `useSettings` survives tree-shaking, the Client compiler:
-
-- adds and deduplicates the `settingsScope` Cordis injection;
-- requires `@deepseek-ai/dsh-client-ui-settings` in `dsh.client.inject`;
-- provides the Settings runtime context to retained Slot components; and
-- binds each contract lazily by object identity.
-
-If the Hook is removed from the final artifact, it adds no Settings capability. `dshx check` previews the required package edge; `build` and `dev` authoritatively verify the tree-shaken artifact. Client Fiber or Cordis disposal releases the bound official scope and the identity cache.
-
-Read [Compatibility](../compatibility.md) for the supported DSH boundary and provider dependency rules.
+If `useSettings` survives final tree-shaking, compiler module metadata adds the `settingsScope` service. The project must declare `@deepseek-ai/dsh-client-ui-settings` in `dsh.client.inject`; `dshx check` reports a missing edge and `build` is authoritative. Multiple components using the same contract reuse one official bound scope inside the current Client Fiber.

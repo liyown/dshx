@@ -1,58 +1,47 @@
-# DSHX API reference
+# DSHX documentation
 
-This index routes each public DSHX module to its API reference or focused guide. The web reference documents signatures, parameters, return values, examples, automatic wiring, lifecycle, and errors in [English](https://dshx.io/en/docs) and [Chinese](https://dshx.io/zh/docs).
+DSHX `0.1.2` exposes a small authoring surface and keeps compiler/runtime internals out of application bundles. The labels used below are release-status labels, not 1.0 compatibility promises.
 
-## Start here
+| Label             | Meaning                                                                                                     |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| **API Candidate** | Intended authoring shape for the rest of the `0.1.x` line. Breaking changes still require a migration note. |
+| **Experimental**  | May change during `0.1.x`; import only from an `experimental` or Tooling entry.                             |
+| **Tooling**       | Node-only compiler, compatibility, diagnostic, and CLI APIs. Never import into Host or Client source.       |
 
-Create a project and start its development workflow:
+## API chapters
 
-```bash
-pnpm create dshx my-plugin
-cd my-plugin
-pnpm dev
-```
+1. [Host](./guides/host.md) — `defineHost`, Tools, Commands, registration order, injection, and lifecycle.
+2. [Client and Slots](./guides/client.md) — `defineClient`, `defineSlot`, official Slot props, Hook-driven capabilities, and lifecycle.
+3. [Typed API](./guides/api.md) — `defineApi`, Standard Schema transforms, Host handlers, imperative calls, `useApiQuery`, and errors.
+4. [Settings](./guides/settings.md) — shared Schemastery contract, Host ownership, safe Client decoding, reads, and mutations.
+5. [Prompt](./guides/prompt.md) — Prompt Sections, dynamic Contexts, ordering, scope, assembly, and ownership.
+6. [Conversation](./guides/conversation.md) — experimental pure event lifecycle plus React renderer.
+7. [Build](./guides/build.md) — bounded config, Vite plugin extensions, CSS/assets, declarations, and watch behavior.
+8. [Creator](./guides/creator.md) — template/style matrix, generated dependencies, and automation.
+9. [Tooling](./guides/tooling.md) — experimental Node-side build/watch, config, compatibility, diagnostics, CLI, and repair APIs.
 
-The generated project demonstrates a Host Tool, Prompt contributions, a shared Settings contract, a typed Host/Client API, and a Client Slot. Open only the modules used by your plugin:
+Additional references:
 
-1. [Host contributions](./guides/host-contributions.md) — register Tools, Commands, Prompts, Settings ownership, and APIs.
-2. [Settings](./guides/settings.md) — define one Schemastery-backed contract and consume it through `useSettings`.
-3. [Typed Host/Client API](./guides/typed-api.md) — call Host behavior from Client components with `useApi` and `useQuery`.
-4. [Conversation components](./guides/conversation.md) — colocate deterministic Conversation assembly and its React renderer.
+- [CLI reference](./cli-reference.md)
+- [Compatibility and verification](./compatibility.md)
+- [Architecture](./architecture.md)
+- [0.1.1 to 0.1.2 migration](./migrations/0.1.1-to-0.1.2.md) ([简体中文](./migrations/0.1.1-to-0.1.2.zh-CN.md))
 
-## Guides and reference
+## Public entry points
 
-| Document                                             | Use it for                                                                                      |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| [Host contributions](./guides/host-contributions.md) | `defineHost`, contribution order, automatic service injection, Prompts, and direct Cordis setup |
-| [Settings](./guides/settings.md)                     | `defineSettings`, Host ownership, client-safe decoding, mutations, and `useSettings`            |
-| [Typed Host/Client API](./guides/typed-api.md)       | `defineApi`, Host handlers, Client Hooks, validation, cancellation, and errors                  |
-| [Conversation components](./guides/conversation.md)  | `defineConversation`, lifecycle folding, view projection, rendering, and Host interaction       |
-| [CLI reference](./cli-reference.md)                  | Build, check, dev, inspect, scaffolding, and automation guarantees                              |
-| [Compatibility](./compatibility.md)                  | Protocol adapters, verified DSH versions, dependency edges, and real-runtime smoke policy       |
-| [Architecture](./architecture.md)                    | Repository layout, artifact boundaries, and runtime-thin ownership                              |
-| [Dependency policy](./dependency-policy.md)          | Workspace dependency constraints and publication rules                                          |
-| [Releasing](./releasing.md)                          | Versioning, validation, packaging, and publication                                              |
+| Entry                                       | Status                 | Browser-safe | Purpose                                                                       |
+| ------------------------------------------- | ---------------------- | ------------ | ----------------------------------------------------------------------------- |
+| `@becomeopc/dshx`                           | API Candidate          | Yes          | `defineConfig`, `DshxConfig` only                                             |
+| `@becomeopc/dshx/config`                    | API Candidate          | Yes          | Same config-only surface                                                      |
+| `@becomeopc/dshx/host`                      | API Candidate          | No           | Host definitions and contributions                                            |
+| `@becomeopc/dshx/client`                    | API Candidate          | Yes          | Client definitions, Slots, and React Hooks                                    |
+| `@becomeopc/dshx/api`                       | API Candidate          | Yes          | Shared typed API contracts and error guards                                   |
+| `@becomeopc/dshx/settings`                  | API Candidate          | Yes          | Shared Settings contracts                                                     |
+| `@becomeopc/dshx/experimental/conversation` | Experimental           | Yes          | Conversation lifecycle and renderer contributions                             |
+| `@becomeopc/dshx/tooling`                   | Tooling / Experimental | No           | Compiler, config resolution, compatibility, diagnostics, CLI, and repair APIs |
 
-Project direction and protocol gates are tracked in the [Roadmap](../ROADMAP.md). Architectural choices and rejected alternatives are recorded in [Decisions](../DECISIONS.md).
+The removed `@becomeopc/dshx/compiler`, `/compat`, `/cli`, and `/conversation` entries have no runtime aliases. See the migration guide for replacements.
 
 ## Ownership boundary
 
-DSHX describes and wires contributions. The official DSH and Cordis packages remain responsible for registries, scopes, ordering semantics, shadowing, assembly, persistence, transport, HMR, and disposal. The guides call out this boundary wherever a helper could otherwise look like a second runtime.
-
-## Package entry points
-
-The npm package exposes focused public modules:
-
-| Module                         | Primary surface                                          |
-| ------------------------------ | -------------------------------------------------------- |
-| `@becomeopc/dshx/host`         | Host definitions, Tools, Commands, and Prompt wrappers   |
-| `@becomeopc/dshx/client`       | Client definitions, Slots, API Hooks, and Settings Hooks |
-| `@becomeopc/dshx/settings`     | Portable Settings contracts                              |
-| `@becomeopc/dshx/api`          | Typed unary Host/Client API contracts                    |
-| `@becomeopc/dshx/conversation` | Experimental component-shaped Conversation contracts     |
-| `@becomeopc/dshx/config`       | Project configuration                                    |
-| `@becomeopc/dshx/compiler`     | Programmatic Host and Client builds                      |
-| `@becomeopc/dshx/cli`          | Stable parser and CLI runner interfaces                  |
-| `@becomeopc/dshx/compat`       | Adapter resolution, project assessment, and diagnostics  |
-
-See the [`@becomeopc/dshx` package README](../packages/dshx/README.md) for installation and the minimal package quickstart.
+DSHX defines contracts, validates project wiring, runs Vite builds, and generates DSH-loadable modules. Official DSH/Cordis services continue to own registries, scopes, transport, Prompt assembly, Settings persistence, Conversation replay, disposer lifetimes, and HMR cleanup.

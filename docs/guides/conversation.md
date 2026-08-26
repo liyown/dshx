@@ -1,164 +1,115 @@
-# Conversation components
+# Conversation API
 
-Conversation components combine a deterministic official Conversation definition and its keyed `conversation.chat.node` React renderer in one author-facing contribution. The component shape removes registration boilerplate without moving Session or assembly ownership into DSHX.
+**Status: Experimental**
 
-This API is experimental.
+**Entry: `@becomeopc/dshx/experimental/conversation`**
 
-## Define one component lifecycle
+Conversation combines a pure official event-fold lifecycle with one React renderer. It is not part of the API Candidate surface.
+
+## Define, project, and render
 
 ```tsx
-import { defineClient } from "@becomeopc/dshx/client";
-import { defineConversation } from "@becomeopc/dshx/conversation";
+import { defineClient, useApi } from "@becomeopc/dshx/client";
+import {
+  defineConversation,
+  type ConversationRenderProps,
+} from "@becomeopc/dshx/experimental/conversation";
+import { reviewApi } from "./review-api.js";
 
-interface TurnStatusState {
-  readonly turn: number;
-  readonly status: string;
-}
-
-const turnStatus = defineConversation({
-  kind: "plugin:turn-status",
+const turnLifecycle = defineConversation({
+  kind: "turn-status",
   events: {
     "turn/start": {
       role: "start",
       id: (event) => String(event.data.turn),
+      publication: "immediate",
     },
     "turn/end": {
       role: "update",
       id: (event) => String(event.data.turn),
+      publication: "animation-frame",
     },
   },
-}).component({
-  initial: ({ event }): TurnStatusState => ({
-    turn: event.data.turn,
-    status: "running",
-  }),
-  reduce: ({ state, event }): TurnStatusState => ({
-    ...state,
-    status: event.data.reason.kind,
-  }),
-  view: ({ state }) =>
-    state === undefined
-      ? null
-      : {
-          data: {
-            label: `Turn ${state.turn}: ${state.status}`,
-          },
-        },
-  component: ({ data }) => <p>{data.label}</p>,
-});
-
-export default defineClient({ conversations: [turnStatus] });
-```
-
-One contribution registers the official Conversation definition before its keyed Chat renderer. DSHX also infers the required `conversationEvents` and `slots` Client services.
-
-## Lifecycle surface
-
-| Surface                    | Responsibility                                                                   |
-| -------------------------- | -------------------------------------------------------------------------------- |
-| `kind`                     | Stable Conversation definition and renderer identity                             |
-| `events[type].role`        | Mark an official Session event as `start` or `update`                            |
-| `events[type].id(event)`   | Produce the instance id that groups related matches                              |
-| `events[type].publication` | Optional official publication default for that event type                        |
-| `initial(input)`           | Create deterministic state from a start event                                    |
-| `reduce(input)`            | Fold one ascending update into existing state; required when update events exist |
-| `publication(input)`       | Optionally override publication per match                                        |
-| `locationData(input)`      | Publish contract-owned Turn or Step business data                                |
-| `view(input)`              | Project assembled state into renderer data and optional node metadata            |
-| `component(props)`         | Render the projected data with the full official Chat Slot props                 |
-
-`initial` receives the typed start event, official match and context, a context reader, and `previous(kind)`. `reduce` receives the typed update-event union and current state. These functions form the deterministic assembly path; keep side effects and React Hooks out of them.
-
-If `view` is omitted, defined state becomes renderer data directly:
-
-```tsx
-const messageNode = defineConversation({
-  kind: "plugin:user-message",
-  events: {
-    "user/message": {
-      role: "start",
-      id: (event) => String(event.seq),
-    },
+  initial(_context, event) {
+    return { turn: event.data.turn, status: "running" as const };
   },
-}).component({
-  initial: ({ event }) => ({ sequence: event.seq }),
-  component: ({ data }) => <p>Message event {data.sequence}</p>,
+  reduce(state, _context, event) {
+    return { ...state, status: event.data.reason.kind };
+  },
+  project(state) {
+    return { label: `Turn ${state.turn}: ${state.status}` };
+  },
 });
-```
 
-`view` may return `null` to omit the node, or return:
+type TurnProps = ConversationRenderProps<typeof turnLifecycle>;
 
-```ts
-{
-  data,
-  anchorSeq?,
-  location?,
-  visibility?: "visible" | "hidden"
-}
-```
-
-DSHX fills stable `key`, `kind`, `id`, and `target` fields. When optional fields are omitted, it derives the anchor and location from official start evidence and defaults visibility to `visible`.
-
-## Location and publication
-
-`locationData` returns only the business coordinates and value:
-
-```ts
-locationData({ state, scope }) {
-  if (state === undefined || scope !== "turn") return null;
-  return { turn: state.turn, value: state.status };
-}
-```
-
-For Turn scope return `{ turn, value }`; for Step scope return `{ turn, step, value }`. DSHX supplies the contract-owned key and the current scope discriminator, then delegates storage and lookup to the official assembler.
-
-Publication values are the official `none`, `animation-frame`, and `immediate` modes. A component-level `publication(input)` result overrides an event descriptor's default when it returns a value; otherwise the descriptor or official immediate default applies.
-
-## React props and Host interaction
-
-The renderer receives `data`, the typed `node`, and the complete official Chat Slot currency, including Session identity, locale, projection, workspace, and Turn-data helpers. React Hooks are valid here.
-
-Use the existing typed API for Host interaction:
-
-```tsx
-import { useApi } from "@becomeopc/dshx/client";
-import { reviewActions } from "./review-api.js";
-
-function ReviewNode({ data }: { data: { reviewId: string } }) {
-  const actions = useApi(reviewActions);
-
+function TurnNode({ data }: TurnProps) {
+  const api = useApi(reviewApi);
   return (
-    <button
-      onClick={() => {
-        void actions.retry({ reviewId: data.reviewId });
-      }}
-    >
-      Retry review
+    <button onClick={() => void api.refresh({ turn: data.label })}>
+      {data.label}
     </button>
   );
 }
+
+const turnConversation = turnLifecycle.render(TurnNode);
+
+export default defineClient({
+  conversations: [turnConversation],
+});
 ```
 
-This retains the API Hook-driven Connection capability automatically. It does not add a Conversation-specific action bus, and an API response does not mutate assembled state. Authorization, revision checks, idempotency, durable outcomes, and business cancellation remain Host responsibilities. Read [Typed Host/Client API](./typed-api.md) for the full contract.
+`.render(Component)` returns one opaque contribution that contains both the official Conversation definition and the keyed `conversation.chat.node` renderer. Do not create a second Slot for the same kind.
+
+## Lifecycle signature
+
+```ts
+defineConversation({
+  kind,
+  events,
+  initial(context, startEvent) => state,
+  reduce?(state, context, updateEvent) => nextState,
+  project?(state, context) => rendererData,
+})
+```
+
+| Field                      | Contract                                                                  |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `kind`                     | Non-empty key used for the official node definition and chat Slot key     |
+| `events`                   | Non-empty map whose keys are official `SessionEventMap` keys              |
+| `events[type].role`        | `'start'` opens an instance; `'update'` folds into one                    |
+| `events[type].id(event)`   | Returns the stable instance id as a string                                |
+| `events[type].publication` | Optional official `'none'`, `'animation-frame'`, or `'immediate'` cadence |
+| `initial`                  | Creates state from a start event                                          |
+| `reduce`                   | Required when any update event exists; returns replacement state          |
+| `project`                  | Converts state to renderer data; omitted means `data` is the state        |
+
+`initial`, `reduce`, and `project` are pure lifecycle functions. They run during official replay, pagination, append, and registry rebuild and must not call React Hooks or depend on component-local state.
+
+## Renderer props
+
+The renderer is a capitalized React component. Its props are the official chat-node owner, Session, global, and `conversation` locale props plus:
+
+```ts
+{
+  readonly node: ConversationRendererNode<Kind, Data>
+  readonly data: Data
+  readonly useTurnData: UseChatNodeTurnData
+}
+```
+
+Use `ConversationRenderProps<typeof lifecycle>` when declaring the component separately. Hooks, including `useApi` and `useApiQuery`, belong only in this renderer.
+
+## Location, ordering, and Host interaction
+
+DSHX creates only `target: 'chat'` nodes. It carries the official match location and anchor sequence into the view node; the official assembler owns replay order, pagination, visibility, publication scheduling, and registry rebuilds.
+
+There is no Conversation-specific Host channel. Call Host behavior through `useApi` or `useApiQuery`. API results do not mutate replayed Conversation state; durable state must still come from official Session events.
 
 ## Durable event boundary
 
-At the verified `protocol-1` boundary, every `events` key must already exist in the official `SessionEventMap`. TypeScript declaration merging can teach a local compiler about a type, but it does not register that event with Session persistence.
+Only keys already present in the official `SessionEventMap` are supported. TypeScript declaration merging can help an in-memory test compile but does not register a new durable vocabulary with DSH persistence. The current `protocol-1` contract rejects unknown required persisted events, so DSHX does not provide custom events, an emit shortcut, a private event bus, or a durable migration layer.
 
-The currently released DSH Session packages expose no out-of-tree vocabulary registry for required durable event types. Consequently, DSHX does not provide a custom durable-event helper or a Host emit shortcut. Use official event types today, and treat the official Session log as the only replayable source of Conversation UI state.
+## Errors
 
-## Runtime ownership
-
-DSHX adapts the component declaration into official contracts. The official runtime still owns:
-
-- event matching and ascending fold order;
-- replay and reconstruction;
-- scoped registration and shadowing;
-- node publication and pagination;
-- location storage and lookup;
-- Chat Slot composition; and
-- Fiber/HMR disposal.
-
-DSHX does not keep a Conversation registry, assembled-state cache, event log, pagination model, or renderer lifecycle of its own.
-
-Read [Architecture](../architecture.md) for the ownership boundary and [Compatibility](../compatibility.md) for the currently verified official packages.
+Definitions reject an empty kind, an empty/invalid event map, missing `initial`, missing `reduce` when update events exist, invalid publication values, or a non-component renderer. Copied contributions fail Client authenticity validation.
