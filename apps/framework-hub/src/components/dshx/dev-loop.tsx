@@ -42,7 +42,6 @@ const files: Record<Target, WorkbenchFile> = {
     sourcePath: "src  ›  client.tsx",
     sourceCode: `import type {} from '@provider/plugin/client'
 import { defineClient, defineSlot } from '@becomeopc/dshx/client'
-import { statusApi } from './shared/status-api'
 import { Status } from './ui/status'
 
 const sidebarStatus = defineSlot('sidebar.footer.action', {
@@ -50,10 +49,9 @@ const sidebarStatus = defineSlot('sidebar.footer.action', {
 })
 
 export default defineClient({
-  api: statusApi,
   slots: [sidebarStatus],
 })`,
-    sourceHighlights: [6, 7, 10, 11, 12],
+    sourceHighlights: [5, 6, 9, 10, 11],
     distFile: "client.js",
     distPath: "dist  ›  client.js",
     distCode: `module.exports = (require) => ({
@@ -78,11 +76,11 @@ import { statusApi } from './shared/status-api'
 
 export default defineHost({
   tools: [searchTool],
-  api: statusApi.host({
+  apis: [statusApi.host({
     get: async ({ input }) => ({
       online: Boolean(input.id),
     }),
-  }),
+  })],
 })`,
     sourceHighlights: [5, 6, 7, 8, 9, 10, 11],
     distFile: "index.js",
@@ -100,7 +98,7 @@ export async function apply(ctx) {
   api: {
     sourceFile: "status-api.ts",
     sourcePath: "src  ›  shared  ›  status-api.ts",
-    sourceCode: `import { defineApi, method } from '@becomeopc/dshx'
+    sourceCode: `import { defineApi, method } from '@becomeopc/dshx/api'
 
 export const statusApi = defineApi({
   id: 'status',
@@ -116,17 +114,17 @@ export const statusApi = defineApi({
     distFile: "index.js + client.js",
     distPath: "dist  ›  generated API wiring",
     distCode: `// dist/index.js
-registerApi(ctx, 'status', {
-  version: 1,
+ctx.connection.register('status@1', {
   authority: 'loopback',
   methods: ['get'],
 })
 
 // dist/client.js
-const statusApi = createApiClient(
-  connection,
-  'status@1',
-)`,
+const statusApi = {
+  get(input, options) {
+    return connection.call('status@1/get', input, options)
+  },
+}`,
     language: "TypeScript",
     buildLine: "status@1 types synchronized across host and client",
   },

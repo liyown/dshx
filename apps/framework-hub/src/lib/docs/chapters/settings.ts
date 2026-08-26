@@ -1,31 +1,6 @@
 import { defineDocsChapter } from "../types";
 
-const settingsSignature = `interface SettingsDefinition<Schema, ClientValue> {
-  readonly namespace: string
-  readonly schema: Schema
-  readonly applies?: 'live' | 'restart'
-  readonly client?: { decode(value: unknown): ClientValue | undefined }
-}
-
-function defineSettings<
-  const Schema extends z<any, object>,
-  ClientValue = SettingsValue<Schema>,
->(definition: SettingsDefinition<Schema, ClientValue>): SettingsContract<Schema, ClientValue>
-
-interface SettingsContract<Schema, ClientValue> {
-  kind: 'settings'
-  namespace: string
-  schema: Schema
-  applies: 'live' | 'restart'
-  client?: { decode(value: unknown): ClientValue | undefined }
-  host(options: SettingsHostOptions<SettingsValue<Schema>>): SettingsHostContribution
-}`;
-
-const hookSignature = `function useSettings<Schema extends z<any, object>, ClientValue>(
-  contract: SettingsContract<Schema, ClientValue>,
-): SettingsState<SettingsValue<Schema>, ClientValue>`;
-
-const settingsExample = `// src/settings.ts
+const example = `// src/settings.ts — browser-safe shared contract
 import Schema from '@deepseek-ai/schemastery'
 import { defineSettings } from '@becomeopc/dshx/settings'
 
@@ -38,42 +13,38 @@ export const runtimeSettings = defineSettings({
 })
 
 // src/host.ts — claim ownership once
-import { defineHost } from '@becomeopc/dshx/host'
-import { runtimeSettings } from './settings'
-
 export default defineHost({ settings: [runtimeSettings] })
 
-// src/client.tsx — inside a DSHX Slot component
-import { useSettings } from '@becomeopc/dshx/client'
-import { runtimeSettings } from './settings'
+// inside a Client Slot component
+const settings = useSettings(runtimeSettings)
+await settings.set('showActivity', false)
+await settings.unset('showActivity')`;
 
-function ActivityToggle() {
-  const settings = useSettings(runtimeSettings)
-  return (
-    <button
-      disabled={settings.mutation.pending}
-      onClick={() => void settings.set('showActivity', false)}
-    >
-      Hide activity
-    </button>
-  )
-}`;
+const hostFacet = `export default defineHost({
+  settings: [runtimeSettings.host({
+    base: { showActivity: true },
+    validate(value) {
+      if (typeof value.showActivity !== 'boolean') throw new Error('invalid')
+    },
+    setup(scope) {
+      return scope.watch((next) => console.info(next.value))
+    },
+  })],
+})`;
 
-const hostFacetExample = `import { defineHost } from '@becomeopc/dshx/host'
-import { runtimeSettings } from './settings'
-
-export default defineHost({
-  settings: [
-    runtimeSettings.host({
-      base: { showActivity: true },
-      validate(value) {
-        if (typeof value.showActivity !== 'boolean') throw new Error('invalid')
-      },
-      setup(scope, ctx) {
-        return scope.watch((next) => console.info(next))
-      },
-    }),
-  ],
+const secretExample = `const credentials = defineSettings({
+  namespace: 'my-plugin-credentials',
+  schema: Schema.object({
+    endpoint: Schema.string(),
+    token: Schema.string().role('secret'),
+  }),
+  applies: 'restart',
+  client: {
+    decode(redacted) {
+      if (!isRedactedCredentials(redacted)) throw new Error('invalid settings')
+      return { endpoint: redacted.endpoint, tokenConfigured: redacted.token.configured }
+    },
+  },
 })`;
 
 export const settings = defineDocsChapter({
@@ -82,115 +53,60 @@ export const settings = defineDocsChapter({
   copy: {
     en: {
       navigation: "Settings API",
-      eyebrow: "04 · API reference",
+      eyebrow: "05 · API Candidate",
       title: "Settings API",
       intro:
-        "A portable Schemastery contract carries the namespace and value types. The Host claims ownership once; Client components consume that same identity with useSettings.",
+        "Define one Schemastery contract, register its Host ownership once, and read the same identity from Client components.",
       description:
-        "Define typed DSH Settings contracts, register Host ownership, and consume them with useSettings.",
+        "Contract inference, Host facets, Client state, writes, decoder failures, and fail-closed secret schemas.",
       sections: [
         {
           id: "contract",
           label: "@becomeopc/dshx/settings",
           title: "defineSettings(definition)",
           blocks: [
-            {
-              kind: "paragraph",
-              text: "Creates one portable namespace contract. It preserves schema identity and infers the Host value from the official Schemastery schema.",
-            },
-            { kind: "code", title: "Signature", code: settingsSignature },
+            { kind: "code", title: "Shared contract", code: example },
             {
               kind: "api",
               rows: [
                 {
                   name: "namespace",
                   type: "string",
-                  body: "Required stable name matching /^[a-z][a-z0-9-]*$/.",
+                  body: "Stable namespace owned by exactly one Host registration.",
                 },
                 {
                   name: "schema",
                   type: "Schemastery object schema",
-                  body: "Required official schema. ReturnType<Schema> becomes the Host value type.",
+                  body: "The official schema object keeps its identity and infers the Host value.",
                 },
                 {
                   name: "applies",
-                  type: "'live' | 'restart'",
-                  body: "Defaults to live and is forwarded to Host registration and Client metadata.",
+                  type: "live | restart",
+                  body: "Shared apply mode forwarded to Host registration and the Client descriptor.",
                 },
                 {
                   name: "client.decode",
-                  type: "unknown → ClientValue | undefined",
-                  body: "Optional decoder for the redacted mirror. Its return type becomes settings.value on the Client.",
+                  type: "unknown → ClientValue",
+                  body: "Optional redacted-value decoder. Its return type becomes settings.value; failure must throw and must never use undefined as a sentinel.",
                 },
                 {
                   name: "return",
                   type: "SettingsContract",
-                  body: "Share this exact object between Host ownership and Client Hooks.",
+                  body: "Browser-safe opaque contract. Host-only base, validate, and setup values are absent until .host() is called.",
                 },
               ],
             },
-            { kind: "code", title: "Settings contract and use", code: settingsExample },
             {
               kind: "note",
-              text: "There is no ClientDefinition.settings. Retaining useSettings(contract) is the Client capability declaration.",
-            },
-          ],
-        },
-        {
-          id: "state",
-          title: "useSettings(contract)",
-          blocks: [
-            { kind: "code", title: "Signature", code: hookSignature },
-            {
-              kind: "api",
-              rows: [
-                {
-                  name: "status",
-                  type: "loading | ready | unavailable",
-                  body: "Reports whether the official shared mirror is loading, ready, or unavailable.",
-                },
-                {
-                  name: "value",
-                  type: "ClientValue | undefined",
-                  body: "Reads the decoded Client-safe value through useSyncExternalStore.",
-                },
-                {
-                  name: "base / user / revision",
-                  type: "official snapshot",
-                  body: "Exposes the official layered state and revision without creating a DSHX cache.",
-                },
-                {
-                  name: "writable / mode / applies",
-                  type: "scope metadata",
-                  body: "Describes the current bound official Client scope.",
-                },
-                {
-                  name: "secrets / error",
-                  type: "redaction and read diagnostics",
-                  body: "Distinguishes provider, namespace, decoder, and synchronization failures.",
-                },
-                {
-                  name: "mutation",
-                  type: "{ pending, error, clearError }",
-                  body: "Tracks writes per Hook instance without optimistic updates, automatic retries, or retained write values.",
-                },
-                {
-                  name: "set / unset",
-                  type: "Promise<void>",
-                  body: "set(field, value) and unset(field) accept top-level schema keys; values use the Host schema type.",
-                },
-              ],
+              text: "There is no Client Settings declaration. The Host must register the namespace; a retained useSettings(contract) call declares the Client capability.",
             },
           ],
         },
         {
           id: "host-facet",
-          title: "Add Host-only behavior only when needed",
+          title: "contract.host(options)",
           blocks: [
-            {
-              kind: "paragraph",
-              text: "The .host() facet carries base, validation, and typed SettingsScope setup. Its setup is synchronous and may return a disposer, which DSHX gives to ctx.effect(). These fields do not enter the Client artifact.",
-            },
+            { kind: "code", title: "Host-only facet", code: hostFacet },
             {
               kind: "api",
               rows: [
@@ -198,111 +114,18 @@ export const settings = defineDocsChapter({
                 {
                   name: "validate",
                   type: "(value: HostValue) => void",
-                  body: "Optional synchronous validation after official schema decoding.",
+                  body: "Synchronous validation after official schema decoding.",
                 },
                 {
                   name: "setup",
                   type: "(scope, ctx) => void | disposer",
-                  body: "Optional synchronous access to typed SettingsScope. A returned disposer is registered with ctx.effect().",
+                  body: "Synchronous typed SettingsScope setup. A returned disposer is attached with ctx.effect().",
                 },
               ],
             },
-            { kind: "code", title: "src/host.ts", code: hostFacetExample },
-          ],
-        },
-        {
-          id: "secrets",
-          title: "Secrets are write-only on the Client",
-          blocks: [
             {
               kind: "paragraph",
-              text: "When the schema contains role('secret'), provide client.decode and return a Client-safe type with secret values removed. The Client may still set or unset schema fields, but can only read configured state for secrets.",
-            },
-            {
-              kind: "api",
-              rows: [
-                {
-                  name: "provider-unavailable",
-                  type: "SettingsReadError",
-                  body: "The Slot has no Settings runtime provider.",
-                },
-                {
-                  name: "namespace-unregistered",
-                  type: "SettingsReadError",
-                  body: "The Host has not registered this contract namespace; writes are rejected.",
-                },
-                {
-                  name: "decode-failed",
-                  type: "SettingsReadError",
-                  body: "client.decode threw or rejected the redacted mirror value.",
-                },
-                {
-                  name: "sync-failed",
-                  type: "SettingsReadError",
-                  body: "The official mirror failed to synchronize.",
-                },
-              ],
-            },
-            {
-              kind: "note",
-              text: "DSH owns persistence, layering, revision fences, redaction, schema validation, failure recovery, watching, and scope disposal.",
-            },
-          ],
-        },
-      ],
-    },
-    zh: {
-      navigation: "Settings API",
-      eyebrow: "04 · API 参考",
-      title: "Settings API",
-      intro:
-        "可移植 Schemastery contract 携带 namespace 与值类型；Host 声明一次所有权，Client 组件通过 useSettings 消费同一 identity。",
-      description: "定义类型化 DSH Settings contract、注册 Host 所有权并通过 useSettings 使用。",
-      sections: [
-        {
-          id: "contract",
-          label: "@becomeopc/dshx/settings",
-          title: "defineSettings(definition)",
-          blocks: [
-            {
-              kind: "paragraph",
-              text: "创建一个可移植 namespace contract；保留 schema 对象身份，并从官方 Schemastery schema 推断 Host value。",
-            },
-            { kind: "code", title: "函数签名", code: settingsSignature },
-            {
-              kind: "api",
-              rows: [
-                {
-                  name: "namespace",
-                  type: "string",
-                  body: "必填稳定名称，必须匹配 /^[a-z][a-z0-9-]*$/。",
-                },
-                {
-                  name: "schema",
-                  type: "Schemastery object schema",
-                  body: "必填官方 schema；ReturnType<Schema> 成为 Host value 类型。",
-                },
-                {
-                  name: "applies",
-                  type: "'live' | 'restart'",
-                  body: "默认 live，透传给 Host 注册与 Client metadata。",
-                },
-                {
-                  name: "client.decode",
-                  type: "unknown → ClientValue | undefined",
-                  body: "可选的 redacted mirror decoder；返回类型成为 Client 的 settings.value。",
-                },
-                {
-                  name: "返回值",
-                  type: "SettingsContract",
-                  body: "Host 所有权与 Client Hook 必须共享这个对象。",
-                },
-              ],
-            },
-            { kind: "code", title: "Settings contract 与使用", code: settingsExample },
-            {
-              kind: "note",
-              text: "不存在 ClientDefinition.settings。实际保留 useSettings(contract) 就是 Client 能力声明。",
+              text: "Host registration order is Tools, Commands, Prompts, Settings, APIs, then setup(ctx). A non-empty settings array adds and deduplicates the official settings inject.",
             },
           ],
         },
@@ -310,57 +133,140 @@ export const settings = defineDocsChapter({
           id: "state",
           title: "useSettings(contract)",
           blocks: [
-            { kind: "code", title: "函数签名", code: hookSignature },
             {
               kind: "api",
               rows: [
                 {
                   name: "status",
                   type: "loading | ready | unavailable",
-                  body: "表示官方 shared mirror 正在加载、已就绪或不可用。",
+                  body: "Readiness of the official shared mirror.",
                 },
                 {
                   name: "value",
                   type: "ClientValue | undefined",
-                  body: "通过 useSyncExternalStore 读取 Client decoder 输出的安全值。",
+                  body: "Decoded Client-safe value read with useSyncExternalStore.",
                 },
                 {
-                  name: "base / user / revision",
-                  type: "官方 snapshot",
-                  body: "暴露官方分层状态与 revision，不创建 DSHX cache。",
+                  name: "revision",
+                  type: "number | undefined",
+                  body: "Current official revision.",
                 },
                 {
-                  name: "writable / mode / applies",
-                  type: "scope metadata",
-                  body: "描述当前绑定的官方 Client scope。",
+                  name: "writable",
+                  type: "boolean",
+                  body: "false when the provider or namespace is unavailable; writes reject before calling the official API.",
                 },
                 {
-                  name: "secrets / error",
-                  type: "redaction 与读取诊断",
-                  body: "区分 Provider、namespace、decoder 和同步失败。",
+                  name: "mode / applies",
+                  type: "host | memory; live | restart",
+                  body: "Current official scope metadata and shared apply mode.",
                 },
                 {
-                  name: "mutation",
-                  type: "{ pending, error, clearError }",
-                  body: "每个 Hook 实例独立追踪写入，不 optimistic、不自动 retry、不保留写入值。",
+                  name: "secrets",
+                  type: "readonly { path; set }[]",
+                  body: "Configured state only; never secret values.",
+                },
+                {
+                  name: "error",
+                  type: "SettingsReadError | null",
+                  body: "Provider unavailable, namespace unregistered, decode failed, or sync failed.",
+                },
+                {
+                  name: "mutation.pending",
+                  type: "boolean",
+                  body: "A counter-derived flag that stays true while any write is in the official mutation queue.",
                 },
                 {
                   name: "set / unset",
                   type: "Promise<void>",
-                  body: "set(field, value) 与 unset(field) 只接受顶层 schema key；value 使用 Host schema 类型。",
+                  body: "Top-level schema field writes. Resolution means the official queue and recovery flow finished, not that durable persistence is guaranteed.",
                 },
               ],
+            },
+            {
+              kind: "note",
+              text: "The Hook does not expose base, user, mutation.error, or clearError(). It does not optimistically change value, retain write values, or retry writes.",
+            },
+          ],
+        },
+        {
+          id: "secrets",
+          title: "Secret schemas fail closed",
+          blocks: [
+            { kind: "code", title: "Secret-safe decoder", code: secretExample },
+            {
+              kind: "list",
+              items: [
+                "A reachable role('secret') requires client.decode; the decoder must remove the secret and may expose only configured state.",
+                "Only official safely redacted object, dict, and array paths are accepted.",
+                "A reachable secret through union, intersection, or transform is rejected during Host registration even when a decoder exists.",
+                "set() and unset() use the Host schema type, so a secret field can be written but cannot be read from settings.value.",
+              ],
+            },
+            {
+              kind: "paragraph",
+              text: "DSH continues to own persistence, layers, revisions, redaction, validation, watch, failure recovery, and scope disposal.",
+            },
+          ],
+        },
+      ],
+    },
+    zh: {
+      navigation: "Settings API",
+      eyebrow: "05 · API Candidate",
+      title: "Settings API",
+      intro:
+        "定义一个 Schemastery contract，Host 只声明一次所有权，Client Component 使用同一对象身份读取。",
+      description:
+        "Contract 推断、Host facet、Client 状态、写入、decoder 失败与 secret schema fail-closed 规则。",
+      sections: [
+        {
+          id: "contract",
+          label: "@becomeopc/dshx/settings",
+          title: "defineSettings(definition)",
+          blocks: [
+            { kind: "code", title: "共享 contract", code: example },
+            {
+              kind: "api",
+              rows: [
+                {
+                  name: "namespace",
+                  type: "string",
+                  body: "由一个 Host registration 独占的稳定 namespace。",
+                },
+                {
+                  name: "schema",
+                  type: "Schemastery object schema",
+                  body: "保留官方 schema 对象身份，并推断 Host value。",
+                },
+                {
+                  name: "applies",
+                  type: "live | restart",
+                  body: "透传给 Host registration 和 Client descriptor 的共享 apply mode。",
+                },
+                {
+                  name: "client.decode",
+                  type: "unknown → ClientValue",
+                  body: "可选 redacted-value decoder；返回值类型成为 settings.value；失败必须 throw，不能用 undefined 当 sentinel。",
+                },
+                {
+                  name: "return",
+                  type: "SettingsContract",
+                  body: "Browser-safe opaque contract；调用 .host() 前不包含 Host-only base、validate 和 setup。",
+                },
+              ],
+            },
+            {
+              kind: "note",
+              text: "Client 不重复声明 Settings。Host 必须注册 namespace；最终产物中保留的 useSettings(contract) 调用就是 Client 能力声明。",
             },
           ],
         },
         {
           id: "host-facet",
-          title: "只在需要时增加 Host-only 行为",
+          title: "contract.host(options)",
           blocks: [
-            {
-              kind: "paragraph",
-              text: ".host() facet 承载 base、validation 与类型化 SettingsScope setup。setup 同步执行，可返回 disposer，由 DSHX 交给 ctx.effect()；这些字段不会进入 Client 产物。",
-            },
+            { kind: "code", title: "Host-only facet", code: hostFacet },
             {
               kind: "api",
               rows: [
@@ -368,50 +274,94 @@ export const settings = defineDocsChapter({
                 {
                   name: "validate",
                   type: "(value: HostValue) => void",
-                  body: "官方 schema decode 后执行的可选同步校验。",
+                  body: "官方 schema decode 后的同步校验。",
                 },
                 {
                   name: "setup",
                   type: "(scope, ctx) => void | disposer",
-                  body: "可选的类型化 SettingsScope 同步 setup；返回 disposer 会交给 ctx.effect()。",
+                  body: "同步、类型化 SettingsScope setup；返回的 disposer 通过 ctx.effect() 登记。",
                 },
               ],
             },
-            { kind: "code", title: "src/host.ts", code: hostFacetExample },
+            {
+              kind: "paragraph",
+              text: "Host 注册顺序是 Tools → Commands → Prompts → Settings → APIs → setup(ctx)。settings 非空时追加并去重官方 settings inject。",
+            },
           ],
         },
         {
-          id: "secrets",
-          title: "Client 上的 secret 只写不可读",
+          id: "state",
+          title: "useSettings(contract)",
           blocks: [
-            {
-              kind: "paragraph",
-              text: "schema 包含 role('secret') 时必须提供 client.decode，返回移除 secret 值的 Client-safe 类型。Client 仍可 set 或 unset schema 字段，但读取 secret 时只能获得 configured 状态。",
-            },
             {
               kind: "api",
               rows: [
                 {
-                  name: "provider-unavailable",
-                  type: "SettingsReadError",
-                  body: "Slot 没有 Settings Runtime Provider。",
+                  name: "status",
+                  type: "loading | ready | unavailable",
+                  body: "官方 shared mirror 就绪状态。",
                 },
                 {
-                  name: "namespace-unregistered",
-                  type: "SettingsReadError",
-                  body: "Host 未注册该 namespace；拒绝写入。",
+                  name: "value",
+                  type: "ClientValue | undefined",
+                  body: "通过 useSyncExternalStore 读取的 Client-safe 解码值。",
+                },
+                { name: "revision", type: "number | undefined", body: "当前官方 revision。" },
+                {
+                  name: "writable",
+                  type: "boolean",
+                  body: "Provider 或 namespace 不可用时为 false；写入会在调用官方 API 前 reject。",
                 },
                 {
-                  name: "decode-failed",
-                  type: "SettingsReadError",
-                  body: "client.decode 抛错或拒绝 redacted mirror value。",
+                  name: "mode / applies",
+                  type: "host | memory; live | restart",
+                  body: "当前官方 scope metadata 和共享 apply mode。",
                 },
-                { name: "sync-failed", type: "SettingsReadError", body: "官方 mirror 同步失败。" },
+                {
+                  name: "secrets",
+                  type: "readonly { path; set }[]",
+                  body: "只暴露 configured 状态，不暴露 secret value。",
+                },
+                {
+                  name: "error",
+                  type: "SettingsReadError | null",
+                  body: "Provider unavailable、namespace unregistered、decode failed 或 sync failed。",
+                },
+                {
+                  name: "mutation.pending",
+                  type: "boolean",
+                  body: "由 counter 得出；任一写入仍在官方 mutation queue 中时为 true。",
+                },
+                {
+                  name: "set / unset",
+                  type: "Promise<void>",
+                  body: "顶层 schema field 写入。resolve 只表示官方 queue 与恢复流程结束，不承诺已持久化。",
+                },
               ],
             },
             {
               kind: "note",
-              text: "持久化、分层、revision fence、redaction、schema validation、失败恢复、watch 与 scope dispose 都由 DSH 管理。",
+              text: "Hook 不暴露 base、user、mutation.error 或 clearError()；不 optimistic 修改 value、不保留写入值、不自动 retry。",
+            },
+          ],
+        },
+        {
+          id: "secrets",
+          title: "Secret schema fail closed",
+          blocks: [
+            { kind: "code", title: "Secret-safe decoder", code: secretExample },
+            {
+              kind: "list",
+              items: [
+                "存在可达 role('secret') 时必须提供 client.decode；decoder 必须移除 secret，只能暴露 configured 状态。",
+                "只允许官方可安全 redaction 的 object、dict 和 array 路径。",
+                "存在经 union、intersection 或 transform 可达的 secret 时，即使提供 decoder，Host 注册也会拒绝。",
+                "set() 和 unset() 使用 Host schema 类型，所以 secret field 可写，但不能从 settings.value 读取。",
+              ],
+            },
+            {
+              kind: "paragraph",
+              text: "持久化、分层、revision、redaction、validation、watch、失败恢复与 scope dispose 继续由 DSH 管理。",
             },
           ],
         },

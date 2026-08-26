@@ -329,7 +329,7 @@ DSHX
 Host Client
 | |
 Tool React Slot
-API useQuery
+API useApiQuery
 \ /
 DSH Runtime
 ● ready
@@ -392,13 +392,12 @@ Host:
 
 defineHost({
 tools: [searchTool],
-api: statusApi.host(...)
+apis: [statusApi.host(...)]
 })
 
 Client:
 
 defineClient({
-api: statusApi,
 slots: [sidebarStatus]
 })
 
@@ -486,7 +485,7 @@ tools: [weather],
 
 commands: [refresh],
 
-api: weatherApi.host(...),
+apis: [weatherApi.host(...)],
 
 setup(ctx) {
 ctx.on('agent/pre-step', ...)

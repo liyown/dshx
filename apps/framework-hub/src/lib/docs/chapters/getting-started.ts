@@ -35,10 +35,15 @@ export const gettingStarted = defineDocsChapter({
               kind: "terminal",
               lines: [
                 { text: "pnpm create dshx my-plugin", kind: "cmd" },
+                { text: "# or: --template showcase --style tailwind", kind: "dim" },
                 { text: "cd my-plugin", kind: "cmd" },
                 { text: "pnpm dev", kind: "cmd" },
                 { text: "host ready · client watching · DSH opened", kind: "ok" },
               ],
+            },
+            {
+              kind: "note",
+              text: "Interactive creation asks for starter/showcase and css-modules/tailwind/none. --yes selects starter + css-modules.",
             },
           ],
         },
@@ -93,7 +98,7 @@ export const gettingStarted = defineDocsChapter({
                 },
                 {
                   title: "Validate",
-                  body: "Run pnpm check before pnpm build so manifest and compatibility diagnostics fail before production artifacts are emitted.",
+                  body: "Run pnpm check for offline config, manifest, dependency, migration, and TypeScript diagnostics. Use pnpm exec dshx check --runtime only when you also need Profile and live DSH readiness.",
                 },
               ],
             },
@@ -120,10 +125,15 @@ export const gettingStarted = defineDocsChapter({
               kind: "terminal",
               lines: [
                 { text: "pnpm create dshx my-plugin", kind: "cmd" },
+                { text: "# 或：--template showcase --style tailwind", kind: "dim" },
                 { text: "cd my-plugin", kind: "cmd" },
                 { text: "pnpm dev", kind: "cmd" },
                 { text: "Host 就绪 · Client 监听中 · DSH 已打开", kind: "ok" },
               ],
+            },
+            {
+              kind: "note",
+              text: "交互创建会询问 starter/showcase 和 css-modules/tailwind/none；--yes 默认选择 starter + css-modules。",
             },
           ],
         },
@@ -178,7 +188,7 @@ export const gettingStarted = defineDocsChapter({
                 },
                 {
                   title: "执行验证",
-                  body: "先运行 pnpm check，让 Manifest 与兼容性问题在 pnpm build 输出生产产物前失败。",
+                  body: "运行 pnpm check 执行离线 config、manifest、dependency、migration 和 TypeScript 诊断。只在还需要 Profile 与真实 DSH readiness 时执行 pnpm exec dshx check --runtime。",
                 },
               ],
             },

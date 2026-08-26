@@ -14,6 +14,8 @@ describe("DSHX developer Agent prompt", () => {
     expect(prompt).toContain(`$${DSHX_DEVELOPMENT_SKILL}`);
     expect(prompt).toContain(DSHX_DEVELOPMENT_SKILL_URL);
     expect(prompt).toContain("pnpm");
+    expect(prompt).toContain("pnpm check");
+    expect(prompt).toContain("dshx check --runtime");
     expect(prompt).toContain(`https://dshx.io/${locale}/docs`);
   });
 

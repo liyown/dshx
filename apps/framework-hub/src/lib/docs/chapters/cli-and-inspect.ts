@@ -1,587 +1,404 @@
-import { defineDocsChapter } from "../types";
+import { defineDocsChapter } from '../types'
 
 const configExample = `// dshx.config.ts
-import { defineConfig } from '@becomeopc/dshx/config'
+import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from '@becomeopc/dshx'
 
 export default defineConfig({
-  name: 'status-plugin',
-  host: 'src/host.ts',       // string or false
-  client: 'src/client.tsx',  // string or false
-  profile: 'web',
-  dev: { hostRestart: 'manual' },
-  build: { sourcemap: true },
-  compatibility: { allowUnsupported: false },
-})`;
+  host: { entry: 'src/host.ts' },
+  client: {
+    entry: 'src/client.tsx',
+    vite: { plugins: [tailwindcss()] },
+  },
+  build: { sourcemap: true, declarations: true },
+})`
 
-const compilerSignature = `import { buildClient, buildHost } from '@becomeopc/dshx/compiler'
+const tailwindCss = `@layer theme, utilities;
 
-await buildHost({
-  packageId, outDir, entry?, root?, logicalName?,
-  sourcemap?, watch?, compatibility?,
-})
+@import "tailwindcss/theme.css"
+  layer(theme)
+  prefix(dshx);
 
-await buildClient({
-  packageId, entry, outDir, root?, logicalName?,
-  sourcemap?, watch?, external?, inject?, compatibility?,
-})`;
+@import "tailwindcss/utilities.css"
+  layer(utilities)
+  source("./")
+  prefix(dshx);`
 
-const cliSignature = `import { parseCliArgs, runCli, CliUsageError } from '@becomeopc/dshx/cli'
+const toolingBuild = `import {
+  buildClient,
+  buildHost,
+  watchClient,
+  watchHost,
+  type BuildReport,
+  type BuildWatcher,
+} from '@becomeopc/dshx/tooling'
 
-const args = parseCliArgs(['build', '--cwd', projectRoot])
-const exitCode = await runCli(['check', '--json'], {
-  cwd: projectRoot,
-  version: '0.1.0',
-  io: { stdin, stdout, stderr },
-  runtime: { /* optional dependency overrides for embedding/tests */ },
-})`;
+const report: BuildReport = await buildClient(options)
+const watcher: BuildWatcher = await watchClient(options)
+watcher.on('event', (event) => console.info(event.code))
+await watcher.close()`
 
 export const cliAndInspect = defineDocsChapter({
-  slug: "cli-and-inspect",
-  group: "runtime",
+  slug: 'cli-and-inspect',
+  group: 'runtime',
   copy: {
     en: {
-      navigation: "Config, compiler, and CLI",
-      eyebrow: "07 · API reference",
-      title: "Config, compiler, and CLI",
-      intro:
-        "Use the project CLI for deterministic builds and scaffolds, then inspect the live DSH composition before binding to provider-owned runtime contracts.",
-      description: "Use dshx build, check, dev, inspect, and transactional scaffold commands.",
+      navigation: 'Build API',
+      eyebrow: '09 · API Candidate + Experimental extensions',
+      title: 'Build and Vite extension kernel',
+      intro: 'Use the bounded DSHX config to select Host and Client entries, attach ordinary Vite plugins, and emit loader-ready single-file artifacts.',
+      description: 'Config face rules, Vite compatibility, CSS and assets, Tailwind, declarations, commands, and programmatic builds.',
       sections: [
         {
-          id: "configuration",
-          title: "defineConfig(config) and resolveDshxConfig(options?)",
+          id: 'configuration',
+          label: '@becomeopc/dshx and @becomeopc/dshx/config',
+          title: 'defineConfig(config)',
           blocks: [
-            { kind: "code", title: "dshx.config.ts", code: configExample },
+            { kind: 'code', title: 'dshx.config.ts', code: configExample },
             {
-              kind: "api",
+              kind: 'api',
               rows: [
                 {
-                  name: "defineConfig(config)",
-                  type: "T",
-                  body: "Identity helper that contextually types DshxConfig and preserves the exact object.",
+                  name: 'host / client omitted',
+                  type: 'convention detection',
+                  body: 'Enable src/host.ts or src/client.tsx only when that file exists.',
                 },
                 {
-                  name: "host / client",
-                  type: "string | false",
-                  body: "Override an entry path or disable that side. Defaults are src/host.ts and src/client.tsx when present.",
-                },
-                { name: "profile", type: "string", body: "DSH Profile name; defaults to web." },
-                {
-                  name: "dev.hostRestart",
-                  type: "'manual' | 'auto'",
-                  body: "Host restart policy; defaults to manual.",
+                  name: 'host / client: false',
+                  type: 'disabled',
+                  body: 'Explicitly disables that face.',
                 },
                 {
-                  name: "build.sourcemap",
-                  type: "boolean",
-                  body: "Production/source watch sourcemap switch; defaults to true.",
+                  name: 'host / client: {}',
+                  type: 'explicit convention',
+                  body: 'Enables the conventional entry and fails when the file does not exist.',
                 },
                 {
-                  name: "compatibility.allowUnsupported",
-                  type: "boolean",
-                  body: "Explicit opt-in to continue on unsupported compatibility; defaults to false.",
+                  name: 'entry',
+                  type: 'string',
+                  body: 'Relocates that face inside the project root. String shorthand has been removed.',
                 },
                 {
-                  name: "resolveDshxConfig({ cwd? })",
-                  type: "Promise<ResolvedDshxConfig>",
-                  body: "Discovers and normalizes a project without changing files.",
+                  name: 'vite.plugins',
+                  type: 'readonly PluginOption[]',
+                  body: 'Bounded Vite plugin list for that face. Call a stateful plugin factory separately for Host and Client.',
                 },
+                { name: 'build.sourcemap', type: 'boolean', body: 'Emits the face sourcemap.' },
+                {
+                  name: 'build.declarations',
+                  type: 'boolean',
+                  body: 'Defaults to true and emits dist/index.d.ts plus dist/client.d.ts for the loader module exports.',
+                },
+              ],
+            },
+            {
+              kind: 'note',
+              text: 'The root entry exports only browser-safe defineConfig and DshxConfig. Config resolution and compiler functions live under @becomeopc/dshx/tooling.',
+            },
+          ],
+        },
+        {
+          id: 'vite',
+          title: 'Vite plugin compatibility',
+          blocks: [
+            {
+              kind: 'list',
+              items: [
+                'DSHX does not read vite.config.* and does not accept an arbitrary UserConfig.',
+                "User plugins keep Vite's enforce/apply order. DSHX entry and browser guards run first; protocol and capability guards run last.",
+                'Plugins must not replace root, configFile, publicDir, entry, output format, chunking, external, target, banner/intro/footer, or assetsInlineLimit.',
+                "dshx dev uses Vite build-watch with command: build and development mode. apply: 'serve' plugins are rejected; configureServer hooks do not run, so plugins must also support build hooks.",
+                'Conversation, programmatic Tooling, and the Vite compatibility layer remain Experimental even while the authoring config is an API Candidate.',
               ],
             },
           ],
         },
         {
-          id: "commands",
-          title: "Project commands",
+          id: 'css',
+          title: 'CSS and local assets',
           blocks: [
             {
-              kind: "api",
+              kind: 'paragraph',
+              text: 'CSS Modules, PostCSS, Tailwind, and user transforms run through the standard Vite CSS pipeline. DSHX fixes cssCodeSplit to false, disables publicDir, and inlines local images, fonts, and SVG as data URIs.',
+            },
+            {
+              kind: 'list',
+              items: [
+                'The final Client factory contains the single CSS result; registering the script alone does not inject it.',
+                'Materialization creates one style element with data-plugin and data-plugin-css ownership attributes.',
+                'Official DSH HMR removes the previous plugin-owned style before materializing the replacement.',
+                'A final build may contain one JavaScript file, one sourcemap, and no standalone CSS, assets, chunks, workers, or WASM.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'tailwind',
+          title: 'Optional Tailwind v4',
+          blocks: [
+            { kind: 'code', title: 'src/styles.css', code: tailwindCss },
+            {
+              kind: 'list',
+              items: [
+                'Install tailwindcss@^4.3.3 and @tailwindcss/vite@^4.3.3 in the plugin project, then add tailwindcss() to client.vite.plugins.',
+                'Omit Preflight so a plugin cannot reset the shared DSH page DOM.',
+                'Use the dshx: prefix for utilities and generated theme variables.',
+                'Write complete static class names so Tailwind content detection can find them.',
+                'Tailwind is optional and is not a DSHX peer dependency or Core wrapper.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'commands',
+          title: 'check, build, and dev',
+          blocks: [
+            {
+              kind: 'api',
               rows: [
                 {
-                  name: "dshx dev",
-                  type: "development",
-                  body: "Build, link, watch, and run the plugin in DSH.",
+                  name: 'dshx check',
+                  type: 'offline',
+                  body: 'Checks config, manifest, dependency/provider edges, protocol compatibility, migration diagnostics, and TypeScript noEmit without requiring a Profile or running DSH.',
                 },
                 {
-                  name: "dshx build",
-                  type: "production",
-                  body: "Validate the Manifest and emit every enabled Host and Client artifact.",
+                  name: 'dshx check --runtime',
+                  type: 'runtime readiness',
+                  body: 'Additionally checks the Profile, Composition, bridge, and current DSH runtime.',
                 },
                 {
-                  name: "dshx check",
-                  type: "diagnostics",
-                  body: "Check metadata, compatibility, Profile linkage, provider package edges, and runtime bridge status.",
+                  name: 'dshx build',
+                  type: 'production',
+                  body: 'Runs type checking before both enabled face builds, then verifies every package exports/types/bin path exists.',
                 },
                 {
-                  name: "dshx inspect <kind>",
-                  type: "live runtime",
-                  body: "Read an adapter-supported target from the active DSH Composition. protocol-1 currently exposes Slots, Services, and Events; Tool discovery reports an explicit unavailable diagnostic.",
+                  name: 'dshx dev',
+                  type: 'build-watch',
+                  body: 'Watches both faces and reloads config/dependencies. A bad new config leaves the last-good session active until the fix is valid.',
                 },
               ],
             },
             {
-              kind: "note",
-              text: "check and inspect are read-only by default. build writes declared production artifacts; check writes project metadata only with an explicit --fix, so use --dry-run first. Add --json where supported for automation.",
+              kind: 'note',
+              text: 'JSON check output separates static, typecheck, and runtime status. Report --runtime or a real DSH load separately from the offline result.',
             },
           ],
         },
         {
-          id: "inspect",
-          title: "Inspect before scaffolding",
+          id: 'inspect',
+          title: 'dshx inspect <slots|services|events>',
           blocks: [
             {
-              kind: "paragraph",
-              text: "Inspect reads the current running Composition instead of inventing an offline catalog. Discover a provider's exact Slot contract first, then generate code against that runtime evidence.",
-            },
-            {
-              kind: "terminal",
-              lines: [
-                { text: "dshx inspect slots", kind: "cmd" },
-                { text: "sidebar.footer.action · list · @provider/plugin", kind: "accent" },
-                { text: "dshx add ui --slot sidebar.footer.action --dry-run", kind: "cmd" },
-                { text: "would create src/ui/sidebar-footer-action.tsx", kind: "ok" },
-              ],
+              kind: 'paragraph',
+              text: 'Reads the active DSH Composition through the selected protocol adapter. It is a live runtime inspection command, not an offline catalog; run it only after runtime readiness succeeds.',
             },
           ],
         },
         {
-          id: "scaffolds",
-          title: "Transactional source scaffolds",
+          id: 'programmatic',
+          title: 'Programmatic build and watch',
           blocks: [
+            { kind: 'code', title: 'Experimental Tooling', code: toolingBuild },
             {
-              kind: "api",
+              kind: 'api',
               rows: [
                 {
-                  name: "dshx add ui --slot <name>",
-                  type: "Client",
-                  body: "Generates and registers a typed React Slot contribution.",
+                  name: 'buildHost / buildClient',
+                  type: 'Promise<BuildReport>',
+                  body: 'Build one face and return DSHX-owned artifact metadata instead of raw Vite output.',
                 },
                 {
-                  name: "dshx add tool --name <name>",
-                  type: "Host",
-                  body: "Generates an official Tool and attaches it to defineHost.",
+                  name: 'watchHost / watchClient',
+                  type: 'Promise<BuildWatcher>',
+                  body: 'Watch one face and expose normalized events plus async close().',
                 },
                 {
-                  name: "dshx add command --name <name>",
-                  type: "Host",
-                  body: "Generates an official Command and attaches it to defineHost.",
-                },
-                {
-                  name: "dshx add hook --event <name>",
-                  type: "Host",
-                  body: "Generates a native Cordis event listener.",
+                  name: 'vite.plugins',
+                  type: 'readonly PluginOption[]',
+                  body: 'The same bounded extension surface as project config.',
                 },
               ],
-            },
-            {
-              kind: "paragraph",
-              text: "Scaffolds plan all source changes before writing and roll back partial writes. They do not install dependencies or mutate DSH Profiles.",
-            },
-          ],
-        },
-        {
-          id: "compiler",
-          title: "buildHost(options) and buildClient(options)",
-          blocks: [
-            {
-              kind: "paragraph",
-              text: "Use @becomeopc/dshx/compiler only when embedding the compiler. Normal projects should use dshx build/dev so config, manifest, compatibility, and profile checks also run.",
-            },
-            { kind: "code", title: "Programmatic compiler", code: compilerSignature },
-            {
-              kind: "api",
-              rows: [
-                {
-                  name: "packageId",
-                  type: "string · required",
-                  body: "Published package identity used by both compilers.",
-                },
-                {
-                  name: "entry",
-                  type: "string",
-                  body: "Client: required. Host: optional, producing an empty Host module when omitted.",
-                },
-                { name: "outDir", type: "string · required", body: "Artifact output directory." },
-                {
-                  name: "root / logicalName",
-                  type: "string",
-                  body: "Optional project root and runtime-visible logical name.",
-                },
-                {
-                  name: "sourcemap / watch",
-                  type: "boolean",
-                  body: "Enable sourcemaps or return a live watcher build.",
-                },
-                {
-                  name: "external",
-                  type: "readonly string[] · Client",
-                  body: "Additional Client externals.",
-                },
-                {
-                  name: "inject",
-                  type: "readonly string[] · Client",
-                  body: "Manifest package edges from dsh.client.inject, used by capability diagnostics.",
-                },
-                {
-                  name: "compatibility",
-                  type: "DshCompatibility",
-                  body: "Resolved adapter contract; defaults apply only where the compiler explicitly supplies them.",
-                },
-              ],
-            },
-          ],
-        },
-        {
-          id: "programmatic-cli",
-          title: "parseCliArgs() and runCli()",
-          blocks: [
-            { kind: "code", title: "Embedding the CLI", code: cliSignature },
-            {
-              kind: "api",
-              rows: [
-                {
-                  name: "parseCliArgs(argv)",
-                  type: "CliArgs",
-                  body: "Parses arguments without executing a command; invalid combinations throw CliUsageError.",
-                },
-                {
-                  name: "runCli(argv, options?)",
-                  type: "Promise<number>",
-                  body: "Runs one command and resolves an exit code instead of exiting the process.",
-                },
-                {
-                  name: "options.io",
-                  type: "CliIO",
-                  body: "Optional stdin/stdout/stderr streams.",
-                },
-                {
-                  name: "options.runtime",
-                  type: "CliRuntime",
-                  body: "Optional dependency overrides for embedded hosts and tests.",
-                },
-                {
-                  name: "options.cwd / version",
-                  type: "string",
-                  body: "Default working directory and reported DSHX version.",
-                },
-              ],
-            },
-          ],
-        },
-        {
-          id: "manifest-repair",
-          title: "Manifest repair plan API",
-          blocks: [
-            {
-              kind: "api",
-              rows: [
-                {
-                  name: "createManifestRepairPlan(config, options?)",
-                  type: "Promise<ManifestRepairPlan>",
-                  body: "Reads package.json and returns deterministic file changes, diagnostics, changedFiles, and a reviewable diff without writing.",
-                },
-                {
-                  name: "applyManifestRepairPlan(plan)",
-                  type: "Promise<void>",
-                  body: "Applies a reviewed error-free plan through the atomic file transaction.",
-                },
-                {
-                  name: "rollbackManifestRepairPlan(plan)",
-                  type: "Promise<void>",
-                  body: "Restores the exact pre-plan file contents after a later failure.",
-                },
-                {
-                  name: "DshxError",
-                  type: "Error",
-                  body: "Structured thrown failure with stable code plus optional file, hint, cause, and a formatted message.",
-                },
-              ],
-            },
-            {
-              kind: "note",
-              text: "These exports are available from @becomeopc/dshx. Planning is read-only; apply is the explicit write boundary.",
-            },
-          ],
-        },
-        {
-          id: "no-shortcuts",
-          title: "Contribution APIs do not imply generators",
-          blocks: [
-            {
-              kind: "paragraph",
-              text: "Prompt, Settings, typed API, and Conversation contracts are authored directly. DSHX does not currently add prompt, settings, API, or Conversation-specific generators or generic UI editors.",
             },
           ],
         },
       ],
     },
     zh: {
-      navigation: "配置、Compiler 与 CLI",
-      eyebrow: "07 · API 参考",
-      title: "配置、Compiler 与 CLI",
-      intro:
-        "使用项目 CLI 获得确定性构建与脚手架；绑定 Provider-owned Runtime contract 前，先检查真实运行的 DSH Composition。",
-      description: "使用 dshx build、check、dev、inspect 与事务式 scaffold 命令。",
+      navigation: 'Build API',
+      eyebrow: '09 · API Candidate + Experimental 扩展',
+      title: 'Build 与 Vite 扩展内核',
+      intro: '使用受限 DSHX config 选择 Host/Client 入口、接入标准 Vite 插件，并输出 loader-ready 单文件产物。',
+      description: 'Config face 规则、Vite 兼容性、CSS/资源、Tailwind、declaration、命令与程序化构建。',
       sections: [
         {
-          id: "configuration",
-          title: "defineConfig(config) 与 resolveDshxConfig(options?)",
+          id: 'configuration',
+          label: '@becomeopc/dshx 与 @becomeopc/dshx/config',
+          title: 'defineConfig(config)',
           blocks: [
-            { kind: "code", title: "dshx.config.ts", code: configExample },
+            { kind: 'code', title: 'dshx.config.ts', code: configExample },
             {
-              kind: "api",
+              kind: 'api',
               rows: [
                 {
-                  name: "defineConfig(config)",
-                  type: "T",
-                  body: "为 DshxConfig 提供上下文类型并保留原对象的 identity helper。",
+                  name: '省略 host / client',
+                  type: '约定检测',
+                  body: '只在 src/host.ts 或 src/client.tsx 存在时启用对应 face。',
+                },
+                { name: 'host / client: false', type: '禁用', body: '显式禁用该 face。' },
+                {
+                  name: 'host / client: {}',
+                  type: '显式约定',
+                  body: '启用约定入口，文件不存在时报错。',
                 },
                 {
-                  name: "host / client",
-                  type: "string | false",
-                  body: "覆盖入口路径或禁用一侧；存在时默认 src/host.ts 与 src/client.tsx。",
-                },
-                { name: "profile", type: "string", body: "DSH Profile 名称，默认 web。" },
-                {
-                  name: "dev.hostRestart",
-                  type: "'manual' | 'auto'",
-                  body: "Host 重启策略，默认 manual。",
+                  name: 'entry',
+                  type: 'string',
+                  body: '在项目 root 内重定位该 face；string shorthand 已删除。',
                 },
                 {
-                  name: "build.sourcemap",
-                  type: "boolean",
-                  body: "生产/监听构建 sourcemap 开关，默认 true。",
+                  name: 'vite.plugins',
+                  type: 'readonly PluginOption[]',
+                  body: '该 face 的受限 Vite 插件列表；Host/Client 需分别调用有状态 plugin factory。',
                 },
+                { name: 'build.sourcemap', type: 'boolean', body: '输出该 face sourcemap。' },
                 {
-                  name: "compatibility.allowUnsupported",
-                  type: "boolean",
-                  body: "继续使用 unsupported 兼容性的显式 opt-in，默认 false。",
+                  name: 'build.declarations',
+                  type: 'boolean',
+                  body: '默认 true，为 loader module export 输出 dist/index.d.ts 和 dist/client.d.ts。',
                 },
-                {
-                  name: "resolveDshxConfig({ cwd? })",
-                  type: "Promise<ResolvedDshxConfig>",
-                  body: "发现并规范化项目，不修改文件。",
-                },
+              ],
+            },
+            {
+              kind: 'note',
+              text: '根入口只转出 browser-safe defineConfig 和 DshxConfig；Config resolver 与 Compiler 函数位于 @becomeopc/dshx/tooling。',
+            },
+          ],
+        },
+        {
+          id: 'vite',
+          title: 'Vite 插件兼容性',
+          blocks: [
+            {
+              kind: 'list',
+              items: [
+                'DSHX 不读取 vite.config.*，不接受任意 UserConfig。',
+                '用户插件保留 Vite enforce/apply 顺序；DSHX entry/browser guard 最先，protocol/capability guard 最后。',
+                '插件不得改写 root、configFile、publicDir、entry、output format、chunking、external、target、banner/intro/footer 或 assetsInlineLimit。',
+                "dshx dev 使用 command: build 与 development mode 的 Vite build-watch；会拒绝 apply: 'serve' 插件，configureServer hook 不会运行，因此插件还必须支持 build hook。",
+                'Conversation、程序化 Tooling 和 Vite 兼容层仍是 Experimental，authoring config 本身是 API Candidate。',
               ],
             },
           ],
         },
         {
-          id: "commands",
-          title: "项目命令",
+          id: 'css',
+          title: 'CSS 与本地资源',
           blocks: [
             {
-              kind: "api",
-              rows: [
-                { name: "dshx dev", type: "开发", body: "构建、关联、监听，并在 DSH 中运行插件。" },
-                {
-                  name: "dshx build",
-                  type: "生产",
-                  body: "验证 Manifest，并输出所有启用的 Host 与 Client 产物。",
-                },
-                {
-                  name: "dshx check",
-                  type: "诊断",
-                  body: "检查元数据、兼容性、Profile 关联、Provider package edge 与 Runtime Bridge 状态。",
-                },
-                {
-                  name: "dshx inspect <kind>",
-                  type: "实时 Runtime",
-                  body: "从当前 DSH Composition 读取 adapter 支持的目标。protocol-1 当前可读取 Slot、Service 与 Event；Tool discovery 会返回明确的 unavailable 诊断。",
-                },
-              ],
+              kind: 'paragraph',
+              text: 'CSS Modules、PostCSS、Tailwind 与用户 transform 经过标准 Vite CSS 管线。DSHX 固定 cssCodeSplit: false、禁用 publicDir，并把本地图片、字体和 SVG inline 为 data URI。',
             },
             {
-              kind: "note",
-              text: "check 与 inspect 默认只读；build 会写入声明的生产产物。check 只有显式 --fix 才修改项目元数据，因此先使用 --dry-run。支持时可加 --json 接入自动化。",
-            },
-          ],
-        },
-        {
-          id: "inspect",
-          title: "先 Inspect，再生成",
-          blocks: [
-            {
-              kind: "paragraph",
-              text: "Inspect 读取当前运行中的 Composition，不虚构离线目录。先发现 Provider 的准确 Slot contract，再基于 Runtime 证据生成代码。",
-            },
-            {
-              kind: "terminal",
-              lines: [
-                { text: "dshx inspect slots", kind: "cmd" },
-                { text: "sidebar.footer.action · list · @provider/plugin", kind: "accent" },
-                { text: "dshx add ui --slot sidebar.footer.action --dry-run", kind: "cmd" },
-                { text: "would create src/ui/sidebar-footer-action.tsx", kind: "ok" },
+              kind: 'list',
+              items: [
+                '最终 Client factory 包含唯一 CSS 结果；仅注册脚本不提前注入样式。',
+                'Materialization 创建带 data-plugin 和 data-plugin-css 所有权属性的唯一 style。',
+                '官方 DSH HMR 在 materialize 新版本前删除上一个插件所有的 style。',
+                '最终只允许一个 JavaScript、一个 sourcemap，且不得存在独立 CSS、asset、chunk、worker 或 WASM。',
               ],
             },
           ],
         },
         {
-          id: "scaffolds",
-          title: "事务式源码脚手架",
+          id: 'tailwind',
+          title: '可选 Tailwind v4',
           blocks: [
+            { kind: 'code', title: 'src/styles.css', code: tailwindCss },
             {
-              kind: "api",
-              rows: [
-                {
-                  name: "dshx add ui --slot <name>",
-                  type: "Client",
-                  body: "生成并注册类型化 React Slot 贡献。",
-                },
-                {
-                  name: "dshx add tool --name <name>",
-                  type: "Host",
-                  body: "生成官方 Tool，并挂到 defineHost。",
-                },
-                {
-                  name: "dshx add command --name <name>",
-                  type: "Host",
-                  body: "生成官方 Command，并挂到 defineHost。",
-                },
-                {
-                  name: "dshx add hook --event <name>",
-                  type: "Host",
-                  body: "生成原生 Cordis Event Listener。",
-                },
+              kind: 'list',
+              items: [
+                '在插件项目安装 tailwindcss@^4.3.3 和 @tailwindcss/vite@^4.3.3，并把 tailwindcss() 加到 client.vite.plugins。',
+                '省略 Preflight，避免插件重置 DSH 共享页面 DOM。',
+                'utility 和生成 theme variable 使用 dshx: 前缀。',
+                '只写可静态扫描的完整 class name。',
+                'Tailwind 是可选项，不是 DSHX peer dependency 或 Core wrapper。',
               ],
-            },
-            {
-              kind: "paragraph",
-              text: "脚手架会先规划全部源码修改再写入，并回滚部分写入；不会安装依赖，也不会修改 DSH Profile。",
             },
           ],
         },
         {
-          id: "compiler",
-          title: "buildHost(options) 与 buildClient(options)",
+          id: 'commands',
+          title: 'check、build 与 dev',
           blocks: [
             {
-              kind: "paragraph",
-              text: "只有嵌入 Compiler 时才直接使用 @becomeopc/dshx/compiler。普通项目使用 dshx build/dev，以同时执行 config、Manifest、兼容性与 Profile 检查。",
-            },
-            { kind: "code", title: "程序化 Compiler", code: compilerSignature },
-            {
-              kind: "api",
+              kind: 'api',
               rows: [
                 {
-                  name: "packageId",
-                  type: "string · 必填",
-                  body: "两个 Compiler 使用的发布包 identity。",
+                  name: 'dshx check',
+                  type: '离线',
+                  body: '检查 config、manifest、dependency/provider edge、protocol 兼容、迁移诊断和 TypeScript noEmit，不需要 Profile 或运行中 DSH。',
                 },
                 {
-                  name: "entry",
-                  type: "string",
-                  body: "Client 必填；Host 可选，省略时输出空 Host module。",
-                },
-                { name: "outDir", type: "string · 必填", body: "产物输出目录。" },
-                {
-                  name: "root / logicalName",
-                  type: "string",
-                  body: "可选项目根目录与 Runtime 可见逻辑名称。",
+                  name: 'dshx check --runtime',
+                  type: 'Runtime readiness',
+                  body: '额外检查 Profile、Composition、bridge 和当前 DSH Runtime。',
                 },
                 {
-                  name: "sourcemap / watch",
-                  type: "boolean",
-                  body: "启用 sourcemap，或返回活动 watcher build。",
+                  name: 'dshx build',
+                  type: '生产',
+                  body: '在两个已启用 face 构建前运行类型检查，然后验证 package 的每个 exports/types/bin 路径真实存在。',
                 },
                 {
-                  name: "external",
-                  type: "readonly string[] · Client",
-                  body: "额外 Client external。",
-                },
-                {
-                  name: "inject",
-                  type: "readonly string[] · Client",
-                  body: "来自 dsh.client.inject 的 Manifest package edge，用于能力诊断。",
-                },
-                {
-                  name: "compatibility",
-                  type: "DshCompatibility",
-                  body: "已解析 adapter contract；只有 Compiler 显式提供处才使用默认值。",
+                  name: 'dshx dev',
+                  type: 'build-watch',
+                  body: '监听两个 face 以及 config/依赖变化；新 config 失败时保留 last-good session，修复后再切换。',
                 },
               ],
+            },
+            {
+              kind: 'note',
+              text: 'JSON check 输出分别提供 static、typecheck 和 runtime 状态。--runtime 或真实 DSH 加载必须与离线结果分开报告。',
             },
           ],
         },
         {
-          id: "programmatic-cli",
-          title: "parseCliArgs() 与 runCli()",
+          id: 'inspect',
+          title: 'dshx inspect <slots|services|events>',
           blocks: [
-            { kind: "code", title: "嵌入 CLI", code: cliSignature },
             {
-              kind: "api",
+              kind: 'paragraph',
+              text: '通过选中的 protocol adapter 读取当前 DSH Composition。它是真实 Runtime 检查而不是离线 catalog；只在 Runtime readiness 成功后运行。',
+            },
+          ],
+        },
+        {
+          id: 'programmatic',
+          title: '程序化 build 与 watch',
+          blocks: [
+            { kind: 'code', title: 'Experimental Tooling', code: toolingBuild },
+            {
+              kind: 'api',
               rows: [
                 {
-                  name: "parseCliArgs(argv)",
-                  type: "CliArgs",
-                  body: "只解析参数，不执行命令；无效组合抛出 CliUsageError。",
+                  name: 'buildHost / buildClient',
+                  type: 'Promise<BuildReport>',
+                  body: '构建单个 face，返回 DSHX 所有的 artifact metadata，而不是原始 Vite 输出。',
                 },
                 {
-                  name: "runCli(argv, options?)",
-                  type: "Promise<number>",
-                  body: "执行命令并返回 exit code，不直接退出进程。",
-                },
-                { name: "options.io", type: "CliIO", body: "可选 stdin/stdout/stderr stream。" },
-                {
-                  name: "options.runtime",
-                  type: "CliRuntime",
-                  body: "嵌入环境与测试使用的可选依赖覆盖。",
+                  name: 'watchHost / watchClient',
+                  type: 'Promise<BuildWatcher>',
+                  body: '监听单个 face，暴露标准化 event 与异步 close()。',
                 },
                 {
-                  name: "options.cwd / version",
-                  type: "string",
-                  body: "默认工作目录与报告的 DSHX 版本。",
+                  name: 'vite.plugins',
+                  type: 'readonly PluginOption[]',
+                  body: '与项目 config 相同的受限扩展面。',
                 },
               ],
-            },
-          ],
-        },
-        {
-          id: "manifest-repair",
-          title: "Manifest repair plan API",
-          blocks: [
-            {
-              kind: "api",
-              rows: [
-                {
-                  name: "createManifestRepairPlan(config, options?)",
-                  type: "Promise<ManifestRepairPlan>",
-                  body: "读取 package.json，返回确定性文件改动、诊断、changedFiles 与可审阅 diff，不写文件。",
-                },
-                {
-                  name: "applyManifestRepairPlan(plan)",
-                  type: "Promise<void>",
-                  body: "通过原子文件事务应用已审阅且无 error 的 plan。",
-                },
-                {
-                  name: "rollbackManifestRepairPlan(plan)",
-                  type: "Promise<void>",
-                  body: "后续步骤失败时恢复 plan 前的准确文件内容。",
-                },
-                {
-                  name: "DshxError",
-                  type: "Error",
-                  body: "带稳定 code、可选 file/hint/cause 与格式化 message 的结构化抛出错误。",
-                },
-              ],
-            },
-            {
-              kind: "note",
-              text: "这些 export 来自 @becomeopc/dshx。创建 plan 只读；apply 是显式写入边界。",
-            },
-          ],
-        },
-        {
-          id: "no-shortcuts",
-          title: "存在贡献 API 不等于必须提供 generator",
-          blocks: [
-            {
-              kind: "paragraph",
-              text: "Prompt、Settings、类型化 API 与 Conversation contract 目前直接编写。DSHX 不增加 prompt、settings、API、Conversation 专用 generator 或通用 UI 编辑器。",
             },
           ],
         },
       ],
     },
   },
-});
+})

@@ -1,77 +1,63 @@
 import { defineDocsChapter } from "../types";
 
-const contractSignature = `function method<I = void, O = unknown>(): ApiMethodDefinition<I, O>
-function method<I, O>(options: {
-  input?: StandardSchema<I>
-  output?: StandardSchema<O>
-}): ApiMethodDefinition<I, O>
+const contractSignature = `function method<ClientInput = void, ClientOutput = unknown>():
+  ApiMethodDefinition<ClientInput, ClientInput, ClientOutput, ClientOutput>
 
-function defineApi<
-  const Methods extends Record<string, ApiMethodDefinition<any, any>>,
->(definition: {
-  id: string
-  version: number
-  methods: Methods
-}): ApiContract<Methods>`;
+function method<InputSchema extends StandardSchemaV1, OutputSchema extends StandardSchemaV1>(
+  options: { input?: InputSchema; output?: OutputSchema },
+): ApiMethodDefinition<
+  StandardSchemaV1.InferInput<InputSchema>,
+  StandardSchemaV1.InferOutput<InputSchema>,
+  StandardSchemaV1.InferInput<OutputSchema>,
+  StandardSchemaV1.InferOutput<OutputSchema>
+>
 
-const hostSignature = `contract.host(
-  handlers: {
-    [Method in keyof Methods]: (args: {
-      input: ApiInput<Methods[Method]>
-      ctx: Context
-      signal: AbortSignal
-    }) => ApiOutput<Methods[Method]> | Promise<ApiOutput<Methods[Method]>>
-  },
-  options?: { authority?: 'loopback' | 'trusted-host' },
-): ApiHostRegistration`;
+defineApi({ id, version, methods })`;
 
-const clientSignature = `const api = useApi(contract)
-await api.method(input, { signal })
-const result = await api.safe.method(input, { signal })
-// { ok: true, value } | { ok: false, error: ApiError }
-
-const query = useQuery(contract, 'method', input, { signal })
-// { loading, data?, error?, retry() }`;
-
-const apiExample = `// src/shared/status-api.ts
+const completeExample = `// src/api/status.ts
 import { defineApi, method } from '@becomeopc/dshx/api'
 
 export const statusApi = defineApi({
   id: 'status',
   version: 1,
   methods: {
-    get: method<{ id: string }, { online: boolean }>(),
-    refresh: method<void, { accepted: boolean }>(),
+    get: method<void, { online: boolean }>(),
+    refresh: method<{ force: boolean }, { online: boolean }>(),
   },
 })
 
 // src/host.ts
 import { defineHost } from '@becomeopc/dshx/host'
-import { statusApi } from './shared/status-api'
+import { statusApi } from './api/status.js'
 
 export default defineHost({
-  api: statusApi.host({
-    async get({ input, signal }) {
+  apis: [statusApi.host({
+    async get({ signal }) {
       signal.throwIfAborted()
-      return { online: input.id.length > 0 }
+      return { online: true }
     },
-    async refresh() { return { accepted: true } },
-  }),
+    async refresh({ input }) {
+      return { online: input.force }
+    },
+  })],
 })
 
-// src/client.tsx — inside a DSHX Slot component
-import { useApi, useQuery } from '@becomeopc/dshx/client'
-import { statusApi } from './shared/status-api'
+// inside a Client Slot component
+const api = useApi(statusApi)
+await api.get()
+await api.get(undefined, { signal })
+await api.refresh({ force: true }, { signal })
 
-function Status() {
-  const status = useQuery(statusApi, 'get', { id: 'primary' })
-  const api = useApi(statusApi)
-  return (
-    <button onClick={() => void api.refresh()}>
-      {status.data?.online ? 'Online' : 'Refresh'}
-    </button>
-  )
-}`;
+const status = useApiQuery(statusApi, 'refresh', {
+  input: { force: true },
+  enabled: true,
+  signal,
+})`;
+
+const queryResult = `type ApiQueryResult<T> =
+  | { status: 'pending'; fetchStatus: 'idle' | 'fetching' | 'paused'; data: undefined; error: null; refetch(): void }
+  | { status: 'success'; fetchStatus: 'idle' | 'fetching' | 'paused'; data: T; error: null; refetch(): void }
+  | { status: 'error'; fetchStatus: 'idle'; data: T | undefined; error: ApiError; refetch(): void }`;
 
 export const typedApi = defineDocsChapter({
   slug: "typed-api",
@@ -79,197 +65,175 @@ export const typedApi = defineDocsChapter({
   copy: {
     en: {
       navigation: "Typed API",
-      eyebrow: "05 · API reference",
+      eyebrow: "06 · API Candidate",
       title: "Typed Host–Client API",
       intro:
-        "Define transport methods once, implement them in the Host, and consume the inferred client from any DSHX Slot or Conversation component.",
+        "Define unary methods once, implement every method on the Host, and call the inferred imperative or query client from React.",
       description:
-        "Create typed unary DSHX Host–Client APIs and consume them with useApi or useQuery.",
+        "Standard Schema transforms, exact Host handlers, imperative calls, useApiQuery states, cancellation, and errors.",
       sections: [
         {
           id: "contract",
           label: "@becomeopc/dshx/api",
           title: "method() and defineApi()",
           blocks: [
-            {
-              kind: "paragraph",
-              text: "method() declares one unary operation; defineApi() groups methods into a versioned transport contract shared by Host and Client.",
-            },
             { kind: "code", title: "Signatures", code: contractSignature },
             {
               kind: "api",
               rows: [
                 {
                   name: "method<I, O>()",
-                  type: "ApiMethodDefinition<I, O>",
-                  body: "Declares TypeScript-only input/output types when runtime validation is not required.",
+                  type: "I → I → O → O",
+                  body: "Declares TypeScript-only Client input, Host input, Host output, and Client output when no runtime transform is needed.",
                 },
                 {
                   name: "method({ input, output })",
-                  type: "ApiMethodDefinition<I, O>",
-                  body: "Adds optional Standard Schema-compatible runtime validation for either direction.",
+                  type: "Standard Schema v1",
+                  body: "InferInput is the serialized-side type and InferOutput is the parsed-side type. @standard-schema/spec ^1.1.0 supplies the protocol.",
                 },
-                {
-                  name: "id",
-                  type: "string",
-                  body: "Stable single segment matching letters, digits, dot, underscore, or hyphen; slash is rejected.",
-                },
-                {
-                  name: "version",
-                  type: "positive integer",
-                  body: "Transport contract version. Zero, fractions, and negative values are rejected.",
-                },
+                { name: "id", type: "string", body: "Stable API id without slash." },
+                { name: "version", type: "positive integer", body: "Wire contract version." },
                 {
                   name: "methods",
                   type: "Record<string, ApiMethodDefinition>",
-                  body: "Named unary methods preserved with literal keys.",
+                  body: "Literal method keys preserved in the Host registration and Client type.",
                 },
               ],
             },
-            { kind: "code", title: "Shared API, Host, and Client", code: apiExample },
-            {
-              kind: "note",
-              text: "Do not repeat the contract in defineClient. A retained useApi or useQuery call automatically adds the connection capability and validates the official provider package edge.",
-            },
+            { kind: "code", title: "Shared contract, Host, and Client", code: completeExample },
           ],
         },
         {
           id: "host",
           title: "contract.host(handlers, options?)",
           blocks: [
-            { kind: "code", title: "Signature", code: hostSignature },
             {
               kind: "api",
               rows: [
                 {
                   name: "handlers",
-                  type: "ApiHandlers<Methods>",
-                  body: "Required implementation for every contract method. Missing handlers fail during registration construction.",
+                  type: "exact ApiHandlers<Methods>",
+                  body: "Every method is required and extra keys are rejected by TypeScript and the Host definition diagnostic.",
                 },
                 {
-                  name: "input / ctx / signal",
-                  type: "handler arguments",
-                  body: "Validated input, native Host Cordis Context, and caller cancellation signal.",
+                  name: "{ input, ctx, signal }",
+                  type: "ApiHandlerContext<HostInput>",
+                  body: "Receives transformed Host input, the native Cordis Context, and the caller cancellation signal.",
                 },
                 {
                   name: "authority",
-                  type: "'loopback' | 'trusted-host'",
-                  body: "Defaults to loopback and is forwarded to official Connection registration.",
+                  type: "loopback | trusted-host",
+                  body: "Defaults to loopback and is forwarded to the official Connection service.",
                 },
               ],
+            },
+            {
+              kind: "paragraph",
+              text: "Schemas run only at the authoritative Host edge: Client JSON enters the input schema once, the handler returns Host output, then the output schema runs once before Client JSON is sent. The Client bundle does not execute the schemas.",
             },
           ],
         },
         {
-          id: "hooks",
-          title: "useApi() and useQuery()",
+          id: "imperative",
+          title: "useApi(contract)",
           blocks: [
-            { kind: "code", title: "Client calls", code: clientSignature },
             {
               kind: "api",
               rows: [
                 {
-                  name: "useApi(contract)",
-                  type: "ApiClient<Methods>",
-                  body: "Returns imperative typed methods. Methods reject with ApiError.",
+                  name: "api.get()",
+                  type: "Promise<ClientOutput>",
+                  body: "Void-input method call.",
+                },
+                {
+                  name: "api.get(undefined, { signal })",
+                  type: "Promise<ClientOutput>",
+                  body: "Pass call options in the second argument. DSHX never treats a first object argument as options.",
+                },
+                {
+                  name: "api.refresh(input, { signal })",
+                  type: "Promise<ClientOutput>",
+                  body: "Object-input method call with an unambiguous optional second argument.",
                 },
                 {
                   name: "api.safe.<method>()",
-                  type: "Promise<ApiCallResult<O>>",
-                  body: "Returns a discriminated result instead of throwing an ApiError.",
+                  type: "Promise<{ ok: true; value } | { ok: false; error }>",
+                  body: "Returns a discriminated result instead of rejecting with ApiError.",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "query",
+          title: "useApiQuery(contract, method, options)",
+          blocks: [
+            { kind: "code", title: "Result union", code: queryResult },
+            {
+              kind: "api",
+              rows: [
+                {
+                  name: "input",
+                  type: "required for non-void methods",
+                  body: "Method input, fingerprinted with stable JSON for automatic reads.",
                 },
                 {
-                  name: "useQuery(contract, method, input?, options?)",
-                  type: "ApiQueryState<O>",
-                  body: "Calls on mount/input change, aborts on cleanup, preserves prior data during reconnect, and exposes retry().",
+                  name: "enabled",
+                  type: "boolean",
+                  body: "false stops automatic reads; refetch() still performs a manual read.",
                 },
                 {
-                  name: "options.signal",
+                  name: "signal",
                   type: "AbortSignal",
-                  body: "Cancels the Client call and propagates to the Host handler.",
+                  body: "Caller cancellation becomes an aborted ApiError.",
+                },
+                {
+                  name: "fetchStatus: paused",
+                  type: "pending or success",
+                  body: "The Host generation disappeared. The last successful data is kept and an enabled query reads again after reconnect.",
+                },
+                {
+                  name: "refetch()",
+                  type: "void",
+                  body: "Starts a new read without adding a global cache, dedupe layer, optimistic update, or business retry policy.",
                 },
               ],
             },
           ],
         },
         {
-          id: "transport",
-          title: "ApiError and transport rules",
+          id: "errors",
+          title: "ApiError and isApiError()",
           blocks: [
             {
               kind: "api",
               rows: [
                 {
-                  name: "transport",
-                  type: "ApiError.kind",
-                  body: "Request or response transport failed.",
+                  name: "kind",
+                  type: "transport | remote | contract | aborted | unavailable",
+                  body: "Stable error category.",
+                },
+                { name: "apiId / method", type: "string", body: "Failed contract and method." },
+                {
+                  name: "retryable",
+                  type: "boolean",
+                  body: "Transport hint; it does not trigger an automatic retry.",
                 },
                 {
-                  name: "remote",
-                  type: "ApiError.kind",
-                  body: "Host handler returned an official remote failure; remoteCode may be present.",
+                  name: "remoteCode",
+                  type: "string | undefined",
+                  body: "Optional official remote error code.",
                 },
                 {
-                  name: "contract",
-                  type: "ApiError.kind",
-                  body: "Input/output validation or contract framing failed.",
-                },
-                {
-                  name: "aborted",
-                  type: "ApiError.kind",
-                  body: "Caller or component lifecycle aborted the request.",
-                },
-                {
-                  name: "unavailable",
-                  type: "ApiError.kind",
-                  body: "Connection/provider is unavailable.",
+                  name: "isApiError(value)",
+                  type: "value is ApiError",
+                  body: "Public type guard for the read-only opaque error. No public constructor or transport helper exists.",
                 },
               ],
             },
             {
-              kind: "list",
-              items: [
-                "APIs are unary request/response calls over the official Client Connection service.",
-                "JSON payloads are limited to 1 MiB.",
-                "ApiError also exposes apiId, method, retryable, optional remoteCode, and cause.",
-                "Connection loss is surfaced; DSHX does not invent an offline transport or queue writes.",
-              ],
-            },
-          ],
-        },
-        {
-          id: "advanced-runtime",
-          title: "Advanced runtime exports",
-          blocks: [
-            {
-              kind: "api",
-              rows: [
-                {
-                  name: "apiChannel(packageId, apiId)",
-                  type: "string",
-                  body: "Returns the stable hashed RPC channel used for one package contract.",
-                },
-                {
-                  name: "registerApi(ctx, packageId, registration)",
-                  type: "Promise<void>",
-                  body: "Registers a Host implementation directly and attaches its disposer through ctx.effect(). defineHost normally calls this for you.",
-                },
-                {
-                  name: "createApiClient(context, contract, packageId?)",
-                  type: "ApiClient<Methods>",
-                  body: "Creates a non-Hook typed client from a Cordis-like Context. React components should use useApi().",
-                },
-              ],
-            },
-          ],
-        },
-        {
-          id: "responsibility",
-          title: "Host interaction is not state assembly",
-          blocks: [
-            {
-              kind: "paragraph",
-              text: "Authorization, validation, revisions, idempotency, business cancellation, and durable outcomes belong in the Host. An API result does not mutate Settings or assembled Conversation data implicitly.",
+              kind: "note",
+              text: "Lifecycle cleanup cancellation is not shown as a remote error. A caller-provided abort is reported as kind: aborted.",
             },
           ],
         },
@@ -277,184 +241,175 @@ export const typedApi = defineDocsChapter({
     },
     zh: {
       navigation: "类型化 API",
-      eyebrow: "05 · API 参考",
+      eyebrow: "06 · API Candidate",
       title: "类型化 Host–Client API",
       intro:
-        "定义一次传输方法，在 Host 实现，然后从任意 DSHX Slot 或 Conversation Component 消费推导后的 Client。",
-      description: "创建类型化一元 DSHX Host–Client API，并通过 useApi 或 useQuery 使用。",
+        "只定义一次一元 method，在 Host 精确实现每个 method，再从 React 调用推断后的 imperative 或 query client。",
+      description:
+        "Standard Schema transform、精确 Host handler、imperative 调用、useApiQuery 状态、取消与错误。",
       sections: [
         {
           id: "contract",
           label: "@becomeopc/dshx/api",
           title: "method() 与 defineApi()",
           blocks: [
-            {
-              kind: "paragraph",
-              text: "method() 声明一个一元操作；defineApi() 把方法组成由 Host 与 Client 共享的版本化传输契约。",
-            },
-            { kind: "code", title: "函数签名", code: contractSignature },
+            { kind: "code", title: "签名", code: contractSignature },
             {
               kind: "api",
               rows: [
                 {
                   name: "method<I, O>()",
-                  type: "ApiMethodDefinition<I, O>",
-                  body: "不需要运行时校验时，只声明 TypeScript 输入输出类型。",
+                  type: "I → I → O → O",
+                  body: "不需要运行时 transform 时，声明 Client input、Host input、Host output 和 Client output。",
                 },
                 {
                   name: "method({ input, output })",
-                  type: "ApiMethodDefinition<I, O>",
-                  body: "为输入或输出增加可选的 Standard Schema 运行时校验。",
+                  type: "Standard Schema v1",
+                  body: "InferInput 是序列化侧类型，InferOutput 是 parse 后类型；协议来自 @standard-schema/spec ^1.1.0。",
                 },
-                {
-                  name: "id",
-                  type: "string",
-                  body: "稳定单段标识，只允许字母、数字、点、下划线与连字符；拒绝斜杠。",
-                },
-                { name: "version", type: "正整数", body: "传输契约版本；拒绝零、小数与负数。" },
+                { name: "id", type: "string", body: "不含斜杠的稳定 API id。" },
+                { name: "version", type: "正整数", body: "Wire contract 版本。" },
                 {
                   name: "methods",
                   type: "Record<string, ApiMethodDefinition>",
-                  body: "保留字面量 key 的命名一元方法。",
+                  body: "在 Host registration 和 Client 类型中保留字面量 method key。",
                 },
               ],
             },
-            { kind: "code", title: "共享 API、Host 与 Client", code: apiExample },
-            {
-              kind: "note",
-              text: "不要在 defineClient 重复 contract。实际保留 useApi 或 useQuery 会自动追加 connection 能力并验证官方 Provider package edge。",
-            },
+            { kind: "code", title: "共享 contract、Host 与 Client", code: completeExample },
           ],
         },
         {
           id: "host",
           title: "contract.host(handlers, options?)",
           blocks: [
-            { kind: "code", title: "函数签名", code: hostSignature },
             {
               kind: "api",
               rows: [
                 {
                   name: "handlers",
-                  type: "ApiHandlers<Methods>",
-                  body: "必须实现每个 contract method；缺少 handler 时在构造 registration 时失败。",
+                  type: "exact ApiHandlers<Methods>",
+                  body: "每个 method 都必须实现；TypeScript 和 Host definition 诊断都会拒绝多余 key。",
                 },
                 {
-                  name: "input / ctx / signal",
-                  type: "handler 参数",
-                  body: "校验后的输入、原生 Host Cordis Context 与调用方取消信号。",
+                  name: "{ input, ctx, signal }",
+                  type: "ApiHandlerContext<HostInput>",
+                  body: "接收 transform 后 Host input、原生 Cordis Context 和调用方取消信号。",
                 },
                 {
                   name: "authority",
-                  type: "'loopback' | 'trusted-host'",
-                  body: "默认 loopback，透传给官方 Connection 注册。",
+                  type: "loopback | trusted-host",
+                  body: "默认 loopback，透传给官方 Connection Service。",
                 },
               ],
+            },
+            {
+              kind: "paragraph",
+              text: "Schema 只在权威 Host 边界执行：Client JSON 进入 input schema 一次，handler 返回 Host output，output schema 再执行一次后发送 Client JSON。Client bundle 不执行 schema。",
             },
           ],
         },
         {
-          id: "hooks",
-          title: "useApi() 与 useQuery()",
+          id: "imperative",
+          title: "useApi(contract)",
           blocks: [
-            { kind: "code", title: "Client 调用", code: clientSignature },
             {
               kind: "api",
               rows: [
                 {
-                  name: "useApi(contract)",
-                  type: "ApiClient<Methods>",
-                  body: "返回命令式类型化方法；失败时 reject ApiError。",
+                  name: "api.get()",
+                  type: "Promise<ClientOutput>",
+                  body: "void-input method 调用。",
+                },
+                {
+                  name: "api.get(undefined, { signal })",
+                  type: "Promise<ClientOutput>",
+                  body: "在第二参数传 options；DSHX 不会把第一个 object 误判为 options。",
+                },
+                {
+                  name: "api.refresh(input, { signal })",
+                  type: "Promise<ClientOutput>",
+                  body: "object input 与无歧义的可选第二参数。",
                 },
                 {
                   name: "api.safe.<method>()",
-                  type: "Promise<ApiCallResult<O>>",
-                  body: "返回 discriminated result，不抛出 ApiError。",
+                  type: "Promise<{ ok: true; value } | { ok: false; error }>",
+                  body: "返回可判别结果，不以 ApiError reject。",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "query",
+          title: "useApiQuery(contract, method, options)",
+          blocks: [
+            { kind: "code", title: "结果联合", code: queryResult },
+            {
+              kind: "api",
+              rows: [
+                {
+                  name: "input",
+                  type: "非 void method 必填",
+                  body: "method input，通过 stable JSON fingerprint 驱动自动读取。",
                 },
                 {
-                  name: "useQuery(contract, method, input?, options?)",
-                  type: "ApiQueryState<O>",
-                  body: "挂载/输入变化时调用，清理时 abort，重连时保留旧 data，并提供 retry()。",
+                  name: "enabled",
+                  type: "boolean",
+                  body: "false 停止自动读取；refetch() 仍执行手动读取。",
                 },
                 {
-                  name: "options.signal",
+                  name: "signal",
                   type: "AbortSignal",
-                  body: "取消 Client 调用并传播给 Host handler。",
+                  body: "调用方取消映射为 aborted ApiError。",
+                },
+                {
+                  name: "fetchStatus: paused",
+                  type: "pending 或 success",
+                  body: "Host generation 丢失。保留上次成功 data，并在重连后自动重读已启用 query。",
+                },
+                {
+                  name: "refetch()",
+                  type: "void",
+                  body: "发起新读取，不增加全局 cache、dedupe、optimistic update 或业务 retry。",
                 },
               ],
             },
           ],
         },
         {
-          id: "transport",
-          title: "ApiError 与传输规则",
-          blocks: [
-            {
-              kind: "api",
-              rows: [
-                { name: "transport", type: "ApiError.kind", body: "请求或响应传输失败。" },
-                {
-                  name: "remote",
-                  type: "ApiError.kind",
-                  body: "Host handler 返回官方远端失败；可能包含 remoteCode。",
-                },
-                {
-                  name: "contract",
-                  type: "ApiError.kind",
-                  body: "输入/输出校验或 contract framing 失败。",
-                },
-                { name: "aborted", type: "ApiError.kind", body: "调用方或组件生命周期取消请求。" },
-                {
-                  name: "unavailable",
-                  type: "ApiError.kind",
-                  body: "Connection / Provider 不可用。",
-                },
-              ],
-            },
-            {
-              kind: "list",
-              items: [
-                "API 是基于官方 Client Connection Service 的一元请求/响应调用。",
-                "JSON payload 上限为 1 MiB。",
-                "ApiError 还提供 apiId、method、retryable、可选 remoteCode 与 cause。",
-                "Connection 丢失会明确暴露；DSHX 不虚构离线传输，也不排队写入。",
-              ],
-            },
-          ],
-        },
-        {
-          id: "advanced-runtime",
-          title: "高级 Runtime export",
+          id: "errors",
+          title: "ApiError 与 isApiError()",
           blocks: [
             {
               kind: "api",
               rows: [
                 {
-                  name: "apiChannel(packageId, apiId)",
-                  type: "string",
-                  body: "返回一个 package contract 使用的稳定哈希 RPC channel。",
+                  name: "kind",
+                  type: "transport | remote | contract | aborted | unavailable",
+                  body: "稳定错误分类。",
+                },
+                { name: "apiId / method", type: "string", body: "失败的 contract 和 method。" },
+                {
+                  name: "retryable",
+                  type: "boolean",
+                  body: "Transport 提示；不会触发自动 retry。",
                 },
                 {
-                  name: "registerApi(ctx, packageId, registration)",
-                  type: "Promise<void>",
-                  body: "直接注册 Host implementation，并通过 ctx.effect() 挂接 disposer；defineHost 通常会代为调用。",
+                  name: "remoteCode",
+                  type: "string | undefined",
+                  body: "可选的官方 remote error code。",
                 },
                 {
-                  name: "createApiClient(context, contract, packageId?)",
-                  type: "ApiClient<Methods>",
-                  body: "从 Cordis-like Context 创建非 Hook 类型化 Client；React 组件应使用 useApi()。",
+                  name: "isApiError(value)",
+                  type: "value is ApiError",
+                  body: "读取只读 opaque error 的公开 type guard；不暴露 constructor 或 transport helper。",
                 },
               ],
             },
-          ],
-        },
-        {
-          id: "responsibility",
-          title: "Host 交互不等于状态 assembly",
-          blocks: [
             {
-              kind: "paragraph",
-              text: "授权、校验、revision、幂等、业务取消与持久化结果属于 Host；API 返回值不会隐式修改 Settings 或已 assembly 的 Conversation 数据。",
+              kind: "note",
+              text: "生命周期 cleanup 取消不显示为 remote error；调用方传入的 abort 会报告 kind: aborted。",
             },
           ],
         },

@@ -12,7 +12,7 @@ const rules: { re: RegExp; c: TokenKind }[] = [
     c: "kw",
   },
   {
-    re: /^\b(defineApi|defineClient|defineCommand|defineConversation|defineHost|definePromptContext|definePromptSection|defineSettings|defineSlot|defineTool|method|useApi|useQuery|useSettings|setup|on)\b/,
+    re: /^\b(defineApi|defineClient|defineCommand|defineConversation|defineHost|definePromptContext|definePromptSection|defineSettings|defineSlot|defineTool|method|useApi|useApiQuery|useSettings|setup|on)\b/,
     c: "fn",
   },
   { re: /^[a-zA-Z_$][\w$]*(?=\s*:)/, c: "prop" },

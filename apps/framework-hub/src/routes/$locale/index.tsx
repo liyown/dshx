@@ -234,7 +234,7 @@ function AuthoringModel() {
           <Code
             code={`defineHost({
   tools: [searchTool],
-  api: statusApi.host(...)
+  apis: [statusApi.host(...)]
 })`}
           />
         </CodeSurface>
@@ -287,7 +287,6 @@ function AuthoringModel() {
         <CodeSurface title="src/client.tsx">
           <Code
             code={`defineClient({
-  api: statusApi,
   slots: [sidebarStatus]
 })`}
           />
@@ -364,7 +363,7 @@ const stages = [
 
   commands: [refresh],
 
-  api: weatherApi.host(...),
+  apis: [weatherApi.host(...)],
 
   setup(ctx) {
     ctx.on('agent/pre-step', ...)
@@ -424,12 +423,14 @@ function ReactUi() {
             code={`import styles from './status.module.css'
 
 export function Status({ session }: SlotProps<'sidebar.footer.action'>) {
-  const { data } = useQuery(statusApi.get, { id: session.id })
+  const status = useApiQuery(statusApi, 'get', {
+    input: { id: session.id },
+  })
 
   return (
     <div className={styles.root}>
-      <span className={styles.dot} data-state={data?.state} />
-      <span className={styles.label}>{data?.label ?? 'idle'}</span>
+      <span className={styles.dot} data-state={status.data?.state} />
+      <span className={styles.label}>{status.data?.label ?? 'idle'}</span>
     </div>
   )
 }`}

@@ -3,9 +3,11 @@ import type { Locale } from "@/lib/i18n";
 import { cliAndInspect } from "./chapters/cli-and-inspect";
 import { compatibility } from "./chapters/compatibility";
 import { conversation } from "./chapters/conversation";
+import { creator } from "./chapters/creator";
 import { gettingStarted } from "./chapters/getting-started";
 import { hostContributions } from "./chapters/host-contributions";
 import { projectModel } from "./chapters/project-model";
+import { prompt } from "./chapters/prompt";
 import { settings } from "./chapters/settings";
 import { typedApi } from "./chapters/typed-api";
 import type { DocsChapterDefinition, DocsGroup } from "./types";
@@ -13,9 +15,11 @@ import type { DocsChapterDefinition, DocsGroup } from "./types";
 const DOC_CHAPTERS = [
   gettingStarted,
   projectModel,
+  creator,
   hostContributions,
   settings,
   typedApi,
+  prompt,
   conversation,
   cliAndInspect,
   compatibility,
@@ -53,7 +57,7 @@ const chapterBySlug = new Map<DocsSlug, (typeof DOC_CHAPTERS)[number]>(
 const groupCopy: Readonly<Record<DocsGroup, Readonly<Record<Locale, string>>>> = {
   start: { en: "Start and Client", zh: "开始与 Client" },
   contributions: { en: "Contribution APIs", zh: "贡献 API" },
-  runtime: { en: "Tooling APIs", zh: "工具 API" },
+  runtime: { en: "Build and Tooling", zh: "构建与工具" },
 };
 
 export interface DocsNavigationItem {
@@ -88,7 +92,7 @@ export function getDocsNavigation(locale: Locale): readonly DocsNavigationGroup[
       slug: chapter.slug,
       label: chapter.copy[locale].navigation,
       href: `/${locale}/docs/${chapter.slug}`,
-      experimental: chapter.slug === "conversation",
+      experimental: chapter.slug === "conversation" || chapter.slug === "compatibility",
     })),
   }));
 }

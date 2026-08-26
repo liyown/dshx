@@ -50,7 +50,11 @@ const examples = [
     tag: "Host ↔ Client",
     desc: "A shared API contract imported by both runtimes.",
     code: `export const statusApi = defineApi({
-  get: contract<{ id: string }, Status>(),
+  id: 'status',
+  version: 1,
+  methods: {
+    get: method<{ id: string }, Status>(),
+  },
 })`,
   },
   {

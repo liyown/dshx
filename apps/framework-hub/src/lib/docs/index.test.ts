@@ -14,9 +14,11 @@ describe("documentation registry", () => {
     expect(DOC_SLUGS).toEqual([
       "getting-started",
       "project-model",
+      "creator",
       "host-contributions",
       "settings",
       "typed-api",
+      "prompt",
       "conversation",
       "cli-and-inspect",
       "compatibility",
@@ -67,7 +69,8 @@ describe("documentation registry", () => {
 
   it.each(["en", "zh"] as const)("documents every primary public API in %s", (locale) => {
     const requiredApis = {
-      "project-model": ["defineClient", "defineSlot", "useSettings", "useApi", "useQuery"],
+      creator: ["--template", "--style", "createProject"],
+      "project-model": ["defineClient", "defineSlot", "useSettings", "useApi", "useApiQuery"],
       "host-contributions": [
         "defineHost",
         "defineTool",
@@ -76,36 +79,27 @@ describe("documentation registry", () => {
         "definePromptContext",
       ],
       settings: ["defineSettings", "useSettings", "SettingsContract", "SettingsReadError"],
-      "typed-api": [
-        "method",
-        "defineApi",
-        "useApi",
-        "useQuery",
-        "ApiError",
-        "apiChannel",
-        "registerApi",
-        "createApiClient",
-      ],
-      conversation: ["defineConversation", "component", "ConversationComponentContribution"],
+      "typed-api": ["method", "defineApi", "useApi", "useApiQuery", "ApiError", "isApiError"],
+      prompt: ["definePromptSection", "definePromptContext", "PromptSectionContribution"],
+      conversation: ["defineConversation", "render", "ConversationContribution"],
       "cli-and-inspect": [
         "defineConfig",
-        "resolveDshxConfig",
         "buildHost",
         "buildClient",
-        "parseCliArgs",
-        "runCli",
-        "createManifestRepairPlan",
-        "applyManifestRepairPlan",
-        "rollbackManifestRepairPlan",
-        "DshxError",
+        "watchHost",
+        "watchClient",
+        "BuildReport",
+        "PluginOption",
       ],
       compatibility: [
         "analyzeDeclaredDshRange",
-        "classifyCompatibility",
         "resolveCompatibility",
         "assessProjectCompatibility",
         "projectCompatibilityDiagnostics",
         "getCompatibilityCapabilities",
+        "resolveDshxConfig",
+        "runCli",
+        "DshxError",
       ],
     } as const;
 

@@ -7,7 +7,6 @@ const signature = `interface HostDefinition {
   commands?: readonly CommandDefinition[]
   prompts?: readonly PromptContribution[]
   settings?: readonly SettingsContribution[]
-  api?: ApiHostRegistration
   apis?: readonly ApiHostRegistration[]
   setup?: (ctx: Context) => void | Promise<void>
 }
@@ -38,14 +37,14 @@ const promptExample = `const guidance = definePromptSection({
   order: 150,
   text: 'Use the status tool for runtime questions.',
 })
-// { kind: 'section', section: <the same object> }
+// Opaque contribution; the official section object keeps its identity.
 
 const runtime = definePromptContext({
   name: 'plugin:status-runtime',
   order: 0,
   text: () => 'Status provider is ready.',
 })
-// { kind: 'context', context: <the same object> }`;
+// Opaque contribution; text is evaluated by the official assembler.`;
 
 const fullExample = `import {
   defineCommand,
@@ -64,12 +63,12 @@ export default defineHost({
   commands: [reset],
   prompts: [guidance, runtime],
   settings: [runtimeSettings],
-  api: statusApi.host({
+  apis: [statusApi.host({
     read: async ({ ctx, signal }) => {
       signal.throwIfAborted()
       return ctx.status.read()
     },
-  }),
+  })],
   setup(ctx) {
     ctx.effect(() => {
       const timer = setInterval(() => ctx.status.refresh(), 30_000)
@@ -106,9 +105,9 @@ const enFields = [
     body: "Settings contracts or Host facets. Each entry claims one namespace.",
   },
   {
-    name: "api / apis",
-    type: "ApiHostRegistration | ApiHostRegistration[]",
-    body: "One or multiple typed API implementations created with contract.host().",
+    name: "apis",
+    type: "readonly ApiHostRegistration[]",
+    body: "Typed API implementations created with contract.host(). HostDefinition.api has been removed.",
   },
   {
     name: "setup",
@@ -145,9 +144,9 @@ const zhFields = [
     body: "Settings contract 或 Host facet；每项声明一个 namespace。",
   },
   {
-    name: "api / apis",
-    type: "ApiHostRegistration | ApiHostRegistration[]",
-    body: "contract.host() 创建的一个或多个类型化 API 实现。",
+    name: "apis",
+    type: "readonly ApiHostRegistration[]",
+    body: "contract.host() 创建的类型化 API 实现。HostDefinition.api 已删除。",
   },
   {
     name: "setup",
@@ -162,7 +161,7 @@ export const hostContributions = defineDocsChapter({
   copy: {
     en: {
       navigation: "Host API",
-      eyebrow: "03 · API reference",
+      eyebrow: "04 · API Candidate",
       title: "Host API",
       intro:
         "Use @becomeopc/dshx/host to declare the Node-side module and register official contributions.",
@@ -218,13 +217,13 @@ export const hostContributions = defineDocsChapter({
               rows: [
                 {
                   name: "definePromptSection(section)",
-                  type: "{ kind: 'section'; section: T }",
-                  body: "Wraps PromptSection while preserving its object identity and literal type.",
+                  type: "PromptSectionContribution<T>",
+                  body: "Returns an opaque contribution while preserving the official PromptSection object identity and literal type internally.",
                 },
                 {
                   name: "definePromptContext(context)",
-                  type: "{ kind: 'context'; context: T }",
-                  body: "Wraps PromptContext. text may be static or an official dynamic provider.",
+                  type: "PromptContextContribution<T>",
+                  body: "Returns an opaque contribution. text may be static or an official dynamic provider.",
                 },
               ],
             },
@@ -246,7 +245,7 @@ export const hostContributions = defineDocsChapter({
                 { name: "2", type: "Commands", body: "Non-empty commands adds commands." },
                 { name: "3", type: "Prompts", body: "Non-empty prompts adds systemPrompt." },
                 { name: "4", type: "Settings", body: "Non-empty settings adds settings." },
-                { name: "5", type: "APIs", body: "api or non-empty apis adds connection." },
+                { name: "5", type: "APIs", body: "Non-empty apis adds connection." },
                 { name: "6", type: "setup(ctx)", body: "Runs last. Empty arrays add nothing." },
               ],
             },
@@ -275,7 +274,7 @@ export const hostContributions = defineDocsChapter({
     },
     zh: {
       navigation: "Host API",
-      eyebrow: "03 · API 参考",
+      eyebrow: "04 · API Candidate",
       title: "Host API",
       intro: "使用 @becomeopc/dshx/host 声明 Node 侧模块并注册官方贡献。",
       description:
@@ -330,13 +329,13 @@ export const hostContributions = defineDocsChapter({
               rows: [
                 {
                   name: "definePromptSection(section)",
-                  type: "{ kind: 'section'; section: T }",
-                  body: "包装 PromptSection，并保留对象身份与字面量类型。",
+                  type: "PromptSectionContribution<T>",
+                  body: "返回 opaque 贡献，内部保留官方 PromptSection 对象身份与字面量类型。",
                 },
                 {
                   name: "definePromptContext(context)",
-                  type: "{ kind: 'context'; context: T }",
-                  body: "包装 PromptContext；text 可以是静态文本或官方动态 provider。",
+                  type: "PromptContextContribution<T>",
+                  body: "返回 opaque 贡献；text 可以是静态文本或官方动态 provider。",
                 },
               ],
             },
@@ -358,7 +357,7 @@ export const hostContributions = defineDocsChapter({
                 { name: "2", type: "Commands", body: "commands 非空时追加 commands。" },
                 { name: "3", type: "Prompts", body: "prompts 非空时追加 systemPrompt。" },
                 { name: "4", type: "Settings", body: "settings 非空时追加 settings。" },
-                { name: "5", type: "APIs", body: "存在 api 或非空 apis 时追加 connection。" },
+                { name: "5", type: "APIs", body: "apis 非空时追加 connection。" },
                 { name: "6", type: "setup(ctx)", body: "最后执行；空数组不追加 inject。" },
               ],
             },
