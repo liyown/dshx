@@ -33,9 +33,12 @@ export const Route = createFileRoute("/api/me/submissions/")({
           return Response.json(
             await createSubmission(
               requireD1(context),
-              auth.session.user.id,
-              input.repositoryUrl,
-              input.idempotencyKey,
+              {
+                userId: auth.session.user.id,
+                submitterKey: `user:${auth.session.user.id}`,
+                repositoryUrl: input.repositoryUrl,
+                idempotencyKey: input.idempotencyKey,
+              },
             ),
             { status: 201 },
           );

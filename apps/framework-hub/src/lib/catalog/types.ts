@@ -11,7 +11,7 @@ export type CatalogCard = {
   category: string;
   stars: number | null;
   downloads: string;
-  badge: "official" | "verified" | "community";
+  badge: "official" | "community";
   glyph: string;
   iconUrl: string | null;
   publisher: {

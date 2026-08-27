@@ -434,7 +434,11 @@ function normalizeRepositoryUrl(raw: string) {
 
 export async function listSubmissions(binding: D1Database, userId: string) {
   const result = await binding
-    .prepare("select * from plugin_submissions where user_id=? order by created_at desc")
+    .prepare(
+      `select id,user_id,repository_url,repository_full_name,status,source_hash,
+        resolution_json,created_at,updated_at
+       from plugin_submissions where user_id=? order by created_at desc`,
+    )
     .bind(userId)
     .all<Record<string, unknown>>();
   return { items: result.results ?? [] };
@@ -442,33 +446,73 @@ export async function listSubmissions(binding: D1Database, userId: string) {
 
 export async function createSubmission(
   binding: D1Database,
-  userId: string,
-  repositoryUrl: string,
-  idempotencyKey: string,
+  input: {
+    userId: string | null;
+    submitterKey: string;
+    repositoryUrl: string;
+    idempotencyKey: string;
+  },
 ) {
   const existing = await binding
-    .prepare("select * from plugin_submissions where user_id=? and idempotency_key=?")
-    .bind(userId, idempotencyKey)
+    .prepare(
+      `select id,user_id,repository_url,repository_full_name,status,source_hash,
+        resolution_json,created_at,updated_at
+       from plugin_submissions where submitter_key=? and idempotency_key=?`,
+    )
+    .bind(input.submitterKey, input.idempotencyKey)
     .first<Record<string, unknown>>();
   if (existing) return existing;
-  const repository = normalizeRepositoryUrl(repositoryUrl);
+  const repository = normalizeRepositoryUrl(input.repositoryUrl);
+  const recent = await binding
+    .prepare(
+      "select count(*) count from plugin_submissions where submitter_key=? and created_at>=?",
+    )
+    .bind(input.submitterKey, Date.now() - 60_000)
+    .first<{ count: number }>();
+  if ((recent?.count ?? 0) >= 10)
+    throw new HttpError(429, "Too many plugin submissions", "rate_limited");
   const id = uuid();
   await binding
     .prepare(
-      "insert into plugin_submissions(id,user_id,repository_url,repository_full_name,status,idempotency_key,created_at,updated_at) values(?,?,?,?,?,?,?,?)",
+      "insert or ignore into plugin_submissions(id,user_id,submitter_key,repository_url,repository_full_name,status,idempotency_key,created_at,updated_at) values(?,?,?,?,?,?,?,?,?)",
     )
     .bind(
       id,
-      userId,
+      input.userId,
+      input.submitterKey,
       repository.url,
       repository.fullName,
       "queued",
-      idempotencyKey,
+      input.idempotencyKey,
       Date.now(),
       Date.now(),
     )
     .run();
-  return binding.prepare("select * from plugin_submissions where id=?").bind(id).first();
+  return binding
+    .prepare(
+      `select id,user_id,repository_url,repository_full_name,status,source_hash,
+        resolution_json,created_at,updated_at
+       from plugin_submissions where submitter_key=? and idempotency_key=?`,
+    )
+    .bind(input.submitterKey, input.idempotencyKey)
+    .first<Record<string, unknown>>();
+}
+
+export async function anonymousSubmissionKey(request: Request, secret: string) {
+  const forwarded =
+    request.headers.get("cf-connecting-ip") ??
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    "unknown";
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(forwarded));
+  return `anonymous:${Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
 export async function listAppeals(binding: D1Database, userId: string) {

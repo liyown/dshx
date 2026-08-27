@@ -15,15 +15,15 @@ import { RuntimeDiagram } from "@/components/dshx/runtime-diagram";
 import { PluginCard } from "@/components/dshx/plugin-card";
 import { useHydratedReducedMotion } from "@/components/dshx/use-hydrated-reduced-motion";
 import { useSiteScrollMotion } from "@/components/dshx/use-site-scroll-motion";
-import { loadMarketplaceCatalog } from "@/lib/catalog/functions";
+import { loadCatalog } from "@/lib/catalog/functions";
 import type { CatalogCard } from "@/lib/catalog/types";
 import { createTranslator, localizedPath, parseLocale, useI18n } from "@/lib/i18n";
 import { DSHX_VERSION, MARKETPLACE_REFERENCE_PLUGIN } from "@/lib/reference-plugin";
 
 export const Route = createFileRoute("/$locale/")({
   loader: ({ params }) =>
-    loadMarketplaceCatalog({
-      data: { locale: parseLocale(params.locale), q: "", sort: "latest", limit: 6 },
+    loadCatalog({
+      data: { locale: parseLocale(params.locale), q: "", sort: "featured", limit: 6 },
     }),
   head: ({ params }) => {
     const locale = parseLocale(params.locale);
@@ -258,7 +258,7 @@ function Ecosystem({ plugins }: { plugins: CatalogCard[] }) {
             <Link
               to="/$locale/plugins"
               params={{ locale }}
-              search={{ q: reference.packageName, category: "", sort: "latest", cursor: "" }}
+              search={{ q: reference.packageName, category: "", sort: "featured", cursor: "" }}
               className="inline-flex h-10 items-center justify-center rounded-[10px] px-4 text-[13.5px] font-medium text-accent transition-colors hover:bg-accent-soft"
             >
               {t("home.referenceMarketplace")}

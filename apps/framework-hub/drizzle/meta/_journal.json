@@ -50,6 +50,34 @@
       "when": 1787502886008,
       "tag": "0007_better_auth_account_issuer",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1787798503296,
+      "tag": "0008_atomic_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1787801784449,
+      "tag": "0008_hub_operation_reports",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1787807002059,
+      "tag": "0009_tidy_sentry",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1787817964710,
+      "tag": "0010_gigantic_trish_tilby",
+      "breakpoints": true
     }
   ]
 }

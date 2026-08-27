@@ -168,13 +168,13 @@ export function SubmissionsPage() {
       return;
     }
     setRepositoryUrl("");
-    setMessage("Repository queued for deterministic verification.");
+    setMessage("Repository queued for the operations Agent.");
     await reload();
   }
   return (
     <AccountShell
       title="Plugin submissions"
-      intro="Submit the root of a GitHub repository. The operations Agent finds its packages, verifies the archive contents and publishes only bundles that pass verification."
+      intro="Submit the root of a public GitHub repository. The operations Agent reviews it as a plugin, records sourced metadata and publishes it when the catalog entry is complete."
     >
       {error ? (
         <AccountAccess message={error} />

@@ -10,6 +10,7 @@ const groups: {
     title: "footer.product",
     items: [
       { key: "nav.plugins", to: "/plugins" },
+      { key: "nav.operations", to: "/operations" },
       { key: "nav.docs", to: "/docs" },
       { key: "footer.compatibility", to: "/docs/compatibility" },
     ],

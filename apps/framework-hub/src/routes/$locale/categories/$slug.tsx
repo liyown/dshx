@@ -2,7 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { PluginCard } from "@/components/dshx/plugin-card";
 import { Container, SectionLabel } from "@/components/dshx/primitives";
-import { loadMarketplaceCatalog } from "@/lib/catalog/functions";
+import { loadCatalog } from "@/lib/catalog/functions";
 import { parseLocale } from "@/lib/i18n";
 
 const categoryCopy = {
@@ -24,12 +24,12 @@ const categoryCopy = {
 
 export const Route = createFileRoute("/$locale/categories/$slug")({
   loader: async ({ params }) => {
-    const page = await loadMarketplaceCatalog({
+    const page = await loadCatalog({
       data: {
         locale: parseLocale(params.locale),
         category: params.slug,
         q: "",
-        sort: "latest",
+        sort: "featured",
         limit: 50,
       },
     });

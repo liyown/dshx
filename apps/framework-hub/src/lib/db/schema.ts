@@ -231,7 +231,7 @@ export const plugins = sqliteTable(
     description: text("description").notNull(),
     authorHandle: text("author_handle").notNull(),
     category: text("category").notNull(),
-    badge: text("badge", { enum: ["official", "verified", "community"] })
+    badge: text("badge", { enum: ["official", "community"] })
       .notNull()
       .default("community"),
     latestVersion: text("latest_version").notNull(),
@@ -310,6 +310,7 @@ export const pluginInstallTargets = sqliteTable(
     }),
     kind: text("kind", { enum: ["npm", "github"] }).notNull(),
     spec: text("spec").notNull(),
+    packagePath: text("package_path").notNull().default(""),
     packageName: text("package_name").notNull(),
     version: text("version").notNull(),
     integrity: text("integrity"),
@@ -322,7 +323,11 @@ export const pluginInstallTargets = sqliteTable(
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
   },
   (table) => [
-    uniqueIndex("plugin_install_targets_spec_idx").on(table.spec),
+    uniqueIndex("plugin_install_targets_location_idx").on(
+      table.kind,
+      table.spec,
+      table.packagePath,
+    ),
     index("plugin_install_targets_plugin_primary_idx").on(table.pluginId, table.isPrimary),
   ],
 );
@@ -508,10 +513,17 @@ export const pluginMedia = sqliteTable(
     status: text("status", { enum: ["active", "removed"] })
       .notNull()
       .default("active"),
+    observedAt: integer("observed_at", { mode: "timestamp_ms" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
+    // Added to this legacy table with SQLite's required constant ALTER default.
+    // Ops v1 always writes the real timestamp explicitly.
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`0`),
   },
   (table) => [
     index("plugin_media_hash_idx").on(table.sha256),
+    uniqueIndex("plugin_media_plugin_kind_hash_idx").on(table.pluginId, table.kind, table.sha256),
     index("plugin_media_plugin_kind_idx").on(table.pluginId, table.kind, table.sortOrder),
   ],
 );
@@ -729,6 +741,206 @@ export const apiTokens = sqliteTable(
     uniqueIndex("api_tokens_hash_idx").on(table.tokenHash),
     index("api_tokens_user_idx").on(table.userId, table.revokedAt),
   ],
+);
+
+// Operations v1 keeps external observations immutable-by-identity and builds a
+// current operational projection beside the public catalog projection. The
+// legacy catalog sync tables above remain readable migration history only.
+export const pluginObservationIdentities = sqliteTable(
+  "plugin_observation_identities",
+  {
+    identityKey: text("identity_key").primaryKey(),
+    pluginId: text("plugin_id")
+      .notNull()
+      .references(() => plugins.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["npm", "github"] }).notNull(),
+    identityJson: text("identity_json", { mode: "json" })
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    lastObservedAt: integer("last_observed_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (table) => [index("plugin_observation_identities_plugin_idx").on(table.pluginId)],
+);
+
+export const pluginObservations = sqliteTable(
+  "plugin_observations",
+  {
+    observationId: text("observation_id").primaryKey(),
+    schemaVersion: integer("schema_version").notNull(),
+    pluginId: text("plugin_id")
+      .notNull()
+      .references(() => plugins.id, { onDelete: "cascade" }),
+    identityKey: text("identity_key").notNull(),
+    observedAt: integer("observed_at", { mode: "timestamp_ms" }).notNull(),
+    sourceKind: text("source_kind", {
+      enum: ["npm", "github", "readme", "release", "manual"],
+    }).notNull(),
+    sourceUrl: text("source_url").notNull(),
+    sourceRef: text("source_ref"),
+    sourceEtag: text("source_etag"),
+    sourceContentHash: text("source_content_hash"),
+    sourceAvailability: text("source_availability", {
+      enum: ["available", "unavailable"],
+    }).notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    payloadJson: text("payload_json", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    actorTokenId: text("actor_token_id").references(() => apiTokens.id, {
+      onDelete: "set null",
+    }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (table) => [
+    index("plugin_observations_plugin_observed_idx").on(table.pluginId, table.observedAt),
+    index("plugin_observations_identity_observed_idx").on(table.identityKey, table.observedAt),
+    index("plugin_observations_source_observed_idx").on(table.sourceUrl, table.observedAt),
+  ],
+);
+
+export const pluginOperationalState = sqliteTable(
+  "plugin_operational_state",
+  {
+    pluginId: text("plugin_id")
+      .primaryKey()
+      .references(() => plugins.id, { onDelete: "cascade" }),
+    state: text("state", { enum: ["draft", "published"] })
+      .notNull()
+      .default("draft"),
+    visibility: text("visibility", { enum: ["visible", "hidden"] })
+      .notNull()
+      .default("visible"),
+    revision: integer("revision").notNull().default(1),
+    // A write nonce lets dependent projection statements prove that their
+    // optimistic state transition won before they mutate public tables.
+    lastOperationId: text("last_operation_id"),
+    detectionJson: text("detection_json", { mode: "json" }).$type<Record<string, unknown> | null>(),
+    factsJson: text("facts_json", { mode: "json" })
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'`),
+    sourcesJson: text("sources_json", { mode: "json" })
+      .$type<Record<string, unknown>[]>()
+      .notNull()
+      .default(sql`'[]'`),
+    fieldProvenanceJson: text("field_provenance_json", { mode: "json" })
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'`),
+    visibilityReason: text("visibility_reason"),
+    visibilityChangedAt: integer("visibility_changed_at", { mode: "timestamp_ms" }),
+    lastObservedAt: integer("last_observed_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (table) => [
+    index("plugin_operational_state_state_idx").on(table.state, table.visibility),
+    index("plugin_operational_state_observed_idx").on(table.lastObservedAt),
+    index("plugin_operational_state_updated_idx").on(table.updatedAt),
+  ],
+);
+
+export const pluginCurations = sqliteTable("plugin_curations", {
+  pluginId: text("plugin_id")
+    .primaryKey()
+    .references(() => plugins.id, { onDelete: "cascade" }),
+  displayNameJson: text("display_name_json", { mode: "json" })
+    .$type<Record<"en" | "zh", string>>()
+    .notNull(),
+  shortDescriptionJson: text("short_description_json", { mode: "json" })
+    .$type<Record<"en" | "zh", string>>()
+    .notNull(),
+  overviewMarkdownJson: text("overview_markdown_json", { mode: "json" })
+    .$type<Record<"en" | "zh", string>>()
+    .notNull(),
+  sourceReadmeHash: text("source_readme_hash"),
+  categoriesJson: text("categories_json", { mode: "json" })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
+  tagsJson: text("tags_json", { mode: "json" })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
+  derivedFromJson: text("derived_from_json", { mode: "json" })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
+});
+
+export const pluginSourceDocuments = sqliteTable(
+  "plugin_source_documents",
+  {
+    id: text("id").primaryKey(),
+    pluginId: text("plugin_id")
+      .notNull()
+      .references(() => plugins.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["readme"] }).notNull(),
+    availability: text("availability", { enum: ["available", "unavailable"] }).notNull(),
+    format: text("format", { enum: ["markdown"] }).notNull(),
+    sourceUrl: text("source_url").notNull(),
+    sourceRef: text("source_ref"),
+    sourcePath: text("source_path"),
+    content: text("content"),
+    contentHash: text("content_hash"),
+    observedAt: integer("observed_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (table) => [
+    uniqueIndex("plugin_source_documents_plugin_kind_idx").on(table.pluginId, table.kind),
+    index("plugin_source_documents_hash_idx").on(table.contentHash),
+  ],
+);
+
+export const pluginOperationAudit = sqliteTable(
+  "plugin_operation_audit",
+  {
+    id: text("id").primaryKey(),
+    requestId: text("request_id").notNull(),
+    // Audit actor/resource identifiers intentionally have no foreign keys: the
+    // append-only ledger must survive token revocation and resource deletion.
+    actorTokenId: text("actor_token_id"),
+    action: text("action").notNull(),
+    resourceType: text("resource_type", {
+      enum: ["plugin", "observation", "submission", "media"],
+    }).notNull(),
+    resourceId: text("resource_id").notNull(),
+    pluginId: text("plugin_id"),
+    beforeRevision: integer("before_revision"),
+    afterRevision: integer("after_revision"),
+    detailsJson: text("details_json", { mode: "json" })
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (table) => [
+    index("plugin_operation_audit_plugin_idx").on(table.pluginId, table.createdAt),
+    index("plugin_operation_audit_resource_idx").on(
+      table.resourceType,
+      table.resourceId,
+      table.createdAt,
+    ),
+    index("plugin_operation_audit_request_idx").on(table.requestId),
+  ],
+);
+
+export const hubOperationReports = sqliteTable(
+  "hub_operation_reports",
+  {
+    runId: text("run_id").primaryKey(),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }).notNull(),
+    outcome: text("outcome", { enum: ["completed", "partial"] }).notNull(),
+    bodyEn: text("body_en").notNull(),
+    bodyZh: text("body_zh").notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    actorTokenId: text("actor_token_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (table) => [index("hub_operation_reports_completed_idx").on(table.completedAt, table.runId)],
 );
 
 export const pluginClaims = sqliteTable(
@@ -1099,13 +1311,12 @@ export const pluginSubmissions = sqliteTable(
   "plugin_submissions",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUsers.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => authUsers.id, { onDelete: "cascade" }),
+    submitterKey: text("submitter_key").notNull(),
     repositoryUrl: text("repository_url").notNull(),
     repositoryFullName: text("repository_full_name").notNull(),
     status: text("status", {
-      enum: ["queued", "discovered", "qualified", "rejected", "published"],
+      enum: ["queued", "discovered", "qualified", "rejected", "published", "resolved"],
     })
       .notNull()
       .default("queued"),
@@ -1122,7 +1333,10 @@ export const pluginSubmissions = sqliteTable(
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
   },
   (table) => [
-    uniqueIndex("plugin_submissions_user_idempotency_idx").on(table.userId, table.idempotencyKey),
+    uniqueIndex("plugin_submissions_submitter_idempotency_idx").on(
+      table.submitterKey,
+      table.idempotencyKey,
+    ),
     index("plugin_submissions_status_idx").on(table.status, table.createdAt),
   ],
 );

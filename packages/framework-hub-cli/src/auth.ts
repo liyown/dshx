@@ -2,7 +2,8 @@ import { createServer, type ServerResponse } from "node:http";
 import { randomBytes, createHash } from "node:crypto";
 import open from "open";
 
-import { api } from "./api.js";
+import { apiData } from "./api.js";
+import { CliError } from "./errors.js";
 import { deleteToken, readToken, saveToken } from "./keychain.js";
 
 const base64url = (value: Buffer) => value.toString("base64url");
@@ -49,6 +50,35 @@ export interface AuthorizationOutput {
   write(value: string): unknown;
 }
 
+export type LoginOptions = {
+  opener?: BrowserOpener;
+  output?: AuthorizationOutput;
+  timeoutMs?: number;
+};
+
+export function parseAuthorizationCallback(url: URL, expectedState: string) {
+  if (url.searchParams.get("state") !== expectedState)
+    throw new CliError({
+      code: "authorization_state_mismatch",
+      message:
+        "CLI authorization state did not match the active login request.",
+      retryable: false,
+      repairHint:
+        "Close the callback page and start a fresh auth login command.",
+    });
+  const code = url.searchParams.get("code");
+  const authorizationId = url.searchParams.get("authorization_id");
+  if (!code || !authorizationId)
+    throw new CliError({
+      code: "authorization_callback_incomplete",
+      message: "CLI authorization callback is missing required fields.",
+      retryable: false,
+      repairHint:
+        "Close the callback page and start a fresh auth login command.",
+    });
+  return { code, authorizationId };
+}
+
 export async function openAuthorizationUrl(
   url: string,
   opener: BrowserOpener = (target) => open(target, { wait: false }),
@@ -63,7 +93,11 @@ export async function openAuthorizationUrl(
   }
 }
 
-export async function login(hub: string, scopes: string[]) {
+export async function login(
+  hub: string,
+  scopes: string[],
+  options: LoginOptions = {},
+) {
   const state = base64url(randomBytes(32));
   const verifier = base64url(randomBytes(32));
   const challenge = createHash("sha256").update(verifier).digest("base64url");
@@ -88,38 +122,65 @@ export async function login(hub: string, scopes: string[]) {
       );
       return;
     }
-    if (url.searchParams.get("state") !== state) {
+    let parsed: ReturnType<typeof parseAuthorizationCallback>;
+    try {
+      parsed = parseAuthorizationCallback(url, state);
+    } catch (error) {
       callbackSettled = true;
       redirectAuthorizationPage(
         response,
-        authorizationPageUrl(hub, acceptLanguage, "error", "expired"),
+        authorizationPageUrl(
+          hub,
+          acceptLanguage,
+          "error",
+          error instanceof CliError &&
+            error.issue.code === "authorization_callback_incomplete"
+            ? "incomplete"
+            : "expired",
+        ),
       );
-      rejectCallback(new Error("CLI authorization state mismatch"));
-      return;
-    }
-    const code = url.searchParams.get("code");
-    const authorizationId = url.searchParams.get("authorization_id");
-    if (!code || !authorizationId) {
-      callbackSettled = true;
-      redirectAuthorizationPage(
-        response,
-        authorizationPageUrl(hub, acceptLanguage, "error", "incomplete"),
+      rejectCallback(
+        error instanceof Error
+          ? error
+          : new CliError({
+              code: "authorization_callback_invalid",
+              message: "CLI authorization callback is invalid.",
+              retryable: false,
+              repairHint: "Start a fresh auth login command.",
+            }),
       );
-      rejectCallback(new Error("Authorization response is incomplete"));
       return;
     }
     callbackSettled = true;
-    resolveCallback({ code, authorizationId, response, acceptLanguage });
+    resolveCallback({ ...parsed, response, acceptLanguage });
   });
-  await new Promise<void>((resolve, reject) =>
-    server.listen(0, "127.0.0.1", resolve).once("error", reject),
-  );
+  try {
+    await new Promise<void>((resolve, reject) =>
+      server.listen(0, "127.0.0.1", resolve).once("error", reject),
+    );
+  } catch (error) {
+    throw new CliError({
+      code: "authorization_callback_unavailable",
+      message: "Unable to start the local authorization callback.",
+      retryable: true,
+      repairHint:
+        "Check local firewall and loopback permissions, then retry auth login.",
+      details: {
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
   let timeoutHandle: NodeJS.Timeout | undefined;
   try {
     const address = server.address();
     if (!address || typeof address === "string")
-      throw new Error("Unable to start loopback callback");
-    const created = await api<{ authorizeUrl: string }>(
+      throw new CliError({
+        code: "authorization_callback_unavailable",
+        message: "The local authorization callback address is unavailable.",
+        retryable: true,
+        repairHint: "Check local loopback permissions, then retry auth login.",
+      });
+    const created = await apiData<{ authorizeUrl: string }>(
       hub,
       "/api/cli/authorizations",
       {
@@ -131,19 +192,36 @@ export async function login(hub: string, scopes: string[]) {
           scopes,
         }),
       },
-      false,
+      "none",
     );
-    if (await openAuthorizationUrl(created.authorizeUrl))
-      process.stderr.write("Browser opened. Complete GitHub authorization…\n");
+    if (
+      await openAuthorizationUrl(
+        created.authorizeUrl,
+        options.opener ?? ((target) => open(target, { wait: false })),
+        options.output ?? process.stderr,
+      )
+    )
+      (options.output ?? process.stderr).write(
+        "Browser opened. Complete GitHub authorization…\n",
+      );
     const timeout = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(
-        () => reject(new Error("CLI authorization timed out")),
-        5 * 60_000,
+        () =>
+          reject(
+            new CliError({
+              code: "authorization_timeout",
+              message: "CLI authorization timed out.",
+              retryable: true,
+              repairHint:
+                "Start auth login again and complete browser authorization promptly.",
+            }),
+          ),
+        options.timeoutMs ?? 5 * 60_000,
       );
     });
     const result = await Promise.race([callback, timeout]);
     try {
-      const exchanged = await api<{ token: string; expiresAt: string }>(
+      const exchanged = await apiData<{ token: string; expiresAt: string }>(
         hub,
         "/api/cli/token",
         {
@@ -154,7 +232,7 @@ export async function login(hub: string, scopes: string[]) {
             codeVerifier: verifier,
           }),
         },
-        false,
+        "none",
       );
       saveToken(hub, exchanged.token);
       redirectAuthorizationPage(
@@ -176,11 +254,11 @@ export async function login(hub: string, scopes: string[]) {
 }
 
 export async function status(hub: string) {
-  return api(hub, "/api/cli/token");
+  return apiData(hub, "/api/cli/token");
 }
 
 export async function logout(hub: string) {
   const token = readToken(hub);
-  if (token) await api(hub, "/api/cli/token", { method: "DELETE" });
+  if (token) await apiData(hub, "/api/cli/token", { method: "DELETE" });
   deleteToken(hub);
 }

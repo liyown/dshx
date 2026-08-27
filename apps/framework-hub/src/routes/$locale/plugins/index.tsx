@@ -4,33 +4,37 @@ import { useEffect, useState } from "react";
 
 import { PluginCard, PluginRow } from "@/components/dshx/plugin-card";
 import { Chip, Container, SectionLabel } from "@/components/dshx/primitives";
-import { marketplaceSortValues, type MarketplaceListQuery } from "@/lib/catalog/contracts";
-import { loadMarketplaceCatalog } from "@/lib/catalog/functions";
+import { PluginSubmissionDialog } from "@/components/community/plugin-submission-dialog";
+import { catalogSortValues, type PluginListQuery } from "@/lib/catalog/contracts";
+import { loadCatalog } from "@/lib/catalog/functions";
 import { createTranslator, parseLocale, useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-type MarketplaceSort = MarketplaceListQuery["sort"];
+type CatalogSort = PluginListQuery["sort"];
 
-function isMarketplaceSort(value: unknown): value is MarketplaceSort {
-  return typeof value === "string" && marketplaceSortValues.includes(value as MarketplaceSort);
+function isCatalogSort(value: unknown): value is CatalogSort {
+  return typeof value === "string" && catalogSortValues.includes(value as CatalogSort);
 }
 
 const sortLabels = {
+  featured: "plugins.featured",
+  trending: "plugins.trending",
+  updated: "plugins.recentlyUpdated",
+  new: "plugins.new",
   stars: "plugins.sortStars",
   downloads: "plugins.sortDownloads",
-  latest: "plugins.sortLatest",
 } as const;
 
 export const Route = createFileRoute("/$locale/plugins/")({
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search["q"] === "string" ? search["q"].slice(0, 80) : "",
     category: typeof search["category"] === "string" ? search["category"] : "",
-    sort: isMarketplaceSort(search["sort"]) ? search["sort"] : ("latest" as MarketplaceSort),
+    sort: isCatalogSort(search["sort"]) ? search["sort"] : ("featured" as CatalogSort),
     cursor: typeof search["cursor"] === "string" ? search["cursor"] : "",
   }),
   loaderDeps: ({ search }) => search,
   loader: ({ params, deps }) =>
-    loadMarketplaceCatalog({
+    loadCatalog({
       data: {
         locale: parseLocale(params.locale),
         q: deps.q,
@@ -43,7 +47,7 @@ export const Route = createFileRoute("/$locale/plugins/")({
   head: ({ params, match }) => {
     const t = createTranslator(parseLocale(params.locale));
     const hasIndexVariant = Object.values(match.search).some(
-      (value) => Boolean(value) && value !== "latest",
+      (value) => Boolean(value) && value !== "featured",
     );
     return {
       meta: [
@@ -91,12 +95,17 @@ function PluginsPage() {
     <main>
       <Container className="py-16 md:py-24">
         <SectionLabel index="/plugins">{t("plugins.label")}</SectionLabel>
-        <h1 className="text-balance-tight mt-6 text-[clamp(2rem,4.5vw,3.25rem)] leading-[1.05] font-medium">
-          {t("plugins.title")}
-        </h1>
-        <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-          {t("plugins.intro")}
-        </p>
+        <div className="mt-6 flex flex-col items-start justify-between gap-6 sm:flex-row sm:gap-10">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-balance-tight text-[clamp(2rem,4.5vw,3.25rem)] leading-[1.05] font-medium">
+              {t("plugins.title")}
+            </h1>
+            <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
+              {t("plugins.intro")}
+            </p>
+          </div>
+          <PluginSubmissionDialog />
+        </div>
 
         <label className="mt-10 flex items-center gap-3 rounded-xl border border-border-strong bg-surface px-4 py-3 transition-colors focus-within:border-accent">
           <Search className="size-4 text-accent" aria-hidden="true" />
@@ -150,7 +159,7 @@ function PluginsPage() {
             role="group"
             aria-label={t("plugins.sortLabel")}
           >
-            {marketplaceSortValues.map((sort) => (
+            {catalogSortValues.map((sort) => (
               <button
                 type="button"
                 key={sort}

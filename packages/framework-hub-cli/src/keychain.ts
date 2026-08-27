@@ -1,5 +1,7 @@
 import { Entry } from "@napi-rs/keyring";
 
+import { CliError } from "./errors.js";
+
 interface KeyringEntry {
   getPassword(): string | null;
   setPassword(password: string): void;
@@ -21,11 +23,18 @@ function entry(hub: string): KeyringEntry {
   return entryFactory(service(hub), "default");
 }
 
-function unavailable(operation: string, cause: unknown): Error {
-  return new Error(
-    `System keyring is unavailable while ${operation}. Ensure macOS Keychain, Linux Secret Service, or Windows Credential Manager is running, then retry.`,
-    { cause },
-  );
+function unavailable(operation: string, cause: unknown): CliError {
+  return new CliError({
+    code: "keyring_unavailable",
+    message: `System keyring is unavailable while ${operation}.`,
+    retryable: true,
+    repairHint:
+      "Ensure macOS Keychain, Linux Secret Service, or Windows Credential Manager is running, then retry.",
+    details: {
+      operation,
+      cause: cause instanceof Error ? cause.message : String(cause),
+    },
+  });
 }
 
 /** Inject a fake credential backend in tests without touching user credentials. */

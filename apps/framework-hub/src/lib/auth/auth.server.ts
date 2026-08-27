@@ -136,10 +136,10 @@ export function createAuth(context: unknown) {
   });
 }
 
-export async function requireSession(request: Request, context: unknown) {
+export async function getOptionalSession(request: Request, context: unknown) {
   const auth = createAuth(context);
   const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) throw new HttpError(401, "Sign in with GitHub first", "unauthorized");
+  if (!session) return null;
   const bindings = requireBindings(context);
   const db = createDatabase(bindings.DB!);
   const [profile] = await db
@@ -150,6 +150,12 @@ export async function requireSession(request: Request, context: unknown) {
   if (!profile || profile.status === "banned")
     throw new HttpError(403, "Account is unavailable", "forbidden");
   return { session, profile, db };
+}
+
+export async function requireSession(request: Request, context: unknown) {
+  const result = await getOptionalSession(request, context);
+  if (!result) throw new HttpError(401, "Sign in with GitHub first", "unauthorized");
+  return result;
 }
 
 export async function requireAdminSession(request: Request, context: unknown) {

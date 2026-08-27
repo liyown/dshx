@@ -12,7 +12,6 @@ function formatMetric(value: number | null): string {
 function BadgeTag({ badge }: { badge: Plugin["badge"] }) {
   const { t } = useI18n();
   if (badge === "official") return <Chip tone="accent">{t("plugin.badge.official")}</Chip>;
-  if (badge === "verified") return <Chip tone="ok">{t("plugin.badge.verified")}</Chip>;
   return <Chip>{t("plugin.badge.community")}</Chip>;
 }
 

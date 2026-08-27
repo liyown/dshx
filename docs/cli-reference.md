@@ -102,4 +102,46 @@ pnpm create dshx@preview <name> \
 
 ## `dshx-hub`
 
-The Hub CLI is JSON-first. It validates local evidence without running third-party package scripts and performs privileged operations only after browser PKCE login. Credentials stay in the operating-system keyring. Run `dshx-hub help` or `dshx-hub <group> --help` for its current command grammar.
+The Hub CLI is a stateless, JSON-first client for Agent-operated catalog maintenance. The Agent chooses what to inspect and how to combine operations; the Hub owns validation, field precedence, revisions, concurrency, visibility, and audit records. Credentials stay in the operating-system keyring, and `--all` pagination state exists only for the lifetime of the current process.
+
+| Command                    | Purpose                                                               | Hub write |
+| -------------------------- | --------------------------------------------------------------------- | --------- |
+| `auth login/status/logout` | Manage the local Hub credential                                       | Auth only |
+| `status`                   | Read reachability, authentication, plugin counts, and submission load | No        |
+| `source discover`          | Search public GitHub/npm metadata with time windows and cursors       | No        |
+| `source inspect`           | Normalize public GitHub/npm facts into `PluginObservationV1`          | No        |
+| `plugin list/get`          | Query summary or complete operational plugin views                    | No        |
+| `plugin upsert`            | Merge one or more source observations                                 | Yes       |
+| `plugin curate`            | Change only curated names, copy, categories, tags, and derivation     | Yes       |
+| `plugin hide/restore`      | Change public visibility with an audited reason                       | Yes       |
+| `submission list/get`      | Read user submissions                                                 | No        |
+| `submission resolve`       | Mark a submission accepted, duplicate, or ignored                     | Yes       |
+| `report latest`            | Read the previous immutable daily operations report                   | No        |
+| `report publish`           | Publish one bilingual completed or partial run report                 | Yes       |
+| `media upload`             | Store validated plugin media and metadata                             | Yes       |
+| `audit`                    | Read catalog, storage, or community consistency findings              | No        |
+
+`source inspect` accepts `github:owner/repository`, `npm:package-name`, GitHub repository URLs, and npm package URLs. It may discover several workspace packages, but its scan is bounded and reports truncation. Each observation preserves the exact public README collection result, its content hash and source location, plus public GitHub publisher identity and avatar facts when available. It never installs a package, executes package scripts, launches DSH, or tests third-party behavior.
+
+The inspect result can be saved or piped into an upsert:
+
+```bash
+dshx-hub source inspect https://github.com/foo/bar --output /tmp/plugin.json
+dshx-hub plugin upsert --input /tmp/plugin.json
+
+dshx-hub source inspect npm:foo \
+  | dshx-hub plugin upsert --input -
+```
+
+All output uses one envelope. Success contains `ok: true`, `data`, `warnings`, and `meta.requestId`; failure contains `ok: false`, one error with stable `code`, `retryable`, optional `repairHint`, details, and the request ID. Exit code `0` includes warnings and unchanged writes, `1` is a command-level failure, and `2` means a batch had partial failure.
+
+For a guarded content edit, read the current revision and send it back with the mutation:
+
+```bash
+dshx-hub plugin get PLUGIN_ID
+dshx-hub plugin curate PLUGIN_ID --if-revision 5 --input content.json
+```
+
+On `revision_conflict`, fetch the current plugin, merge the intended content, and retry with the new revision. For batch results, keep successful items and inspect each rejected item's error independently.
+
+`status`, filtered `plugin list`, and scoped `audit` are planning inputs; they do not prescribe another command. Examples are compositions, not a required state machine. Use `dshx-hub <command> --help` for the exact flags and read/write contract, and see [Framework Hub Operations](../apps/framework-hub/OPERATIONS.md) for the server API and merge rules.

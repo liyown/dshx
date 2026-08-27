@@ -12,6 +12,7 @@ export type MarketplaceTabProps = PropsRuntime<'settings.plugins.tab'> & PropsLo
 type Translate = MarketplaceTabProps['t']
 type ModalState =
   | { readonly kind: 'confirm'; readonly plugin: MarketplaceCard }
+  | { readonly kind: 'risk'; readonly plugin: MarketplaceCard }
   | { readonly kind: 'success'; readonly plugin: MarketplaceCard }
   | {
       readonly kind: 'failure'
@@ -72,12 +73,16 @@ function InstallDialog({
   installing,
   t,
   onClose,
+  onContinue,
+  onRetry,
   onInstall,
 }: {
   readonly state: ModalState
   readonly installing: boolean
   readonly t: Translate
   readonly onClose: () => void
+  readonly onContinue: (plugin: MarketplaceCard) => void
+  readonly onRetry: (plugin: MarketplaceCard) => void
   readonly onInstall: (plugin: MarketplaceCard) => void
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null)
@@ -91,8 +96,9 @@ function InstallDialog({
   }, [])
 
   const confirm = state.kind === 'confirm'
+  const risk = state.kind === 'risk'
   const success = state.kind === 'success'
-  const title = confirm ? t('installTitle') : success ? t('installSuccessTitle') : t('installFailedTitle')
+  const title = confirm ? t('installTitle') : risk ? t('riskTitle') : success ? t('installSuccessTitle') : t('installFailedTitle')
 
   return (
     <dialog
@@ -135,12 +141,15 @@ function InstallDialog({
                 <dd>{sourceLabel(state.plugin, t)}</dd>
               </div>
             </dl>
-            {state.plugin.badge === 'community' ? (
-              <p className={styles.warning} role="note">
-                {t('communityWarning')}
-              </p>
-            ) : null}
+            <p className={styles.warning} role="note">
+              {t('riskWarning')}
+            </p>
           </>
+        ) : null}
+        {risk ? (
+          <p className={styles.warning} role="alert">
+            {t('riskWarning')}
+          </p>
         ) : null}
         {success ? (
           <p className={styles.successMessage} role="status">
@@ -154,7 +163,7 @@ function InstallDialog({
         ) : null}
 
         <footer className={styles.dialogActions}>
-          {confirm ? (
+          {confirm || risk ? (
             <>
               <button type="button" className={styles.secondaryButton} disabled={installing} onClick={onClose}>
                 {t('cancel')}
@@ -164,11 +173,12 @@ function InstallDialog({
                 className={styles.primaryButton}
                 disabled={installing}
                 onClick={() => {
-                  onInstall(state.plugin)
+                  if (confirm) onContinue(state.plugin)
+                  else onInstall(state.plugin)
                 }}
               >
-                <span aria-hidden="true">{installing ? <IconLoadingOutline16 className={styles.spinner} /> : <IconDownloadOutline16 />}</span>
-                {installing ? t('downloading') : t('confirmInstall')}
+                <span aria-hidden="true">{installing ? <IconLoadingOutline16 className={styles.spinner} /> : risk ? <IconDownloadOutline16 /> : null}</span>
+                {installing ? t('downloading') : risk ? t('finalConfirmInstall') : t('continueInstall')}
               </button>
             </>
           ) : state.kind === 'failure' ? (
@@ -180,7 +190,7 @@ function InstallDialog({
                 type="button"
                 className={styles.primaryButton}
                 onClick={() => {
-                  onInstall(state.plugin)
+                  onRetry(state.plugin)
                 }}
               >
                 {t('retryInstall')}
@@ -253,7 +263,6 @@ export function MarketplaceTab({ t }: MarketplaceTabProps): ReactNode {
   const install = async (plugin: MarketplaceCard): Promise<void> => {
     if (installingSlug !== null) return
     setInstallingSlug(plugin.slug)
-    setModal({ kind: 'confirm', plugin })
     try {
       const result = await api.install({ slug: plugin.slug })
       if (result.status === 'failed') {
@@ -324,14 +333,13 @@ export function MarketplaceTab({ t }: MarketplaceTabProps): ReactNode {
             const installing = installingSlug === plugin.slug
             const compatibilityUnknown = plugin.compatibility === 'unknown'
             const incompatible = plugin.compatibility === 'incompatible'
-            const unavailable = compatibilityUnknown || incompatible
             const failed = failedSlugs.has(plugin.slug)
             const label = plugin.installed
               ? t('installed')
               : compatibilityUnknown
-                ? t('compatibilityUnknown')
+                ? `${t('download')} · ${t('compatibilityUnknown')}`
                 : incompatible
-                  ? t('incompatible')
+                  ? `${t('download')} · ${t('incompatible')}`
                   : installing
                     ? t('downloading')
                     : failed
@@ -373,8 +381,8 @@ export function MarketplaceTab({ t }: MarketplaceTabProps): ReactNode {
                                 ? 'retry'
                                 : 'download'
                     }
-                    disabled={plugin.installed || unavailable || installingSlug !== null}
-                    aria-label={plugin.installed || unavailable ? `${plugin.name}: ${label}` : accessibleLabel}
+                    disabled={plugin.installed || installingSlug !== null}
+                    aria-label={plugin.installed ? `${plugin.name}: ${label}` : accessibleLabel}
                     onClick={() => {
                       setModal({ kind: 'confirm', plugin })
                     }}
@@ -383,7 +391,7 @@ export function MarketplaceTab({ t }: MarketplaceTabProps): ReactNode {
                       <span aria-hidden="true">
                         <IconLoadingOutline16 className={styles.spinner} />
                       </span>
-                    ) : !plugin.installed && !unavailable ? (
+                    ) : !plugin.installed ? (
                       <span aria-hidden="true">
                         <IconDownloadOutline16 />
                       </span>
@@ -419,6 +427,12 @@ export function MarketplaceTab({ t }: MarketplaceTabProps): ReactNode {
           t={t}
           onClose={() => {
             if (installingSlug === null) setModal(null)
+          }}
+          onContinue={plugin => {
+            setModal({ kind: 'risk', plugin })
+          }}
+          onRetry={plugin => {
+            setModal({ kind: 'confirm', plugin })
           }}
           onInstall={plugin => {
             void install(plugin)

@@ -37,7 +37,7 @@ function plugin(overrides: Partial<MarketplaceCard> = {}): MarketplaceCard {
     compatibilityRange: '>=0.1.0-rc.8',
     compatibility: 'compatible',
     category: 'tools',
-    badge: 'verified',
+    badge: 'community',
     glyph: '测',
     iconUrl: null,
     installed: false,
@@ -171,17 +171,17 @@ describe('MarketplaceTab', () => {
     expect(
       (
         screen.getByRole('button', {
-          name: '待验证插件: 兼容性未知',
+          name: '下载 待验证插件',
         }) as HTMLButtonElement
       ).disabled,
-    ).toBe(true)
+    ).toBe(false)
     expect(
       (
         screen.getByRole('button', {
-          name: '未来插件: 不兼容',
+          name: '下载 未来插件',
         }) as HTMLButtonElement
       ).disabled,
-    ).toBe(true)
+    ).toBe(false)
     expect(
       (
         screen.getByRole('button', {
@@ -192,13 +192,16 @@ describe('MarketplaceTab', () => {
     expect(screen.queryByRole('link')).toBeNull()
   })
 
-  it('confirms every download, adds the community warning and shows restart guidance after success', async () => {
+  it('requires two confirmations with the fixed risk statement before every download', async () => {
     render(<MarketplaceTab {...componentProps} />)
     fireEvent.click(screen.getByRole('button', { name: '下载 社区插件' }))
     const dialog = screen.getByRole('dialog', { name: '安装插件' })
     expect(within(dialog).getByText('@fixture/community')).toBeTruthy()
-    expect(within(dialog).getByText(zh.communityWarning)).toBeTruthy()
-    fireEvent.click(within(dialog).getByRole('button', { name: '确认下载' }))
+    expect(within(dialog).getByText(zh.riskWarning)).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: '继续' }))
+    const risk = screen.getByRole('dialog', { name: '确认风险' })
+    expect(within(risk).getByText(zh.riskWarning)).toBeTruthy()
+    fireEvent.click(within(risk).getByRole('button', { name: '确认下载并安装' }))
     await waitFor(() => {
       expect(mocks.install).toHaveBeenCalledWith({ slug: 'community-plugin' })
     })
@@ -213,13 +216,16 @@ describe('MarketplaceTab', () => {
     })
     render(<MarketplaceTab {...componentProps} />)
     fireEvent.click(screen.getByRole('button', { name: '下载 测试插件' }))
-    fireEvent.click(screen.getByRole('button', { name: '确认下载' }))
+    fireEvent.click(screen.getByRole('button', { name: '继续' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认下载并安装' }))
     const failure = await screen.findByRole('dialog', { name: '安装失败' })
     expect(failure.textContent).toContain(zh.installFailed)
     fireEvent.click(within(failure).getByRole('button', { name: '重试' }))
-    await waitFor(() => {
-      expect(mocks.install).toHaveBeenCalledTimes(2)
-    })
+    expect(screen.getByRole('dialog', { name: '安装插件' })).toBeTruthy()
+    expect(mocks.install).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: '继续' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认下载并安装' }))
+    await waitFor(() => expect(mocks.install).toHaveBeenCalledTimes(2))
   })
 
   it('handles list failure, retry, empty categories and cursor pagination', async () => {

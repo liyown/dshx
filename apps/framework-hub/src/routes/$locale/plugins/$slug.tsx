@@ -5,6 +5,7 @@ import { PluginCommunityActions } from "@/components/community/plugin-actions";
 import { ReplyDialog, ReportDialog } from "@/components/community/community-dialogs";
 import { PluginGlyph, PublisherIdentity } from "@/components/dshx/plugin-card";
 import { loadCatalogDetail } from "@/lib/catalog/functions";
+import { selectInstallTarget } from "@/lib/catalog/install-target";
 import { cn } from "@/lib/utils";
 import { createTranslator, localizedPath, parseLocale, useI18n } from "@/lib/i18n";
 
@@ -33,7 +34,12 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
       };
     }
     const p = loaderData.plugin;
-    const primaryTarget = selectInstallTarget(loaderData.installTargets, p.scope, p.version);
+    const primaryTarget = selectInstallTarget(
+      loaderData.installTargets,
+      p.scope,
+      p.version,
+      loaderData.repositoryUrl,
+    );
     const canonical = `${loaderData.siteUrl}/${params.locale}/plugins/${p.slug}`;
     const socialImage = loaderData.media[0]
       ? `${loaderData.siteUrl}/api/media/${loaderData.media[0].id}`
@@ -123,29 +129,8 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
   component: PluginDetail,
 });
 
-const sections = ["overview", "releases", "dependencies", "media", "reviews"] as const;
+const sections = ["overview", "readme", "releases", "dependencies", "media", "reviews"] as const;
 type DetailSection = (typeof sections)[number];
-
-function selectInstallTarget(
-  targets: Array<{
-    spec: string;
-    package_name: string;
-    version: string;
-    status: string;
-    is_primary: number;
-  }>,
-  packageName: string,
-  version: string,
-) {
-  const candidates = targets.filter(
-    (target) =>
-      target.is_primary === 1 &&
-      target.status === "active" &&
-      target.package_name === packageName &&
-      target.version === version,
-  );
-  return candidates.length === 1 ? candidates[0] : null;
-}
 
 function parseHttpUrl(value: string | null): URL | null {
   if (!value) return null;
@@ -165,6 +150,7 @@ function formatCatalogDate(value: string | number | null, locale: "en" | "zh"): 
     year: "numeric",
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   }).format(date);
 }
 
@@ -174,7 +160,12 @@ function PluginDetail() {
   const { locale, t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [active, setActive] = useState<DetailSection>("overview");
-  const primaryTarget = selectInstallTarget(detail.installTargets, plugin.scope, plugin.version);
+  const primaryTarget = selectInstallTarget(
+    detail.installTargets,
+    plugin.scope,
+    plugin.version,
+    detail.repositoryUrl,
+  );
   const install = primaryTarget ? `dsh plugin --profile <profile> add ${primaryTarget.spec}` : null;
   const repositoryUrl = parseHttpUrl(detail.repositoryUrl);
   const unavailable = t("plugin.unavailable");
@@ -210,15 +201,7 @@ function PluginDetail() {
                 <h1 className="text-[28px] leading-tight font-medium tracking-[-0.03em]">
                   {plugin.name}
                 </h1>
-                <Chip
-                  tone={
-                    plugin.badge === "official"
-                      ? "accent"
-                      : plugin.badge === "verified"
-                        ? "ok"
-                        : "neutral"
-                  }
-                >
+                <Chip tone={plugin.badge === "official" ? "accent" : "neutral"}>
                   {plugin.badge}
                 </Chip>
               </div>
@@ -290,6 +273,7 @@ function PluginDetail() {
 
             <div className="mt-8 space-y-6">
               {active === "overview" ? <OverviewPanel detail={detail} locale={locale} /> : null}
+              {active === "readme" ? <ReadmePanel detail={detail} locale={locale} /> : null}
               {active === "releases" ? <ReleasesPanel releases={detail.releases} /> : null}
               {active === "dependencies" ? (
                 <DependenciesPanel dependencies={detail.dependencies} />
@@ -335,6 +319,7 @@ function PluginDetail() {
 function sectionLabel(section: DetailSection, locale: "en" | "zh") {
   const labels = {
     overview: ["Overview", "概览"],
+    readme: ["README", "README"],
     releases: ["Releases", "版本"],
     dependencies: ["Dependencies", "依赖"],
     media: ["Media", "媒体"],
@@ -350,11 +335,30 @@ function OverviewPanel({
   detail: ReturnType<typeof Route.useLoaderData>;
   locale: "en" | "zh";
 }) {
+  const { t } = useI18n();
   return (
     <div className="space-y-8">
-      <div className="whitespace-pre-wrap text-[15px] leading-7 text-muted-foreground">
-        {detail.overviewMarkdown ?? detail.plugin.description}
-      </div>
+      <section>
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
+          <div>
+            <h2 className="text-lg font-medium tracking-[-0.02em]">
+              {t("plugin.curatedOverview")}
+            </h2>
+            <p className="mt-1 max-w-2xl text-[13px] leading-5 text-muted-foreground">
+              {t("plugin.curatedOverviewDescription")}
+            </p>
+          </div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            {locale}
+          </span>
+        </div>
+        <div
+          dir="auto"
+          className="mt-5 max-w-[75ch] whitespace-pre-wrap text-[15px] leading-7 text-muted-foreground"
+        >
+          {detail.overviewMarkdown ?? detail.plugin.description}
+        </div>
+      </section>
       <section>
         <h2 className="text-base font-medium">
           {locale === "zh" ? "安装目标" : "Install targets"}
@@ -401,6 +405,65 @@ function OverviewPanel({
         </section>
       ) : null}
     </div>
+  );
+}
+
+function ReadmePanel({
+  detail,
+  locale,
+}: {
+  detail: ReturnType<typeof Route.useLoaderData>;
+  locale: "en" | "zh";
+}) {
+  const { t } = useI18n();
+  const readme = detail.sourceReadme;
+  if (!readme) return <EmptyPanel>{t("plugin.readmeNotCollected")}</EmptyPanel>;
+  const sourceUrl = parseHttpUrl(readme.sourceUrl);
+  if (readme.availability !== "available" || !readme.content)
+    return (
+      <div className="space-y-4">
+        <EmptyPanel>{t("plugin.readmeUnavailable")}</EmptyPanel>
+        {sourceUrl ? (
+          <a
+            href={sourceUrl.href}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-10 items-center text-[13px] text-muted-foreground underline decoration-border-strong underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {t("plugin.openReadme")}
+          </a>
+        ) : null}
+      </div>
+    );
+  return (
+    <section>
+      <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-medium tracking-[-0.02em]">{t("plugin.originalReadme")}</h2>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10.5px] text-muted-foreground">
+            <span>{readme.sourcePath ?? "README.md"}</span>
+            {readme.sourceRef ? <span>ref {readme.sourceRef}</span> : null}
+            <span>{formatCatalogDate(readme.observedAt, locale)}</span>
+          </div>
+        </div>
+        {sourceUrl ? (
+          <a
+            href={sourceUrl.href}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-10 items-center text-[13px] text-muted-foreground underline decoration-border-strong underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {t("plugin.openReadme")}
+          </a>
+        ) : null}
+      </div>
+      <pre
+        dir="auto"
+        className="mt-6 max-w-[75ch] whitespace-pre-wrap break-words font-mono text-[12.5px] leading-6 text-muted-foreground"
+      >
+        {readme.content}
+      </pre>
+    </section>
   );
 }
 
@@ -502,8 +565,7 @@ function MediaPanel({
   media: ReturnType<typeof Route.useLoaderData>["media"];
   name: string;
 }) {
-  if (!media.length)
-    return <EmptyPanel>No verified screenshots or artwork have been published.</EmptyPanel>;
+  if (!media.length) return <EmptyPanel>No screenshots or artwork have been published.</EmptyPanel>;
   return (
     <div className="grid gap-5 sm:grid-cols-2">
       {media.map(

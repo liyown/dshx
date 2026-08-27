@@ -1,397 +1,206 @@
 type HelpEntry = {
   summary: string;
   usage: string;
-  input: string;
-  output: string;
+  reads: string;
   writes: string;
   recovery: string;
-  example: string;
 };
 
 const commands: Record<string, HelpEntry> = {
   "auth login": {
     summary:
-      "Use browser PKCE authorization to issue a local Hub operations token.",
+      "Authorize this machine and store the revocable Hub token in the system keyring.",
     usage: "dshx-hub auth login [--hub URL] [--scopes LIST]",
-    input: "Hub URL and requested Hub scopes; no external-source credentials.",
-    output: "Authenticated user, scopes, and token expiry.",
-    writes:
-      "Creates a revocable Hub token and stores its raw value in the system keychain.",
-    recovery: "Retry safely or use auth logout to revoke the current token.",
-    example: "dshx-hub auth login --hub https://dshx.io",
+    reads: "Browser authorization response and requested scopes.",
+    writes: "One token in the operating-system credential store.",
+    recovery:
+      "Retry login if browser authorization expires; no catalog data is changed.",
   },
   "auth status": {
-    summary: "Validate the local Hub operations token.",
+    summary: "Validate the stored token and show its user, scopes, and expiry.",
     usage: "dshx-hub auth status [--hub URL]",
-    input: "No input.",
-    output: "Current Hub authentication state.",
-    writes: "Only updates token last-used metadata.",
-    recovery: "Run auth login when the token is missing, revoked, or expired.",
-    example: "dshx-hub auth status",
+    reads: "The local keyring and Hub token endpoint.",
+    writes: "Nothing.",
+    recovery: "Login again when the token is absent, expired, or revoked.",
   },
   "auth logout": {
-    summary: "Revoke the current Hub token and remove it from the keychain.",
+    summary:
+      "Revoke the current Hub token and remove it from the system keyring.",
     usage: "dshx-hub auth logout [--hub URL]",
-    input: "No input.",
-    output: "Revocation result.",
-    writes: "Revokes the server token and deletes the local credential.",
-    recovery: "Run auth login to issue another token.",
-    example: "dshx-hub auth logout",
+    reads: "The current local token, when present.",
+    writes: "Token revocation and local keyring deletion only.",
+    recovery: "Login again when Hub access is needed.",
   },
-  "contract show": {
+  status: {
     summary:
-      "Read a versioned live Hub input contract and controlled policy values.",
+      "Read Hub reachability, authentication, catalog, source-failure, and submission counts.",
+    usage: "dshx-hub status [--hub URL] [--output FILE]",
+    reads: "The aggregate Hub operations status.",
+    writes: "Nothing except an explicitly requested output file.",
+    recovery:
+      "Use the returned facts to plan; the command never recommends or starts another action.",
+  },
+  "source inspect": {
+    summary:
+      "Inspect one public GitHub repository or npm package and emit PluginObservationV1 data.",
+    usage: "dshx-hub source inspect SOURCE [--output FILE]",
+    reads:
+      "Public GitHub/npm metadata, bounded repository manifests, exact README source documents, and public GitHub publisher/avatar facts.",
+    writes:
+      "Nothing except an explicitly requested output file; packages are never installed or executed.",
+    recovery:
+      "Retry only retryable source errors; truncated results are complete up to the stated 100-package bound.",
+  },
+  "source discover": {
+    summary:
+      "Search one public GitHub or npm page for recently updated plugin candidates.",
     usage:
-      "dshx-hub contract show --kind catalog|metrics|target|media|moderation",
-    input: "Contract kind; catalog is the default.",
-    output: "JSON Schema, version, page limit, taxonomy, and hash policy.",
-    writes: "None.",
+      "dshx-hub source discover --provider github|npm --query TEXT --since DATE [--cursor CURSOR] [--limit N] [--output FILE]",
+    reads:
+      "Public GitHub repository search or npm registry search metadata only.",
+    writes:
+      "Nothing except an explicitly requested output file; results are not admitted automatically.",
     recovery:
-      "Refresh the contract after a schema mismatch; never guess new fields.",
-    example:
-      "dshx-hub contract show --kind catalog --output catalog-contract.json",
+      "Continue with nextCursor; retry a rate limit once, then record and skip the source.",
   },
-  "catalog inventory": {
-    summary: "Read published plugin identities and their current Hub state.",
-    usage: "dshx-hub catalog inventory [--cursor CURSOR] [--limit N] [--all]",
-    input: "Optional Hub cursor or --all for every page.",
-    output:
-      "Stable identities, repositories, install targets, and latest metrics.",
-    writes: "None.",
-    recovery: "Continue with nextCursor or rerun --all; reads are repeatable.",
-    example: "dshx-hub catalog inventory --all --output inventory.json",
+  "report latest": {
+    summary: "Read the newest immutable bilingual Hub operations report.",
+    usage: "dshx-hub report latest [--hub URL] [--output FILE]",
+    reads:
+      "The latest operations run timestamp, outcome, and bilingual plain-text body.",
+    writes: "Nothing except an explicitly requested output file.",
+    recovery:
+      "Use a 72-hour overlap when no previous report exists or the prior run was partial.",
   },
-  "catalog worklist": {
+  "report publish": {
     summary:
-      "Read Hub-originated submissions and stale or incomplete catalog work.",
-    usage: "dshx-hub catalog worklist [--output FILE]",
-    input: "No input.",
-    output: "User submissions and catalog data requiring Agent research.",
-    writes: "None.",
-    recovery: "Rerun after publishing or maintenance changes.",
-    example: "dshx-hub catalog worklist --output worklist.json",
+      "Publish one immutable bilingual report for a completed or partial operations run.",
+    usage: "dshx-hub report publish --input FILE|- [--hub URL] [--output FILE]",
+    reads:
+      "A versioned runId, timestamps, outcome, and English and Chinese plain text.",
+    writes:
+      "One idempotent report; Hub prunes the oldest rows beyond the global 1,000 limit.",
+    recovery:
+      "Reuse the same runId only for the identical body; use a new runId for a new run.",
   },
-  "catalog verify": {
+  "plugin list": {
     summary:
-      "Deterministically inspect one local package archive without executing it.",
+      "Query plugins with composable state, need, source, risk, date, and cursor filters.",
     usage:
-      "dshx-hub catalog verify --input evidence.json [--output attestation.json]",
-    input:
-      "EvidenceManifestV1 with local npm/git tar path, identity, and source evidence.",
-    output:
-      "Checks and VerificationAttestationV1 with path-free artifact basename/bytes when qualified; exit code 2 when rejected.",
-    writes:
-      "Only optional local output; never calls GitHub, npm, or package scripts.",
+      "dshx-hub plugin list [--state VALUE] [--needs VALUE] [--source VALUE] [--risk VALUE] [--observed-before DATE] [--updated-before DATE] [--limit N] [--cursor CURSOR] [--all]",
+    reads: "The Hub plugin operations projection.",
+    writes: "Nothing.",
     recovery:
-      "Replace or correct the local evidence and rerun the same command.",
-    example:
-      "dshx-hub catalog verify --input evidence.json --output verified.json",
+      "Reuse nextCursor, or use --all for pagination confined to this process.",
   },
-  "catalog check": {
+  "plugin get": {
+    summary: "Read the complete operations view for one plugin ID or slug.",
+    usage: "dshx-hub plugin get ID_OR_SLUG [--output FILE]",
+    reads:
+      "Plugin facts, original README, publisher profile, curation, risks, visibility, revision, and recent audit data.",
+    writes: "Nothing.",
+    recovery: "Use the latest revision when preparing a curation update.",
+  },
+  "plugin upsert": {
     summary:
-      "Validate complete CatalogProposalV2 pages against the live Hub contract.",
-    usage: "dshx-hub catalog check --input proposals.json [--output FILE]",
-    input: "One page containing 1–100 complete, bilingual proposals.",
-    output:
-      "Validity, item count, and stable identities or structured repair errors.",
-    writes: "None.",
-    recovery: "Correct the reported field/hash/category and check again.",
-    example: "dshx-hub catalog check --input proposals.json",
+      "Submit one or more observations; observation IDs and per-item idempotency are automatic.",
+    usage: "dshx-hub plugin upsert --input FILE|- [--dry-run] [--output FILE]",
+    reads:
+      "PluginObservationV1, an array, {observations}, or source-inspect success JSON.",
+    writes:
+      "Merges source observations into Hub facts unless --dry-run is set.",
+    recovery:
+      "Retry rejected items after repair; created, updated, and unchanged items are independently safe.",
   },
-  "sync start": {
-    summary: "Create a recoverable V2 staging run after qualified items exist.",
+  "plugin curate": {
+    summary:
+      "Replace the curated bilingual content, categories, tags, and provenance for one plugin.",
+    usage: "dshx-hub plugin curate PLUGIN_ID --input FILE [--if-revision N]",
+    reads: "Curated content JSON and an optional resource revision.",
+    writes: "Curated fields only; source facts and metrics cannot be supplied.",
+    recovery:
+      "On revision_conflict, read plugin get, merge with the latest curation, and retry.",
+  },
+  "plugin hide": {
+    summary: "Hide one plugin from public visibility with an audit reason.",
+    usage: "dshx-hub plugin hide PLUGIN_ID --reason TEXT",
+    reads: "Plugin identity and reason.",
+    writes: "Public visibility only.",
+    recovery: "Use plugin restore only after a deliberate reviewed decision.",
+  },
+  "plugin restore": {
+    summary: "Restore one deliberately hidden plugin with an audit reason.",
+    usage: "dshx-hub plugin restore PLUGIN_ID --reason TEXT",
+    reads: "Plugin identity and reason.",
+    writes:
+      "Public visibility only; source observations never restore automatically.",
+    recovery: "Read plugin get before retrying a rejected visibility change.",
+  },
+  "submission list": {
+    summary: "List user submissions, optionally filtered by status.",
     usage:
-      "dshx-hub sync start --idempotency-key KEY --expected N [--mode MODE]",
-    input: "Deterministic key and exact qualified item count from 1 to 500.",
-    output: "Open run metadata.",
-    writes: "Creates catalog_sync_runs only; nothing becomes public.",
-    recovery: "Reuse the same key, then sync resume, put, commit, or abort.",
-    example:
-      "dshx-hub sync start --idempotency-key daily-2026-08-24 --expected 3",
-  },
-  "sync put": {
-    summary:
-      "Atomically validate and stage one complete CatalogProposalV2 page.",
-    usage: "dshx-hub sync put --run UUID --input proposals.json",
-    input: "A locally checked page containing at most 100 proposals.",
-    output: "Canonical plugin IDs, slugs, identities, and current run counts.",
-    writes:
-      "Writes accepted catalog_sync_items only; an invalid page writes nothing.",
+      "dshx-hub submission list [--status queued] [--limit N] [--cursor CURSOR] [--all]",
+    reads: "Submission queue data.",
+    writes: "Nothing.",
     recovery:
-      "Correct the page and resend; run and identity keys make retransmission idempotent.",
-    example: "dshx-hub sync put --run RUN_ID --input page-1.json",
+      "Continue with nextCursor or use --all for current-process pagination.",
   },
-  "sync preview": {
-    summary: "Inspect an open run or locally validate a proposal page.",
-    usage: "dshx-hub sync preview (--run UUID | --input proposals.json)",
-    input: "Run ID or proposal page.",
-    output: "Run completeness or local page summary.",
-    writes: "None.",
-    recovery: "Upload missing items or correct the local page.",
-    example: "dshx-hub sync preview --run RUN_ID",
+  "submission get": {
+    summary: "Read one submission and its source and resolution context.",
+    usage: "dshx-hub submission get SUBMISSION_ID",
+    reads: "One submission.",
+    writes: "Nothing.",
+    recovery: "Inspect its source independently before deciding a resolution.",
   },
-  "sync commit": {
-    summary: "Atomically promote a complete staging run to the public catalog.",
-    usage: "dshx-hub sync commit --run UUID",
-    input: "Open run with the exact expected qualified item count.",
-    output: "Committed status and publication count.",
-    writes:
-      "Updates catalog, aliases, search, evidence, releases, and dependencies in one batch.",
+  "submission resolve": {
+    summary: "Resolve one submission as accepted, duplicate, or ignored.",
+    usage:
+      "dshx-hub submission resolve SUBMISSION_ID --result accepted|duplicate|ignored [--plugin PLUGIN_ID] [--reason TEXT]",
+    reads: "Resolution, related plugin ID when required, and audit reason.",
+    writes: "The submission resolution only.",
     recovery:
-      "An atomic failure leaves public data unchanged; inspect with sync resume and retry.",
-    example: "dshx-hub sync commit --run RUN_ID",
-  },
-  "sync resume": {
-    summary: "Read one run or locate the newest open run.",
-    usage: "dshx-hub sync resume [--run UUID]",
-    input: "Optional run ID.",
-    output: "Run state and staged accepted items.",
-    writes: "None.",
-    recovery: "Continue with put, preview, commit, or explicit abort.",
-    example: "dshx-hub sync resume --run RUN_ID",
-  },
-  "sync abort": {
-    summary: "Mark an open staging run aborted without touching public data.",
-    usage: "dshx-hub sync abort --run UUID",
-    input: "Open run ID.",
-    output: "Aborted run state.",
-    writes: "Changes only the staging run status.",
-    recovery:
-      "Aborted runs cannot commit; create a new run only for a genuinely new operation.",
-    example: "dshx-hub sync abort --run RUN_ID",
-  },
-  "metrics submit": {
-    summary:
-      "Submit Agent-collected MetricObservationV2 values in idempotent pages.",
-    usage: "dshx-hub metrics submit --input metrics.json",
-    input:
-      "Sourced observations; unavailable values must not be fabricated as zero.",
-    output: "Stored counts and server-computed 7/30-day trends.",
-    writes: "Upserts metric daily/current rows by plugin and date.",
-    recovery:
-      "Resubmit the same plugin/date after correcting evidence or values.",
-    example: "dshx-hub metrics submit --input metrics.json",
-  },
-  "targets submit": {
-    summary: "Submit Agent-prepared full installation-target observations.",
-    usage: "dshx-hub targets submit --input targets.json --idempotency-key KEY",
-    input:
-      "TargetObservationV2 results with sources, a complete-target check, and a qualified attestation for passes.",
-    output: "Verification run pages and consecutive-failure effects.",
-    writes:
-      "Resets successful targets or increments complete failures; third failure may unpublish.",
-    recovery:
-      "Reuse the same key; a duplicate page never increments failures twice.",
-    example:
-      "dshx-hub targets submit --input targets.json --idempotency-key targets-2026-08-24",
-  },
-  "media check": {
-    summary:
-      "Validate local media bytes, dimensions, hash, source, and bilingual Alt text.",
-    usage: "dshx-hub media check --input media.json [--output FILE]",
-    input:
-      "MediaUploadV2 items containing localPath; the CLI never downloads sourceUrl.",
-    output: "Normalized MIME, size, dimensions, and SHA-256.",
-    writes: "Only optional local output.",
-    recovery: "Replace or re-encode invalid local files, then check again.",
-    example: "dshx-hub media check --input media.json",
+      "Read the current submission before retrying a conflicting resolution.",
   },
   "media upload": {
-    summary: "Recheck and upload local media through Hub to R2.",
-    usage: "dshx-hub media upload --input media.json",
-    input: "Locally available MediaUploadV2 items.",
-    output: "Media IDs, R2 keys, and hash deduplication state.",
-    writes: "Writes verified media metadata and content-addressed R2 objects.",
+    summary: "Validate and upload one image for a plugin.",
+    usage: "dshx-hub media upload PLUGIN_ID --input media.json",
+    reads:
+      "A local PNG, JPEG, WebP, or AVIF plus bilingual Alt text and optional provenance.",
+    writes: "Content-addressed media and its plugin metadata.",
     recovery:
-      "Rerun safely; plugin/kind/hash metadata and R2 content are deduplicated.",
-    example: "dshx-hub media upload --input media.json",
+      "Correct MIME, size, dimensions, hash, or Alt text and retry the same content safely.",
   },
-  "maintenance audit": {
-    summary: "Run Hub-side D1, R2, FTS, alias, and catalog consistency checks.",
-    usage: "dshx-hub maintenance audit --scope daily|full [--output FILE]",
-    input: "Audit depth; external public-page inspection belongs to the Agent.",
-    output: "Critical issues, warnings, and data statistics.",
-    writes: "None.",
+  audit: {
+    summary: "Read consistency findings without applying repairs.",
+    usage: "dshx-hub audit [--scope catalog|storage|community] [--output FILE]",
+    reads: "Catalog, storage, or community integrity checks.",
+    writes: "Nothing.",
     recovery:
-      "Stop catalog writes on critical findings and rerun after the underlying repair.",
-    example: "dshx-hub maintenance audit --scope full",
+      "Choose atomic commands based on findings; this command never fixes data.",
   },
-};
-
-commands["moderation queue"] = {
-  summary:
-    "Read reported content, authors, aggregate evidence, and prior enforcement.",
-  usage: "dshx-hub moderation queue [--output FILE]",
-  input: "No input.",
-  output: "Open moderation targets with reports and policy history.",
-  writes: "None.",
-  recovery:
-    "Rerun after decisions; never infer hidden evidence from list summaries.",
-  example: "dshx-hub moderation queue --output moderation.json",
-};
-
-for (const action of [
-  "hide",
-  "restore",
-  "dismiss",
-  "restrict",
-  "unrestrict",
-  "ban",
-  "unban",
-])
-  commands[`moderation ${action}`] = {
-    summary: `Request the registered ${action} moderation effect through Hub policy.`,
-    usage: `dshx-hub moderation ${action} --target ID [--type TYPE] [--reports IDS] [--reason TEXT] [--idempotency-key KEY]`,
-    input:
-      "Stable target, linked report IDs, policy reason, and optional decision metadata.",
-    output:
-      "Atomic moderation result or an approval-aware pause with URL and resume command.",
-    writes:
-      "Executes policy-allowed effects; high-risk actions create approval requests instead of bypassing policy.",
-    recovery:
-      "Reuse the idempotency key or follow the returned approval resume command.",
-    example: `dshx-hub moderation ${action} --target TARGET_ID --reason "policy decision"`,
-  };
-
-Object.assign(commands, {
-  "approvals create": {
-    summary:
-      "Create one registered high-risk approval from preserved evidence.",
-    usage: "dshx-hub approvals create --input approval.json",
-    input:
-      "Versioned evidence snapshot, effect, preconditions, policy, and idempotency key.",
-    output: "Approval ID, admin URL, state, expiry, and stable wait command.",
-    writes:
-      "Creates an immutable approval request/version; does not execute the effect.",
-    recovery:
-      "Wait, revise only after changes_requested, or preserve the pause.",
-    example: "dshx-hub approvals create --input approval.json",
-  },
-  "approvals show": {
-    summary: "Read a visible approval and its current effect state.",
-    usage: "dshx-hub approvals show --id UUID",
-    input: "Approval ID.",
-    output: "Redacted approval status plus URL and resume command.",
-    writes: "None.",
-    recovery: "Use the returned state to wait, revise, claim, or stop.",
-    example: "dshx-hub approvals show --id APPROVAL_ID",
-  },
-  "approvals wait": {
-    summary:
-      "Short-poll a pending approval without treating the pause as failure.",
-    usage: "dshx-hub approvals wait --id UUID [--timeout SECONDS]",
-    input: "Approval ID and bounded wait duration.",
-    output:
-      "Terminal/actionable state or awaitingApproval with the same resume command.",
-    writes: "None.",
-    recovery:
-      "Run the identical command later; do not create a duplicate approval.",
-    example: "dshx-hub approvals wait --id APPROVAL_ID --timeout 300",
-  },
-  "approvals revise": {
-    summary:
-      "Submit a complete new immutable version after changes are requested.",
-    usage: "dshx-hub approvals revise --id UUID --input revision.json",
-    input:
-      "Fresh evidence, source hash, preconditions, policy, and registered effect.",
-    output: "New pending version with approval URL and resume command.",
-    writes: "Appends an approval version; never mutates the prior version.",
-    recovery:
-      "Correct a rejected revision locally or wait on the accepted new version.",
-    example: "dshx-hub approvals revise --id APPROVAL_ID --input revision.json",
-  },
-  "approvals claim-effect": {
-    summary:
-      "Claim a short Agent execution lease for an approved registered effect.",
-    usage: "dshx-hub approvals claim-effect --id UUID [--run RUN_ID]",
-    input: "Approved approval ID and its original run when run-bound.",
-    output: "Lease token, expiry, and immutable registered task parameters.",
-    writes:
-      "Creates an auditable effect attempt/lease; it does not invent a new task.",
-    recovery: "The same run may reclaim only after lease expiry.",
-    example: "dshx-hub approvals claim-effect --id APPROVAL_ID --run RUN_ID",
-  },
-  "approvals effect-result": {
-    summary:
-      "Complete an approved Agent effect lease with a structured result.",
-    usage:
-      "dshx-hub approvals effect-result --id UUID --lease TOKEN --status succeeded|failed [--input result.json]",
-    input: "Lease token, terminal status, and registered structured result.",
-    output: "Idempotent effect state and related workflow update.",
-    writes:
-      "Appends the effect result and applies only the registered completion semantics.",
-    recovery:
-      "A repeated identical result is safe; preserve a failed result for policy recovery.",
-    example:
-      "dshx-hub approvals effect-result --id APPROVAL_ID --lease LEASE --status succeeded --input result.json",
-  },
-  "users role set": {
-    summary:
-      "Request a registered user-role change through mandatory approval.",
-    usage:
-      "dshx-hub users role set --user UUID --role ROLE [--reason TEXT] [--idempotency-key KEY]",
-    input: "User ID, proposed role, reason, and deterministic idempotency key.",
-    output: "Approval-aware response with admin URL and resume command.",
-    writes:
-      "Creates an approval; role changes cannot be written directly by this command.",
-    recovery: "Wait on the returned approval and reuse its resume command.",
-    example:
-      'dshx-hub users role set --user USER_ID --role moderator --reason "scope change"',
-  },
-} satisfies Record<string, HelpEntry>);
-
-const passthroughGroups: Record<string, string[]> = {
-  moderation: [
-    "queue",
-    "hide",
-    "restore",
-    "dismiss",
-    "restrict",
-    "unrestrict",
-    "ban",
-    "unban",
-  ],
-  approvals: [
-    "create",
-    "show",
-    "wait",
-    "revise",
-    "claim-effect",
-    "effect-result",
-  ],
-  users: ["role set"],
 };
 
 const groups: Record<string, string[]> = {
   auth: ["login", "status", "logout"],
-  contract: ["show"],
-  catalog: ["inventory", "worklist", "verify", "check"],
-  sync: ["start", "put", "preview", "commit", "resume", "abort"],
-  metrics: ["submit"],
-  targets: ["submit"],
-  media: ["check", "upload"],
-  maintenance: ["audit"],
-  ...passthroughGroups,
+  source: ["discover", "inspect"],
+  report: ["latest", "publish"],
+  plugin: ["list", "get", "upsert", "curate", "hide", "restore"],
+  submission: ["list", "get", "resolve"],
+  media: ["upload"],
 };
 
-function commandHelp(key: string, entry: HelpEntry) {
-  return `${entry.summary}\n\nUsage:\n  ${entry.usage}\n\nInput:\n  ${entry.input}\n\nOutput:\n  ${entry.output}\n\nWrites:\n  ${entry.writes}\n\nRecovery:\n  ${entry.recovery}\n\nExample:\n  ${entry.example}\n`;
+function commandHelp(entry: HelpEntry) {
+  return `${entry.summary}\n\nUsage:\n  ${entry.usage}\n\nReads:\n  ${entry.reads}\n\nWrites:\n  ${entry.writes}\n\nRecovery:\n  ${entry.recovery}\n`;
 }
 
 export function helpText(path: string[] = []) {
   const key = path.join(" ");
-  if (commands[key]) return commandHelp(key, commands[key]);
-  if (key === "users role")
-    return "dshx-hub users role\n\nCommands:\n  set\n\nRun dshx-hub users role set --help for details.\n";
+  if (commands[key]) return commandHelp(commands[key]);
   if (path.length === 1 && groups[path[0]!]) {
     const group = path[0]!;
     return `dshx-hub ${group}\n\nCommands:\n${groups[group]!.map(
       (name) => `  ${name}`,
-    ).join("\n")}\n\nRun dshx-hub ${group} <command> --help for details.\n`;
+    ).join("\n")}\n\nUse dshx-hub ${group} <command> --help for details.\n`;
   }
-  return `dshx-hub — stable DSHX Hub verification and write gateway\n\nThe external Agent discovers, researches, downloads, and decides. This CLI validates local evidence and performs authenticated Hub effects.\n\nGroups:\n${Object.keys(
-    groups,
-  )
-    .map((name) => `  ${name}`)
-    .join("\n")}\n\nRun dshx-hub <group> --help for commands.\n`;
+  return `dshx-hub — stateless atomic operations for DSHX Hub\n\nStart with status, query resources, inspect public sources, then compose only the writes you decide are needed. Every operation emits stable JSON and is independently retryable.\n\nCommands:\n  auth login|status|logout\n  status\n  source discover|inspect\n  plugin list|get|upsert|curate|hide|restore\n  submission list|get|resolve\n  report latest|publish\n  media upload\n  audit\n\nUse dshx-hub <group> <command> --help for details.\n`;
 }

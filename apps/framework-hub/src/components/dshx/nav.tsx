@@ -8,6 +8,7 @@ import { GitHubStarLink } from "./github-star-link";
 
 const links = [
   { key: "nav.plugins", to: "/plugins" },
+  { key: "nav.operations", to: "/operations" },
   { key: "nav.docs", to: "/docs" },
 ] as const;
 

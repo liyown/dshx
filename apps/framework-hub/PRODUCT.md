@@ -15,23 +15,24 @@ web
 
 ## Product Purpose
 
-DSHX Hub is the bilingual catalog and community market for verified DSH plugin bundles. It turns GitHub and npm facts into traceable plugin pages, provides community context around those plugins, and keeps routine operations automatable without hiding high-risk decisions from people.
+DSHX Hub is the bilingual catalog and community market for DSH plugin bundles. It turns GitHub and npm observations into traceable plugin pages, keeps source facts separate from curated content, and gives operators small, auditable mutations instead of a hidden automation pipeline.
 
 ## Positioning
 
-Publication is evidence-driven: discovery never equals publication, third-party scripts are never executed, bilingual catalog content stays linked to source hashes, and every human-required operation becomes an auditable approval with a registered effect.
+Catalog admission is Agent-owned: an upsert means the Agent has judged the source to be a plugin. The Hub validates structure, identity, exact installation targets, provenance, and publication completeness without duplicating evidence classification. Third-party scripts are never executed, and uncertainty stays visible instead of becoming a certification gate.
 
 ## Operating Context
 
-The public site runs on Cloudflare Workers with D1 and R2. A local Agent uses `dshx-hub` and the independent `dshx-hub-ops` Skill for daily, weekly, monthly, and recovery workflows. Administrators use the approval center only when a deterministic workflow reaches a fixed high-risk boundary.
+The public site runs on Cloudflare Workers with D1 and R2. A local Agent uses `dshx-hub` and the independent `dshx-hub-ops` Skill to inspect current state, combine stateless domain commands, and retry individual operations. The CLI collects and normalizes public facts; the Operations API owns identity, merge precedence, revisions, permissions, transactions, visibility, and audit history. Administrators use a separate surface for infrequent community and role decisions.
 
 ## Capabilities and Constraints
 
-- Stable ASCII plugin slugs, English and Chinese catalog content, locale-specific SEO, cursor search, real installation targets, releases, dependencies, metrics, media, and provenance.
+- Stable ASCII plugin slugs, English and Chinese catalog content, locale-specific SEO, cursor search, real installation targets, releases, dependencies, metrics, media, provenance, and immutable bilingual operations reports.
 - GitHub OAuth accounts, public profiles, public bookmarks, public or private collections, plugin/publisher follows, in-app notifications, critical approval email, submissions, claims, reviews, first-level replies, reports, blocks, and appeals.
 - No direct third-party installation, arbitrary approval scripts, arbitrary webhooks, marketing or bulk email, direct messages, user follows, or production fixture data.
-- CLI and Skill own deterministic operations; the web administration surface is approval-only and cannot become a parallel catalog editor.
-- High-risk effects are allowlisted, schema-validated, idempotent, stale-aware, and executed by the server or resumed by the requesting Agent.
+- CLI commands are thin, JSON-first operations. They do not save catalog progress, impose an operation order, or make the Agent reproduce database rules.
+- Source observations, curated content, visibility, and media have distinct write boundaries. Resource revisions protect concurrent editorial changes.
+- The web administration surface cannot become a parallel catalog editor.
 
 ## Brand Commitments
 
@@ -43,11 +44,11 @@ Verified catalog and community data comes from D1, GitHub and npm provenance, an
 
 ## Product Principles
 
-1. Discovery is a candidate signal, never publication authority.
-2. Deterministic work stays composable and recoverable through the CLI.
-3. If a decision needs a person, it becomes a first-class approval with evidence and an explicit effect.
-4. Public identity and community context remain understandable without weakening safety or auditability.
-5. Partial failures are isolated; global failures stop safely without exposing half-written catalog state.
+1. Source signals remain explicit context; they do not become a second server-side plugin admission decision.
+2. Agent operations stay stateless, composable, independently retryable, and observable through stable JSON.
+3. The server, not the Agent, owns field precedence, concurrency, transactions, permissions, and data integrity.
+4. Source facts, curated content, visibility, community context, and audit history remain understandable as separate concerns.
+5. Batch failures are isolated per item without discarding successful siblings.
 
 ## Accessibility & Inclusion
 

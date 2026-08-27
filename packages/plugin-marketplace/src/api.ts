@@ -2,7 +2,7 @@ import { defineApi, method } from '@becomeopc/dshx/api'
 import { z } from 'zod'
 
 export const marketplaceLocaleSchema = z.enum(['en', 'zh'])
-export const marketplaceBadgeSchema = z.enum(['official', 'verified', 'community'])
+export const marketplaceBadgeSchema = z.enum(['official', 'community'])
 export const marketplaceCompatibilitySchema = z.enum(['compatible', 'incompatible', 'unknown'])
 
 export const marketplaceCategorySchema = z.object({

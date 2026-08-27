@@ -1,49 +1,172 @@
+import { randomUUID } from "node:crypto";
+
 import { readToken } from "./keychain.js";
+import {
+  isFailureEnvelope,
+  isSuccessEnvelope,
+  successEnvelope,
+  type OperationError,
+  type SuccessEnvelope,
+} from "./protocol.js";
+
+export type AuthenticationMode = "required" | "optional" | "none";
 
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    message: string,
+    readonly issue: OperationError,
+    readonly requestId: string,
     readonly body: unknown,
   ) {
-    super(message);
+    super(issue.message);
+    this.name = "ApiError";
   }
 }
 
-function apiErrorMessage(body: unknown, status: number) {
-  if (!body || typeof body !== "object") return `Hub returned ${status}`;
-  if ("message" in body) return String((body as { message: unknown }).message);
-  if ("error" in body) {
-    const error = (body as { error: unknown }).error;
-    if (error && typeof error === "object" && "message" in error)
-      return String((error as { message: unknown }).message);
+function requestIdFrom(response: Response, body: unknown): string {
+  if (
+    body &&
+    typeof body === "object" &&
+    "meta" in body &&
+    (body as { meta?: unknown }).meta &&
+    typeof (body as { meta: unknown }).meta === "object"
+  ) {
+    const value = (body as { meta: { requestId?: unknown } }).meta.requestId;
+    if (typeof value === "string" && value) return value;
   }
-  return `Hub returned ${status}`;
+  return response.headers.get("x-request-id") ?? randomUUID();
+}
+
+function issueFrom(status: number, body: unknown): OperationError {
+  const raw =
+    body && typeof body === "object" && "error" in body
+      ? (body as { error?: unknown }).error
+      : undefined;
+  const error =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const code =
+    typeof error["code"] === "string" ? error["code"] : `hub_http_${status}`;
+  const retryable =
+    typeof error["retryable"] === "boolean"
+      ? error["retryable"]
+      : status === 429 || status >= 500 || code === "revision_conflict";
+  const message =
+    typeof error["message"] === "string"
+      ? error["message"]
+      : `Hub returned HTTP ${status}.`;
+  const repairHint =
+    typeof error["repairHint"] === "string"
+      ? error["repairHint"]
+      : status === 401
+        ? "Run dshx-hub auth login and retry."
+        : status === 409
+          ? "Read the latest resource, merge the change, and retry when appropriate."
+          : retryable
+            ? "Retry after the remote service recovers."
+            : "Correct the request before retrying.";
+  return {
+    code,
+    message,
+    retryable,
+    repairHint,
+    ...(typeof error["path"] === "string" ? { path: error["path"] } : {}),
+    ...(error["details"] === undefined
+      ? {}
+      : {
+          details: Array.isArray(error["details"])
+            ? error["details"]
+            : typeof error["details"] === "object" && error["details"] !== null
+              ? (error["details"] as Record<string, unknown>)
+              : { value: error["details"] },
+        }),
+  };
 }
 
 export async function api<T>(
   hub: string,
   path: string,
   init: RequestInit = {},
-  authenticated = true,
-): Promise<T> {
+  authentication: AuthenticationMode = "required",
+): Promise<SuccessEnvelope<T>> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData))
     headers.set("content-type", "application/json");
-  if (authenticated) {
+  if (authentication !== "none") {
     const token = readToken(hub);
-    if (!token)
-      throw new Error("Not logged in. Run dshx-hub auth login first.");
-    headers.set("authorization", `Bearer ${token}`);
+    if (!token && authentication === "required")
+      throw new ApiError(
+        401,
+        {
+          code: "authentication_required",
+          message: "No Hub token is available.",
+          retryable: false,
+          repairHint: "Run dshx-hub auth login and retry.",
+        },
+        randomUUID(),
+        null,
+      );
+    if (token) headers.set("authorization", `Bearer ${token}`);
   }
-  const response = await fetch(new URL(path, hub), { ...init, headers });
-  if (response.status === 204) return undefined as T;
-  const body = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok)
+
+  let response: Response;
+  try {
+    response = await fetch(new URL(path, hub), { ...init, headers });
+  } catch (error) {
+    throw new ApiError(
+      0,
+      {
+        code: "hub_unreachable",
+        message:
+          error instanceof Error ? error.message : "Unable to reach the Hub.",
+        retryable: true,
+        repairHint: "Check the Hub URL and network, then retry.",
+      },
+      randomUUID(),
+      null,
+    );
+  }
+
+  const body =
+    response.status === 204
+      ? null
+      : ((await response.json().catch(() => null)) as unknown);
+  const requestId = requestIdFrom(response, body);
+  if (!response.ok || isFailureEnvelope(body))
     throw new ApiError(
       response.status,
-      apiErrorMessage(body, response.status),
+      issueFrom(response.status, body),
+      requestId,
       body,
     );
-  return body as T;
+  if (response.status === 204 && !path.startsWith("/api/ops/v1"))
+    return successEnvelope(undefined as T, [], requestId);
+  if (isSuccessEnvelope(body)) return body as SuccessEnvelope<T>;
+  if (
+    body === null ||
+    typeof body !== "object" ||
+    ("ok" in body && (body as { ok?: unknown }).ok !== undefined) ||
+    path.startsWith("/api/ops/v1")
+  )
+    throw new ApiError(
+      response.status,
+      {
+        code: "invalid_hub_response",
+        message: "Hub returned a malformed success response.",
+        retryable: true,
+        repairHint:
+          "Retry after the Hub recovers; report a contract mismatch if it persists.",
+      },
+      requestId,
+      body,
+    );
+  return successEnvelope(body as T, [], requestId);
+}
+
+export async function apiData<T>(
+  hub: string,
+  path: string,
+  init: RequestInit = {},
+  authentication: AuthenticationMode = "required",
+): Promise<T> {
+  return (await api<T>(hub, path, init, authentication)).data;
 }

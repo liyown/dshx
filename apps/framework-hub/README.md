@@ -44,10 +44,9 @@ when the `DB` binding is absent or unreachable. Public catalog pages and
 `/api/plugins` read D1 directly; synthetic plugin records only exist inside the
 integration tests and are never seeded into production.
 
-`GET /api/plugins` is the public discovery/SEO feed and intentionally includes
-published verification placeholders. `GET /api/marketplace/plugins` is the
-installable subset: every result is verified and has exactly one active primary
-target whose package name and version match the current catalog release. Both
+`GET /api/plugins` is the public discovery/SEO feed of published catalog entries.
+`GET /api/marketplace/plugins` is the installable subset: every result has exactly
+one active primary target whose package name and version match the current catalog release. Both
 list responses include localized `categories`; marketplace detail is available
 at `GET /api/marketplace/plugins/:slug` under the same eligibility rule.
 
@@ -109,26 +108,36 @@ pnpm email:preview
 
 Automated tests inject a fake delivery client and never send real email.
 
-## Catalog operations
+## Hub operations
 
 The workspace package `@becomeopc/dshx-hub-cli` installs the `dshx-hub`
-command. It performs topic discovery, deterministic archive validation,
-worklist exchange, staged upload, atomic publication and moderation. GitHub
-reads use `GITHUB_TOKEN` or `gh auth token`; validation never runs third-party
-install or lifecycle scripts.
+command. It exposes stateless domain operations for status, public-source
+discovery and inspection, plugin queries and writes, submissions, reports, media,
+and read-only audits. The CLI normalizes public GitHub and npm data; the Hub owns identity,
+field precedence, revisions, permissions, transactions, visibility, and audit
+history. Source inspection never installs dependencies, executes third-party
+scripts, launches DSH, or tests plugin behavior.
 
 ```bash
 pnpm --filter @becomeopc/dshx-hub-cli build
 node ../../packages/framework-hub-cli/dist/index.js auth login --hub http://localhost:3000
-node ../../packages/framework-hub-cli/dist/index.js sync worklist --hub http://localhost:3000
+node ../../packages/framework-hub-cli/dist/index.js status --hub http://localhost:3000
+node ../../packages/framework-hub-cli/dist/index.js source discover --provider github --query 'dsh plugin' --since 2026-08-24
+node ../../packages/framework-hub-cli/dist/index.js plugin list --needs refresh --limit 20 --hub http://localhost:3000
+node ../../packages/framework-hub-cli/dist/index.js report latest --hub http://localhost:3000
 ```
 
-The long-running operations Skill is maintained independently in the personal
-Skill Registry and is intentionally not bundled with the CLI package:
+Commands can be called and retried independently; pagination with `--all`
+keeps its cursor only in the current process. See [Operations API](./OPERATIONS.md)
+for endpoints, response envelopes, observation merge rules, revision conflicts,
+and partial failures.
 
-```bash
-npx skills add liyown/SKILL --skill dshx-hub-ops
-```
+The private workspace package `@becomeopc/dshx-hub-ops-prompt` versions the
+bounded daily Agent workflow, discovery queries, report template, and simulation
+scenarios. Initial ingestion preserves the original README and public GitHub
+publisher/avatar facts before the Agent completes an English and Chinese overview;
+README hash drift reopens that content work. The package does not publish to npm
+or schedule runs.
 
 The current website should primarily introduce the DSHX framework, while the visual language, navigation and design system should already feel capable of supporting that future ecosystem.
 

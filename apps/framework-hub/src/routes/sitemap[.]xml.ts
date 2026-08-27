@@ -37,6 +37,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           const base = ["en", "zh"].flatMap((locale) => [
             `${site}/${locale}`,
             `${site}/${locale}/plugins`,
+            `${site}/${locale}/operations`,
             `${site}/${locale}/docs`,
             ...DOC_SLUGS.map((slug) => `${site}/${locale}/docs/${slug}`),
           ]);

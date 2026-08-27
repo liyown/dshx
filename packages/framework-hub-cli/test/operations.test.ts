@@ -1,372 +1,416 @@
-import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { afterEach, describe, expect, it } from "vitest";
-
-import { validateCatalogPage } from "../src/catalog.js";
+import { normalizedError } from "../src/errors.js";
+import { setKeyringEntryFactoryForTests } from "../src/keychain.js";
 import {
-  calculateContentSourceHash,
-  type CatalogProposalV2,
-} from "../src/catalog-schema.js";
-import { helpText } from "../src/help.js";
-import { checkMedia } from "../src/media.js";
+  curatePlugin,
+  exitCodeForSuccess,
+  latestReport,
+  listPlugins,
+  publishReport,
+  resolveSubmission,
+  setPluginVisibility,
+  upsertPlugins,
+} from "../src/operations.js";
+import { successEnvelope } from "../src/protocol.js";
 
-const temporary: string[] = [];
+const originalFetch = globalThis.fetch;
 
-function proposal() {
-  const observedAt = new Date().toISOString();
-  const sources = [
-    {
-      kind: "readme",
-      purpose: "content" as const,
-      url: "https://github.com/fixture/plugin/blob/main/README.md",
-      observedAt,
-      sha256: "a".repeat(64),
-      ref: "main",
-    },
-    {
-      kind: "npm-tarball",
-      purpose: "verification" as const,
-      url: "https://registry.npmjs.org/@fixture/plugin/-/plugin-1.0.0.tgz",
-      observedAt,
-      sha256: "b".repeat(64),
-      ref: "1.0.0",
-    },
-  ];
-  const contentSourceHash = calculateContentSourceHash(sources);
-  const checks = [
-    {
-      code: "patch.array",
-      status: "pass" as const,
-      message: "patch is an array",
-      evidenceUrl: sources[1]!.url,
-      evidenceSha: "b".repeat(64),
-    },
-  ];
-  const localization = (locale: "en" | "zh") => ({
-    locale,
-    displayName: locale === "en" ? "Fixture Plugin" : "测试插件",
-    shortDescription:
-      locale === "en"
-        ? "A verified plugin fixture with deterministic evidence."
-        : "一个具有确定性证据和完整双语内容的测试插件。",
-    overviewMarkdown:
-      locale === "en"
-        ? "This verified plugin fixture demonstrates a complete catalog proposal assembled by an external Agent."
-        : "这个经过验证的测试插件展示了由外部 Agent 整理、并通过本地确定性验证的完整目录提案。",
-    highlights:
-      locale === "en"
-        ? ["Verified archive", "Sourced facts"]
-        : ["已验证归档", "事实有来源"],
-    installNotesMarkdown: null,
-    seoTitle: locale === "en" ? "Fixture Plugin for DSHX" : "DSHX 测试插件目录",
-    seoDescription:
-      locale === "en"
-        ? "Review a verified DSH fixture plugin with sourced metadata, bilingual content, and deterministic archive checks."
-        : "查看一个经过验证的 DSH 测试插件，包含有来源的元数据、双语内容和确定性归档检查结果。",
-    sourceLocale: "en" as const,
-    sourceContentHash: contentSourceHash,
-    status: "ready" as const,
-    translator: locale === "en" ? ("upstream" as const) : ("agent" as const),
-  });
+function observation(packageName: string) {
   return {
-    schemaVersion: 2 as const,
-    identity: { kind: "npm" as const, packageName: "@fixture/plugin" },
-    contentSourceHash,
-    sources,
-    verification: {
-      schemaVersion: 1 as const,
-      checkerVersion: "3",
-      checkedAt: observedAt,
-      identityKey: "npm:@fixture/plugin",
-      artifactSha256: "b".repeat(64),
-      packageJsonSha256: "c".repeat(64),
-      patchSha256: "d".repeat(64),
-      packageName: "@fixture/plugin",
-      packageVersion: "1.0.0",
-      patchPath: "dsh.patch.json",
-      dshxDetected: false,
-      qualified: true as const,
-      checks,
+    schemaVersion: 1,
+    observedAt: "2026-08-27T00:00:00.000Z",
+    identity: { kind: "npm", packageName },
+    source: {
+      kind: "npm",
+      url: `https://registry.npmjs.org/${encodeURIComponent(packageName)}`,
+      ref: "1.0.0",
+      contentHash: "a".repeat(64),
+      availability: "available",
     },
-    repository: {
-      githubId: "123",
-      nodeId: null,
-      owner: {
-        githubId: "456",
-        login: "fixture",
-        kind: "user" as const,
-        displayName: "Fixture",
-        avatarUrl: "https://avatars.githubusercontent.com/u/456",
-        profileUrl: "https://github.com/fixture",
-        bio: null,
-        websiteUrl: null,
-      },
-      name: "plugin",
-      fullName: "fixture/plugin",
-      canonicalUrl: "https://github.com/fixture/plugin",
-      defaultBranch: "main",
-      description: "fixture",
-      homepageUrl: null,
-      topics: ["dsh-plugin"],
-      primaryLanguage: "TypeScript",
-      licenseSpdx: "MIT",
-      isFork: false,
-      isArchived: false,
-      isDisabled: false,
-      etag: null,
-      sourceHash: "e".repeat(64),
-      createdAt: observedAt,
-      updatedAt: observedAt,
-      pushedAt: observedAt,
+    detection: {
+      status: "confirmed",
+      signals: [{ kind: "dsh.bundle.patch", value: "plugin.patch.json" }],
     },
-    repositoryPackage: {
-      subdirectory: "",
-      packageName: "@fixture/plugin",
-      packageVersion: "1.0.0",
-      packageJsonSha: "c".repeat(64),
-      patchPath: "dsh.patch.json",
-      patchSha: "d".repeat(64),
-      npmPackageName: "@fixture/plugin",
-      npmRegistryUrl: "https://www.npmjs.com/package/@fixture/plugin",
-      installKind: "npm" as const,
-      installSpec: "@fixture/plugin@1.0.0",
-      dshBundle: true as const,
-      dshxDetected: false,
-      qualificationStatus: "verified" as const,
-      consecutiveFailures: 0 as const,
-      checks,
-    },
-    plugin: {
-      requestedSlug: "fixture-plugin",
-      packageName: "@fixture/plugin",
-      latestVersion: "1.0.0",
-      compatibilityRange: ">=0.1.0-rc.8 <0.2.0-0",
-      licenseSpdx: "MIT",
-      homepageUrl: null,
-      repositoryUrl: "https://github.com/fixture/plugin",
-      dshxDetected: false,
-    },
-    localizations: [localization("en"), localization("zh")],
-    installTargets: [
-      {
-        kind: "npm" as const,
-        spec: "@fixture/plugin@1.0.0",
-        packageName: "@fixture/plugin",
-        version: "1.0.0",
-        integrity: "sha512-fixture",
-        primary: true,
-      },
-    ],
-    releases: [
-      {
-        version: "1.0.0",
-        channel: "stable" as const,
-        gitTag: "v1.0.0",
-        commitSha: null,
-        compatibilityRange: ">=0.1.0-rc.8 <0.2.0-0",
-        compatibilitySource: "manifest" as const,
-        releaseNotesUrl: null,
-        deprecated: false,
-        publishedAt: observedAt,
-        dependencies: [],
-      },
-    ],
-    categories: ["tools"],
-    capabilities: [],
-    links: [
-      {
-        kind: "repository" as const,
-        url: "https://github.com/fixture/plugin",
-        label: "GitHub",
-      },
-    ],
   };
 }
 
-afterEach(async () => {
-  await Promise.all(
-    temporary
-      .splice(0)
-      .map((path) => rm(path, { recursive: true, force: true })),
+function response(
+  data: unknown,
+  options: { status?: number; warnings?: unknown[]; requestId?: string } = {},
+) {
+  const ok = (options.status ?? 200) < 400;
+  return new Response(
+    JSON.stringify(
+      ok
+        ? {
+            ok: true,
+            data,
+            warnings: options.warnings ?? [],
+            meta: { requestId: options.requestId ?? "request-id" },
+          }
+        : data,
+    ),
+    {
+      status: options.status ?? 200,
+      headers: { "content-type": "application/json" },
+    },
   );
+}
+
+beforeEach(() => {
+  setKeyringEntryFactoryForTests(() => ({
+    getPassword: () => "test-token",
+    setPassword: () => undefined,
+    deletePassword: () => true,
+  }));
 });
 
-describe("stable Agent-to-Hub operations", () => {
-  it("accepts a sourced bilingual proposal and rejects unknown categories", () => {
-    const candidate = proposal();
-    expect(
-      validateCatalogPage({ items: [candidate] }, ["tools"]),
-    ).toMatchObject({
-      valid: true,
-      schemaVersion: 2,
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+  setKeyringEntryFactoryForTests();
+  vi.restoreAllMocks();
+});
+
+describe("atomic Hub operations", () => {
+  it("automatically makes repeated single upserts idempotent", async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    globalThis.fetch = vi.fn(async (input, init) => {
+      requests.push({ url: String(input), ...(init ? { init } : {}) });
+      return response({ status: "unchanged" });
     });
-    candidate.categories = ["invented"];
-    expect(() =>
-      validateCatalogPage({ items: [candidate] }, ["tools"]),
-    ).toThrow("Unknown controlled categories");
+
+    await upsertPlugins(
+      "https://hub.test",
+      observation("@fixture/plugin"),
+      true,
+    );
+    await upsertPlugins(
+      "https://hub.test",
+      observation("@fixture/plugin"),
+      true,
+    );
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0]!.url).toMatch(
+      /^https:\/\/hub\.test\/api\/ops\/v1\/observations\/[a-f0-9]{64}\?dryRun=true$/,
+    );
+    expect(requests[1]!.url).toBe(requests[0]!.url);
+    const firstBody = JSON.parse(String(requests[0]!.init?.body)) as Record<
+      string,
+      unknown
+    >;
+    const secondBody = JSON.parse(String(requests[1]!.init?.body)) as Record<
+      string,
+      unknown
+    >;
+    expect(firstBody["observationId"]).toBe(secondBody["observationId"]);
+    expect(requests[0]!.init?.method).toBe("PUT");
   });
 
-  it("rejects compatibility claims that are not semver ranges", () => {
-    const candidate = proposal();
-    candidate.plugin.compatibilityRange = "dsh >=0.1";
-    expect(() =>
-      validateCatalogPage({ items: [candidate] }, ["tools"]),
-    ).toThrow("compatibilityRange must be a valid semver range");
-  });
-
-  it("keeps artifact evidence path-free and reuses attestation checks for promotion", () => {
-    const candidate = proposal() as unknown as CatalogProposalV2;
-    candidate.verification.checks = [
+  it("preserves pipeline warnings and input result order across partial batches", async () => {
+    let sent: unknown;
+    globalThis.fetch = vi.fn(async (_input, init) => {
+      sent = JSON.parse(String(init?.body));
+      return response({
+        results: [
+          { identity: "npm:a", status: "created" },
+          { identity: "npm:c", status: "unchanged" },
+        ],
+      });
+    });
+    const inspected = successEnvelope(
       {
-        code: "artifact.size",
-        status: "pass",
-        message: "artifact size is within the safe limit",
-        observed: { file: "plugin.tgz", bytes: 1_024 },
-        evidenceUrl: candidate.sources[1]!.url,
-        evidenceSha: candidate.verification.artifactSha256,
+        source: { kind: "github", canonical: "github:fixture/repository" },
+        observations: [
+          observation("a"),
+          { schemaVersion: 99 },
+          observation("c"),
+        ],
+        truncated: true,
       },
-    ];
-    candidate.repositoryPackage.checks = structuredClone(
-      candidate.verification.checks,
-    );
-    expect(
-      validateCatalogPage({ items: [candidate] }, ["tools"]),
-    ).toMatchObject({ valid: true });
-
-    const leaked = structuredClone(candidate);
-    leaked.verification.checks[0]!.observed = {
-      path: "/Users/example/private/plugin.tgz",
-      bytes: 1_024,
-    };
-    leaked.repositoryPackage.checks = structuredClone(
-      leaked.verification.checks,
-    );
-    expect(() => validateCatalogPage({ items: [leaked] }, ["tools"])).toThrow(
-      "artifact size evidence must not include a local path",
-    );
-
-    const mismatched = structuredClone(candidate);
-    mismatched.repositoryPackage.checks[0]!.observed = {
-      file: "plugin.tgz",
-      bytes: 2_048,
-    };
-    expect(() =>
-      validateCatalogPage({ items: [mismatched] }, ["tools"]),
-    ).toThrow(
-      "repository package checks must match verification attestation checks",
-    );
-  });
-
-  it("accepts only immutable npm and GitHub primary install specs", () => {
-    const mutableNpm = proposal();
-    mutableNpm.repositoryPackage.installSpec = "@fixture/plugin@latest";
-    mutableNpm.installTargets[0]!.spec = "@fixture/plugin@latest";
-    expect(() =>
-      validateCatalogPage({ items: [mutableNpm] }, ["tools"]),
-    ).toThrow("immutable install spec");
-
-    const github = structuredClone(proposal()) as unknown as CatalogProposalV2;
-    github.identity = {
-      kind: "github",
-      repositoryId: github.repository.githubId,
-      subdirectory: "",
-    };
-    github.verification.identityKey = `github:${github.repository.githubId}:`;
-    github.repositoryPackage.npmPackageName = null;
-    github.repositoryPackage.npmRegistryUrl = null;
-    github.repositoryPackage.installKind = "github";
-    github.repositoryPackage.installSpec = "github:fixture/plugin#v1.0.0";
-    github.installTargets[0] = {
-      ...github.installTargets[0]!,
-      kind: "github",
-      spec: "github:fixture/plugin#v1.0.0",
-    };
-    expect(validateCatalogPage({ items: [github] }, ["tools"])).toMatchObject({
-      valid: true,
-    });
-
-    github.repositoryPackage.installSpec = "github:fixture/plugin#main";
-    github.installTargets[0]!.spec = "github:fixture/plugin#main";
-    expect(() => validateCatalogPage({ items: [github] }, ["tools"])).toThrow(
-      "immutable install spec",
-    );
-  });
-
-  it("keeps volatile metrics outside the editorial content hash", () => {
-    const candidate = proposal();
-    const original = calculateContentSourceHash(candidate.sources);
-    expect(calculateContentSourceHash(candidate.sources)).toBe(original);
-    candidate.sources[0]!.sha256 = "f".repeat(64);
-    expect(calculateContentSourceHash(candidate.sources)).not.toBe(original);
-  });
-
-  it("checks only local media and returns normalized bytes without fetching sourceUrl", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "dshx-media-test-"));
-    temporary.push(directory);
-    const path = join(directory, "icon.png");
-    const png = new Uint8Array([
-      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48,
-      0x44, 0x52, 0, 0, 0, 1, 0, 0, 0, 1,
-    ]);
-    await writeFile(path, png);
-    const result = await checkMedia({
-      items: [
+      [
         {
-          schemaVersion: 2,
-          pluginId: crypto.randomUUID(),
-          kind: "icon",
-          sourceUrl: "https://source.invalid/icon.png",
-          observedAt: new Date().toISOString(),
-          sourceSha256: createHash("sha256").update(png).digest("hex"),
-          localPath: path,
-          localizations: [
-            { locale: "en", altText: "Fixture icon" },
-            { locale: "zh", altText: "测试图标" },
-          ],
+          code: "workspace-truncated",
+          message: "Only 100 packages were inspected.",
         },
       ],
+      "collector-request",
+    );
+    const result = await upsertPlugins("https://hub.test", inspected, false);
+
+    expect(sent).toMatchObject({ dryRun: false, observations: [{}, {}] });
+    expect((sent as { observations: unknown[] }).observations).toHaveLength(2);
+    expect(
+      (result.data as { results: Array<{ status: string }> }).results.map(
+        ({ status }) => status,
+      ),
+    ).toEqual(["created", "rejected", "unchanged"]);
+    expect(result.warnings).toContainEqual(
+      expect.objectContaining({ code: "workspace-truncated" }),
+    );
+    expect(exitCodeForSuccess(result)).toBe(2);
+  });
+
+  it("chunks batches at 100 items and honors an embedded dryRun request", async () => {
+    const batchSizes: number[] = [];
+    const dryRuns: boolean[] = [];
+    let request = 0;
+    globalThis.fetch = vi.fn(async (_input, init) => {
+      request += 1;
+      const body = JSON.parse(String(init?.body)) as {
+        observations: Array<{ identity: { packageName: string } }>;
+        dryRun: boolean;
+      };
+      batchSizes.push(body.observations.length);
+      dryRuns.push(body.dryRun);
+      return response(
+        {
+          results: body.observations.map((item) => ({
+            identity: `npm:${item.identity.packageName}`,
+            status: "unchanged",
+          })),
+        },
+        {
+          warnings: [{ code: `chunk-${request}`, message: "Chunk warning." }],
+          requestId: `request-${request}`,
+        },
+      );
     });
-    expect(result.items[0]).toMatchObject({
-      localPath: resolve(path),
-      contentType: "image/png",
-      width: 1,
-      height: 1,
+    const observations = Array.from({ length: 101 }, (_, index) =>
+      observation(`plugin-${String(index).padStart(3, "0")}`),
+    );
+    const result = await upsertPlugins(
+      "https://hub.test",
+      { observations, dryRun: true },
+      false,
+    );
+
+    expect(batchSizes).toEqual([100, 1]);
+    expect(dryRuns).toEqual([true, true]);
+    expect((result.data as { results: unknown[] }).results).toHaveLength(101);
+    expect(result.warnings.map(({ code }) => code)).toEqual([
+      "chunk-1",
+      "chunk-2",
+    ]);
+    expect(result.meta).toEqual({
+      requestId: "request-1",
+      requestIds: ["request-1", "request-2"],
     });
   });
 
-  it("contains no GitHub, npm, or remote-media collection implementation", async () => {
-    const sourceDirectory = resolve(import.meta.dirname, "../src");
-    const files = [
-      "index.ts",
-      "catalog.ts",
-      "validate.ts",
-      "metrics.ts",
-      "targets.ts",
-      "media.ts",
-    ];
-    const source = (
-      await Promise.all(
-        files.map((file) => readFile(join(sourceDirectory, file), "utf8")),
-      )
-    ).join("\n");
-    expect(source).not.toContain("api.github.com");
-    expect(source).not.toContain("registry.npmjs.org");
-    expect(source).not.toContain("api.npmjs.org");
-    expect(source).not.toContain("fetch(item.sourceUrl");
+  it("combines repeated filters and follows --all cursors only in the current call", async () => {
+    const urls: URL[] = [];
+    globalThis.fetch = vi.fn(async (input) => {
+      const url = new URL(String(input));
+      urls.push(url);
+      return url.searchParams.get("cursor") === "next"
+        ? response(
+            { items: [{ id: "second" }], nextCursor: null },
+            { requestId: "page-2" },
+          )
+        : response(
+            { items: [{ id: "first" }], nextCursor: "next" },
+            { requestId: "page-1" },
+          );
+    });
+    const filters = {
+      state: ["published", "draft"],
+      needs: ["refresh", "content"],
+      source: ["npm", "github"],
+      risk: ["repository-archived", "package-deprecated"],
+      observedBefore: "2026-08-01",
+      updatedBefore: "2026-08-02",
+      limit: 2,
+      all: true,
+    };
+    const first = await listPlugins("https://hub.test", filters);
+    const second = await listPlugins("https://hub.test", {
+      all: true,
+      limit: 2,
+    });
+
+    expect((first.data as { items: unknown[] }).items).toHaveLength(2);
+    expect((second.data as { items: unknown[] }).items).toHaveLength(2);
+    expect(urls[0]!.searchParams.getAll("state")).toEqual([
+      "published",
+      "draft",
+    ]);
+    expect(urls[0]!.searchParams.getAll("needs")).toEqual([
+      "refresh",
+      "content",
+    ]);
+    expect(urls[0]!.searchParams.getAll("source")).toEqual(["npm", "github"]);
+    expect(urls[0]!.searchParams.getAll("risk")).toEqual([
+      "repository-archived",
+      "package-deprecated",
+    ]);
+    expect(urls[1]!.searchParams.get("cursor")).toBe("next");
+    expect(urls[2]!.searchParams.has("cursor")).toBe(false);
   });
 
-  it("documents only the contracted stable command surface", () => {
-    const root = helpText();
-    expect(root).toContain("contract");
-    expect(root).toContain("catalog");
-    expect(helpText(["sync"])).toContain("put");
-    expect(helpText(["sync"])).not.toContain("discover");
-    expect(helpText(["metrics"])).toContain("submit");
-    expect(helpText(["media"])).toContain("check");
-    expect(helpText(["approvals", "create"])).toContain("Writes:");
-    expect(helpText(["users", "role", "set"])).toContain("mandatory approval");
+  it("uses the agreed curation, visibility, and submission request bodies", async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    globalThis.fetch = vi.fn(async (input, init) => {
+      requests.push({ url: String(input), ...(init ? { init } : {}) });
+      return response({ updated: true });
+    });
+    const content = {
+      displayName: { en: "Fixture", zh: "测试" },
+      shortDescription: { en: "Fixture plugin", zh: "测试插件" },
+      overviewMarkdown: { en: "Overview", zh: "概览" },
+      categories: ["tools"],
+      tags: ["fixture"],
+      derivedFrom: ["https://example.test/readme"],
+    };
+    await curatePlugin("https://hub.test", "plugin-id", content, 3);
+    await setPluginVisibility(
+      "https://hub.test",
+      "plugin-id",
+      "hidden",
+      "malicious content",
+    );
+    const resolvedPluginId = "11111111-1111-4111-8111-111111111111";
+    await resolveSubmission("https://hub.test", "submission-id", {
+      result: "duplicate",
+      pluginId: resolvedPluginId,
+    });
+
+    expect(JSON.parse(String(requests[0]!.init?.body))).toEqual({
+      content,
+      ifRevision: 3,
+    });
+    expect(JSON.parse(String(requests[1]!.init?.body))).toEqual({
+      visibility: "hidden",
+      reason: "malicious content",
+    });
+    expect(JSON.parse(String(requests[2]!.init?.body))).toEqual({
+      result: "duplicate",
+      pluginId: resolvedPluginId,
+    });
+    await expect(
+      curatePlugin("https://hub.test", "plugin-id", content, 0),
+    ).rejects.toThrow("positive integer");
+  });
+
+  it("reads the latest report and publishes the immutable bilingual report contract", async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    globalThis.fetch = vi.fn(async (input, init) => {
+      requests.push({ url: String(input), ...(init ? { init } : {}) });
+      return response({ status: init?.method === "POST" ? "created" : "ok" });
+    });
+    const report = {
+      runId: "11111111-1111-4111-8111-111111111111",
+      startedAt: "2026-08-27T00:00:00.000Z",
+      completedAt: "2026-08-27T00:30:00.000Z",
+      outcome: "partial" as const,
+      body: { en: "Plain English report", zh: "纯文本中文报告" },
+    };
+    await latestReport("https://hub.test");
+    await publishReport("https://hub.test", report);
+    expect(requests.map(({ url }) => url)).toEqual([
+      "https://hub.test/api/ops/v1/reports",
+      "https://hub.test/api/ops/v1/reports",
+    ]);
+    expect(requests[1]?.init?.method).toBe("POST");
+    expect(JSON.parse(String(requests[1]?.init?.body))).toEqual({
+      schemaVersion: 1,
+      ...report,
+    });
+    expect(() =>
+      publishReport("https://hub.test", {
+        ...report,
+        completedAt: "2026-08-26T23:00:00.000Z",
+      }),
+    ).toThrow("completedAt must be at or after startedAt");
+    expect(() =>
+      publishReport("https://hub.test", {
+        ...report,
+        body: { ...report.body, en: "x".repeat(10_001) },
+      }),
+    ).toThrow();
+  });
+
+  it("forwards structured revision conflicts and keeps warnings successful", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      response(
+        {
+          ok: false,
+          error: {
+            code: "revision_conflict",
+            message: "Revision changed.",
+            retryable: true,
+            repairHint: "Run plugin get, merge the latest content, and retry.",
+          },
+          meta: { requestId: "conflict-request" },
+        },
+        { status: 409 },
+      ),
+    );
+    const error = await setPluginVisibility(
+      "https://hub.test",
+      "plugin-id",
+      "hidden",
+      "reviewed reason",
+    ).catch((caught: unknown) => caught);
+    expect(normalizedError(error)).toEqual({
+      error: {
+        code: "revision_conflict",
+        message: "Revision changed.",
+        retryable: true,
+        repairHint: "Run plugin get, merge the latest content, and retry.",
+      },
+      requestId: "conflict-request",
+    });
+    expect(
+      exitCodeForSuccess(
+        successEnvelope({ status: "unchanged" }, [
+          { code: "stale", message: "Review later." },
+        ]),
+      ),
+    ).toBe(0);
+    expect(
+      exitCodeForSuccess(
+        successEnvelope({ results: [{ status: "rejected" }] }),
+      ),
+    ).toBe(1);
+  });
+
+  it("rejects malformed 2xx Hub responses instead of reporting false success", async () => {
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response("not-json", {
+          status: 200,
+          headers: {
+            "content-type": "text/plain",
+            "x-request-id": "bad-json",
+          },
+        }),
+    );
+    const nonJson = await listPlugins("https://hub.test", {}).catch(
+      (error: unknown) => error,
+    );
+    expect(normalizedError(nonJson)).toMatchObject({
+      error: { code: "invalid_hub_response", retryable: true },
+      requestId: "bad-json",
+    });
+
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ok: true, data: { items: [] } }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "x-request-id": "bad-envelope",
+          },
+        }),
+    );
+    const malformed = await listPlugins("https://hub.test", {}).catch(
+      (error: unknown) => error,
+    );
+    expect(normalizedError(malformed)).toMatchObject({
+      error: { code: "invalid_hub_response", retryable: true },
+      requestId: "bad-envelope",
+    });
   });
 });

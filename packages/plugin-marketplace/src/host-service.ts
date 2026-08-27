@@ -445,7 +445,9 @@ export class MarketplaceHostService {
           compatibilityRange: item.compat,
           compatibility: compatibility(dsh.version, item.compat),
           category: item.category,
-          badge: item.badge,
+          // Older Hub deployments may still emit `verified`. The marketplace
+          // now exposes only the durable Official/Community distinction.
+          badge: item.badge === 'official' ? 'official' : 'community',
           glyph: item.glyph,
           iconUrl: absoluteIconUrl(settings.hubBaseUrl, item.iconUrl),
           installed: installed.has(item.scope),
@@ -491,13 +493,6 @@ export class MarketplaceHostService {
           version: target.version,
           restartRequired: true,
         }
-      }
-      const compatibilityStatus = compatibility(dsh.version, detail.plugin.compat)
-      if (compatibilityStatus === 'unknown') {
-        return failed('compatibility-unknown', false)
-      }
-      if (compatibilityStatus === 'incompatible') {
-        return failed('incompatible', false)
       }
       const installSignal = combineSignals(signal, INSTALL_TIMEOUT_MS)
       const args = ['plugin', '--profile', profile.name, 'add', target.spec] as const

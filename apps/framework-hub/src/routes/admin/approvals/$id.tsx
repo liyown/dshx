@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { CircleAlert, ExternalLink, RotateCcw } from "lucide-react";
+import { CircleAlert, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { ApprovalDecisionDialog } from "@/components/admin/approval-decision-dialog";
@@ -252,7 +252,7 @@ function ApprovalDetailView({
               <dd>
                 <RelativeTime value={effect.lease_expires_at} />
               </dd>
-              <dt className="text-muted-foreground">Run</dt>
+              <dt className="text-muted-foreground">Historical run reference</dt>
               <dd>
                 {request.run_id ? <span className="font-mono text-xs">{request.run_id}</span> : "—"}
               </dd>
@@ -281,15 +281,6 @@ function ApprovalDetailView({
           <EvidenceSection title="Event log" eyebrow={`${data.events.length} events`} compact>
             <AuditRows rows={data.events} empty="No events were recorded." />
           </EvidenceSection>
-
-          {request.run_id ? (
-            <a
-              href={`/api/ops/catalog/runs/${encodeURIComponent(request.run_id)}`}
-              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-            >
-              Inspect related run <ExternalLink className="size-3.5" data-icon="inline-end" />
-            </a>
-          ) : null}
         </aside>
       </div>
     </>

@@ -16,7 +16,7 @@ type ListRow = {
   latest_version: string;
   compatibility_range: string;
   category: string;
-  badge: CatalogCard["badge"];
+  badge: "official" | "verified" | "community";
   featured: number;
   latest_published_at: number | null;
   updated_at: number;
@@ -49,7 +49,7 @@ function toCard(row: ListRow): CatalogCard {
     category: row.category,
     stars: row.github_stars,
     downloads: formatDownloads(row.npm_downloads_week),
-    badge: row.badge,
+    badge: row.badge === "official" ? "official" : "community",
     glyph: row.name.slice(0, 1).toUpperCase(),
     iconUrl: row.icon_media_id ? `/api/media/${encodeURIComponent(row.icon_media_id)}` : null,
     publisher: {
@@ -86,8 +86,7 @@ function decodeCursor(value?: string | null): [number, number, string] | null {
   }
 }
 
-const marketplaceEligibility = sql`p.verification_status = 'verified'
-  and (select count(*) from plugin_install_targets primary_target
+const marketplaceTargetEligibility = sql`(select count(*) from plugin_install_targets primary_target
        where primary_target.plugin_id = p.id
          and primary_target.is_primary = 1
          and primary_target.status = 'active') = 1
@@ -153,7 +152,7 @@ async function listCatalogPluginPage(
     sql`p.status = 'published'`,
     sql`p.lifecycle_status in ('active', 'unmaintained')`,
   ];
-  if (marketplaceOnly) conditions.push(marketplaceEligibility);
+  if (marketplaceOnly) conditions.push(marketplaceTargetEligibility);
   if (query.category)
     conditions.push(sql`exists(
       select 1 from plugin_categories category_membership
@@ -271,6 +270,16 @@ type MediaRow = {
   alt_text: string | null;
   caption: string | null;
 };
+type SourceDocumentRow = {
+  availability: "available" | "unavailable";
+  format: "markdown";
+  sourceUrl: string;
+  sourceRef: string | null;
+  sourcePath: string | null;
+  content: string | null;
+  contentHash: string | null;
+  observedAt: number;
+};
 
 export async function getCatalogPlugin(db: Database, slug: string, locale: "en" | "zh") {
   const aliases = await db.all<{ slug: string }>(sql`
@@ -307,6 +316,7 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
     categories,
     capabilities,
     media,
+    sourceDocuments,
     localeStates,
     related,
   ] = await Promise.all([
@@ -331,6 +341,13 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
     db.all<MediaRow>(
       sql`select pm.id, pm.kind, pm.content_type, pm.width, pm.height, pml.alt_text, pml.caption from plugin_media pm left join plugin_media_localizations pml on pml.media_id = pm.id and pml.locale = ${locale} where pm.plugin_id = ${row.id} and pm.status = 'active' order by pm.sort_order`,
     ),
+    db.all<SourceDocumentRow>(sql`
+      select availability,format,source_url sourceUrl,source_ref sourceRef,
+        source_path sourcePath,content,content_hash contentHash,observed_at observedAt
+      from plugin_source_documents
+      where plugin_id=${row.id} and kind='readme'
+      limit 1
+    `),
     db.all<{ locale: string; translation_status: string }>(
       sql`select locale, translation_status from plugin_localizations where plugin_id = ${row.id}`,
     ),
@@ -379,6 +396,12 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
     categories,
     capabilities,
     media,
+    sourceReadme: sourceDocuments[0]
+      ? {
+          ...sourceDocuments[0],
+          observedAt: new Date(sourceDocuments[0].observedAt).toISOString(),
+        }
+      : null,
     rating:
       reviewCount >= 1
         ? { count: reviewCount, average: (row.rating_sum ?? 0) / reviewCount }
@@ -420,7 +443,7 @@ export async function getCatalogMarketplacePlugin(db: Database, slug: string, lo
     select case when
       p.status = 'published'
       and p.lifecycle_status in ('active', 'unmaintained')
-      and ${marketplaceEligibility}
+      and ${marketplaceTargetEligibility}
       then 1 else 0 end eligible
     from plugins p where p.id = ${detail.id}
   `);

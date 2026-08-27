@@ -19,7 +19,7 @@ export function randomToken(prefix = "dshx"): string {
   return `${prefix}_${value}`;
 }
 
-export async function requireApiToken(db: Database, request: Request, scope: string) {
+export async function authenticateApiToken(db: Database, request: Request) {
   const authorization = request.headers.get("authorization") ?? "";
   if (!authorization.startsWith("Bearer "))
     throw new HttpError(401, "Bearer token required", "unauthorized");
@@ -37,9 +37,13 @@ export async function requireApiToken(db: Database, request: Request, scope: str
     .limit(1);
   if (!row || row.profile.status !== "active")
     throw new HttpError(401, "Token is invalid or expired", "invalid_token");
-  if (!row.token.scopesJson.includes(scope) && !row.token.scopesJson.includes("*")) {
-    throw new HttpError(403, `Token lacks ${scope}`, "insufficient_scope");
-  }
   await db.update(apiTokens).set({ lastUsedAt: now }).where(eq(apiTokens.id, row.token.id));
+  return row;
+}
+
+export async function requireApiToken(db: Database, request: Request, scope: string) {
+  const row = await authenticateApiToken(db, request);
+  if (!row.token.scopesJson.includes(scope) && !row.token.scopesJson.includes("*"))
+    throw new HttpError(403, `Token lacks ${scope}`, "insufficient_scope");
   return row;
 }

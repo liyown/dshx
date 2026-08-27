@@ -2,9 +2,12 @@
 insert or ignore into publishers(
   id,github_id,login,kind,display_name,avatar_url,profile_url,trust_tier,created_at,updated_at
 ) values(
-  'publisher:dev-fixture','dev-fixture','dshx-dev','organization','DSHX Dev',null,
+  'publisher:dev-fixture','dev-fixture','dshx-dev','organization','DSHX Dev',
+  'https://avatars.githubusercontent.com/u/55525531?v=4',
   'https://github.com/liyown/dshx','official',unixepoch()*1000,unixepoch()*1000
 );
+update publishers set avatar_url='https://avatars.githubusercontent.com/u/55525531?v=4'
+where id='publisher:dev-fixture';
 
 insert or ignore into publisher_localizations(
   publisher_id,locale,display_name,bio,seo_title,seo_description,source_content_hash,status,updated_at
@@ -58,25 +61,57 @@ insert or ignore into plugins(
   unixepoch()*1000,unixepoch()*1000,unixepoch()*1000,unixepoch()*1000,unixepoch()*1000
 );
 
-insert or ignore into plugin_localizations(
+insert or replace into plugin_localizations(
   plugin_id,locale,display_name,short_description,overview_markdown,highlights_json,
   install_notes_markdown,seo_title,seo_description,source_locale,source_content_hash,
   translation_status,translator,translated_at,created_at,updated_at
 ) values
   ('00000000-0000-5000-8000-000000000001','en','DSHX Example Bundle',
    'A development fixture that exercises the complete DSHX Hub marketplace workflow.',
-   'This development-only bundle provides realistic catalog data for local UI and API verification.',
+   'DSHX Example Bundle is a development-only fixture for exercising the complete Hub ingestion and marketplace path without depending on third-party plugin code.
+
+It supplies a bilingual catalog profile, publisher identity, exact npm installation target, release metadata, category assignment, metrics, community surfaces, and a preserved source README. Maintainers can use it to verify that source evidence and Agent-authored curation remain separate while still appearing together on the plugin detail page.
+
+Use it only in the local preview environment with the displayed @dshx-dev/example-bundle target. It is sample data rather than a production plugin, so its compatibility, downloads, stars, and release history must not be treated as real package claims.',
    '["Verified installation target","Bilingual catalog content"]',null,
    'DSHX Example Bundle — Development Fixture',
    'Preview the complete DSHX Hub catalog, community, media and approval experience locally.',
    'en','dev-fixture-source-hash-0000000000000000','ready','manual',unixepoch()*1000,unixepoch()*1000,unixepoch()*1000),
   ('00000000-0000-5000-8000-000000000001','zh','DSHX 示例 Bundle',
    '用于验证完整 DSHX Hub 市场流程的本地开发数据。',
-   '这条仅用于开发环境的 Bundle 数据可以验证目录、社区、媒体和审批相关界面。',
+   'DSHX 示例 Bundle 是一条仅用于开发环境的完整市场流程样本，帮助维护者在不执行第三方插件代码的前提下验证 Hub 从采集、整理到展示的链路。
+
+它覆盖中英文插件资料、作者身份与头像、精确 npm 安装目标、版本与分类、指标、社区功能，以及独立保存的原始 README。维护者可以据此检查来源证据和运营 Agent 编写的概述是否保持分离，同时在插件详情页正确关联。
+
+本地预览时可以使用页面展示的 @dshx-dev/example-bundle 安装目标进行界面验证。它不是线上真实插件，因此兼容性、下载量、Stars 和版本历史都不能作为实际包信息使用。',
    '["已验证安装目标","中英文目录内容"]',null,
    'DSHX 示例 Bundle — 本地开发数据',
    '在本地预览完整的 DSHX Hub 目录、社区、媒体与审批体验。',
    'zh','dev-fixture-source-hash-0000000000000000','ready','manual',unixepoch()*1000,unixepoch()*1000,unixepoch()*1000);
+
+insert or replace into plugin_source_documents(
+  id,plugin_id,kind,availability,format,source_url,source_ref,source_path,
+  content,content_hash,observed_at,created_at,updated_at
+) values(
+  '00000000-0000-5000-8000-000000000001:readme',
+  '00000000-0000-5000-8000-000000000001','readme','available','markdown',
+  'https://github.com/liyown/dshx/blob/main/README.md','main','README.md',
+  '# DSHX Example Bundle
+
+This development-only README verifies preservation of original source documents.
+
+## Capabilities
+
+- Exercises bilingual catalog overviews.
+- Demonstrates an exact npm installation target.
+- Keeps source evidence separate from Agent-maintained curation.
+
+## Install
+
+Use the exact version shown by the local fixture. Never treat this development record as production plugin data.',
+  'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+  unixepoch()*1000,unixepoch()*1000,unixepoch()*1000
+);
 
 insert or ignore into plugin_install_targets(
   id,plugin_id,repository_package_id,kind,spec,package_name,version,integrity,is_primary,

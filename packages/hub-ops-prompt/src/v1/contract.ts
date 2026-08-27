@@ -1,0 +1,100 @@
+import type { OperationsCommandContract } from "../contracts.js";
+
+export const dailyOperationsPromptVersion = 4 as const;
+
+export const dailyOperationsCommandContract = [
+  {
+    command: "source discover",
+    usage:
+      "dshx-hub source discover --provider github|npm --query TEXT --since DATE [--cursor CURSOR] [--limit N]",
+    access: "public-read",
+  },
+  {
+    command: "source inspect",
+    usage: "dshx-hub source inspect SOURCE [--output FILE]",
+    access: "public-read",
+  },
+  {
+    command: "plugin list",
+    usage:
+      "dshx-hub plugin list [--state VALUE] [--needs VALUE] [--source VALUE] [--risk VALUE] [--observed-before DATE] [--updated-before DATE] [--limit N] [--cursor CURSOR] [--all]",
+    access: "hub-read",
+  },
+  {
+    command: "plugin get",
+    usage: "dshx-hub plugin get ID_OR_SLUG [--output FILE]",
+    access: "hub-read",
+  },
+  {
+    command: "plugin upsert",
+    usage: "dshx-hub plugin upsert --input FILE|- [--dry-run] [--output FILE]",
+    access: "hub-write",
+  },
+  {
+    command: "plugin curate",
+    usage: "dshx-hub plugin curate PLUGIN_ID --input FILE [--if-revision N]",
+    access: "hub-write",
+  },
+  {
+    command: "plugin hide",
+    usage: "dshx-hub plugin hide PLUGIN_ID --reason TEXT",
+    access: "hub-write",
+  },
+  {
+    command: "plugin restore",
+    usage: "dshx-hub plugin restore PLUGIN_ID --reason TEXT",
+    access: "hub-write",
+  },
+  {
+    command: "submission list",
+    usage:
+      "dshx-hub submission list [--status queued] [--limit N] [--cursor CURSOR] [--all]",
+    access: "hub-read",
+  },
+  {
+    command: "submission get",
+    usage: "dshx-hub submission get SUBMISSION_ID",
+    access: "hub-read",
+  },
+  {
+    command: "submission resolve",
+    usage:
+      "dshx-hub submission resolve SUBMISSION_ID --result accepted|duplicate|ignored [--plugin PLUGIN_ID] [--reason TEXT]",
+    access: "hub-write",
+  },
+  {
+    command: "report latest",
+    usage: "dshx-hub report latest",
+    access: "hub-read",
+  },
+  {
+    command: "report publish",
+    usage: "dshx-hub report publish --input FILE",
+    access: "hub-write",
+  },
+  {
+    command: "audit",
+    usage: "dshx-hub audit [--scope catalog|storage|community] [--output FILE]",
+    access: "hub-read",
+  },
+] as const satisfies readonly OperationsCommandContract[];
+
+export const dailyOperationsApiContract = {
+  schemaVersion: 1,
+  protectedReportsEndpoint: "/api/ops/v1/reports",
+  publicReportsEndpoint: "/api/operations/reports",
+  reportInputFields: [
+    "runId",
+    "startedAt",
+    "completedAt",
+    "outcome",
+    "body.en",
+    "body.zh",
+  ],
+  reportStatuses: ["completed", "partial"],
+  maximumBodyCharactersPerLocale: 10_000,
+  maximumStoredReports: 1_000,
+  publicPageSize: 20,
+  idempotencyKey: "runId",
+  immutableAfterPublish: true,
+} as const;

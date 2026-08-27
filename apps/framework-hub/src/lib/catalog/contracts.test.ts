@@ -1,11 +1,27 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  catalogSortValues,
   marketplaceDetailResponseSchema,
   marketplaceListQuerySchema,
   marketplaceListResponseSchema,
   marketplaceSortValues,
+  pluginListQuerySchema,
 } from "./contracts";
+
+describe("public discovery query", () => {
+  it("keeps the full catalog sort contract and defaults to featured", () => {
+    expect(catalogSortValues).toEqual([
+      "featured",
+      "trending",
+      "updated",
+      "new",
+      "stars",
+      "downloads",
+    ]);
+    expect(pluginListQuerySchema.parse({}).sort).toBe("featured");
+  });
+});
 
 describe("marketplace list query", () => {
   it("defaults to latest and exposes only the Preview sort values", () => {
@@ -23,14 +39,14 @@ describe("marketplace list query", () => {
 
 describe("marketplace response boundaries", () => {
   const card = {
-    slug: "verified-plugin",
-    name: "Verified plugin",
-    scope: "@example/verified-plugin",
-    description: "A verified marketplace plugin.",
+    slug: "community-plugin",
+    name: "Community plugin",
+    scope: "@example/community-plugin",
+    description: "A community marketplace plugin.",
     version: "1.2.3",
     compat: ">=0.1.0-rc.8 <0.2.0-0",
     category: "tools",
-    badge: "verified" as const,
+    badge: "community" as const,
     glyph: "V",
     iconUrl: null,
     author: "example",
@@ -49,12 +65,12 @@ describe("marketplace response boundaries", () => {
     expect(
       marketplaceDetailResponseSchema.parse({
         plugin: card,
-        repositoryUrl: "https://github.com/example/verified-plugin",
+        repositoryUrl: "https://github.com/example/community-plugin",
         installTargets: [
           {
             kind: "npm",
-            spec: "@example/verified-plugin@1.2.3",
-            package_name: "@example/verified-plugin",
+            spec: "@example/community-plugin@1.2.3",
+            package_name: "@example/community-plugin",
             version: "1.2.3",
             integrity: null,
             is_primary: 1,

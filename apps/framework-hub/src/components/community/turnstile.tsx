@@ -58,7 +58,13 @@ function loadTurnstileScript() {
   return scriptPromise;
 }
 
-export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
+export function Turnstile({
+  onToken,
+  mode = "session",
+}: {
+  onToken: (token: string) => void;
+  mode?: "session" | "direct";
+}) {
   const { t } = useI18n();
   const reactId = useId().replaceAll(":", "");
   const container = useRef<HTMLDivElement>(null);
@@ -70,6 +76,7 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (mode === "direct") return;
     const synchronize = (event: Event) => {
       const nextExpiry = (event as CustomEvent<{ expiresAt: string | null }>).detail.expiresAt;
       setExpiresAt(nextExpiry);
@@ -84,10 +91,30 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
     };
     window.addEventListener(verificationEvent, synchronize);
     return () => window.removeEventListener(verificationEvent, synchronize);
-  }, [onToken]);
+  }, [mode, onToken]);
 
   useEffect(() => {
     let cancelled = false;
+    if (mode === "direct") {
+      void fetch("/api/config")
+        .then(async (configResponse) => {
+          if (!configResponse.ok) throw new Error("configuration");
+          const config = (await configResponse.json()) as { turnstileSiteKey: string | null };
+          if (cancelled) return;
+          setSiteKey(config.turnstileSiteKey);
+          onToken("");
+          setStatus("required");
+        })
+        .catch(() => {
+          if (cancelled) return;
+          onToken("");
+          setError(t("community.verification.loadFailed"));
+          setStatus("required");
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
     void Promise.all([fetch("/api/config"), fetch("/api/community/verification")])
       .then(async ([configResponse, verificationResponse]) => {
         if (!configResponse.ok || !verificationResponse.ok) throw new Error("configuration");
@@ -117,13 +144,20 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
     return () => {
       cancelled = true;
     };
-  }, [onToken, t]);
+  }, [mode, onToken, t]);
 
   const verify = useCallback(
     async (turnstileToken: string) => {
       setError(null);
       setStatus("verifying");
       onToken("");
+      if (mode === "direct") {
+        const directExpiry = new Date(Date.now() + 5 * 60_000).toISOString();
+        setExpiresAt(directExpiry);
+        setStatus("verified");
+        onToken(turnstileToken);
+        return;
+      }
       try {
         const response = await fetch("/api/community/verification", {
           method: "POST",
@@ -149,7 +183,7 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
         setStatus("required");
       }
     },
-    [onToken, t],
+    [mode, onToken, t],
   );
 
   useEffect(() => {
@@ -161,7 +195,11 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
         widgetId = window.turnstile.render(container.current, {
           sitekey: siteKey,
           callback: (turnstileToken) => void verify(turnstileToken),
-          "expired-callback": () => onToken(""),
+          "expired-callback": () => {
+            onToken("");
+            setExpiresAt(null);
+            setStatus("required");
+          },
           "error-callback": () => {
             onToken("");
             setError(t("community.verification.failed"));
@@ -208,7 +246,11 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
     return (
       <p className="flex items-center gap-2 text-xs text-muted-foreground" aria-live="polite">
         <CircleCheck className="size-3.5 text-ok" aria-hidden />
-        {t("community.verification.active")}
+        {t(
+          mode === "direct"
+            ? "community.verification.submissionReady"
+            : "community.verification.active",
+        )}
       </p>
     );
   if (status === "verifying")
@@ -225,7 +267,11 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
   return (
     <div className="space-y-2">
       <p id={`turnstile-help-${reactId}`} className="text-xs leading-5 text-muted-foreground">
-        {t("community.verification.required")}
+        {t(
+          mode === "direct"
+            ? "community.verification.submissionRequired"
+            : "community.verification.required",
+        )}
       </p>
       {error ? (
         <p className="text-xs text-destructive" role="alert">

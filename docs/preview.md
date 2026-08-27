@@ -40,7 +40,7 @@ The development command launches a real DSH Profile. Client changes flow through
 - Conversation Components and programmatic Tooling remain Experimental.
 - Compatibility evidence is limited to the declared protocol adapter and its recorded DSH boundaries. Direct native DSH calls remain the plugin author's responsibility.
 - Framework Hub publication is curated. Publishing an npm package does not automatically create or activate a Hub catalog entry.
-- The marketplace installs only from a loopback DSH Web session, installs one verified primary target at a time, and requires a Profile restart. It does not provide details, search, uninstall, upgrade, or automatic restart in this Preview.
+- The marketplace installs only from a loopback DSH Web session, requires one exact active primary target, shows the fixed Hub risk statement with a second confirmation, and requires a Profile restart. It does not provide details, search, uninstall, upgrade, or automatic restart in this Preview.
 - Package publication is a local, npm-2FA operation. The repository CI does not hold npm credentials and does not create GitHub Releases.
 
 Report a reproducible issue with the DSHX version, installed DSH version, package manager and lockfile, `dshx check --json` output, and whether the failure occurred offline, during build, or in a real Profile. Remove local paths or secrets before sharing logs.

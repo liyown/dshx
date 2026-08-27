@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import { normalizedError } from "../src/errors.js";
 import {
   deleteToken,
   readToken,
@@ -38,8 +39,17 @@ describe("system keyring adapter", () => {
     setKeyringEntryFactoryForTests(() => {
       throw new Error("backend unavailable");
     });
-    expect(() => readToken("https://dshx.io")).toThrow(
-      "Ensure macOS Keychain, Linux Secret Service, or Windows Credential Manager is running",
-    );
+    try {
+      readToken("https://dshx.io");
+      expect.unreachable("readToken should reject an unavailable keyring");
+    } catch (error) {
+      expect(normalizedError(error).error).toMatchObject({
+        code: "keyring_unavailable",
+        message: "System keyring is unavailable while reading the Hub token.",
+        retryable: true,
+        repairHint:
+          "Ensure macOS Keychain, Linux Secret Service, or Windows Credential Manager is running, then retry.",
+      });
+    }
   });
 });

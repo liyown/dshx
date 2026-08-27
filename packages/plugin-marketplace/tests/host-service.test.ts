@@ -387,19 +387,19 @@ describe('MarketplaceHostService.install', () => {
     )
   })
 
-  it('rejects incompatible, inactive, mismatched and mutable primary targets before running the CLI', async () => {
+  it('allows compatibility warnings but rejects inactive, mismatched and mutable primary targets', async () => {
     const unknown = await serviceFixture({
       fetchValue: detail({ plugin: card({ compat: 'not-semver' }) }),
     })
     await expect(unknown.service.install('community-tool', unknown.ctx, new AbortController().signal)).resolves.toMatchObject({
-      code: 'compatibility-unknown',
+      code: 'activation-missing',
     })
 
     const incompatible = await serviceFixture({
       fetchValue: detail({ plugin: card({ compat: '>=9' }) }),
     })
     await expect(incompatible.service.install('community-tool', incompatible.ctx, new AbortController().signal)).resolves.toMatchObject({
-      code: 'incompatible',
+      code: 'activation-missing',
     })
 
     const inactive = await serviceFixture({
@@ -426,8 +426,8 @@ describe('MarketplaceHostService.install', () => {
     await expect(mutable.service.install('community-tool', mutable.ctx, new AbortController().signal)).resolves.toMatchObject({
       code: 'target-unavailable',
     })
-    expect(unknown.runCli).not.toHaveBeenCalled()
-    expect(incompatible.runCli).not.toHaveBeenCalled()
+    expect(unknown.runCli).toHaveBeenCalledOnce()
+    expect(incompatible.runCli).toHaveBeenCalledOnce()
     expect(inactive.runCli).not.toHaveBeenCalled()
     expect(mismatched.runCli).not.toHaveBeenCalled()
     expect(mutable.runCli).not.toHaveBeenCalled()
