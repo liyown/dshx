@@ -5,6 +5,7 @@ import {
   buildPluginSeoDescription,
   buildPluginSeoTitle,
   improveShortDescription,
+  isLowInformationCatalogCopy,
 } from "./content-quality";
 
 describe("catalog content quality", () => {
@@ -40,5 +41,18 @@ describe("catalog content quality", () => {
     expect(overview).toContain("default web profile");
     expect(overview).toContain("public README");
     expect(overview).not.toContain("does not provide a separate feature list");
+  });
+
+  it("rejects name-only Chinese copy that redirects readers to the README", () => {
+    expect(
+      isLowInformationCatalogCopy(
+        "示例插件是面向 DeepSeek Harness 的插件，具体用途以已保存的公开 README 为准。",
+      ),
+    ).toBe(true);
+    expect(
+      isLowInformationCatalogCopy(
+        "为 DSH Web 增加 Git 面板，可暂存、提交、推送并切换分支。",
+      ),
+    ).toBe(false);
   });
 });

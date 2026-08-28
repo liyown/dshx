@@ -10,9 +10,11 @@ import {
   buildPluginSeoDescription,
   buildPluginSeoTitle,
   improveShortDescription,
+  isLowInformationCatalogCopy,
   type CatalogLocale,
 } from '../apps/framework-hub/src/lib/catalog/content-quality.ts'
 import { buildPluginInstallCommand } from '../apps/framework-hub/src/lib/catalog/install-target.ts'
+import { curatedZhPluginLeads } from './hub-catalog-zh-curations.ts'
 
 type CatalogRow = {
   id: string
@@ -46,6 +48,7 @@ const workspace = resolve(scriptDirectory, '..')
 const hubDirectory = join(workspace, 'apps/framework-hub')
 const cliEntrypoint = join(workspace, 'packages/framework-hub-cli/dist/index.js')
 const apply = process.argv.includes('--apply')
+const onlyCuratedZh = process.argv.includes('--only-curated-zh')
 const batchSize = 75
 const startedAt = new Date()
 const runId = randomUUID()
@@ -106,16 +109,21 @@ function prepare(row: CatalogRow): PreparedPlugin {
   const displayName = parseLocalized(row.display_name_json, 'display names', row.slug)
   const currentDescription = parseLocalized(row.short_description_json, 'short descriptions', row.slug)
   const currentOverview = parseLocalized(row.overview_markdown_json, 'overviews', row.slug)
+  const curatedZhLead = curatedZhPluginLeads[row.slug]
   const installCommand = row.install_spec ? buildPluginInstallCommand(row.install_spec) : null
   const shortDescription = Object.fromEntries(
-    (['en', 'zh'] as const).map(locale => [locale, improveShortDescription(currentDescription[locale], currentOverview[locale], locale)]),
+    (['en', 'zh'] as const).map(locale => {
+      const preferred = locale === 'zh' && curatedZhLead ? curatedZhLead : currentDescription[locale]
+      const overview = locale === 'zh' && curatedZhLead ? curatedZhLead : currentOverview[locale]
+      return [locale, improveShortDescription(preferred, overview, locale)]
+    }),
   ) as Localized
   const overviewMarkdown = Object.fromEntries(
     (['en', 'zh'] as const).map(locale => [
       locale,
       buildPluginOverview({
         description: shortDescription[locale],
-        previousOverview: currentOverview[locale],
+        previousOverview: locale === 'zh' && curatedZhLead ? curatedZhLead : currentOverview[locale],
         installCommand,
         locale,
         hasReadme: row.has_readme === 1,
@@ -222,17 +230,22 @@ left join plugin_source_documents d on d.plugin_id=p.id and d.kind='readme'
 where p.status='published'
 order by p.slug`)
 const prepared = rows.map(prepare)
+const writeSet = onlyCuratedZh ? prepared.filter(plugin => curatedZhPluginLeads[plugin.row.slug]) : prepared
+const genericSourceRows = rows.filter(row => {
+  const description = parseLocalized(row.short_description_json, 'short descriptions', row.slug)
+  const overview = parseLocalized(row.overview_markdown_json, 'overviews', row.slug)
+  return isLowInformationCatalogCopy(description.zh) || isLowInformationCatalogCopy(overview.zh)
+})
 const validation = {
   plugins: prepared.length,
+  writeSet: writeSet.length,
   localizations: prepared.length * 2,
+  curatedZhLeads: Object.keys(curatedZhPluginLeads).length,
+  missingRequiredZhCurations: genericSourceRows.filter(row => !curatedZhPluginLeads[row.slug]).map(row => row.slug),
   withDefaultWebInstall: prepared.filter(plugin => plugin.row.install_spec).length,
   withoutInstallTarget: prepared.filter(plugin => !plugin.row.install_spec).length,
   withReadme: prepared.filter(plugin => plugin.row.has_readme === 1).length,
-  placeholderOverviews: prepared.filter(plugin =>
-    Object.values(plugin.overviewMarkdown).some(overview =>
-      /does not provide a separate feature list|README 记录的主要能力和行为包括：The public source/iu.test(overview),
-    ),
-  ).length,
+  placeholderOverviews: prepared.filter(plugin => Object.values(plugin.overviewMarkdown).some(isLowInformationCatalogCopy)).length,
   invalidSeoTitles: prepared.filter(
     plugin => !plugin.seoTitle.en.includes('DeepSeek Harness Plugin | DSHX') || !plugin.seoTitle.zh.includes('DeepSeek Harness 插件 | DSHX'),
   ).length,
@@ -250,6 +263,8 @@ const validation = {
 
 if (
   validation.plugins === 0 ||
+  validation.writeSet === 0 ||
+  validation.missingRequiredZhCurations.length > 0 ||
   validation.placeholderOverviews > 0 ||
   validation.invalidSeoTitles > 0 ||
   validation.invalidSeoDescriptions > 0 ||
@@ -263,13 +278,17 @@ if (!apply) {
       {
         mode: 'dry-run',
         validation,
-        samples: prepared.slice(0, 3).map(plugin => ({
-          slug: plugin.row.slug,
-          description: plugin.shortDescription,
-          overview: plugin.overviewMarkdown,
-          seoTitle: plugin.seoTitle,
-          seoDescription: plugin.seoDescription,
-        })),
+        samples: writeSet
+          .filter(plugin => plugin.row.slug === 'smelt-ai-dsh-acp-rich' || plugin.row.slug === 'dsh-status-rotator')
+          .concat(writeSet.slice(0, 3))
+          .slice(0, 5)
+          .map(plugin => ({
+            slug: plugin.row.slug,
+            description: plugin.shortDescription,
+            overview: plugin.overviewMarkdown,
+            seoTitle: plugin.seoTitle,
+            seoDescription: plugin.seoDescription,
+          })),
       },
       null,
       2,
@@ -282,16 +301,17 @@ const bookmark = JSON.parse(wrangler(['d1', 'time-travel', 'info', 'dshx-framewo
 const temporaryDirectory = mkdtempSync(join(tmpdir(), 'dshx-catalog-maintenance-'))
 const now = Date.now()
 try {
-  for (let offset = 0; offset < prepared.length; offset += batchSize) {
-    const batch = prepared.slice(offset, offset + batchSize)
+  for (let offset = 0; offset < writeSet.length; offset += batchSize) {
+    const batch = writeSet.slice(offset, offset + batchSize)
     executeBatch(batch.map(plugin => sqlFor(plugin, now)).join('\n'), offset / batchSize, temporaryDirectory)
-    process.stdout.write(`Applied ${Math.min(offset + batch.length, prepared.length)}/${prepared.length}\n`)
+    process.stdout.write(`Applied ${Math.min(offset + batch.length, writeSet.length)}/${writeSet.length}\n`)
   }
 
   const verification = query<Record<string, number>>(`select
     (select count(*) from plugins where status='published') published,
     (select count(*) from plugin_localizations where instr(overview_markdown,'The public source does not provide a separate feature list')>0) en_placeholders,
     (select count(*) from plugin_localizations where instr(overview_markdown,'README 记录的主要能力和行为包括：The public source')>0) zh_placeholders,
+    (select count(*) from plugin_localizations where instr(overview_markdown,'具体用途以已保存的公开 README 为准')>0 or instr(overview_markdown,'具体能力以已保存的公开 README 为准')>0) low_information_zh,
     (select count(*) from plugin_localizations where (locale='en' and instr(seo_title,'DeepSeek Harness Plugin | DSHX')=0) or (locale='zh' and instr(seo_title,'DeepSeek Harness 插件 | DSHX')=0)) invalid_seo_titles,
     (select count(*) from plugin_localizations where length(seo_description)>case when locale='en' then 160 else 96 end) oversized_seo_descriptions,
     (select count(*) from plugin_localizations where instr(overview_markdown,'--profile web add')>0) web_profile_overviews,
@@ -301,9 +321,10 @@ try {
     verification.published !== prepared.length ||
     verification.en_placeholders !== 0 ||
     verification.zh_placeholders !== 0 ||
+    verification.low_information_zh !== 0 ||
     verification.invalid_seo_titles !== 0 ||
     verification.oversized_seo_descriptions !== 0 ||
-    verification.audit_entries !== prepared.length
+    verification.audit_entries !== writeSet.length
   )
     throw new Error(`Post-write verification failed: ${JSON.stringify(verification)}`)
 
@@ -318,8 +339,8 @@ try {
       completedAt: completedAt.toISOString(),
       outcome: 'completed',
       body: {
-        en: `Completed one-time catalog content maintenance for ${prepared.length} published plugins. Replaced generic overview placeholders, normalized bilingual short descriptions, generated keyworded SEO titles and bounded meta descriptions, and documented the default DSH web profile in ${validation.withDefaultWebInstall} installable entries. ${validation.withoutInstallTarget} entries remain without an active primary target and state that limitation explicitly. Production verification found no remaining known overview placeholders or invalid SEO metadata.`,
-        zh: `已完成 ${prepared.length} 个已发布插件的一次性内容维护：清理通用概述占位语，规范双语简介，生成包含关键词的 SEO 标题与有界元描述，并在 ${validation.withDefaultWebInstall} 个可安装条目中明确 DSH 默认 web profile。${validation.withoutInstallTarget} 个条目尚无有效主安装目标，概述已如实说明。生产验证未发现遗留占位语或不合格 SEO 元数据。`,
+        en: `Completed reviewed Chinese content enrichment for ${writeSet.length} published plugins whose prior localization only repeated a name or redirected readers to the README. The new leads preserve concrete capabilities from saved public sources, regenerate Chinese summaries and SEO descriptions, and retain the default DSH web profile installation guidance. Production verification found no remaining known low-information Chinese templates or invalid SEO metadata.`,
+        zh: `已完成 ${writeSet.length} 个已发布插件的中文内容增补。这些条目的旧本地化仅复述名称或要求读者自行查看 README；新概述已依据保存的公开来源提炼具体用途与能力，并重新生成中文简介和 SEO 描述，同时保留默认 DSH web profile 安装说明。生产验证未发现遗留的已知低信息中文模板或不合格 SEO 元数据。`,
       },
     }),
   )

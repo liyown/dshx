@@ -1,10 +1,18 @@
 export type CatalogLocale = "en" | "zh";
 
-const genericOverviewPatterns = [
+const lowInformationCopyPatterns = [
   /the public source does not provide a separate feature list/i,
   /consult the preserved readme for exact behavior/i,
   /README 记录的主要能力和行为包括：The public source/i,
+  /具体用途以已保存的公开 README 为准/u,
+  /具体能力以已保存的公开 README 为准/u,
+  /^.+是面向 DeepSeek Harness 的插件[，。]/u,
 ];
+
+export function isLowInformationCatalogCopy(value: string): boolean {
+  const normalized = normalizeCopy(value);
+  return lowInformationCopyPatterns.some((pattern) => pattern.test(normalized));
+}
 
 function normalizeCopy(value: string): string {
   return value.replace(/\s+/g, " ").trim();
@@ -45,7 +53,7 @@ function sourceLead(overview: string, locale: CatalogLocale): string {
   }
 
   if (
-    genericOverviewPatterns.some((pattern) => pattern.test(lead)) ||
+    isLowInformationCatalogCopy(lead) ||
     /^The README describes .+ as a DeepSeek Harness plugin\. Its documented surface includes /iu.test(
       lead,
     )
