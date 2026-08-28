@@ -282,7 +282,9 @@ async function retry<T>(
     } catch (error) {
       lastError = error;
       if (attempt < attempts)
-        await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.min(8_000, 1_000 * 2 ** (attempt - 1))),
+        );
     }
   }
   throw new Error(`${label} failed after ${attempts} attempts.`, {
@@ -1206,8 +1208,10 @@ async function upsertBatches(
 ) {
   const results: Array<Record<string, unknown>> = [];
   for (const [index, batch] of chunks(observations, batchSize).entries()) {
-    const envelope = await retry(`observation batch ${index + 1}`, () =>
-      upsertPlugins(hub, { observations: batch }, dryRun),
+    const envelope = await retry(
+      `observation batch ${index + 1}`,
+      () => upsertPlugins(hub, { observations: batch }, dryRun),
+      5,
     );
     results.push(...resultRows(envelope));
     process.stdout.write(
@@ -1331,7 +1335,7 @@ async function main(): Promise<void> {
     return;
   }
   const bookmark = productionBookmark();
-  const discoveryResults = await upsertBatches(discovery, 100, false);
+  const discoveryResults = await upsertBatches(discovery, 20, false);
   const directResults = direct.length
     ? await upsertBatches(direct, 10, false)
     : [];
