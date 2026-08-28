@@ -1215,9 +1215,12 @@ async function prepareCandidate(
     };
     return { candidate, directObservation, curation };
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     return {
       candidate,
-      reason: error instanceof Error ? error.message : String(error),
+      reason: message.includes("translate.googleapis.com")
+        ? "Translation service unavailable."
+        : message,
     };
   }
 }
@@ -1257,10 +1260,18 @@ async function upsertBatches(
       () => upsertPlugins(hub, { observations: batch }, dryRun),
       8,
     );
-    results.push(...resultRows(envelope));
+    const batchResults = resultRows(envelope);
+    results.push(...batchResults);
     process.stdout.write(
-      `Observation batch ${index + 1}/${Math.ceil(observations.length / batchSize)}: ${JSON.stringify(summarizeStatuses(resultRows(envelope)))}\n`,
+      `Observation batch ${index + 1}/${Math.ceil(observations.length / batchSize)}: ${JSON.stringify(summarizeStatuses(batchResults))}\n`,
     );
+    const rejected = batchResults.filter(
+      (result) => result.status === "rejected",
+    );
+    if (rejected.length)
+      process.stdout.write(
+        `Rejected observations: ${JSON.stringify(rejected)}\n`,
+      );
     if (!dryRun) await new Promise((resolve) => setTimeout(resolve, 750));
   }
   return results;
@@ -1354,7 +1365,7 @@ async function main(): Promise<void> {
       curation: NonNullable<PreparedCandidate["curation"]>;
     } => Boolean(item.directObservation && item.curation),
   );
-  const curatable = curatablePrepared.filter(
+  const pendingCurationCandidates = curatablePrepared.filter(
     (item) =>
       !currentCatalog.publishedIdentities.has(identityFor(item.candidate)),
   );
@@ -1367,7 +1378,7 @@ async function main(): Promise<void> {
     directObservations: directPrepared.length,
     pendingDirectObservations: direct.length,
     curatable: curatablePrepared.length,
-    pendingCurations: curatable.length,
+    pendingCurations: pendingCurationCandidates.length,
     retainedAsDraft: selected.length - curatablePrepared.length,
     preparationReasons: Object.fromEntries(
       Object.entries(
@@ -1401,32 +1412,54 @@ async function main(): Promise<void> {
   const directResults = direct.length
     ? await upsertBatches(direct, 10, false)
     : [];
-  const pluginIds = new Map(currentCatalog.pluginIds);
-  for (const result of [...discoveryResults, ...directResults]) {
+  const afterDirectCatalog = productionCatalog();
+  const publishableIdentities = new Set<string>();
+  const curatableByPlugin = new Map<
+    string,
+    (typeof curatablePrepared)[number]
+  >();
+  for (const item of curatablePrepared) {
+    const identity = identityFor(item.candidate);
+    if (!afterDirectCatalog.directIdentities.has(identity)) continue;
+    const pluginId = afterDirectCatalog.pluginIds.get(identity);
+    if (!pluginId) continue;
+    publishableIdentities.add(identity);
     if (
-      typeof result.identity === "string" &&
-      typeof result.pluginId === "string"
+      !afterDirectCatalog.publishedIdentities.has(identity) &&
+      !curatableByPlugin.has(pluginId)
     )
-      pluginIds.set(result.identity, result.pluginId);
+      curatableByPlugin.set(pluginId, item);
   }
+  const curatable = [...curatableByPlugin.entries()].map(
+    ([pluginId, item]) => ({ pluginId, item }),
+  );
   const curationResults = await mapConcurrent(
     curatable,
     Math.min(concurrency, 6),
-    async (item, index) => {
+    async ({ pluginId, item }, index) => {
       const identity = identityFor(item.candidate);
-      const pluginId = pluginIds.get(identity);
-      if (!pluginId)
-        return {
-          identity,
-          status: "rejected",
-          reason: "Observation response did not return a plugin ID.",
-        };
       try {
-        const current = await getPlugin(hub, pluginId);
-        const state = current.data as { revision?: number };
-        const curated = await retry(`curation ${identity}`, () =>
-          curatePlugin(hub, pluginId, item.curation, state.revision),
-        );
+        let curated: Awaited<ReturnType<typeof curatePlugin>> | undefined;
+        for (let attempt = 1; attempt <= 2; attempt += 1) {
+          const current = await getPlugin(hub, pluginId);
+          const state = current.data as { revision?: number };
+          try {
+            curated = await retry(
+              `curation ${identity}`,
+              () => curatePlugin(hub, pluginId, item.curation, state.revision),
+              3,
+            );
+            break;
+          } catch (error) {
+            const code =
+              error &&
+              typeof error === "object" &&
+              "issue" in error &&
+              (error as { issue?: { code?: unknown } }).issue?.code;
+            if (code !== "revision_conflict" || attempt === 2) throw error;
+          }
+        }
+        if (!curated) throw new Error("Curation did not return a result.");
         const verifiedPlugin = await getPlugin(hub, pluginId);
         const verification = verifiedPlugin.data as {
           needs?: string[];
@@ -1474,16 +1507,25 @@ async function main(): Promise<void> {
   const directComplete = selectedIdentities.filter((identity) =>
     finalCatalog.directIdentities.has(identity),
   ).length;
-  const published = selectedIdentities.filter((identity) =>
+  const publishedIdentities = selectedIdentities.filter((identity) =>
     finalCatalog.publishedIdentities.has(identity),
-  ).length;
+  );
+  const publishedPluginIds = new Set(
+    publishedIdentities.flatMap((identity) => {
+      const pluginId = finalCatalog.pluginIds.get(identity);
+      return pluginId ? [pluginId] : [];
+    }),
+  );
   const outcome =
-    rejectedObservations ||
-    incomplete ||
-    rejectedCurations ||
     imported !== selected.length ||
     directComplete < directPrepared.length ||
-    published < curatablePrepared.length
+    publishedPluginIds.size <
+      new Set(
+        [...publishableIdentities].flatMap((identity) => {
+          const pluginId = finalCatalog.pluginIds.get(identity);
+          return pluginId ? [pluginId] : [];
+        }),
+      ).size
       ? ("partial" as const)
       : ("completed" as const);
   const completedAt = new Date();
@@ -1494,15 +1536,15 @@ async function main(): Promise<void> {
     completedAt: completedAt.toISOString(),
     outcome,
     body: {
-      en: `Completed a one-time public catalog intake across ${selected.length} newly discovered stable plugin identities. ${imported} source leads were recorded with deduplication and provenance; ${directComplete} entries now have direct repository or package facts, exact installation targets, publisher data, and saved README evidence. ${published} entries passed the substantive bilingual content gate and are published with default web-profile installation guidance; ${selected.length - published} remain drafts instead of exposing placeholder copy. Observation rejections: ${rejectedObservations}; incomplete or rejected curations: ${incomplete + rejectedCurations}.`,
-      zh: `已完成一次性公开目录增补，共处理 ${selected.length} 个新发现的稳定插件身份。经身份去重与来源留痕，已记录 ${imported} 条发现数据；其中 ${directComplete} 条已补齐仓库或包事实、精确安装目标、发布者资料与原始 README 证据。${published} 条通过实质性双语内容门槛并发布，安装说明统一使用默认 web profile；其余 ${selected.length - published} 条保留为草稿，避免占位内容进入前台。观察写入拒绝 ${rejectedObservations} 条，内容未完成或拒绝 ${incomplete + rejectedCurations} 条。`,
+      en: `Completed a one-time public catalog intake across ${selected.length} newly discovered stable plugin identities. ${imported} source leads were recorded with deduplication and provenance; ${directComplete} entries now have direct repository or package facts, exact installation targets, publisher data, and saved README evidence. ${publishedPluginIds.size} plugins passed the substantive bilingual content gate and are published with default web-profile installation guidance; ${selected.length - publishedIdentities.length} identities remain drafts instead of exposing placeholder copy. Observation rejections: ${rejectedObservations}; incomplete or rejected curations: ${incomplete + rejectedCurations}.`,
+      zh: `已完成一次性公开目录增补，共处理 ${selected.length} 个新发现的稳定插件身份。经身份去重与来源留痕，已记录 ${imported} 条发现数据；其中 ${directComplete} 条已补齐仓库或包事实、精确安装目标、发布者资料与原始 README 证据。${publishedPluginIds.size} 个插件通过实质性双语内容门槛并发布，安装说明统一使用默认 web profile；其余 ${selected.length - publishedIdentities.length} 个身份保留为草稿，避免占位内容进入前台。观察写入拒绝 ${rejectedObservations} 条，内容未完成或拒绝 ${incomplete + rejectedCurations} 条。`,
     },
   };
   await publishReport(hub, report);
   cache.completed = outcome === "completed";
   saveCache(cache);
   process.stdout.write(
-    `${JSON.stringify({ mode: "applied", runId, bookmark, outcome, validation, results: { discovery: summarizeStatuses(discoveryResults), direct: summarizeStatuses(directResults), curation: summarizeStatuses(curationResults as Array<Record<string, unknown>>), imported, directComplete, published, retainedAsDraft: selected.length - published } }, null, 2)}\n`,
+    `${JSON.stringify({ mode: "applied", runId, bookmark, outcome, validation, results: { discovery: summarizeStatuses(discoveryResults), direct: summarizeStatuses(directResults), curation: summarizeStatuses(curationResults as Array<Record<string, unknown>>), imported, directComplete, published: publishedPluginIds.size, retainedAsDraft: selected.length - publishedIdentities.length } }, null, 2)}\n`,
   );
 }
 
