@@ -1,7 +1,7 @@
 {
   "name": "@becomeopc/dshx",
   "version": "0.1.4-preview.0",
-  "description": "Build and debug DeepSeek Harness Host and Client plugins.",
+  "description": "Build and debug typed DeepSeek Harness Host and Client plugins with TypeScript and Vite.",
   "keywords": [
     "deepseek",
     "deepseek-harness",
@@ -22,7 +22,7 @@
   "bugs": {
     "url": "https://github.com/liyown/dshx/issues"
   },
-  "homepage": "https://dshx.io/docs",
+  "homepage": "https://dshx.io/en/docs",
   "publishConfig": {
     "access": "public"
   },

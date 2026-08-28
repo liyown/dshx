@@ -1,3 +1,5 @@
+import type { BatchItem } from "drizzle-orm/batch";
+
 import type {
   ApprovalCreateInput,
   ApprovalDecisionInput,
@@ -9,6 +11,9 @@ import {
   validateRegisteredPreconditions,
 } from "./effects.server";
 import { randomToken, sha256 } from "@/lib/auth/tokens.server";
+import type { Database } from "@/lib/db/client";
+import { runDrizzleBatch } from "@/lib/db/batch";
+import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { HttpError, uuid } from "@/lib/http";
 
 type TokenActor = {
@@ -95,47 +100,49 @@ function stableJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-async function subjectState(binding: D1Database, type: string, id: string) {
+async function subjectState(binding: Database, type: string, id: string) {
   if (type === "user") {
-    return binding
-      .prepare(
+    return binding.get<Record<string, unknown>>(
+      parameterizedSql(
         "select user_id id,role,status,github_login,updated_at from user_profiles where user_id=?",
-      )
-      .bind(id)
-      .first<Record<string, unknown>>();
+        [id],
+      ),
+    );
   }
   if (type === "review") {
-    return binding
-      .prepare(
+    return binding.get<Record<string, unknown>>(
+      parameterizedSql(
         "select id,plugin_id,user_id,status,rating,updated_at from plugin_reviews where id=?",
-      )
-      .bind(id)
-      .first<Record<string, unknown>>();
+        [id],
+      ),
+    );
   }
   if (type === "reply") {
-    return binding
-      .prepare("select id,review_id,user_id,status,updated_at from review_replies where id=?")
-      .bind(id)
-      .first<Record<string, unknown>>();
+    return binding.get<Record<string, unknown>>(
+      parameterizedSql(
+        "select id,review_id,user_id,status,updated_at from review_replies where id=?",
+        [id],
+      ),
+    );
   }
   if (type === "plugin") {
-    return binding
-      .prepare(
+    return binding.get<Record<string, unknown>>(
+      parameterizedSql(
         "select id,identity_key,slug,status,lifecycle_status,verification_status,updated_at from plugins where id=?",
-      )
-      .bind(id)
-      .first<Record<string, unknown>>();
+        [id],
+      ),
+    );
   }
   if (type === "maintainer") {
     const [pluginId, userId] = id.split(":", 2);
     if (!pluginId || !userId) return null;
     return (
-      (await binding
-        .prepare(
+      (await binding.get<Record<string, unknown>>(
+        parameterizedSql(
           "select plugin_id,user_id,role,source,added_at,revoked_at from plugin_maintainers where plugin_id=? and user_id=?",
-        )
-        .bind(pluginId, userId)
-        .first<Record<string, unknown>>()) ?? {
+          [pluginId, userId],
+        ),
+      )) ?? {
         plugin_id: pluginId,
         user_id: userId,
         missing: true,
@@ -143,17 +150,17 @@ async function subjectState(binding: D1Database, type: string, id: string) {
     );
   }
   if (type === "catalog_run") {
-    return binding
-      .prepare(
+    return binding.get<Record<string, unknown>>(
+      parameterizedSql(
         "select id,status,mode,expected_items,received_items,accepted_items,rejected_items,payload_hash from catalog_sync_runs where id=?",
-      )
-      .bind(id)
-      .first<Record<string, unknown>>();
+        [id],
+      ),
+    );
   }
   return null;
 }
 
-async function currentSourceHash(binding: D1Database, type: string, id: string) {
+async function currentSourceHash(binding: Database, type: string, id: string) {
   const state = await subjectState(binding, type, id);
   if (!state) throw new HttpError(404, "Approval subject not found", "approval_subject_not_found");
   return { state, hash: await sha256(stableJson(state)) };
@@ -208,98 +215,99 @@ function validateEffectSubject(
   }
 }
 
-async function requestRow(binding: D1Database, id: string) {
-  const row = await binding
-    .prepare("select * from approval_requests where id=?")
-    .bind(id)
-    .first<RequestRow>();
+async function requestRow(binding: Database, id: string) {
+  const row = await binding.get<RequestRow>(
+    parameterizedSql("select * from approval_requests where id=?", [id]),
+  );
   if (!row) throw new HttpError(404, "Approval request not found", "approval_not_found");
   if (["pending", "changes_requested"].includes(row.status) && row.expires_at <= Date.now()) {
     const now = Date.now();
-    await binding.batch([
-      binding
-        .prepare(
+    await runDrizzleBatch(binding, [
+      binding.run(
+        parameterizedSql(
           "update approval_requests set status='expired',effect_status='superseded',updated_at=? where id=? and status in ('pending','changes_requested')",
-        )
-        .bind(now, id),
-      binding
-        .prepare("update approval_effects set status='superseded',updated_at=? where request_id=?")
-        .bind(now, id),
-      binding
-        .prepare(
+          [now, id],
+        ),
+      ),
+      binding.run(
+        parameterizedSql(
+          "update approval_effects set status='superseded',updated_at=? where request_id=?",
+          [now, id],
+        ),
+      ),
+      binding.run(
+        parameterizedSql(
           "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
-        )
-        .bind(uuid(), id, "expired", "system", null, "{}", now),
+          [uuid(), id, "expired", "system", null, "{}", now],
+        ),
+      ),
     ]);
     return { ...row, status: "expired" as const, effect_status: "superseded" };
   }
   return row;
 }
 
-async function versionRow(binding: D1Database, request: RequestRow) {
-  const row = await binding
-    .prepare("select * from approval_request_versions where request_id=? and version=?")
-    .bind(request.id, request.current_version)
-    .first<VersionRow>();
+async function versionRow(binding: Database, request: RequestRow) {
+  const row = await binding.get<VersionRow>(
+    parameterizedSql("select * from approval_request_versions where request_id=? and version=?", [
+      request.id,
+      request.current_version,
+    ]),
+  );
   if (!row) throw new HttpError(500, "Approval version is missing", "approval_version_missing");
   return row;
 }
 
-async function effectRow(binding: D1Database, requestId: string) {
-  const row = await binding
-    .prepare("select * from approval_effects where request_id=?")
-    .bind(requestId)
-    .first<EffectRow>();
+async function effectRow(binding: Database, requestId: string) {
+  const row = await binding.get<EffectRow>(
+    parameterizedSql("select * from approval_effects where request_id=?", [requestId]),
+  );
   if (!row) throw new HttpError(500, "Approval effect is missing", "approval_effect_missing");
   return row;
 }
 
 function requesterNotification(
-  binding: D1Database,
+  binding: Database,
   request: RequestRow,
   kind: string,
   payload: Record<string, unknown>,
 ) {
   if (request.requester_type === "user" && request.requester_id) {
-    return binding
-      .prepare(
+    return binding.run(
+      parameterizedSql(
         "insert into notification_events(id,user_id,kind,actor_user_id,subject_type,subject_id,payload_json,created_at) values(?,?,?,?,?,?,?,?)",
-      )
-      .bind(
-        uuid(),
-        request.requester_id,
-        kind,
-        null,
-        "approval",
-        request.id,
-        JSON.stringify(payload),
-        Date.now(),
-      );
+        [
+          uuid(),
+          request.requester_id,
+          kind,
+          null,
+          "approval",
+          request.id,
+          JSON.stringify(payload),
+          Date.now(),
+        ],
+      ),
+    );
   }
-  return binding
-    .prepare(
+  return binding.run(
+    parameterizedSql(
       `insert into notification_events(id,user_id,kind,actor_user_id,subject_type,subject_id,payload_json,created_at)
        select ?,user_id,?,null,'approval',?,?,? from api_tokens where id=?`,
-    )
-    .bind(
-      uuid(),
-      kind,
-      request.id,
-      JSON.stringify(payload),
-      Date.now(),
-      request.requester_token_id,
-    );
+      [uuid(), kind, request.id, JSON.stringify(payload), Date.now(), request.requester_token_id],
+    ),
+  );
 }
 
 export async function createApproval(
-  binding: D1Database,
+  binding: Database,
   actor: TokenActor,
   input: ApprovalCreateInput,
 ) {
-  const existing = await binding
-    .prepare("select id from approval_requests where idempotency_key=?")
-    .bind(input.idempotencyKey)
-    .first<{ id: string }>();
+  const existing = await binding.get<{ id: string }>(
+    parameterizedSql("select id from approval_requests where idempotency_key=?", [
+      input.idempotencyKey,
+    ]),
+  );
   if (existing) return getApproval(binding, existing.id, actor, false);
 
   validateEffectSubject(input.effect.kind, input.effect.input, input.subjectType, input.subjectId);
@@ -322,88 +330,93 @@ export async function createApproval(
   const id = uuid();
   const now = Date.now();
   const expiresAt = now + 7 * 86_400_000;
-  await binding.batch([
-    binding
-      .prepare(
+  await runDrizzleBatch(binding, [
+    binding.run(
+      parameterizedSql(
         `insert into approval_requests(
           id,kind,risk,status,requester_type,requester_id,requester_token_id,run_id,
           subject_type,subject_id,current_version,execution_mode,effect_kind,effect_status,
           idempotency_key,expires_at,created_at,updated_at
         ) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .bind(
-        id,
-        input.kind,
-        input.risk,
-        "pending",
-        "api_token",
-        actor.token.userId,
-        actor.token.id,
-        input.runId ?? null,
-        input.subjectType,
-        input.subjectId,
-        1,
-        input.effect.executionMode,
-        input.effect.kind,
-        "pending",
-        input.idempotencyKey,
-        expiresAt,
-        now,
-        now,
+        [
+          id,
+          input.kind,
+          input.risk,
+          "pending",
+          "api_token",
+          actor.token.userId,
+          actor.token.id,
+          input.runId ?? null,
+          input.subjectType,
+          input.subjectId,
+          1,
+          input.effect.executionMode,
+          input.effect.kind,
+          "pending",
+          input.idempotencyKey,
+          expiresAt,
+          now,
+          now,
+        ],
       ),
-    binding
-      .prepare(
+    ),
+    binding.run(
+      parameterizedSql(
         `insert into approval_request_versions(
           request_id,version,title,summary,evidence_json,effect_input_json,preconditions_json,
           source_hash,policy_version,created_by_type,created_by_id,created_at
         ) values(?,?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .bind(
-        id,
-        1,
-        input.title,
-        input.summary,
-        JSON.stringify(input.evidence),
-        JSON.stringify(validated.input),
-        JSON.stringify(preconditions),
-        source.hash,
-        input.policyVersion,
-        "api_token",
-        actor.token.id,
-        now,
+        [
+          id,
+          1,
+          input.title,
+          input.summary,
+          JSON.stringify(input.evidence),
+          JSON.stringify(validated.input),
+          JSON.stringify(preconditions),
+          source.hash,
+          input.policyVersion,
+          "api_token",
+          actor.token.id,
+          now,
+        ],
       ),
-    binding
-      .prepare(
+    ),
+    binding.run(
+      parameterizedSql(
         `insert into approval_effects(request_id,version,effect_kind,execution_mode,status,attempt_count,updated_at)
          values(?,?,?,?,?,?,?)`,
-      )
-      .bind(id, 1, input.effect.kind, input.effect.executionMode, "pending", 0, now),
-    binding
-      .prepare(
-        "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
-      )
-      .bind(
-        uuid(),
-        id,
-        "created",
-        "api_token",
-        actor.token.id,
-        JSON.stringify({ state: source.state }),
-        now,
+        [id, 1, input.effect.kind, input.effect.executionMode, "pending", 0, now],
       ),
+    ),
+    binding.run(
+      parameterizedSql(
+        "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
+        [
+          uuid(),
+          id,
+          "created",
+          "api_token",
+          actor.token.id,
+          JSON.stringify({ state: source.state }),
+          now,
+        ],
+      ),
+    ),
   ]);
   return getApproval(binding, id, actor, false);
 }
 
 export async function createUserApproval(
-  binding: D1Database,
+  binding: Database,
   userId: string,
   input: ApprovalCreateInput,
 ) {
-  const existing = await binding
-    .prepare("select id from approval_requests where idempotency_key=?")
-    .bind(input.idempotencyKey)
-    .first<{ id: string }>();
+  const existing = await binding.get<{ id: string }>(
+    parameterizedSql("select id from approval_requests where idempotency_key=?", [
+      input.idempotencyKey,
+    ]),
+  );
   if (existing) return { id: existing.id, duplicate: true };
 
   validateEffectSubject(input.effect.kind, input.effect.input, input.subjectType, input.subjectId);
@@ -424,73 +437,77 @@ export async function createUserApproval(
   }
   const id = uuid();
   const now = Date.now();
-  await binding.batch([
-    binding
-      .prepare(
+  await runDrizzleBatch(binding, [
+    binding.run(
+      parameterizedSql(
         `insert into approval_requests(
           id,kind,risk,status,requester_type,requester_id,requester_token_id,run_id,
           subject_type,subject_id,current_version,execution_mode,effect_kind,effect_status,
           idempotency_key,expires_at,created_at,updated_at
         ) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .bind(
-        id,
-        input.kind,
-        input.risk,
-        "pending",
-        "user",
-        userId,
-        null,
-        input.runId ?? null,
-        input.subjectType,
-        input.subjectId,
-        1,
-        input.effect.executionMode,
-        input.effect.kind,
-        "pending",
-        input.idempotencyKey,
-        now + 7 * 86_400_000,
-        now,
-        now,
+        [
+          id,
+          input.kind,
+          input.risk,
+          "pending",
+          "user",
+          userId,
+          null,
+          input.runId ?? null,
+          input.subjectType,
+          input.subjectId,
+          1,
+          input.effect.executionMode,
+          input.effect.kind,
+          "pending",
+          input.idempotencyKey,
+          now + 7 * 86_400_000,
+          now,
+          now,
+        ],
       ),
-    binding
-      .prepare(
+    ),
+    binding.run(
+      parameterizedSql(
         `insert into approval_request_versions(
           request_id,version,title,summary,evidence_json,effect_input_json,preconditions_json,
           source_hash,policy_version,created_by_type,created_by_id,created_at
         ) values(?,?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .bind(
-        id,
-        1,
-        input.title,
-        input.summary,
-        JSON.stringify(input.evidence),
-        JSON.stringify(validated.input),
-        JSON.stringify(preconditions),
-        source.hash,
-        input.policyVersion,
-        "user",
-        userId,
-        now,
+        [
+          id,
+          1,
+          input.title,
+          input.summary,
+          JSON.stringify(input.evidence),
+          JSON.stringify(validated.input),
+          JSON.stringify(preconditions),
+          source.hash,
+          input.policyVersion,
+          "user",
+          userId,
+          now,
+        ],
       ),
-    binding
-      .prepare(
+    ),
+    binding.run(
+      parameterizedSql(
         `insert into approval_effects(request_id,version,effect_kind,execution_mode,status,attempt_count,updated_at)
          values(?,?,?,?,?,?,?)`,
-      )
-      .bind(id, 1, input.effect.kind, input.effect.executionMode, "pending", 0, now),
-    binding
-      .prepare(
+        [id, 1, input.effect.kind, input.effect.executionMode, "pending", 0, now],
+      ),
+    ),
+    binding.run(
+      parameterizedSql(
         "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
-      )
-      .bind(uuid(), id, "created", "user", userId, JSON.stringify({ state: source.state }), now),
+        [uuid(), id, "created", "user", userId, JSON.stringify({ state: source.state }), now],
+      ),
+    ),
   ]);
   return { id, duplicate: false };
 }
 
 export async function listApprovals(
-  binding: D1Database,
+  binding: Database,
   options: { status?: string | null; kind?: string | null; risk?: string | null; limit?: number },
 ) {
   const clauses: string[] = [];
@@ -505,8 +522,8 @@ export async function listApprovals(
       values.push(value);
     }
   }
-  const result = await binding
-    .prepare(
+  const result = await binding.all<Record<string, unknown>>(
+    parameterizedSql(
       `select r.*,v.title,v.summary,v.policy_version
        from approval_requests r
        join approval_request_versions v on v.request_id=r.id and v.version=r.current_version
@@ -514,18 +531,18 @@ export async function listApprovals(
        order by case r.status when 'pending' then 0 when 'changes_requested' then 1 else 2 end,
                 case r.risk when 'critical' then 0 else 1 end,r.created_at asc
        limit ?`,
-    )
-    .bind(...values, Math.min(options.limit ?? 100, 100))
-    .all<Record<string, unknown>>();
-  const counts = await binding
-    .prepare("select status,count(*) count from approval_requests group by status")
-    .all<{ status: string; count: number }>();
-  return { items: result.results ?? [], counts: counts.results ?? [] };
+      [...values, Math.min(options.limit ?? 100, 100)],
+    ),
+  );
+  const counts = await binding.all<{ status: string; count: number }>(
+    parameterizedSql("select status,count(*) count from approval_requests group by status", []),
+  );
+  return { items: result, counts: counts };
 }
 
-export async function listActorApprovals(binding: D1Database, actor: TokenActor) {
-  const result = await binding
-    .prepare(
+export async function listActorApprovals(binding: Database, actor: TokenActor) {
+  const result = await binding.all<Record<string, unknown>>(
+    parameterizedSql(
       `select r.id,r.kind,r.risk,r.status,r.effect_status effectStatus,r.current_version currentVersion,
               r.execution_mode executionMode,r.effect_kind effectKind,r.expires_at expiresAt,
               r.updated_at version,v.title,v.summary
@@ -533,14 +550,14 @@ export async function listActorApprovals(binding: D1Database, actor: TokenActor)
        join approval_request_versions v on v.request_id=r.id and v.version=r.current_version
        where r.requester_token_id=?
        order by r.created_at desc limit 100`,
-    )
-    .bind(actor.token.id)
-    .all<Record<string, unknown>>();
-  return { items: result.results ?? [] };
+      [actor.token.id],
+    ),
+  );
+  return { items: result };
 }
 
 export async function getApproval(
-  binding: D1Database,
+  binding: Database,
   id: string,
   actor?: TokenActor,
   admin = false,
@@ -574,22 +591,30 @@ export async function getApproval(
   }
 
   const [versions, decisions, events, attempts] = await Promise.all([
-    binding
-      .prepare("select * from approval_request_versions where request_id=? order by version desc")
-      .bind(id)
-      .all<VersionRow>(),
-    binding
-      .prepare("select * from approval_decisions where request_id=? order by created_at desc")
-      .bind(id)
-      .all<Record<string, unknown>>(),
-    binding
-      .prepare("select * from approval_events where request_id=? order by created_at desc")
-      .bind(id)
-      .all<Record<string, unknown>>(),
-    binding
-      .prepare("select * from approval_effect_attempts where request_id=? order by attempt desc")
-      .bind(id)
-      .all<Record<string, unknown>>(),
+    binding.all<VersionRow>(
+      parameterizedSql(
+        "select * from approval_request_versions where request_id=? order by version desc",
+        [id],
+      ),
+    ),
+    binding.all<Record<string, unknown>>(
+      parameterizedSql(
+        "select * from approval_decisions where request_id=? order by created_at desc",
+        [id],
+      ),
+    ),
+    binding.all<Record<string, unknown>>(
+      parameterizedSql(
+        "select * from approval_events where request_id=? order by created_at desc",
+        [id],
+      ),
+    ),
+    binding.all<Record<string, unknown>>(
+      parameterizedSql(
+        "select * from approval_effect_attempts where request_id=? order by attempt desc",
+        [id],
+      ),
+    ),
   ]);
   const definition = registeredEffect(effect.effect_kind);
   return {
@@ -602,15 +627,15 @@ export async function getApproval(
       preview: definition.preview(parseJson(current.effect_input_json, {})),
     },
     effect,
-    versions: versions.results ?? [],
-    decisions: decisions.results ?? [],
-    events: events.results ?? [],
-    attempts: attempts.results ?? [],
+    versions: versions,
+    decisions: decisions,
+    events: events,
+    attempts: attempts,
   };
 }
 
 export async function reviseApproval(
-  binding: D1Database,
+  binding: Database,
   id: string,
   actor: TokenActor,
   input: ApprovalRevisionInput,
@@ -646,68 +671,77 @@ export async function reviseApproval(
   );
   const version = request.current_version + 1;
   const now = Date.now();
-  await binding.batch([
-    binding
-      .prepare(
+  await runDrizzleBatch(binding, [
+    binding.run(
+      parameterizedSql(
         `insert into approval_request_versions(
           request_id,version,title,summary,evidence_json,effect_input_json,preconditions_json,
           source_hash,policy_version,created_by_type,created_by_id,created_at
         ) values(?,?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .bind(
-        id,
-        version,
-        input.title,
-        input.summary,
-        JSON.stringify(input.evidence),
-        JSON.stringify(validated.input),
-        JSON.stringify(preconditions),
-        source.hash,
-        input.policyVersion,
-        "api_token",
-        actor.token.id,
-        now,
+        [
+          id,
+          version,
+          input.title,
+          input.summary,
+          JSON.stringify(input.evidence),
+          JSON.stringify(validated.input),
+          JSON.stringify(preconditions),
+          source.hash,
+          input.policyVersion,
+          "api_token",
+          actor.token.id,
+          now,
+        ],
       ),
-    binding
-      .prepare(
+    ),
+    binding.run(
+      parameterizedSql(
         "update approval_requests set status='pending',current_version=?,effect_status='pending',expires_at=?,decided_by_user_id=null,decided_at=null,updated_at=? where id=?",
-      )
-      .bind(version, now + 7 * 86_400_000, now, id),
-    binding
-      .prepare(
+        [version, now + 7 * 86_400_000, now, id],
+      ),
+    ),
+    binding.run(
+      parameterizedSql(
         "update approval_effects set version=?,status='pending',lease_token_hash=null,leased_to_token_id=null,lease_expires_at=null,last_error=null,updated_at=? where request_id=?",
-      )
-      .bind(version, now, id),
-    binding
-      .prepare(
+        [version, now, id],
+      ),
+    ),
+    binding.run(
+      parameterizedSql(
         "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
-      )
-      .bind(uuid(), id, "revised", "api_token", actor.token.id, JSON.stringify({ version }), now),
+        [uuid(), id, "revised", "api_token", actor.token.id, JSON.stringify({ version }), now],
+      ),
+    ),
   ]);
   return getApproval(binding, id, actor, false);
 }
 
-async function markSuperseded(binding: D1Database, request: RequestRow, currentHash: string) {
+async function markSuperseded(binding: Database, request: RequestRow, currentHash: string) {
   const now = Date.now();
-  await binding.batch([
-    binding
-      .prepare(
+  await runDrizzleBatch(binding, [
+    binding.run(
+      parameterizedSql(
         "update approval_requests set status='superseded',effect_status='superseded',updated_at=? where id=?",
-      )
-      .bind(now, request.id),
-    binding
-      .prepare("update approval_effects set status='superseded',updated_at=? where request_id=?")
-      .bind(now, request.id),
-    binding
-      .prepare(
+        [now, request.id],
+      ),
+    ),
+    binding.run(
+      parameterizedSql(
+        "update approval_effects set status='superseded',updated_at=? where request_id=?",
+        [now, request.id],
+      ),
+    ),
+    binding.run(
+      parameterizedSql(
         "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
-      )
-      .bind(uuid(), request.id, "superseded", "system", null, JSON.stringify({ currentHash }), now),
+        [uuid(), request.id, "superseded", "system", null, JSON.stringify({ currentHash }), now],
+      ),
+    ),
   ]);
 }
 
 export async function decideApproval(
-  binding: D1Database,
+  binding: Database,
   id: string,
   adminUserId: string,
   input: ApprovalDecisionInput,
@@ -749,53 +783,60 @@ export async function decideApproval(
   const decisionId = uuid();
   const evidence = parseJson<Record<string, unknown>>(version.evidence_json, {});
   const appealId = typeof evidence["appealId"] === "string" ? evidence["appealId"] : null;
-  const decisionStatements: D1PreparedStatement[] = [
-    binding
-      .prepare(
+  const decisionStatements: BatchItem<"sqlite">[] = [
+    binding.run(
+      parameterizedSql(
         "insert into approval_decisions(id,request_id,version,action,admin_user_id,reason,created_at) values(?,?,?,?,?,?,?)",
-      )
-      .bind(
-        decisionId,
-        id,
-        request.current_version,
-        input.action,
-        adminUserId,
-        input.reason ?? null,
-        now,
+        [
+          decisionId,
+          id,
+          request.current_version,
+          input.action,
+          adminUserId,
+          input.reason ?? null,
+          now,
+        ],
       ),
-    binding
-      .prepare(
+    ),
+    binding.run(
+      parameterizedSql(
         "update approval_requests set status=?,effect_status=?,decided_by_user_id=?,decided_at=?,updated_at=? where id=? and status='pending'",
-      )
-      .bind(nextStatus, effectStatus, adminUserId, now, now, id),
-    binding
-      .prepare(
-        "update approval_effects set status=?,last_error=null,updated_at=? where request_id=?",
-      )
-      .bind(effectStatus, now, id),
-    binding
-      .prepare(
-        "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
-      )
-      .bind(
-        uuid(),
-        id,
-        `decision.${input.action}`,
-        "user",
-        adminUserId,
-        JSON.stringify({ decisionId, reason: input.reason ?? null }),
-        now,
+        [nextStatus, effectStatus, adminUserId, now, now, id],
       ),
+    ),
+    binding.run(
+      parameterizedSql(
+        "update approval_effects set status=?,last_error=null,updated_at=? where request_id=?",
+        [effectStatus, now, id],
+      ),
+    ),
+    binding.run(
+      parameterizedSql(
+        "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
+        [
+          uuid(),
+          id,
+          `decision.${input.action}`,
+          "user",
+          adminUserId,
+          JSON.stringify({ decisionId, reason: input.reason ?? null }),
+          now,
+        ],
+      ),
+    ),
     requesterNotification(binding, request, `approval.${nextStatus}`, { id, reason: input.reason }),
   ];
   if (appealId && input.action === "reject") {
     decisionStatements.push(
-      binding
-        .prepare("update moderation_appeals set status='rejected',resolved_at=? where id=?")
-        .bind(now, appealId),
+      binding.run(
+        parameterizedSql(
+          "update moderation_appeals set status='rejected',resolved_at=? where id=?",
+          [now, appealId],
+        ),
+      ),
     );
   }
-  await binding.batch(decisionStatements);
+  await runDrizzleBatch(binding, decisionStatements);
   if (input.action === "approve" && request.execution_mode === "server") {
     await executeServerEffect(
       binding,
@@ -808,7 +849,7 @@ export async function decideApproval(
 }
 
 export async function executeServerEffect(
-  binding: D1Database,
+  binding: Database,
   id: string,
   adminUserId: string,
   reason = "Approved effect retry",
@@ -844,106 +885,113 @@ export async function executeServerEffect(
     const domain = definition.prepare?.(binding, parsed, adminUserId, reason) ?? [];
     const finishedAt = Date.now();
     const output = { effectKind: effect.effect_kind, applied: domain.length };
-    const successStatements: D1PreparedStatement[] = [
+    const successStatements: BatchItem<"sqlite">[] = [
       ...domain,
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           "update approval_effects set status='succeeded',attempt_count=?,lease_token_hash=null,leased_to_token_id=null,lease_expires_at=null,last_error=null,updated_at=? where request_id=?",
-        )
-        .bind(attempt, finishedAt, id),
-      binding
-        .prepare("update approval_requests set effect_status='succeeded',updated_at=? where id=?")
-        .bind(finishedAt, id),
-      binding
-        .prepare(
+          [attempt, finishedAt, id],
+        ),
+      ),
+      binding.run(
+        parameterizedSql(
+          "update approval_requests set effect_status='succeeded',updated_at=? where id=?",
+          [finishedAt, id],
+        ),
+      ),
+      binding.run(
+        parameterizedSql(
           `insert into approval_effect_attempts(
             id,request_id,version,attempt,executor_type,executor_id,status,input_hash,output_json,error,started_at,finished_at
           ) values(?,?,?,?,?,?,?,?,?,?,?,?)`,
-        )
-        .bind(
-          uuid(),
-          id,
-          request.current_version,
-          attempt,
-          "server",
-          adminUserId,
-          "succeeded",
-          inputHash,
-          JSON.stringify(output),
-          null,
-          startedAt,
-          finishedAt,
+          [
+            uuid(),
+            id,
+            request.current_version,
+            attempt,
+            "server",
+            adminUserId,
+            "succeeded",
+            inputHash,
+            JSON.stringify(output),
+            null,
+            startedAt,
+            finishedAt,
+          ],
         ),
-      binding
-        .prepare(
+      ),
+      binding.run(
+        parameterizedSql(
           "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
-        )
-        .bind(
-          uuid(),
-          id,
-          "effect.succeeded",
-          "user",
-          adminUserId,
-          JSON.stringify(output),
-          finishedAt,
+          [uuid(), id, "effect.succeeded", "user", adminUserId, JSON.stringify(output), finishedAt],
         ),
+      ),
       requesterNotification(binding, request, "approval.effect_succeeded", output),
     ];
     const evidence = parseJson<Record<string, unknown>>(version.evidence_json, {});
     if (typeof evidence["appealId"] === "string") {
       successStatements.push(
-        binding
-          .prepare("update moderation_appeals set status='approved',resolved_at=? where id=?")
-          .bind(finishedAt, evidence["appealId"]),
+        binding.run(
+          parameterizedSql(
+            "update moderation_appeals set status='approved',resolved_at=? where id=?",
+            [finishedAt, evidence["appealId"]],
+          ),
+        ),
       );
     }
-    await binding.batch(successStatements);
+    await runDrizzleBatch(binding, successStatements);
     return output;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const finishedAt = Date.now();
-    await binding.batch([
-      binding
-        .prepare(
+    await runDrizzleBatch(binding, [
+      binding.run(
+        parameterizedSql(
           "update approval_effects set status='failed',attempt_count=?,last_error=?,updated_at=? where request_id=?",
-        )
-        .bind(attempt, message, finishedAt, id),
-      binding
-        .prepare("update approval_requests set effect_status='failed',updated_at=? where id=?")
-        .bind(finishedAt, id),
-      binding
-        .prepare(
+          [attempt, message, finishedAt, id],
+        ),
+      ),
+      binding.run(
+        parameterizedSql(
+          "update approval_requests set effect_status='failed',updated_at=? where id=?",
+          [finishedAt, id],
+        ),
+      ),
+      binding.run(
+        parameterizedSql(
           `insert into approval_effect_attempts(
             id,request_id,version,attempt,executor_type,executor_id,status,input_hash,output_json,error,started_at,finished_at
           ) values(?,?,?,?,?,?,?,?,?,?,?,?)`,
-        )
-        .bind(
-          uuid(),
-          id,
-          request.current_version,
-          attempt,
-          "server",
-          adminUserId,
-          "failed",
-          inputHash,
-          null,
-          message,
-          startedAt,
-          finishedAt,
+          [
+            uuid(),
+            id,
+            request.current_version,
+            attempt,
+            "server",
+            adminUserId,
+            "failed",
+            inputHash,
+            null,
+            message,
+            startedAt,
+            finishedAt,
+          ],
         ),
-      binding
-        .prepare(
+      ),
+      binding.run(
+        parameterizedSql(
           "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
-        )
-        .bind(
-          uuid(),
-          id,
-          "effect.failed",
-          "user",
-          adminUserId,
-          JSON.stringify({ error: message }),
-          finishedAt,
+          [
+            uuid(),
+            id,
+            "effect.failed",
+            "user",
+            adminUserId,
+            JSON.stringify({ error: message }),
+            finishedAt,
+          ],
         ),
+      ),
       requesterNotification(binding, request, "approval.effect_failed", {
         id,
         error: message,
@@ -958,7 +1006,7 @@ export async function executeServerEffect(
 }
 
 export async function retryApprovedEffect(
-  binding: D1Database,
+  binding: Database,
   id: string,
   adminUserId: string,
   reason = "Administrator authorized an explicit effect retry",
@@ -992,36 +1040,39 @@ export async function retryApprovedEffect(
     parsedInput,
   );
   const now = Date.now();
-  await binding.batch([
-    binding
-      .prepare(
+  await runDrizzleBatch(binding, [
+    binding.run(
+      parameterizedSql(
         "update approval_effects set status='awaiting_agent',lease_token_hash=null,leased_to_token_id=null,lease_expires_at=null,last_error=null,updated_at=? where request_id=? and status='failed'",
-      )
-      .bind(now, id),
-    binding
-      .prepare(
-        "update approval_requests set effect_status='awaiting_agent',updated_at=? where id=? and effect_status='failed'",
-      )
-      .bind(now, id),
-    binding
-      .prepare(
-        "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
-      )
-      .bind(
-        uuid(),
-        id,
-        "effect.retry_authorized",
-        "user",
-        adminUserId,
-        JSON.stringify({ reason }),
-        now,
+        [now, id],
       ),
+    ),
+    binding.run(
+      parameterizedSql(
+        "update approval_requests set effect_status='awaiting_agent',updated_at=? where id=? and effect_status='failed'",
+        [now, id],
+      ),
+    ),
+    binding.run(
+      parameterizedSql(
+        "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
+        [
+          uuid(),
+          id,
+          "effect.retry_authorized",
+          "user",
+          adminUserId,
+          JSON.stringify({ reason }),
+          now,
+        ],
+      ),
+    ),
   ]);
   return getApproval(binding, id, undefined, true);
 }
 
 export async function claimAgentEffect(
-  binding: D1Database,
+  binding: Database,
   id: string,
   actor: TokenActor,
   claimedRunId?: string | null,
@@ -1065,28 +1116,33 @@ export async function claimAgentEffect(
     throw new HttpError(409, `Effect is ${effect.status}`, "effect_not_claimable");
   const leaseToken = randomToken("dshx_approval");
   const leaseExpiresAt = Date.now() + 15 * 60_000;
-  await binding.batch([
-    binding
-      .prepare(
+  await runDrizzleBatch(binding, [
+    binding.run(
+      parameterizedSql(
         "update approval_effects set status='running',lease_token_hash=?,leased_to_token_id=?,lease_expires_at=?,last_error=null,updated_at=? where request_id=?",
-      )
-      .bind(await sha256(leaseToken), actor.token.id, leaseExpiresAt, Date.now(), id),
-    binding
-      .prepare("update approval_requests set effect_status='running',updated_at=? where id=?")
-      .bind(Date.now(), id),
-    binding
-      .prepare(
-        "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
-      )
-      .bind(
-        uuid(),
-        id,
-        "effect.claimed",
-        "api_token",
-        actor.token.id,
-        JSON.stringify({ leaseExpiresAt }),
-        Date.now(),
+        [await sha256(leaseToken), actor.token.id, leaseExpiresAt, Date.now(), id],
       ),
+    ),
+    binding.run(
+      parameterizedSql(
+        "update approval_requests set effect_status='running',updated_at=? where id=?",
+        [Date.now(), id],
+      ),
+    ),
+    binding.run(
+      parameterizedSql(
+        "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
+        [
+          uuid(),
+          id,
+          "effect.claimed",
+          "api_token",
+          actor.token.id,
+          JSON.stringify({ leaseExpiresAt }),
+          Date.now(),
+        ],
+      ),
+    ),
   ]);
   return {
     approvalId: id,
@@ -1100,7 +1156,7 @@ export async function claimAgentEffect(
 }
 
 export async function completeAgentEffect(
-  binding: D1Database,
+  binding: Database,
   id: string,
   actor: TokenActor,
   input: {
@@ -1131,48 +1187,55 @@ export async function completeAgentEffect(
   const attempt = effect.attempt_count + 1;
   const finishedAt = Date.now();
   const inputHash = await sha256(version.effect_input_json);
-  await binding.batch([
-    binding
-      .prepare(
+  await runDrizzleBatch(binding, [
+    binding.run(
+      parameterizedSql(
         "update approval_effects set status=?,attempt_count=?,lease_token_hash=null,leased_to_token_id=null,lease_expires_at=null,last_error=?,updated_at=? where request_id=?",
-      )
-      .bind(input.status, attempt, input.error ?? null, finishedAt, id),
-    binding
-      .prepare("update approval_requests set effect_status=?,updated_at=? where id=?")
-      .bind(input.status, finishedAt, id),
-    binding
-      .prepare(
+        [input.status, attempt, input.error ?? null, finishedAt, id],
+      ),
+    ),
+    binding.run(
+      parameterizedSql("update approval_requests set effect_status=?,updated_at=? where id=?", [
+        input.status,
+        finishedAt,
+        id,
+      ]),
+    ),
+    binding.run(
+      parameterizedSql(
         `insert into approval_effect_attempts(
           id,request_id,version,attempt,executor_type,executor_id,status,input_hash,output_json,error,started_at,finished_at
         ) values(?,?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .bind(
-        uuid(),
-        id,
-        request.current_version,
-        attempt,
-        "api_token",
-        actor.token.id,
-        input.status,
-        inputHash,
-        input.output ? JSON.stringify(input.output) : null,
-        input.error ?? null,
-        effect.updated_at,
-        finishedAt,
+        [
+          uuid(),
+          id,
+          request.current_version,
+          attempt,
+          "api_token",
+          actor.token.id,
+          input.status,
+          inputHash,
+          input.output ? JSON.stringify(input.output) : null,
+          input.error ?? null,
+          effect.updated_at,
+          finishedAt,
+        ],
       ),
-    binding
-      .prepare(
+    ),
+    binding.run(
+      parameterizedSql(
         "insert into approval_events(id,request_id,kind,actor_type,actor_id,payload_json,created_at) values(?,?,?,?,?,?,?)",
-      )
-      .bind(
-        uuid(),
-        id,
-        `effect.${input.status}`,
-        "api_token",
-        actor.token.id,
-        JSON.stringify({ output: input.output ?? null, error: input.error ?? null }),
-        finishedAt,
+        [
+          uuid(),
+          id,
+          `effect.${input.status}`,
+          "api_token",
+          actor.token.id,
+          JSON.stringify({ output: input.output ?? null, error: input.error ?? null }),
+          finishedAt,
+        ],
       ),
+    ),
     requesterNotification(binding, request, `approval.effect_${input.status}`, { id }),
   ]);
   return { approvalId: id, status: input.status, duplicate: false };

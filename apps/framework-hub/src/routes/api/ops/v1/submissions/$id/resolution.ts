@@ -9,7 +9,7 @@ import {
   readOperationJson,
 } from "@/lib/catalog/operations-v1.http";
 import { resolveOpsSubmission } from "@/lib/catalog/operations-v1.server";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 
 export const Route = createFileRoute("/api/ops/v1/submissions/$id/resolution")({
   server: {
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/api/ops/v1/submissions/$id/resolution")({
           return operationSuccess(
             request,
             await resolveOpsSubmission(
-              requireD1(context),
+              requireDatabase(context),
               actor.token.id,
               requestId,
               params.id,

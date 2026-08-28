@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { getPlatformProxy } from "wrangler";
 
 import { Route as ProtectedReportsRoute } from "@/routes/api/ops/v1/reports/index";
+import { createDatabase, type Database } from "@/lib/db/client";
 
 import { operationReportInputSchema } from "./operations-v1.contracts";
 import {
@@ -27,6 +28,7 @@ function report(overrides: Record<string, unknown> = {}) {
 describe("immutable Hub operations reports with local D1", () => {
   let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
   let binding: D1Database;
+  let db: Database;
 
   beforeAll(async () => {
     proxy = await getPlatformProxy<Env>({
@@ -35,6 +37,7 @@ describe("immutable Hub operations reports with local D1", () => {
       remoteBindings: false,
     });
     binding = proxy.env.DB;
+    db = createDatabase(binding);
   });
 
   beforeEach(async () => {
@@ -51,16 +54,18 @@ describe("immutable Hub operations reports with local D1", () => {
         zh: "<b>只作为纯文本</b>",
       },
     });
-    await expect(
-      publishOperationReport(binding, "actor-token", input),
-    ).resolves.toMatchObject({ status: "created", report: input });
-    await expect(
-      publishOperationReport(binding, "actor-token", input),
-    ).resolves.toMatchObject({ status: "unchanged", report: input });
-    await expect(latestOperationReport(binding)).resolves.toMatchObject(input);
+    await expect(publishOperationReport(db, "actor-token", input)).resolves.toMatchObject({
+      status: "created",
+      report: input,
+    });
+    await expect(publishOperationReport(db, "actor-token", input)).resolves.toMatchObject({
+      status: "unchanged",
+      report: input,
+    });
+    await expect(latestOperationReport(db)).resolves.toMatchObject(input);
 
     await expect(
-      publishOperationReport(binding, "actor-token", {
+      publishOperationReport(db, "actor-token", {
         ...input,
         body: { ...input.body, en: "different immutable report" },
       }),
@@ -70,13 +75,13 @@ describe("immutable Hub operations reports with local D1", () => {
     });
 
     await expect(
-      listPublicOperationReports(binding, { locale: "en", limit: 20 }),
+      listPublicOperationReports(db, { locale: "en", limit: 20 }),
     ).resolves.toMatchObject({
       items: [{ runId: input.runId, body: input.body.en, outcome: "partial" }],
       nextCursor: null,
     });
     await expect(
-      listPublicOperationReports(binding, { locale: "zh", limit: 20 }),
+      listPublicOperationReports(db, { locale: "zh", limit: 20 }),
     ).resolves.toMatchObject({
       items: [{ runId: input.runId, body: input.body.zh }],
     });
@@ -122,7 +127,7 @@ describe("immutable Hub operations reports with local D1", () => {
     ).toBe(false);
 
     const input = report();
-    await publishOperationReport(binding, "actor-token", input);
+    await publishOperationReport(db, "actor-token", input);
     await expect(
       binding
         .prepare("update hub_operation_reports set body_en='mutated' where run_id=?")
@@ -135,7 +140,7 @@ describe("immutable Hub operations reports with local D1", () => {
     for (let index = 0; index < 3; index += 1) {
       const minute = String(index).padStart(2, "0");
       await publishOperationReport(
-        binding,
+        db,
         "actor-token",
         report({
           runId: `11111111-1111-4111-8111-${String(index + 1).padStart(12, "0")}`,
@@ -144,10 +149,10 @@ describe("immutable Hub operations reports with local D1", () => {
         }),
       );
     }
-    const first = await listPublicOperationReports(binding, { locale: "en", limit: 2 });
+    const first = await listPublicOperationReports(db, { locale: "en", limit: 2 });
     expect(first.items.map(({ body }) => body)).toEqual(["report 2", "report 1"]);
     expect(first.nextCursor).toEqual(expect.any(String));
-    const second = await listPublicOperationReports(binding, {
+    const second = await listPublicOperationReports(db, {
       locale: "en",
       limit: 2,
       cursor: first.nextCursor!,
@@ -179,7 +184,7 @@ describe("immutable Hub operations reports with local D1", () => {
       startedAt: new Date(base + 1_000).toISOString(),
       completedAt: new Date(base + 1_000).toISOString(),
     });
-    await publishOperationReport(binding, "actor-token", newest);
+    await publishOperationReport(db, "actor-token", newest);
     const count = await binding
       .prepare("select count(*) count,min(completed_at) oldest from hub_operation_reports")
       .first<{ count: number; oldest: number }>();

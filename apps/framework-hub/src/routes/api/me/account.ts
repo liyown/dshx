@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth/auth.server";
 import { accountDeleteSchema } from "@/lib/community/contracts";
 import { requireCommunityWrite } from "@/lib/community/guard.server";
 import { anonymizeAccount } from "@/lib/community/marketplace.server";
-import { requireD1 } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/me/account")({
@@ -22,7 +22,9 @@ export const Route = createFileRoute("/api/me/account")({
             "account.delete",
             input.turnstileToken,
           );
-          return Response.json(await anonymizeAccount(requireD1(context), auth.session.user.id));
+          return Response.json(
+            await anonymizeAccount(requireDatabase(context), auth.session.user.id),
+          );
         } catch (error) {
           return jsonError(error);
         }

@@ -2,6 +2,30 @@
 @source "../src";
 @import "tw-animate-css";
 
+@font-face {
+  font-family: "Caveat";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/caveat-600-latin.1c591acdadd5.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter Tight";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/inter-tight-400-600-latin.83d548cd73ef.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-400-500-latin.2c32b9b3ee35.woff2") format("woff2");
+}
+
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -71,6 +95,7 @@
 }
 
 :root {
+  color-scheme: light;
   --radius: 0.625rem;
 
   --background: oklch(0.983 0.004 90);
@@ -129,6 +154,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.16 0.012 278);
   --foreground: oklch(0.95 0.005 280);
   --surface: oklch(0.2 0.014 278);
@@ -146,13 +172,20 @@
   --accent: oklch(0.66 0.2 288);
   --accent-foreground: oklch(0.15 0.012 278);
   --accent-soft: oklch(0.3 0.06 288);
+  --destructive: oklch(0.7 0.19 25);
+  --destructive-foreground: oklch(0.15 0.012 278);
   --border: oklch(1 0 0 / 12%);
   --border-strong: oklch(1 0 0 / 20%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.66 0.2 288);
   --sidebar: oklch(0.2 0.014 278);
   --sidebar-foreground: oklch(0.95 0.005 280);
+  --sidebar-primary: oklch(0.66 0.2 288);
+  --sidebar-primary-foreground: oklch(0.15 0.012 278);
+  --sidebar-accent: oklch(0.26 0.016 278);
+  --sidebar-accent-foreground: oklch(0.95 0.005 280);
   --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.66 0.2 288);
 }
 
 @layer base {

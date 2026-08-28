@@ -1,9 +1,9 @@
 import { Github, Star } from "lucide-react";
-import { motion, useScroll, useTransform } from "motion/react";
+import { m, useScroll, useTransform } from "motion/react";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
-import { useI18n } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 import { useHydratedReducedMotion } from "./use-hydrated-reduced-motion";
 
 const repositoryUrl = "https://github.com/liyown/dshx";
@@ -60,7 +60,7 @@ function StarCallout({ children }: { children: string }) {
   const y = useTransform(scrollY, [0, 96], [0, -10]);
 
   return (
-    <motion.div
+    <m.div
       aria-hidden
       className="github-star-callout hidden xl:block"
       style={{ opacity, y: reduceMotion ? 0 : y }}
@@ -68,7 +68,7 @@ function StarCallout({ children }: { children: string }) {
       <span className="absolute top-6 right-4 font-hand text-[21px] leading-none font-semibold whitespace-nowrap">
         {children}
       </span>
-    </motion.div>
+    </m.div>
   );
 }
 

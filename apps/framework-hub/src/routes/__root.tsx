@@ -8,15 +8,19 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { LazyMotion } from "motion/react";
+import type { ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Nav } from "../components/dshx/nav";
 import { Footer } from "../components/dshx/footer";
 import { DevelopmentBanner } from "../components/dshx/development-banner";
 import { SiteMotionLayer } from "../components/dshx/site-motion-layer";
-import { reportLovableError } from "../lib/lovable-error-reporting";
-import { createTranslator, I18nProvider, localeFromPathname, localizedPath } from "../lib/i18n";
+import { createTranslator, localeFromPathname, localizedPath } from "../lib/i18n";
+import { I18nProvider } from "../lib/i18n/provider";
+import { themeInitializationScript } from "../lib/theme";
+
+const loadMotionFeatures = () => import("../lib/motion-features").then((module) => module.default);
 
 function NotFoundComponent() {
   const location = useRouterState({ select: (state) => state.location });
@@ -48,10 +52,6 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const location = useRouterState({ select: (state) => state.location });
   const locale = localeFromPathname(location.pathname);
   const t = createTranslator(locale);
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
@@ -86,27 +86,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "DSHX: DSH plugin development framework" },
-      {
-        name: "description",
-        content:
-          "Build DSH plugins with TypeScript, React, Vite, Client HMR and typed Host–Client APIs.",
-      },
-      { property: "og:title", content: "DSHX: DSH plugin development framework" },
-      {
-        property: "og:description",
-        content: "TypeScript and React development for the DSH runtime.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "color-scheme", content: "light dark" },
+      ...(import.meta.env["GOOGLE_SITE_VERIFICATION"]
+        ? [
+            {
+              name: "google-site-verification",
+              content: import.meta.env["GOOGLE_SITE_VERIFICATION"],
+            },
+          ]
+        : []),
+      ...(import.meta.env["BING_SITE_VERIFICATION"]
+        ? [{ name: "msvalidate.01", content: import.meta.env["BING_SITE_VERIFICATION"] }]
+        : []),
     ],
     links: [
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap",
-      },
       {
         rel: "stylesheet",
         href: appCss,
@@ -126,8 +119,9 @@ function RootShell({ children }: { children: ReactNode }) {
   const location = useRouterState({ select: (state) => state.location });
   const locale = localeFromPathname(location.pathname);
   return (
-    <html lang={locale}>
+    <html lang={locale} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitializationScript }} />
         <HeadContent />
       </head>
       <body>
@@ -145,23 +139,25 @@ function RootComponent() {
   const isAdmin = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <I18nProvider locale={locale}>
-        {isAdmin ? (
-          <Outlet />
-        ) : (
-          <div className="site-motion-shell">
-            <div className="site-motion-content">
-              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-              <DevelopmentBanner />
-              <Nav />
-              <Outlet />
-              <Footer />
+    <LazyMotion features={loadMotionFeatures} strict>
+      <QueryClientProvider client={queryClient}>
+        <I18nProvider locale={locale}>
+          {isAdmin ? (
+            <Outlet />
+          ) : (
+            <div className="site-motion-shell">
+              <div className="site-motion-content">
+                {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                <DevelopmentBanner />
+                <Nav />
+                <Outlet />
+                <Footer />
+              </div>
+              <SiteMotionLayer />
             </div>
-            <SiteMotionLayer />
-          </div>
-        )}
-      </I18nProvider>
-    </QueryClientProvider>
+          )}
+        </I18nProvider>
+      </QueryClientProvider>
+    </LazyMotion>
   );
 }

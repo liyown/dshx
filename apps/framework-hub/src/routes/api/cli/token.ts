@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { cliTokenExchangeSchema, exchangeCliToken, revokeToken } from "@/lib/auth/cli.server";
+import { cliTokenExchangeSchema } from "@/lib/auth/cli.contracts";
+import { exchangeCliToken, revokeToken } from "@/lib/auth/cli.server";
 import { requireApiToken } from "@/lib/auth/tokens.server";
 import { requireDatabase } from "@/lib/db/client";
 import { jsonError, readJson } from "@/lib/http";

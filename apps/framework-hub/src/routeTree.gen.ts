@@ -11,10 +11,19 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LocaleRouteImport } from './routes/$locale'
+import { Route as ApiDocsDotmdRouteImport } from './routes/api-docs[.]md'
+import { Route as AuthDotmdRouteImport } from './routes/auth[.]md'
+import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
+import { Route as McpRouteImport } from './routes/mcp'
+import { Route as OpenapiDotjsonRouteImport } from './routes/openapi[.]json'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
+import { Route as LocaleAboutRouteImport } from './routes/$locale/about'
 import { Route as LocaleExamplesRouteImport } from './routes/$locale/examples'
+import { Route as DotwellKnownApiCatalogRouteImport } from './routes/[.]well-known/api-catalog'
+import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
+import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as ApiConfigRouteImport } from './routes/api/config'
 import { Route as ApiGithubStarsRouteImport } from './routes/api/github-stars'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -35,6 +44,7 @@ import { Route as LocalePluginsIndexRouteImport } from './routes/$locale/plugins
 import { Route as LocalePluginsSlugRouteImport } from './routes/$locale/plugins/$slug'
 import { Route as LocalePublishersLoginRouteImport } from './routes/$locale/publishers/$login'
 import { Route as LocaleUsersLoginRouteImport } from './routes/$locale/users/$login'
+import { Route as DotwellKnownMcpServerCardDotjsonRouteImport } from './routes/[.]well-known/mcp/server-card[.]json'
 import { Route as AdminApprovalsIndexRouteImport } from './routes/admin/approvals/index'
 import { Route as AdminApprovalsIdRouteImport } from './routes/admin/approvals/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -109,6 +119,31 @@ const LocaleRoute = LocaleRouteImport.update({
   path: '/$locale',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDocsDotmdRoute = ApiDocsDotmdRouteImport.update({
+  id: '/api-docs.md',
+  path: '/api-docs.md',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthDotmdRoute = AuthDotmdRouteImport.update({
+  id: '/auth.md',
+  path: '/auth.md',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OpenapiDotjsonRoute = OpenapiDotjsonRouteImport.update({
+  id: '/openapi.json',
+  path: '/openapi.json',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
   id: '/robots.txt',
   path: '/robots.txt',
@@ -124,11 +159,33 @@ const LocaleIndexRoute = LocaleIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleAboutRoute = LocaleAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleExamplesRoute = LocaleExamplesRouteImport.update({
   id: '/examples',
   path: '/examples',
   getParentRoute: () => LocaleRoute,
 } as any)
+const DotwellKnownApiCatalogRoute = DotwellKnownApiCatalogRouteImport.update({
+  id: '/.well-known/api-catalog',
+  path: '/.well-known/api-catalog',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotwellKnownOauthAuthorizationServerRoute =
+  DotwellKnownOauthAuthorizationServerRouteImport.update({
+    id: '/.well-known/oauth-authorization-server',
+    path: '/.well-known/oauth-authorization-server',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const DotwellKnownOauthProtectedResourceRoute =
+  DotwellKnownOauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiConfigRoute = ApiConfigRouteImport.update({
   id: '/api/config',
   path: '/api/config',
@@ -232,6 +289,12 @@ const LocaleUsersLoginRoute = LocaleUsersLoginRouteImport.update({
   path: '/users/$login',
   getParentRoute: () => LocaleRoute,
 } as any)
+const DotwellKnownMcpServerCardDotjsonRoute =
+  DotwellKnownMcpServerCardDotjsonRouteImport.update({
+    id: '/.well-known/mcp/server-card.json',
+    path: '/.well-known/mcp/server-card.json',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminApprovalsIndexRoute = AdminApprovalsIndexRouteImport.update({
   id: '/admin/approvals/',
   path: '/admin/approvals/',
@@ -573,9 +636,18 @@ const ApiOpsV1SubmissionsIdResolutionRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
+  '/api-docs.md': typeof ApiDocsDotmdRoute
+  '/auth.md': typeof AuthDotmdRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/mcp': typeof McpRoute
+  '/openapi.json': typeof OpenapiDotjsonRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/$locale/about': typeof LocaleAboutRoute
   '/$locale/examples': typeof LocaleExamplesRoute
+  '/.well-known/api-catalog': typeof DotwellKnownApiCatalogRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/api/config': typeof ApiConfigRoute
   '/api/github-stars': typeof ApiGithubStarsRoute
   '/api/health': typeof ApiHealthRoute
@@ -593,6 +665,7 @@ export interface FileRoutesByFullPath {
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
   '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
   '/$locale/users/$login': typeof LocaleUsersLoginRoute
+  '/.well-known/mcp/server-card.json': typeof DotwellKnownMcpServerCardDotjsonRoute
   '/admin/approvals/$id': typeof AdminApprovalsIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/token': typeof ApiCliTokenRoute
@@ -663,9 +736,18 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api-docs.md': typeof ApiDocsDotmdRoute
+  '/auth.md': typeof AuthDotmdRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/mcp': typeof McpRoute
+  '/openapi.json': typeof OpenapiDotjsonRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/$locale/about': typeof LocaleAboutRoute
   '/$locale/examples': typeof LocaleExamplesRoute
+  '/.well-known/api-catalog': typeof DotwellKnownApiCatalogRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/api/config': typeof ApiConfigRoute
   '/api/github-stars': typeof ApiGithubStarsRoute
   '/api/health': typeof ApiHealthRoute
@@ -683,6 +765,7 @@ export interface FileRoutesByTo {
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
   '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
   '/$locale/users/$login': typeof LocaleUsersLoginRoute
+  '/.well-known/mcp/server-card.json': typeof DotwellKnownMcpServerCardDotjsonRoute
   '/admin/approvals/$id': typeof AdminApprovalsIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/token': typeof ApiCliTokenRoute
@@ -755,9 +838,18 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
+  '/api-docs.md': typeof ApiDocsDotmdRoute
+  '/auth.md': typeof AuthDotmdRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/mcp': typeof McpRoute
+  '/openapi.json': typeof OpenapiDotjsonRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/$locale/about': typeof LocaleAboutRoute
   '/$locale/examples': typeof LocaleExamplesRoute
+  '/.well-known/api-catalog': typeof DotwellKnownApiCatalogRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/api/config': typeof ApiConfigRoute
   '/api/github-stars': typeof ApiGithubStarsRoute
   '/api/health': typeof ApiHealthRoute
@@ -775,6 +867,7 @@ export interface FileRoutesById {
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
   '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
   '/$locale/users/$login': typeof LocaleUsersLoginRoute
+  '/.well-known/mcp/server-card.json': typeof DotwellKnownMcpServerCardDotjsonRoute
   '/admin/approvals/$id': typeof AdminApprovalsIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/token': typeof ApiCliTokenRoute
@@ -848,9 +941,18 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$locale'
+    | '/api-docs.md'
+    | '/auth.md'
+    | '/llms.txt'
+    | '/mcp'
+    | '/openapi.json'
     | '/robots.txt'
     | '/sitemap.xml'
+    | '/$locale/about'
     | '/$locale/examples'
+    | '/.well-known/api-catalog'
+    | '/.well-known/oauth-authorization-server'
+    | '/.well-known/oauth-protected-resource'
     | '/api/config'
     | '/api/github-stars'
     | '/api/health'
@@ -868,6 +970,7 @@ export interface FileRouteTypes {
     | '/$locale/plugins/$slug'
     | '/$locale/publishers/$login'
     | '/$locale/users/$login'
+    | '/.well-known/mcp/server-card.json'
     | '/admin/approvals/$id'
     | '/api/auth/$'
     | '/api/cli/token'
@@ -938,9 +1041,18 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/api-docs.md'
+    | '/auth.md'
+    | '/llms.txt'
+    | '/mcp'
+    | '/openapi.json'
     | '/robots.txt'
     | '/sitemap.xml'
+    | '/$locale/about'
     | '/$locale/examples'
+    | '/.well-known/api-catalog'
+    | '/.well-known/oauth-authorization-server'
+    | '/.well-known/oauth-protected-resource'
     | '/api/config'
     | '/api/github-stars'
     | '/api/health'
@@ -958,6 +1070,7 @@ export interface FileRouteTypes {
     | '/$locale/plugins/$slug'
     | '/$locale/publishers/$login'
     | '/$locale/users/$login'
+    | '/.well-known/mcp/server-card.json'
     | '/admin/approvals/$id'
     | '/api/auth/$'
     | '/api/cli/token'
@@ -1029,9 +1142,18 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$locale'
+    | '/api-docs.md'
+    | '/auth.md'
+    | '/llms.txt'
+    | '/mcp'
+    | '/openapi.json'
     | '/robots.txt'
     | '/sitemap.xml'
+    | '/$locale/about'
     | '/$locale/examples'
+    | '/.well-known/api-catalog'
+    | '/.well-known/oauth-authorization-server'
+    | '/.well-known/oauth-protected-resource'
     | '/api/config'
     | '/api/github-stars'
     | '/api/health'
@@ -1049,6 +1171,7 @@ export interface FileRouteTypes {
     | '/$locale/plugins/$slug'
     | '/$locale/publishers/$login'
     | '/$locale/users/$login'
+    | '/.well-known/mcp/server-card.json'
     | '/admin/approvals/$id'
     | '/api/auth/$'
     | '/api/cli/token'
@@ -1121,11 +1244,20 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LocaleRoute: typeof LocaleRouteWithChildren
+  ApiDocsDotmdRoute: typeof ApiDocsDotmdRoute
+  AuthDotmdRoute: typeof AuthDotmdRoute
+  LlmsDottxtRoute: typeof LlmsDottxtRoute
+  McpRoute: typeof McpRoute
+  OpenapiDotjsonRoute: typeof OpenapiDotjsonRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  DotwellKnownApiCatalogRoute: typeof DotwellKnownApiCatalogRoute
+  DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
+  DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
   ApiConfigRoute: typeof ApiConfigRoute
   ApiGithubStarsRoute: typeof ApiGithubStarsRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  DotwellKnownMcpServerCardDotjsonRoute: typeof DotwellKnownMcpServerCardDotjsonRoute
   AdminApprovalsIdRoute: typeof AdminApprovalsIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCliTokenRoute: typeof ApiCliTokenRoute
@@ -1194,6 +1326,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api-docs.md': {
+      id: '/api-docs.md'
+      path: '/api-docs.md'
+      fullPath: '/api-docs.md'
+      preLoaderRoute: typeof ApiDocsDotmdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth.md': {
+      id: '/auth.md'
+      path: '/auth.md'
+      fullPath: '/auth.md'
+      preLoaderRoute: typeof AuthDotmdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/llms.txt': {
+      id: '/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/llms.txt'
+      preLoaderRoute: typeof LlmsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/openapi.json': {
+      id: '/openapi.json'
+      path: '/openapi.json'
+      fullPath: '/openapi.json'
+      preLoaderRoute: typeof OpenapiDotjsonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/robots.txt': {
       id: '/robots.txt'
       path: '/robots.txt'
@@ -1215,12 +1382,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleIndexRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/about': {
+      id: '/$locale/about'
+      path: '/about'
+      fullPath: '/$locale/about'
+      preLoaderRoute: typeof LocaleAboutRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/examples': {
       id: '/$locale/examples'
       path: '/examples'
       fullPath: '/$locale/examples'
       preLoaderRoute: typeof LocaleExamplesRouteImport
       parentRoute: typeof LocaleRoute
+    }
+    '/.well-known/api-catalog': {
+      id: '/.well-known/api-catalog'
+      path: '/.well-known/api-catalog'
+      fullPath: '/.well-known/api-catalog'
+      preLoaderRoute: typeof DotwellKnownApiCatalogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-authorization-server': {
+      id: '/.well-known/oauth-authorization-server'
+      path: '/.well-known/oauth-authorization-server'
+      fullPath: '/.well-known/oauth-authorization-server'
+      preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof DotwellKnownOauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/config': {
       id: '/api/config'
@@ -1361,6 +1556,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$locale/users/$login'
       preLoaderRoute: typeof LocaleUsersLoginRouteImport
       parentRoute: typeof LocaleRoute
+    }
+    '/.well-known/mcp/server-card.json': {
+      id: '/.well-known/mcp/server-card.json'
+      path: '/.well-known/mcp/server-card.json'
+      fullPath: '/.well-known/mcp/server-card.json'
+      preLoaderRoute: typeof DotwellKnownMcpServerCardDotjsonRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/approvals/': {
       id: '/admin/approvals/'
@@ -1807,6 +2009,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface LocaleRouteChildren {
+  LocaleAboutRoute: typeof LocaleAboutRoute
   LocaleExamplesRoute: typeof LocaleExamplesRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
   LocaleAccountAppealsRoute: typeof LocaleAccountAppealsRoute
@@ -1829,6 +2032,7 @@ interface LocaleRouteChildren {
 }
 
 const LocaleRouteChildren: LocaleRouteChildren = {
+  LocaleAboutRoute: LocaleAboutRoute,
   LocaleExamplesRoute: LocaleExamplesRoute,
   LocaleIndexRoute: LocaleIndexRoute,
   LocaleAccountAppealsRoute: LocaleAccountAppealsRoute,
@@ -1940,11 +2144,22 @@ const ApiOpsV1SubmissionsIdRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LocaleRoute: LocaleRouteWithChildren,
+  ApiDocsDotmdRoute: ApiDocsDotmdRoute,
+  AuthDotmdRoute: AuthDotmdRoute,
+  LlmsDottxtRoute: LlmsDottxtRoute,
+  McpRoute: McpRoute,
+  OpenapiDotjsonRoute: OpenapiDotjsonRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  DotwellKnownApiCatalogRoute: DotwellKnownApiCatalogRoute,
+  DotwellKnownOauthAuthorizationServerRoute:
+    DotwellKnownOauthAuthorizationServerRoute,
+  DotwellKnownOauthProtectedResourceRoute:
+    DotwellKnownOauthProtectedResourceRoute,
   ApiConfigRoute: ApiConfigRoute,
   ApiGithubStarsRoute: ApiGithubStarsRoute,
   ApiHealthRoute: ApiHealthRoute,
+  DotwellKnownMcpServerCardDotjsonRoute: DotwellKnownMcpServerCardDotjsonRoute,
   AdminApprovalsIdRoute: AdminApprovalsIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCliTokenRoute: ApiCliTokenRoute,

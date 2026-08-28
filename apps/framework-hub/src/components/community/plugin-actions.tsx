@@ -1,5 +1,7 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Bookmark, LoaderCircle, Star } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { z } from "zod";
 
 import { AddToCollectionDialog, ClaimPluginDialog, ReportDialog } from "./community-dialogs";
 import { SignInButton } from "./auth-controls";
@@ -9,14 +11,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth/client";
 import { useHydrated } from "@/lib/use-hydrated";
 import { cn } from "@/lib/utils";
+import { ApiError, apiKeys, apiRequest, apiSchemas } from "@/lib/api-client";
 
 type Relationships = {
   bookmarks: Array<{ id: string }>;
   pluginFollows: Array<{ id: string }>;
 };
 
-type ApiError = { error?: { code?: string; message?: string } };
-type PendingAction = "bookmark" | "follow" | "review" | null;
+const relationshipsSchema = z.object({
+  bookmarks: z.array(z.object({ id: z.string() }).passthrough()),
+  pluginFollows: z.array(z.object({ id: z.string() }).passthrough()),
+  publisherFollows: z.array(z.looseObject({})).optional(),
+});
 
 export function PluginCommunityActions({
   pluginId,
@@ -29,21 +35,49 @@ export function PluginCommunityActions({
 }) {
   const session = authClient.useSession();
   const hydrated = useHydrated();
-  const [relationships, setRelationships] = useState<Relationships | null>(null);
+  const queryClient = useQueryClient();
   const [token, setToken] = useState("");
   const [challenge, setChallenge] = useState(0);
   const [rating, setRating] = useState(5);
   const [body, setBody] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const [pending, setPending] = useState<PendingAction>(null);
-
-  useEffect(() => {
-    if (!session.data) return;
-    void fetch("/api/me/relationships")
-      .then((response) => response.json() as Promise<Relationships>)
-      .then(setRelationships)
-      .catch(() => setRelationships({ bookmarks: [], pluginFollows: [] }));
-  }, [session.data]);
+  const relationshipQuery = useQuery<Relationships>({
+    queryKey: apiKeys.relationships,
+    queryFn: ({ signal }) => apiRequest("/api/me/relationships", relationshipsSchema, { signal }),
+    enabled: Boolean(session.data),
+  });
+  const relationshipMutation = useMutation({
+    mutationFn: (input: { kind: "bookmark" | "follow"; enabled: boolean }) =>
+      apiRequest(`/api/me/plugins/${pluginId}/${input.kind}`, apiSchemas.object, {
+        method: input.enabled ? "PUT" : "DELETE",
+        json: {
+          turnstileToken: token,
+          idempotencyKey: `${input.kind}:${crypto.randomUUID()}`,
+        },
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: apiKeys.relationships });
+    },
+  });
+  const reviewMutation = useMutation({
+    mutationFn: () =>
+      apiRequest(`/api/plugins/${encodeURIComponent(slug)}/review`, apiSchemas.object, {
+        method: "PUT",
+        json: {
+          rating,
+          body: body.trim() || null,
+          locale,
+          turnstileToken: token,
+          idempotencyKey: `review:${crypto.randomUUID()}`,
+        },
+      }),
+  });
+  const relationships = relationshipQuery.data ?? null;
+  const pending = relationshipMutation.isPending
+    ? relationshipMutation.variables.kind
+    : reviewMutation.isPending
+      ? "review"
+      : null;
 
   if (!hydrated || session.isPending) return null;
   if (!session.data)
@@ -64,68 +98,39 @@ export function PluginCommunityActions({
     setChallenge((value) => value + 1);
   }
 
-  function handleVerificationFailure(payload: ApiError) {
-    if (payload.error?.code === "turnstile_failed") resetChallenge();
+  function handleVerificationFailure(error: unknown) {
+    if (error instanceof ApiError && error.code === "turnstile_failed") resetChallenge();
   }
 
   async function relationship(kind: "bookmark" | "follow", enabled: boolean) {
     if (pending) return;
     setMessage(null);
-    setPending(kind);
     try {
-      const response = await fetch(`/api/me/plugins/${pluginId}/${kind}`, {
-        method: enabled ? "PUT" : "DELETE",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          turnstileToken: token,
-          idempotencyKey: `${kind}:${crypto.randomUUID()}`,
-        }),
-      });
-      const payload = (await response.json()) as ApiError;
-      if (!response.ok) {
-        handleVerificationFailure(payload);
-        setMessage(payload.error?.message ?? "The relationship could not be updated.");
-        return;
-      }
-      const page = await fetch("/api/me/relationships").then(
-        (result) => result.json() as Promise<Relationships>,
+      await relationshipMutation.mutateAsync({ kind, enabled });
+    } catch (error) {
+      handleVerificationFailure(error);
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "The relationship could not be updated. Check your connection and try again.",
       );
-      setRelationships(page);
-    } catch {
-      setMessage("The relationship could not be updated. Check your connection and try again.");
-    } finally {
-      setPending(null);
     }
   }
 
   async function review() {
     if (pending) return;
     setMessage(null);
-    setPending("review");
     try {
-      const response = await fetch(`/api/plugins/${encodeURIComponent(slug)}/review`, {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          rating,
-          body: body.trim() || null,
-          locale,
-          turnstileToken: token,
-          idempotencyKey: `review:${crypto.randomUUID()}`,
-        }),
-      });
-      const payload = (await response.json()) as ApiError;
-      if (!response.ok) {
-        handleVerificationFailure(payload);
-        setMessage(payload.error?.message ?? "The review could not be published.");
-        return;
-      }
+      await reviewMutation.mutateAsync();
       setMessage("Review published.");
       window.dispatchEvent(new CustomEvent("dshx:reviews-changed", { detail: { slug } }));
-    } catch {
-      setMessage("The review could not be published. Check your connection and try again.");
-    } finally {
-      setPending(null);
+    } catch (error) {
+      handleVerificationFailure(error);
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "The review could not be published. Check your connection and try again.",
+      );
     }
   }
 

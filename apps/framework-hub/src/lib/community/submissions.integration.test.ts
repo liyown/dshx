@@ -2,10 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getPlatformProxy } from "wrangler";
 
 import { anonymousSubmissionKey, createSubmission } from "./marketplace.server";
+import { createDatabase, type Database } from "@/lib/db/client";
 
 describe("account-free plugin submissions with local D1", () => {
   let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
   let binding: D1Database;
+  let db: Database;
 
   beforeAll(async () => {
     proxy = await getPlatformProxy<Env>({
@@ -14,6 +16,7 @@ describe("account-free plugin submissions with local D1", () => {
       remoteBindings: false,
     });
     binding = proxy.env.DB;
+    db = createDatabase(binding);
   });
 
   afterAll(async () => proxy.dispose());
@@ -27,8 +30,8 @@ describe("account-free plugin submissions with local D1", () => {
       repositoryUrl: "https://github.com/Example/Public-Plugin.git",
       idempotencyKey,
     };
-    const first = await createSubmission(binding, input);
-    const repeated = await createSubmission(binding, input);
+    const first = await createSubmission(db, input);
+    const repeated = await createSubmission(db, input);
 
     expect(repeated).toMatchObject({ id: first?.["id"] });
     expect(first).toMatchObject({
@@ -48,7 +51,7 @@ describe("account-free plugin submissions with local D1", () => {
   it("limits anonymous submission bursts per private submitter key", async () => {
     const submitterKey = `anonymous:limit-${crypto.randomUUID()}`;
     for (let index = 0; index < 10; index += 1) {
-      await createSubmission(binding, {
+      await createSubmission(db, {
         userId: null,
         submitterKey,
         repositoryUrl: `https://github.com/example/public-plugin-${index}`,
@@ -56,7 +59,7 @@ describe("account-free plugin submissions with local D1", () => {
       });
     }
     await expect(
-      createSubmission(binding, {
+      createSubmission(db, {
         userId: null,
         submitterKey,
         repositoryUrl: "https://github.com/example/one-too-many",

@@ -2,6 +2,8 @@ export type AppBindings = Partial<Env> & {
   DB?: D1Database;
   PLUGIN_MEDIA?: R2Bucket;
   SITE_URL?: string;
+  GOOGLE_SITE_VERIFICATION?: string;
+  BING_SITE_VERIFICATION?: string;
   HUB_ADMIN_GITHUB_IDS?: string;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
@@ -15,10 +17,23 @@ export type AppBindings = Partial<Env> & {
 
 export type AppRequestContext = {
   cloudflare: AppBindings;
-  executionCtx?: {
-    waitUntil(promise: Promise<unknown>): void;
-  };
 };
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    server: {
+      requestContext: AppRequestContext;
+    };
+  }
+}
+
+declare module "@tanstack/react-start" {
+  interface Register {
+    server: {
+      requestContext: AppRequestContext;
+    };
+  }
+}
 
 export function requireBindings(context: unknown): AppBindings {
   if (

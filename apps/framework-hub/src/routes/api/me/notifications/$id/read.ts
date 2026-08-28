@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth/auth.server";
 import { notificationReadSchema } from "@/lib/community/contracts";
 import { requireCommunityWrite } from "@/lib/community/guard.server";
 import { readNotification } from "@/lib/community/marketplace.server";
-import { requireD1 } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/me/notifications/$id/read")({
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/api/me/notifications/$id/read")({
             input.turnstileToken,
           );
           return Response.json(
-            await readNotification(requireD1(context), params.id, auth.session.user.id),
+            await readNotification(requireDatabase(context), params.id, auth.session.user.id),
           );
         } catch (error) {
           return jsonError(error);

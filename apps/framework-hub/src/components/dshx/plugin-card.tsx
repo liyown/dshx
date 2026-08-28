@@ -3,7 +3,8 @@ import type { CatalogCard as Plugin } from "@/lib/catalog/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "./primitives";
 import { cn } from "@/lib/utils";
-import { localizedPath, useI18n } from "@/lib/i18n";
+import { localizedPath } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 
 function formatMetric(value: number | null): string {
   return value === null ? "—" : String(value);

@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
-import { localizedPath, useI18n } from "@/lib/i18n";
+import { localizedPath } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 
 export type PublicPlugin = {
   slug: string;

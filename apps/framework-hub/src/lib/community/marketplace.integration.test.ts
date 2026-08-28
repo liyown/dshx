@@ -196,7 +196,7 @@ describe("community marketplace invariants with local D1", () => {
       reason: "Fixture moderation decision",
       metadataJson: {},
     });
-    const appeal = await createAppeal(proxy.env.DB, userId, {
+    const appeal = await createAppeal(db, userId, {
       moderationActionId: actionId,
       statement: "The evidence is incomplete and this review should receive administrator review.",
       idempotencyKey: `appeal-${crypto.randomUUID()}`,
@@ -212,28 +212,24 @@ describe("community marketplace invariants with local D1", () => {
     const ownerId = await createUser("Collector");
     const viewerId = await createUser("Viewer");
     const pluginId = await createPlugin();
-    const created = await createCollection(proxy.env.DB, ownerId, {
+    const created = await createCollection(db, ownerId, {
       name: "Runtime tools",
       visibility: "public",
     });
     const collectionId = String(created.collection["id"]);
 
-    await setCollectionPlugin(proxy.env.DB, collectionId, pluginId, ownerId, true);
-    await setCollectionPlugin(proxy.env.DB, collectionId, pluginId, ownerId, true);
-    expect((await getCollection(proxy.env.DB, collectionId)).plugins).toHaveLength(1);
-    await updateCollection(proxy.env.DB, collectionId, ownerId, { visibility: "private" });
-    await expect(getCollection(proxy.env.DB, collectionId, viewerId)).rejects.toThrow(
-      "Collection not found",
-    );
-    await expect(getCollection(proxy.env.DB, collectionId, ownerId)).resolves.toBeTruthy();
+    await setCollectionPlugin(db, collectionId, pluginId, ownerId, true);
+    await setCollectionPlugin(db, collectionId, pluginId, ownerId, true);
+    expect((await getCollection(db, collectionId)).plugins).toHaveLength(1);
+    await updateCollection(db, collectionId, ownerId, { visibility: "private" });
+    await expect(getCollection(db, collectionId, viewerId)).rejects.toThrow("Collection not found");
+    await expect(getCollection(db, collectionId, ownerId)).resolves.toBeTruthy();
 
-    await expect(setUserBlock(proxy.env.DB, ownerId, ownerId, true)).rejects.toThrow(
-      "cannot block yourself",
-    );
-    await expect(setUserBlock(proxy.env.DB, ownerId, viewerId, true)).resolves.toMatchObject({
+    await expect(setUserBlock(db, ownerId, ownerId, true)).rejects.toThrow("cannot block yourself");
+    await expect(setUserBlock(db, ownerId, viewerId, true)).resolves.toMatchObject({
       enabled: true,
     });
-    await expect(setUserBlock(proxy.env.DB, ownerId, viewerId, false)).resolves.toMatchObject({
+    await expect(setUserBlock(db, ownerId, viewerId, false)).resolves.toMatchObject({
       enabled: false,
     });
   });
@@ -259,12 +255,12 @@ describe("community marketplace invariants with local D1", () => {
       body: "Public reply retained after deletion.",
       idempotencyKey: `reply-${crypto.randomUUID()}`,
     });
-    const privateCollection = await createCollection(proxy.env.DB, userId, {
+    const privateCollection = await createCollection(db, userId, {
       name: "Private notes",
       visibility: "private",
     });
 
-    await expect(anonymizeAccount(proxy.env.DB, userId)).resolves.toEqual({
+    await expect(anonymizeAccount(db, userId)).resolves.toEqual({
       deleted: true,
       anonymized: true,
     });

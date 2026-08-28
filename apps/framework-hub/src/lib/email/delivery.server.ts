@@ -1,4 +1,5 @@
 import type { CreateEmailOptions, CreateEmailRequestOptions } from "resend";
+import { waitUntil } from "cloudflare:workers";
 import { Resend } from "resend";
 
 import {
@@ -7,6 +8,9 @@ import {
   type CriticalApprovalEmailStatus,
 } from "./critical-approval";
 import { requireBindings, type AppBindings } from "@/lib/db/context";
+import type { Database } from "@/lib/db/client";
+import { createDatabase } from "@/lib/db/client";
+import { parameterizedSql } from "@/lib/db/parameterized-sql";
 
 export const criticalApprovalNotificationKinds = [
   "approval.approved",
@@ -74,12 +78,12 @@ function notificationUrl(siteUrl: string | undefined, locale: "en" | "zh") {
 }
 
 async function emailRow(
-  binding: D1Database,
+  binding: Database,
   approvalId: string,
   kind: CriticalApprovalNotificationKind,
 ) {
-  return binding
-    .prepare(
+  return binding.get<CriticalEmailRow>(
+    parameterizedSql(
       `select n.id notification_id,n.kind,n.payload_json,
               u.email,u.email_verified,p.preferred_locale,
               v.title,r.execution_mode,r.effect_status,e.last_error
@@ -91,9 +95,9 @@ async function emailRow(
        left join approval_effects e on e.request_id=r.id
        where n.subject_type='approval' and n.subject_id=? and n.kind=?
        order by n.created_at desc limit 1`,
-    )
-    .bind(approvalId, kind)
-    .first<CriticalEmailRow>();
+      [approvalId, kind],
+    ),
+  );
 }
 
 function resendClient(apiKey: string): CriticalEmailClient {
@@ -111,7 +115,7 @@ export async function sendCriticalApprovalEmail(
   if (!injectedClient && !bindings.RESEND_API_KEY)
     return { status: "skipped", reason: "provider_unconfigured" };
 
-  const row = await emailRow(bindings.DB, approvalId, kind);
+  const row = await emailRow(createDatabase(bindings.DB), approvalId, kind);
   if (!row) return { status: "skipped", reason: "event_missing" };
   if (!row.email || !row.email_verified)
     return { status: "skipped", reason: "recipient_ineligible" };
@@ -157,15 +161,12 @@ export async function sendCriticalApprovalEmail(
   };
 }
 
-type BackgroundContext = {
-  executionCtx?: { waitUntil(promise: Promise<unknown>): void } | undefined;
-};
-
 export function scheduleCriticalApprovalEmail(
   context: unknown,
   approvalId: string,
   kind: CriticalApprovalNotificationKind,
   injectedClient?: CriticalEmailClient,
+  schedule: (task: Promise<unknown>) => void = waitUntil,
 ) {
   const bindings = requireBindings(context);
   const task = sendCriticalApprovalEmail(bindings, approvalId, kind, injectedClient)
@@ -177,7 +178,5 @@ export function scheduleCriticalApprovalEmail(
         errorCode: error instanceof Error ? error.name : "unknown_error",
       });
     });
-  const executionCtx = (context as BackgroundContext).executionCtx;
-  if (executionCtx) executionCtx.waitUntil(task);
-  else void task;
+  schedule(task);
 }

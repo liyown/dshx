@@ -7,6 +7,15 @@ export type PublicInstallTarget = {
   is_primary: number;
 };
 
+export const DEFAULT_DSH_PROFILE = "web";
+
+export function buildPluginInstallCommand(
+  spec: string,
+  profile: string = DEFAULT_DSH_PROFILE,
+): string {
+  return `dsh plugin --profile ${profile} add ${spec}`;
+}
+
 function parseGithubRepository(value: string | null): string | null {
   if (!value) return null;
   try {

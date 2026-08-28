@@ -2,9 +2,11 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Container, Wordmark, XMark, ButtonLink } from "./primitives";
 import { cn } from "@/lib/utils";
-import { localizedPath, useI18n } from "@/lib/i18n";
+import { localizedPath } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 import { MobileSessionLink, SessionLink } from "@/components/community/auth-controls";
 import { GitHubStarLink } from "./github-star-link";
+import { ThemeToggle } from "./theme-toggle";
 
 const links = [
   { key: "nav.plugins", to: "/plugins" },
@@ -61,6 +63,7 @@ export function Nav() {
           <ButtonLink to="/docs" variant="primary" className="h-9">
             {t("nav.getStarted")}
           </ButtonLink>
+          <ThemeToggle />
           <a
             href={alternateHref}
             aria-label={t("nav.language")}

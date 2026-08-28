@@ -1,21 +1,39 @@
+import { useQuery } from "@tanstack/react-query";
 import { LogIn } from "lucide-react";
-import { useEffect, useState } from "react";
+import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth/client";
 import { useHydrated } from "@/lib/use-hydrated";
+import { apiKeys, apiRequest } from "@/lib/api-client";
+
+type PublicSession = { user: { name: string } };
+const publicSessionSchema = z.object({ user: z.object({ name: z.string() }) }).nullable();
+const publicConfigSchema = z.object({ githubAuthConfigured: z.boolean().optional() });
+
+function usePublicSession() {
+  return useQuery<PublicSession | null>({
+    queryKey: apiKeys.endpoint("/api/auth/get-session"),
+    queryFn: ({ signal }) =>
+      apiRequest("/api/auth/get-session", publicSessionSchema, {
+        credentials: "include",
+        signal,
+      }),
+  });
+}
 
 export function SignInButton({ callbackURL = "/en/account" }: { callbackURL?: string }) {
-  const [available, setAvailable] = useState<boolean | null>(null);
-  useEffect(() => {
-    void fetch("/api/config")
-      .then((response) => response.json() as Promise<{ githubAuthConfigured?: boolean }>)
-      .then((config) => setAvailable(config.githubAuthConfigured === true))
-      .catch(() => setAvailable(false));
-  }, []);
+  const config = useQuery({
+    queryKey: apiKeys.endpoint("/api/config"),
+    queryFn: ({ signal }) => apiRequest("/api/config", publicConfigSchema, { signal }),
+  });
+  const available = config.isError ? false : config.data?.githubAuthConfigured;
   return (
     <Button
-      onClick={() => void authClient.signIn.social({ provider: "github", callbackURL })}
+      onClick={() =>
+        void import("@/lib/auth/client").then(({ authClient }) =>
+          authClient.signIn.social({ provider: "github", callbackURL }),
+        )
+      }
       size="sm"
       disabled={available !== true}
       title={available === false ? "Configure GitHub OAuth to enable sign-in" : undefined}
@@ -27,7 +45,7 @@ export function SignInButton({ callbackURL = "/en/account" }: { callbackURL?: st
 }
 
 export function SessionLink() {
-  const session = authClient.useSession();
+  const session = usePublicSession();
   const hydrated = useHydrated();
   if (!hydrated || session.isPending) return null;
   if (!session.data)
@@ -47,7 +65,7 @@ export function SessionLink() {
 }
 
 export function MobileSessionLink({ locale }: { locale: "en" | "zh" }) {
-  const session = authClient.useSession();
+  const session = usePublicSession();
   const hydrated = useHydrated();
   if (!hydrated || session.isPending) return null;
   if (!session.data) return <SignInButton callbackURL={`/${locale}/account`} />;

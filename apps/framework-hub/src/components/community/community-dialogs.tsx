@@ -1,5 +1,7 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Bell, Flag, FolderPlus, MessageSquareReply, ShieldCheck } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { z } from "zod";
 
 import { Turnstile } from "./turnstile";
 import { Button } from "@/components/ui/button";
@@ -23,16 +25,16 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth/client";
 import { useHydrated } from "@/lib/use-hydrated";
+import { apiKeys, apiRequest, apiSchemas } from "@/lib/api-client";
 
-type ApiError = { error?: { message?: string } };
 type ReportTarget = "plugin" | "review" | "reply" | "profile" | "collection";
 
 function writeKey(prefix: string) {
   return `${prefix}:${crypto.randomUUID()}`;
 }
 
-function messageFrom(payload: ApiError, fallback: string) {
-  return payload.error?.message ?? fallback;
+function messageFrom(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 export function ReportDialog({
@@ -52,29 +54,31 @@ export function ReportDialog({
   const [token, setToken] = useState("");
   const [challenge, setChallenge] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
+  const mutation = useMutation({
+    mutationFn: () =>
+      apiRequest("/api/reports", apiSchemas.object, {
+        method: "POST",
+        json: {
+          targetType,
+          targetId,
+          reason,
+          details: details.trim() || null,
+          turnstileToken: token,
+          idempotencyKey: writeKey("report"),
+        },
+      }),
+  });
 
   if (!hydrated || !session.data) return null;
 
   async function submit() {
     setMessage(null);
-    const response = await fetch("/api/reports", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        targetType,
-        targetId,
-        reason,
-        details: details.trim() || null,
-        turnstileToken: token,
-        idempotencyKey: writeKey("report"),
-      }),
-    });
-    const payload = (await response.json()) as ApiError;
-    if (!response.ok) {
-      setMessage(messageFrom(payload, "The report could not be submitted."));
-    } else {
+    try {
+      await mutation.mutateAsync();
       setMessage("Report submitted for policy review.");
       setDetails("");
+    } catch (error) {
+      setMessage(messageFrom(error, "The report could not be submitted."));
     }
     setToken("");
     setChallenge((value) => value + 1);
@@ -152,26 +156,28 @@ export function ReplyDialog({
   const [token, setToken] = useState("");
   const [challenge, setChallenge] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
+  const mutation = useMutation({
+    mutationFn: () =>
+      apiRequest(`/api/reviews/${reviewId}/replies`, apiSchemas.object, {
+        method: "POST",
+        json: {
+          locale,
+          body,
+          turnstileToken: token,
+          idempotencyKey: writeKey("reply"),
+        },
+      }),
+  });
   if (!hydrated || !session.data) return null;
 
   async function submit() {
-    const response = await fetch(`/api/reviews/${reviewId}/replies`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        locale,
-        body,
-        turnstileToken: token,
-        idempotencyKey: writeKey("reply"),
-      }),
-    });
-    const payload = (await response.json()) as ApiError;
-    if (!response.ok) {
-      setMessage(messageFrom(payload, "The reply could not be published."));
-    } else {
+    try {
+      await mutation.mutateAsync();
       setBody("");
       setOpen(false);
       onComplete();
+    } catch (error) {
+      setMessage(messageFrom(error, "The reply could not be published."));
     }
     setToken("");
     setChallenge((value) => value + 1);
@@ -224,25 +230,29 @@ export function ClaimPluginDialog({ slug }: { slug: string }) {
     file: { path: string; body: Record<string, string> };
   } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const mutation = useMutation({
+    mutationFn: () =>
+      apiRequest(
+        `/api/plugins/${encodeURIComponent(slug)}/claims`,
+        z.object({ file: z.object({ path: z.string(), body: z.record(z.string(), z.string()) }) }),
+        {
+          method: "POST",
+          json: {
+            turnstileToken: token,
+            idempotencyKey: writeKey("claim"),
+          },
+        },
+      ),
+  });
   if (!hydrated || !session.data) return null;
 
   async function createClaim() {
-    const response = await fetch(`/api/plugins/${encodeURIComponent(slug)}/claims`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        turnstileToken: token,
-        idempotencyKey: writeKey("claim"),
-      }),
-    });
-    const payload = (await response.json()) as ApiError & {
-      file?: { path: string; body: Record<string, string> };
-    };
-    if (!response.ok || !payload.file) {
-      setMessage(messageFrom(payload, "The claim challenge could not be created."));
-    } else {
-      setResult({ file: payload.file });
+    try {
+      const payload = await mutation.mutateAsync();
+      setResult(payload);
       setMessage(null);
+    } catch (error) {
+      setMessage(messageFrom(error, "The claim challenge could not be created."));
     }
     setToken("");
     setChallenge((value) => value + 1);
@@ -295,38 +305,40 @@ export function AddToCollectionDialog({ pluginId }: { pluginId: string }) {
   const session = authClient.useSession();
   const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<Array<{ id: string; name: string }> | null>(null);
   const [token, setToken] = useState("");
   const [challenge, setChallenge] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open || !session.data) return;
-    void fetch("/api/me/collections")
-      .then(
-        (response) => response.json() as Promise<{ items: Array<{ id: string; name: string }> }>,
-      )
-      .then((data) => setItems(data.items))
-      .catch(() => setItems([]));
-  }, [open, session.data]);
+  const collections = useQuery({
+    queryKey: apiKeys.endpoint("/api/me/collections"),
+    queryFn: ({ signal }) =>
+      apiRequest(
+        "/api/me/collections",
+        z.object({ items: z.array(z.object({ id: z.string(), name: z.string() }).passthrough()) }),
+        { signal },
+      ),
+    enabled: open && Boolean(session.data),
+  });
+  const mutation = useMutation({
+    mutationFn: (collectionId: string) =>
+      apiRequest(`/api/me/collections/${collectionId}/plugins/${pluginId}`, apiSchemas.object, {
+        method: "PUT",
+        json: {
+          turnstileToken: token,
+          idempotencyKey: writeKey("collection-plugin"),
+        },
+      }),
+  });
+  const items = collections.data?.items ?? (collections.isError ? [] : null);
 
   if (!hydrated || !session.data) return null;
 
   async function add(collectionId: string) {
-    const response = await fetch(`/api/me/collections/${collectionId}/plugins/${pluginId}`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        turnstileToken: token,
-        idempotencyKey: writeKey("collection-plugin"),
-      }),
-    });
-    const payload = (await response.json()) as ApiError;
-    setMessage(
-      response.ok
-        ? "Plugin added to the collection."
-        : messageFrom(payload, "Could not add plugin."),
-    );
+    try {
+      await mutation.mutateAsync(collectionId);
+      setMessage("Plugin added to the collection.");
+    } catch (error) {
+      setMessage(messageFrom(error, "Could not add plugin."));
+    }
     setToken("");
     setChallenge((value) => value + 1);
   }
@@ -380,18 +392,26 @@ export function UserSafetyActions({ userId }: { userId: string }) {
   const [blocked, setBlocked] = useState(false);
   const [token, setToken] = useState("");
   const [challenge, setChallenge] = useState(0);
+  const mutation = useMutation({
+    mutationFn: (nextBlocked: boolean) =>
+      apiRequest(`/api/me/blocks/${userId}`, apiSchemas.object, {
+        method: nextBlocked ? "PUT" : "DELETE",
+        json: {
+          turnstileToken: token,
+          idempotencyKey: writeKey("user-block"),
+        },
+      }),
+  });
   if (!hydrated || !session.data || session.data.user.id === userId) return null;
 
   async function toggleBlock() {
-    const response = await fetch(`/api/me/blocks/${userId}`, {
-      method: blocked ? "DELETE" : "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        turnstileToken: token,
-        idempotencyKey: writeKey("user-block"),
-      }),
-    });
-    if (response.ok) setBlocked(!blocked);
+    const nextBlocked = !blocked;
+    try {
+      await mutation.mutateAsync(nextBlocked);
+      setBlocked(nextBlocked);
+    } catch {
+      // Existing UI intentionally provides no additional block error surface.
+    }
     setToken("");
     setChallenge((value) => value + 1);
   }
@@ -412,30 +432,39 @@ export function UserSafetyActions({ userId }: { userId: string }) {
 export function PublisherFollowButton({ publisherId }: { publisherId: string }) {
   const session = authClient.useSession();
   const hydrated = useHydrated();
-  const [followed, setFollowed] = useState(false);
   const [token, setToken] = useState("");
   const [challenge, setChallenge] = useState(0);
-
-  useEffect(() => {
-    if (!session.data) return;
-    void fetch("/api/me/relationships")
-      .then((response) => response.json() as Promise<{ publisherFollows: Array<{ id: string }> }>)
-      .then((page) => setFollowed(page.publisherFollows.some((item) => item.id === publisherId)))
-      .catch(() => setFollowed(false));
-  }, [publisherId, session.data]);
+  const queryClient = useQueryClient();
+  const relationships = useQuery({
+    queryKey: apiKeys.relationships,
+    queryFn: ({ signal }) =>
+      apiRequest("/api/me/relationships", apiSchemas.relationships, { signal }),
+    enabled: Boolean(session.data),
+  });
+  const followed =
+    relationships.data?.publisherFollows.some((item) => item["id"] === publisherId) ?? false;
+  const mutation = useMutation({
+    mutationFn: (nextFollowed: boolean) =>
+      apiRequest(`/api/me/publishers/${publisherId}/follow`, apiSchemas.object, {
+        method: nextFollowed ? "PUT" : "DELETE",
+        json: {
+          turnstileToken: token,
+          idempotencyKey: writeKey("publisher-follow"),
+        },
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: apiKeys.relationships });
+    },
+  });
 
   if (!hydrated || !session.data) return null;
 
   async function toggle() {
-    const response = await fetch(`/api/me/publishers/${publisherId}/follow`, {
-      method: followed ? "DELETE" : "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        turnstileToken: token,
-        idempotencyKey: writeKey("publisher-follow"),
-      }),
-    });
-    if (response.ok) setFollowed(!followed);
+    try {
+      await mutation.mutateAsync(!followed);
+    } catch {
+      // Existing UI intentionally provides no additional follow error surface.
+    }
     setToken("");
     setChallenge((value) => value + 1);
   }

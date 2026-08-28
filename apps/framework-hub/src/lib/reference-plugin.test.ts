@@ -10,7 +10,7 @@ describe("official reference plugin metadata", () => {
     expect(MARKETPLACE_REFERENCE_PLUGIN).toMatchObject({
       packageName: marketplacePackage.name,
       version: marketplacePackage.version,
-      installCommand: `dsh plugin --profile <profile> add ${marketplacePackage.name}@preview`,
+      installCommand: `dsh plugin --profile web add ${marketplacePackage.name}@preview`,
     });
     expect(MARKETPLACE_REFERENCE_PLUGIN.sourceUrl).toMatch(/\/packages\/plugin-marketplace$/);
   });

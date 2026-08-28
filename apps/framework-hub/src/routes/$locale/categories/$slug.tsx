@@ -4,6 +4,8 @@ import { PluginCard } from "@/components/dshx/plugin-card";
 import { Container, SectionLabel } from "@/components/dshx/primitives";
 import { loadCatalog } from "@/lib/catalog/functions";
 import { parseLocale } from "@/lib/i18n";
+import { breadcrumbList, buildSeoHead, localizedAlternatesForLocales, publicUrl } from "@/lib/seo";
+import { loadIndexableSitemapLocales } from "@/lib/sitemap.functions";
 
 const categoryCopy = {
   en: {
@@ -24,34 +26,66 @@ const categoryCopy = {
 
 export const Route = createFileRoute("/$locale/categories/$slug")({
   loader: async ({ params }) => {
-    const page = await loadCatalog({
-      data: {
-        locale: parseLocale(params.locale),
-        category: params.slug,
-        q: "",
-        sort: "featured",
-        limit: 50,
-      },
-    });
+    const [page, indexableLocales] = await Promise.all([
+      loadCatalog({
+        data: {
+          locale: parseLocale(params.locale),
+          category: params.slug,
+          q: "",
+          sort: "featured",
+          limit: 50,
+        },
+      }),
+      loadIndexableSitemapLocales({
+        data: { kind: "category", value: params.slug },
+      }),
+    ]);
     const category = page.categories.find((item) => item.slug === params.slug);
     if (!category) throw notFound();
-    return { ...page, category };
+    return { ...page, category, indexableLocales };
   },
   head: ({ loaderData, params }) => {
-    const copy = categoryCopy[parseLocale(params.locale)];
+    const locale = parseLocale(params.locale);
+    const copy = categoryCopy[locale];
     const name = loaderData?.category.name ?? params.slug;
-    const canonical = `https://dshx.io/${params.locale}/categories/${params.slug}`;
-    return {
-      meta: [
-        { title: copy.title(name) },
+    const path = `/${locale}/categories/${params.slug}`;
+    const items = loaderData?.items ?? [];
+    const indexableLocales = loaderData?.indexableLocales ?? [];
+    return buildSeoHead({
+      locale,
+      path,
+      title: copy.title(name),
+      description: copy.meta(name),
+      robots: indexableLocales.includes(locale) ? "index,follow" : "noindex,follow",
+      alternates: localizedAlternatesForLocales(`/categories/${params.slug}`, indexableLocales),
+      structuredData: [
         {
-          name: "description",
-          content: copy.meta(name),
+          "@id": `${publicUrl(path)}#collection`,
+          "@type": "CollectionPage",
+          name,
+          description: copy.meta(name),
+          url: publicUrl(path),
+          inLanguage: locale === "zh" ? "zh-CN" : "en",
+          mainEntity: { "@id": `${publicUrl(path)}#items` },
         },
-        { name: "robots", content: "index,follow" },
+        {
+          "@id": `${publicUrl(path)}#items`,
+          "@type": "ItemList",
+          numberOfItems: items.length,
+          itemListElement: items.map((plugin, index) => ({
+            "@type": "ListItem",
+            position: index + 1,
+            name: plugin.name,
+            url: publicUrl(`/${locale}/plugins/${plugin.slug}`),
+          })),
+        },
+        breadcrumbList([
+          { name: "DSHX", path: `/${locale}` },
+          { name: locale === "zh" ? "插件市场" : "Plugins", path: `/${locale}/plugins` },
+          { name, path },
+        ]),
       ],
-      links: [{ rel: "canonical", href: canonical }],
-    };
+    });
   },
   component: CategoryPage,
 });

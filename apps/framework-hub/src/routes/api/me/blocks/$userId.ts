@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth/auth.server";
 import { relationshipWriteSchema } from "@/lib/community/contracts";
 import { requireCommunityWrite } from "@/lib/community/guard.server";
 import { setUserBlock } from "@/lib/community/marketplace.server";
-import { requireD1 } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/me/blocks/$userId")({
@@ -29,7 +29,7 @@ async function mutate(request: Request, context: unknown, userId: string, enable
       input.turnstileToken,
     );
     return Response.json(
-      await setUserBlock(requireD1(context), auth.session.user.id, userId, enabled),
+      await setUserBlock(requireDatabase(context), auth.session.user.id, userId, enabled),
     );
   } catch (error) {
     return jsonError(error);

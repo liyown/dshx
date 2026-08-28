@@ -83,7 +83,7 @@ describe("community moderation with local D1", () => {
       })),
     );
 
-    const queue = await listModerationQueue(proxy.env.DB);
+    const queue = await listModerationQueue(db);
     expect(queue).toContainEqual(
       expect.objectContaining({
         targetId: reviewId,
@@ -94,7 +94,7 @@ describe("community moderation with local D1", () => {
         plugin: expect.objectContaining({ id: pluginId }),
       }),
     );
-    await applyModerationAction(proxy.env.DB, "operator-token", {
+    await applyModerationAction(db, "operator-token", {
       action: "dismiss",
       targetType: "review",
       targetId: reviewId,
@@ -151,7 +151,7 @@ describe("community moderation with local D1", () => {
     });
 
     await expect(
-      applyModerationAction(proxy.env.DB, "operator-token", {
+      applyModerationAction(db, "operator-token", {
         action: "hide",
         targetType: "review",
         targetId: reviewId,
@@ -191,7 +191,7 @@ describe("community moderation with local D1", () => {
       reason: "abuse",
       idempotencyKey: crypto.randomUUID(),
     });
-    await applyModerationAction(proxy.env.DB, "operator-token", {
+    await applyModerationAction(db, "operator-token", {
       action: "hide",
       targetType: "review",
       targetId: reviewId,
@@ -201,7 +201,7 @@ describe("community moderation with local D1", () => {
       confidence: 0.99,
       policyVersion: "dshx-community-1",
     });
-    await applyModerationAction(proxy.env.DB, "operator-token", {
+    await applyModerationAction(db, "operator-token", {
       action: "restrict",
       targetType: "user",
       targetId: userId,
@@ -241,7 +241,7 @@ describe("community moderation with local D1", () => {
       idempotencyKey: crypto.randomUUID(),
     });
     await expect(
-      applyModerationAction(proxy.env.DB, "operator-token", {
+      applyModerationAction(db, "operator-token", {
         action: "hide",
         targetType: "review",
         targetId: reviewId,
@@ -253,7 +253,7 @@ describe("community moderation with local D1", () => {
       }),
     ).rejects.toThrow("confidence of at least 0.95");
     await expect(
-      applyModerationAction(proxy.env.DB, "operator-token", {
+      applyModerationAction(db, "operator-token", {
         action: "restrict",
         targetType: "user",
         targetId: userId,

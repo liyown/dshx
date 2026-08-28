@@ -8,7 +8,7 @@ import {
   parseOperationInput,
 } from "@/lib/catalog/operations-v1.http";
 import { auditOperations } from "@/lib/catalog/operations-v1.server";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { requireBindings } from "@/lib/db/context";
 
 export const Route = createFileRoute("/api/ops/v1/audit")({
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/ops/v1/audit")({
           return operationSuccess(
             request,
             await auditOperations(
-              requireD1(context),
+              requireDatabase(context),
               requireBindings(context).PLUGIN_MEDIA,
               query.scope,
             ),

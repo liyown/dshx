@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { useI18n } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 import { cn } from "@/lib/utils";
 import { Code } from "./code";
 import { Lede, SectionHeading } from "./primitives";

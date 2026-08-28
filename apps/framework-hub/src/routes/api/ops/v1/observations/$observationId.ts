@@ -14,7 +14,7 @@ import {
   readOperationJson,
 } from "@/lib/catalog/operations-v1.http";
 import { upsertObservation } from "@/lib/catalog/operations-v1.server";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 
 export const Route = createFileRoute("/api/ops/v1/observations/$observationId")({
   server: {
@@ -46,7 +46,7 @@ export const Route = createFileRoute("/api/ops/v1/observations/$observationId")(
             ? parseOperationInput(operationDryRunQuerySchema, rawDryRun) === "true"
             : false;
           const data = await upsertObservation(
-            requireD1(context),
+            requireDatabase(context),
             actor.token.id,
             requestId,
             observation,

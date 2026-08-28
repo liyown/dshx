@@ -1,6 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { z } from "zod";
 
 import { ApprovalDecisionDialog } from "@/components/admin/approval-decision-dialog";
 import {
@@ -15,6 +17,19 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { hasAdminAccess } from "@/lib/auth/functions";
+import { apiKeys, apiRequest } from "@/lib/api-client";
+
+const approvalDetailSchema = z
+  .object({
+    request: z.looseObject({}),
+    current: z.looseObject({}),
+    effect: z.looseObject({}),
+    versions: z.array(z.looseObject({})),
+    decisions: z.array(z.looseObject({})),
+    events: z.array(z.looseObject({})),
+    attempts: z.array(z.looseObject({})),
+  })
+  .transform((value) => value as unknown as ApprovalDetail);
 
 export const Route = createFileRoute("/admin/approvals/$id")({
   loader: async () => {
@@ -32,63 +47,57 @@ export const Route = createFileRoute("/admin/approvals/$id")({
 
 function ApprovalDetailPage() {
   const { id } = Route.useParams();
-  const [data, setData] = useState<ApprovalDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-
-  const load = useCallback(async () => {
-    const response = await fetch(`/api/admin/approvals/${encodeURIComponent(id)}`);
-    const payload = (await response.json()) as ApprovalDetail & { error?: { message?: string } };
-    if (!response.ok) {
-      setError(payload.error?.message ?? "This approval could not be loaded.");
-      setData(null);
-      return;
-    }
-    setData(payload);
-    setError(null);
-  }, [id]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: apiKeys.approval(id),
+    queryFn: ({ signal }) =>
+      apiRequest(`/api/admin/approvals/${encodeURIComponent(id)}`, approvalDetailSchema, {
+        signal,
+      }),
+  });
+  const updateApproval = (data: ApprovalDetail) => {
+    queryClient.setQueryData(apiKeys.approval(id), data);
+    setActionError(null);
+  };
+  const decisionMutation = useMutation({
+    mutationFn: (input: { action: "approve" | "reject" | "request_changes"; reason: string }) =>
+      apiRequest(`/api/admin/approvals/${encodeURIComponent(id)}/decisions`, approvalDetailSchema, {
+        method: "POST",
+        json: { action: input.action, ...(input.reason ? { reason: input.reason } : {}) },
+      }),
+    onSuccess: updateApproval,
+  });
+  const retryMutation = useMutation({
+    mutationFn: (reason: string) =>
+      apiRequest(
+        `/api/admin/approvals/${encodeURIComponent(id)}/effects/retry`,
+        approvalDetailSchema,
+        { method: "POST", json: { ...(reason ? { reason } : {}) } },
+      ),
+    onSuccess: updateApproval,
+  });
+  const data = query.data ?? null;
+  const error = actionError ?? (query.error instanceof Error ? query.error.message : null);
+  const pending = decisionMutation.isPending || retryMutation.isPending;
 
   async function decide(action: "approve" | "reject" | "request_changes", reason: string) {
-    setPending(true);
     try {
-      const response = await fetch(`/api/admin/approvals/${encodeURIComponent(id)}/decisions`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action, ...(reason ? { reason } : {}) }),
-      });
-      const payload = (await response.json()) as ApprovalDetail & { error?: { message?: string } };
-      if (!response.ok) throw new Error(payload.error?.message ?? "The decision was not recorded.");
-      setData(payload);
-      setError(null);
+      await decisionMutation.mutateAsync({ action, reason });
     } catch (decisionError) {
-      setError(decisionError instanceof Error ? decisionError.message : "The decision failed.");
+      setActionError(
+        decisionError instanceof Error ? decisionError.message : "The decision failed.",
+      );
       throw decisionError;
-    } finally {
-      setPending(false);
     }
   }
 
   async function retry(reason: string) {
-    setPending(true);
     try {
-      const response = await fetch(`/api/admin/approvals/${encodeURIComponent(id)}/effects/retry`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...(reason ? { reason } : {}) }),
-      });
-      const payload = (await response.json()) as ApprovalDetail & { error?: { message?: string } };
-      if (!response.ok) throw new Error(payload.error?.message ?? "The effect retry failed.");
-      setData(payload);
-      setError(null);
+      await retryMutation.mutateAsync(reason);
     } catch (retryError) {
-      setError(retryError instanceof Error ? retryError.message : "The effect retry failed.");
+      setActionError(retryError instanceof Error ? retryError.message : "The effect retry failed.");
       throw retryError;
-    } finally {
-      setPending(false);
     }
   }
 

@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 
 import { Container } from "./primitives";
-import { useI18n } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 
 const storageKey = "dshx:development-banner:v1";
 const dismissedAttribute = "data-development-banner-dismissed";

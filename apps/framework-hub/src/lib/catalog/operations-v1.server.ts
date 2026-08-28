@@ -1,4 +1,10 @@
 import { satisfies, validRange } from "semver";
+import type { BatchItem } from "drizzle-orm/batch";
+
+import type { Database } from "@/lib/db/client";
+import { runDrizzleBatch } from "@/lib/db/batch";
+import { parameterizedSql } from "@/lib/db/parameterized-sql";
+import { buildPluginSeoDescription, buildPluginSeoTitle } from "./content-quality";
 
 import {
   pluginObservationV1Schema,
@@ -590,25 +596,24 @@ function mergeProjection(
   };
 }
 
-async function findPlugin(binding: D1Database, idOrSlug: string): Promise<PluginRow | null> {
-  return binding
-    .prepare(
+async function findPlugin(binding: Database, idOrSlug: string): Promise<PluginRow | null> {
+  return binding.get<PluginRow>(
+    parameterizedSql(
       `select id,slug,identity_key,package_name,name,description,author_handle,category,
         latest_version,compatibility_range,status,lifecycle_status,repository_url,homepage_url,
         license_spdx,created_at,updated_at from plugins where id=? or slug=? limit 1`,
-    )
-    .bind(idOrSlug, idOrSlug)
-    .first<PluginRow>();
+      [idOrSlug, idOrSlug],
+    ),
+  );
 }
 
 async function findOperationalState(
-  binding: D1Database,
+  binding: Database,
   plugin: PluginRow,
 ): Promise<OperationalRow | null> {
-  return binding
-    .prepare("select * from plugin_operational_state where plugin_id=?")
-    .bind(plugin.id)
-    .first<OperationalRow>();
+  return binding.get<OperationalRow>(
+    parameterizedSql("select * from plugin_operational_state where plugin_id=?", [plugin.id]),
+  );
 }
 
 function fallbackOperationalState(plugin: PluginRow): OperationalRow {
@@ -643,62 +648,58 @@ function fallbackOperationalState(plugin: PluginRow): OperationalRow {
 }
 
 async function identityMatches(
-  binding: D1Database,
+  binding: Database,
   observation: PluginObservationV1,
 ): Promise<string[]> {
   const identityKey = operationIdentityKey(observation.identity);
-  const direct = await binding
-    .prepare("select plugin_id from plugin_observation_identities where identity_key=?")
-    .bind(identityKey)
-    .all<{ plugin_id: string }>();
-  if ((direct.results ?? []).length)
-    return [...new Set(direct.results!.map((row) => row.plugin_id))];
+  const direct = await binding.all<{ plugin_id: string }>(
+    parameterizedSql("select plugin_id from plugin_observation_identities where identity_key=?", [
+      identityKey,
+    ]),
+  );
+  if (direct.length) return [...new Set(direct.map((row) => row.plugin_id))];
 
   if (observation.identity.kind === "npm") {
-    const matches = await binding
-      .prepare(
+    const matches = await binding.all<{ plugin_id: string }>(
+      parameterizedSql(
         `select id plugin_id from plugins where package_name=?
          union select plugin_id from plugin_operational_state
            where json_extract(facts_json,'$.package.name')=?`,
-      )
-      .bind(observation.identity.packageName, observation.identity.packageName)
-      .all<{ plugin_id: string }>();
-    return [...new Set((matches.results ?? []).map((row) => row.plugin_id))];
+        [observation.identity.packageName, observation.identity.packageName],
+      ),
+    );
+    return [...new Set(matches.map((row) => row.plugin_id))];
   }
 
   const packageFacts = jsonRecord(observation.facts?.package);
   const packageName = typeof packageFacts["name"] === "string" ? packageFacts["name"] : null;
-  const matches = await binding
-    .prepare(
+  const matches = await binding.all<{ plugin_id: string }>(
+    parameterizedSql(
       `select p.id plugin_id from plugins p
        join repository_packages rp on rp.id=p.primary_repository_package_id
        join repositories r on r.id=rp.repository_id
        where (r.github_id=? or lower(r.full_name)=lower(?)) and rp.subdirectory=?`,
-    )
-    .bind(
-      observation.identity.repositoryId,
-      observation.identity.fullName,
-      observation.identity.subdirectory,
-    )
-    .all<{ plugin_id: string }>();
+      [
+        observation.identity.repositoryId,
+        observation.identity.fullName,
+        observation.identity.subdirectory,
+      ],
+    ),
+  );
   const packageMatches = packageName
-    ? await binding
-        .prepare(
+    ? await binding.all<{ plugin_id: string }>(
+        parameterizedSql(
           `select id plugin_id from plugins where package_name=?
            union select plugin_id from plugin_operational_state
              where json_extract(facts_json,'$.package.name')=?`,
-        )
-        .bind(packageName, packageName)
-        .all<{ plugin_id: string }>()
-    : { results: [] as Array<{ plugin_id: string }> };
-  return [
-    ...new Set(
-      [...(matches.results ?? []), ...(packageMatches.results ?? [])].map((row) => row.plugin_id),
-    ),
-  ];
+          [packageName, packageName],
+        ),
+      )
+    : ([] as Array<{ plugin_id: string }>);
+  return [...new Set([...matches, ...packageMatches].map((row) => row.plugin_id))];
 }
 
-async function newPluginProjection(binding: D1Database, observation: PluginObservationV1) {
+async function newPluginProjection(binding: Database, observation: PluginObservationV1) {
   const pluginId = crypto.randomUUID();
   const identityKey = operationIdentityKey(observation.identity);
   const label =
@@ -706,12 +707,12 @@ async function newPluginProjection(binding: D1Database, observation: PluginObser
       ? observation.identity.packageName
       : observation.identity.fullName.split("/").at(-1)!;
   const baseSlug = slugify(label) || `plugin-${pluginId.slice(0, 8)}`;
-  const collision = await binding
-    .prepare(
+  const collision = await binding.get(
+    parameterizedSql(
       "select id from plugins where slug=? union all select plugin_id id from plugin_aliases where kind='slug' and value=? limit 1",
-    )
-    .bind(baseSlug, baseSlug)
-    .first();
+      [baseSlug, baseSlug],
+    ),
+  );
   const slug = collision ? `${baseSlug.slice(0, 81)}-${pluginId.slice(0, 8)}` : baseSlug;
   const githubPlaceholder =
     observation.identity.kind === "github"
@@ -740,7 +741,7 @@ async function newPluginProjection(binding: D1Database, observation: PluginObser
 }
 
 async function projectionStatements(
-  binding: D1Database,
+  binding: Database,
   pluginId: string,
   facts: JsonRecord,
   provenance: Record<string, FieldProvenance>,
@@ -748,8 +749,8 @@ async function projectionStatements(
   operationId: string,
   fallbackPackageName: string,
   fallbackVersion: string,
-): Promise<D1PreparedStatement[]> {
-  const statements: D1PreparedStatement[] = [];
+): Promise<BatchItem<"sqlite">[]> {
+  const statements: BatchItem<"sqlite">[] = [];
   const packageFacts = jsonRecord(facts["package"]);
   const repositoryFacts = jsonRecord(facts["repository"]);
   const publisherFacts = jsonRecord(facts["publisher"]);
@@ -758,10 +759,12 @@ async function projectionStatements(
   const metrics = jsonRecord(facts["metrics"]);
   const packageName = typeof packageFacts["name"] === "string" ? packageFacts["name"] : null;
   if (packageName) {
-    const conflict = await binding
-      .prepare("select id from plugins where package_name=? and id<>? limit 1")
-      .bind(packageName, pluginId)
-      .first<{ id: string }>();
+    const conflict = await binding.get<{ id: string }>(
+      parameterizedSql("select id from plugins where package_name=? and id<>? limit 1", [
+        packageName,
+        pluginId,
+      ]),
+    );
     if (conflict)
       throw new OperationHttpError(
         409,
@@ -791,15 +794,13 @@ async function projectionStatements(
     publisherAvatarUrl &&
     publisherProfileUrl
   ) {
-    const publisherMatches = await binding
-      .prepare(
+    const publisherMatches = await binding.all<{ id: string; github_id: string; login: string }>(
+      parameterizedSql(
         "select id,github_id,login from publishers where github_id=? or lower(login)=lower(?)",
-      )
-      .bind(publisherGithubId, publisherLogin)
-      .all<{ id: string; github_id: string; login: string }>();
-    const distinctMatches = [
-      ...new Map((publisherMatches.results ?? []).map((row) => [row.id, row])).values(),
-    ];
+        [publisherGithubId, publisherLogin],
+      ),
+    );
+    const distinctMatches = [...new Map(publisherMatches.map((row) => [row.id, row])).values()];
     if (
       distinctMatches.length > 1 ||
       (distinctMatches[0] && distinctMatches[0].github_id !== publisherGithubId)
@@ -813,8 +814,8 @@ async function projectionStatements(
       );
     publisherId = distinctMatches[0]?.id ?? `publisher:${publisherGithubId}`;
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into publishers(
             id,github_id,login,kind,avatar_url,profile_url,trust_tier,created_at,updated_at
           ) select ?,?,?,?,?,?,'community',?,? from plugin_operational_state
@@ -822,19 +823,20 @@ async function projectionStatements(
           on conflict(github_id) do update set
             login=excluded.login,kind=excluded.kind,avatar_url=excluded.avatar_url,
             profile_url=excluded.profile_url,updated_at=excluded.updated_at`,
-        )
-        .bind(
-          publisherId,
-          publisherGithubId,
-          publisherLogin,
-          publisherKind,
-          publisherAvatarUrl,
-          publisherProfileUrl,
-          Date.now(),
-          Date.now(),
-          pluginId,
-          operationId,
+          [
+            publisherId,
+            publisherGithubId,
+            publisherLogin,
+            publisherKind,
+            publisherAvatarUrl,
+            publisherProfileUrl,
+            Date.now(),
+            Date.now(),
+            pluginId,
+            operationId,
+          ],
         ),
+      ),
     );
   }
   const declaredRange =
@@ -843,8 +845,8 @@ async function projectionStatements(
       ? compatibility["declaredRange"]
       : null;
   statements.push(
-    binding
-      .prepare(
+    binding.run(
+      parameterizedSql(
         `update plugins set
           package_name=coalesce(?,package_name),
           latest_version=coalesce(?,latest_version),
@@ -864,27 +866,28 @@ async function projectionStatements(
             select 1 from plugin_operational_state
             where plugin_id=? and last_operation_id=?
           )`,
-      )
-      .bind(
-        packageName,
-        typeof packageFacts["version"] === "string" ? packageFacts["version"] : null,
-        typeof packageFacts["description"] === "string" ? packageFacts["description"] : null,
-        typeof packageFacts["license"] === "string" ? packageFacts["license"] : null,
-        typeof packageFacts["homepageUrl"] === "string" ? packageFacts["homepageUrl"] : null,
-        typeof packageFacts["repositoryUrl"] === "string"
-          ? packageFacts["repositoryUrl"]
-          : typeof repositoryFacts["fullName"] === "string"
-            ? `https://github.com/${repositoryFacts["fullName"]}`
-            : null,
-        declaredRange,
-        publisherId,
-        publisherLogin,
-        observedAt,
-        Date.now(),
-        pluginId,
-        pluginId,
-        operationId,
+        [
+          packageName,
+          typeof packageFacts["version"] === "string" ? packageFacts["version"] : null,
+          typeof packageFacts["description"] === "string" ? packageFacts["description"] : null,
+          typeof packageFacts["license"] === "string" ? packageFacts["license"] : null,
+          typeof packageFacts["homepageUrl"] === "string" ? packageFacts["homepageUrl"] : null,
+          typeof packageFacts["repositoryUrl"] === "string"
+            ? packageFacts["repositoryUrl"]
+            : typeof repositoryFacts["fullName"] === "string"
+              ? `https://github.com/${repositoryFacts["fullName"]}`
+              : null,
+          declaredRange,
+          publisherId,
+          publisherLogin,
+          observedAt,
+          Date.now(),
+          pluginId,
+          pluginId,
+          operationId,
+        ],
       ),
+    ),
   );
 
   const githubId =
@@ -918,8 +921,8 @@ async function projectionStatements(
     const openIssues =
       typeof repositoryFacts["openIssues"] === "number" ? repositoryFacts["openIssues"] : null;
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into repositories(
             id,github_id,publisher_id,owner_login,name,full_name,canonical_url,default_branch,description,
             homepage_url,topics_json,primary_language,license_spdx,is_archived,is_disabled,
@@ -944,54 +947,56 @@ async function projectionStatements(
             open_issues=case when ? is null then repositories.open_issues else excluded.open_issues end,
             last_seen_at=max(repositories.last_seen_at,excluded.last_seen_at),
             updated_at=excluded.updated_at`,
-        )
-        .bind(
-          repositoryId,
-          githubId,
-          publisherId,
-          ownerLogin,
-          name,
-          fullName,
-          `https://github.com/${fullName}`,
-          defaultBranch,
-          typeof repositoryFacts["description"] === "string"
-            ? repositoryFacts["description"]
-            : null,
-          typeof repositoryFacts["homepageUrl"] === "string"
-            ? repositoryFacts["homepageUrl"]
-            : null,
-          topics,
-          typeof repositoryFacts["primaryLanguage"] === "string"
-            ? repositoryFacts["primaryLanguage"]
-            : null,
-          typeof repositoryFacts["licenseSpdx"] === "string"
-            ? repositoryFacts["licenseSpdx"]
-            : null,
-          archived,
-          disabled,
-          stars,
-          forks,
-          openIssues,
-          observedAt,
-          Date.now(),
-          pluginId,
-          operationId,
-          defaultBranch,
-          topics,
-          archived,
-          disabled,
-          stars,
-          forks,
-          openIssues,
+          [
+            repositoryId,
+            githubId,
+            publisherId,
+            ownerLogin,
+            name,
+            fullName,
+            `https://github.com/${fullName}`,
+            defaultBranch,
+            typeof repositoryFacts["description"] === "string"
+              ? repositoryFacts["description"]
+              : null,
+            typeof repositoryFacts["homepageUrl"] === "string"
+              ? repositoryFacts["homepageUrl"]
+              : null,
+            topics,
+            typeof repositoryFacts["primaryLanguage"] === "string"
+              ? repositoryFacts["primaryLanguage"]
+              : null,
+            typeof repositoryFacts["licenseSpdx"] === "string"
+              ? repositoryFacts["licenseSpdx"]
+              : null,
+            archived,
+            disabled,
+            stars,
+            forks,
+            openIssues,
+            observedAt,
+            Date.now(),
+            pluginId,
+            operationId,
+            defaultBranch,
+            topics,
+            archived,
+            disabled,
+            stars,
+            forks,
+            openIssues,
+          ],
         ),
-      binding
-        .prepare(
+      ),
+      binding.run(
+        parameterizedSql(
           `update plugins set primary_repository_id=?,repository_url=? where id=? and exists(
             select 1 from plugin_operational_state
             where plugin_id=? and last_operation_id=?
           )`,
-        )
-        .bind(repositoryId, `https://github.com/${fullName}`, pluginId, pluginId, operationId),
+          [repositoryId, `https://github.com/${fullName}`, pluginId, pluginId, operationId],
+        ),
+      ),
     );
   }
 
@@ -1008,8 +1013,8 @@ async function projectionStatements(
           "",
       ) || observedAt;
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_source_documents(
             id,plugin_id,kind,availability,format,source_url,source_ref,source_path,
             content,content_hash,observed_at,created_at,updated_at
@@ -1021,30 +1026,31 @@ async function projectionStatements(
             source_path=excluded.source_path,content=excluded.content,
             content_hash=excluded.content_hash,observed_at=excluded.observed_at,
             updated_at=excluded.updated_at`,
-        )
-        .bind(
-          `${pluginId}:readme`,
-          pluginId,
-          readmeFacts["availability"],
-          readmeFacts["format"],
-          readmeFacts["sourceUrl"],
-          typeof readmeFacts["sourceRef"] === "string" ? readmeFacts["sourceRef"] : null,
-          typeof readmeFacts["path"] === "string" ? readmeFacts["path"] : null,
-          typeof readmeFacts["content"] === "string" ? readmeFacts["content"] : null,
-          typeof readmeFacts["contentHash"] === "string" ? readmeFacts["contentHash"] : null,
-          readmeObservedAt,
-          Date.now(),
-          Date.now(),
-          pluginId,
-          operationId,
+          [
+            `${pluginId}:readme`,
+            pluginId,
+            readmeFacts["availability"],
+            readmeFacts["format"],
+            readmeFacts["sourceUrl"],
+            typeof readmeFacts["sourceRef"] === "string" ? readmeFacts["sourceRef"] : null,
+            typeof readmeFacts["path"] === "string" ? readmeFacts["path"] : null,
+            typeof readmeFacts["content"] === "string" ? readmeFacts["content"] : null,
+            typeof readmeFacts["contentHash"] === "string" ? readmeFacts["contentHash"] : null,
+            readmeObservedAt,
+            Date.now(),
+            Date.now(),
+            pluginId,
+            operationId,
+          ],
         ),
+      ),
     );
   }
 
   if (Object.keys(metrics).length) {
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_metrics_current(
             plugin_id,github_stars,github_forks,github_open_issues,npm_downloads_day,
             npm_downloads_week,trend_score_7d,trend_score_30d,updated_at
@@ -1057,28 +1063,29 @@ async function projectionStatements(
             npm_downloads_day=case when ? is null then plugin_metrics_current.npm_downloads_day else ? end,
             npm_downloads_week=case when ? is null then plugin_metrics_current.npm_downloads_week else ? end,
             updated_at=max(plugin_metrics_current.updated_at,excluded.updated_at)`,
-        )
-        .bind(
-          pluginId,
-          typeof metrics["githubStars"] === "number" ? metrics["githubStars"] : 0,
-          typeof metrics["githubForks"] === "number" ? metrics["githubForks"] : 0,
-          typeof metrics["githubOpenIssues"] === "number" ? metrics["githubOpenIssues"] : 0,
-          typeof metrics["npmDownloadsDay"] === "number" ? metrics["npmDownloadsDay"] : null,
-          typeof metrics["npmDownloadsWeek"] === "number" ? metrics["npmDownloadsWeek"] : null,
-          observedAt,
-          pluginId,
-          operationId,
-          typeof metrics["githubStars"] === "number" ? metrics["githubStars"] : null,
-          typeof metrics["githubStars"] === "number" ? metrics["githubStars"] : null,
-          typeof metrics["githubForks"] === "number" ? metrics["githubForks"] : null,
-          typeof metrics["githubForks"] === "number" ? metrics["githubForks"] : null,
-          typeof metrics["githubOpenIssues"] === "number" ? metrics["githubOpenIssues"] : null,
-          typeof metrics["githubOpenIssues"] === "number" ? metrics["githubOpenIssues"] : null,
-          typeof metrics["npmDownloadsDay"] === "number" ? metrics["npmDownloadsDay"] : null,
-          typeof metrics["npmDownloadsDay"] === "number" ? metrics["npmDownloadsDay"] : null,
-          typeof metrics["npmDownloadsWeek"] === "number" ? metrics["npmDownloadsWeek"] : null,
-          typeof metrics["npmDownloadsWeek"] === "number" ? metrics["npmDownloadsWeek"] : null,
+          [
+            pluginId,
+            typeof metrics["githubStars"] === "number" ? metrics["githubStars"] : 0,
+            typeof metrics["githubForks"] === "number" ? metrics["githubForks"] : 0,
+            typeof metrics["githubOpenIssues"] === "number" ? metrics["githubOpenIssues"] : 0,
+            typeof metrics["npmDownloadsDay"] === "number" ? metrics["npmDownloadsDay"] : null,
+            typeof metrics["npmDownloadsWeek"] === "number" ? metrics["npmDownloadsWeek"] : null,
+            observedAt,
+            pluginId,
+            operationId,
+            typeof metrics["githubStars"] === "number" ? metrics["githubStars"] : null,
+            typeof metrics["githubStars"] === "number" ? metrics["githubStars"] : null,
+            typeof metrics["githubForks"] === "number" ? metrics["githubForks"] : null,
+            typeof metrics["githubForks"] === "number" ? metrics["githubForks"] : null,
+            typeof metrics["githubOpenIssues"] === "number" ? metrics["githubOpenIssues"] : null,
+            typeof metrics["githubOpenIssues"] === "number" ? metrics["githubOpenIssues"] : null,
+            typeof metrics["npmDownloadsDay"] === "number" ? metrics["npmDownloadsDay"] : null,
+            typeof metrics["npmDownloadsDay"] === "number" ? metrics["npmDownloadsDay"] : null,
+            typeof metrics["npmDownloadsWeek"] === "number" ? metrics["npmDownloadsWeek"] : null,
+            typeof metrics["npmDownloadsWeek"] === "number" ? metrics["npmDownloadsWeek"] : null,
+          ],
         ),
+      ),
     );
   }
 
@@ -1097,13 +1104,13 @@ async function projectionStatements(
           ? packageFacts["version"]
           : fallbackVersion;
     if (typeof target["kind"] !== "string" || typeof target["spec"] !== "string") continue;
-    const existingTarget = await binding
-      .prepare(
+    const existingTarget = await binding.get<{ plugin_id: string }>(
+      parameterizedSql(
         `select plugin_id from plugin_install_targets
          where kind=? and spec=? and package_path=? limit 1`,
-      )
-      .bind(target["kind"], target["spec"], target["packagePath"] ?? "")
-      .first<{ plugin_id: string }>();
+        [target["kind"], target["spec"], target["packagePath"] ?? ""],
+      ),
+    );
     if (existingTarget && existingTarget.plugin_id !== pluginId)
       throw new OperationHttpError(
         409,
@@ -1126,55 +1133,57 @@ async function projectionStatements(
       observedAt;
     if (existingTarget)
       statements.push(
-        binding
-          .prepare(
+        binding.run(
+          parameterizedSql(
             `update plugin_install_targets set kind=?,package_name=?,version=?,is_primary=?,
               status=?,verified_at=?,updated_at=?
               where kind=? and spec=? and package_path=? and plugin_id=? and exists(
                 select 1 from plugin_operational_state
                 where plugin_id=? and last_operation_id=?
               )`,
-          )
-          .bind(
-            target["kind"],
-            resolvedPackageName,
-            resolvedVersion,
-            target["primary"] === true ? 1 : 0,
-            target["available"] === false ? "unavailable" : "active",
-            targetObservedAt,
-            Date.now(),
-            target["kind"],
-            target["spec"],
-            target["packagePath"] ?? "",
-            pluginId,
-            pluginId,
-            operationId,
+            [
+              target["kind"],
+              resolvedPackageName,
+              resolvedVersion,
+              target["primary"] === true ? 1 : 0,
+              target["available"] === false ? "unavailable" : "active",
+              targetObservedAt,
+              Date.now(),
+              target["kind"],
+              target["spec"],
+              target["packagePath"] ?? "",
+              pluginId,
+              pluginId,
+              operationId,
+            ],
           ),
+        ),
       );
     else
       statements.push(
-        binding
-          .prepare(
+        binding.run(
+          parameterizedSql(
             `insert into plugin_install_targets(
               id,plugin_id,kind,spec,package_path,package_name,version,is_primary,status,verified_at,updated_at
             ) select ?,?,?,?,?,?,?,?,?,?,? from plugin_operational_state
               where plugin_id=? and last_operation_id=?`,
-          )
-          .bind(
-            targetId,
-            pluginId,
-            target["kind"],
-            target["spec"],
-            target["packagePath"] ?? "",
-            resolvedPackageName,
-            resolvedVersion,
-            target["primary"] === true ? 1 : 0,
-            target["available"] === false ? "unavailable" : "active",
-            targetObservedAt,
-            Date.now(),
-            pluginId,
-            operationId,
+            [
+              targetId,
+              pluginId,
+              target["kind"],
+              target["spec"],
+              target["packagePath"] ?? "",
+              resolvedPackageName,
+              resolvedVersion,
+              target["primary"] === true ? 1 : 0,
+              target["available"] === false ? "unavailable" : "active",
+              targetObservedAt,
+              Date.now(),
+              pluginId,
+              operationId,
+            ],
           ),
+        ),
       );
   }
   return statements;
@@ -1260,7 +1269,7 @@ function publicationRequirements(
 }
 
 export async function upsertObservation(
-  binding: D1Database,
+  binding: Database,
   actorTokenId: string,
   requestId: string,
   observation: PluginObservationV1,
@@ -1289,20 +1298,20 @@ export async function upsertObservation(
       { path: "observedAt" },
     );
   const identityKey = operationIdentityKey(observation.identity);
-  const existingObservation = await binding
-    .prepare(
+  const existingObservation = await binding.get<{
+    observation_id: string;
+    plugin_id: string;
+    identity_key: string;
+    payload_hash: string;
+    payload_json: string;
+    observed_at: number;
+  }>(
+    parameterizedSql(
       `select observation_id,plugin_id,identity_key,payload_hash,payload_json,observed_at
        from plugin_observations where observation_id=?`,
-    )
-    .bind(observation.observationId)
-    .first<{
-      observation_id: string;
-      plugin_id: string;
-      identity_key: string;
-      payload_hash: string;
-      payload_json: string;
-      observed_at: number;
-    }>();
+      [observation.observationId],
+    ),
+  );
   if (existingObservation && existingObservation.identity_key !== identityKey)
     throw new OperationHttpError(
       409,
@@ -1318,10 +1327,11 @@ export async function upsertObservation(
       status: "unchanged",
       revision:
         (
-          await binding
-            .prepare("select revision from plugin_operational_state where plugin_id=?")
-            .bind(existingObservation.plugin_id)
-            .first<{ revision: number }>()
+          await binding.get<{ revision: number }>(
+            parameterizedSql("select revision from plugin_operational_state where plugin_id=?", [
+              existingObservation.plugin_id,
+            ]),
+          )
         )?.revision ?? null,
       diff: [],
     };
@@ -1340,10 +1350,11 @@ export async function upsertObservation(
       status: "unchanged",
       revision:
         (
-          await binding
-            .prepare("select revision from plugin_operational_state where plugin_id=?")
-            .bind(existingObservation.plugin_id)
-            .first<{ revision: number }>()
+          await binding.get<{ revision: number }>(
+            parameterizedSql("select revision from plugin_operational_state where plugin_id=?", [
+              existingObservation.plugin_id,
+            ]),
+          )
         )?.revision ?? null,
       diff: [],
     };
@@ -1426,10 +1437,11 @@ export async function upsertObservation(
   const afterRevision = stateRow ? state.revision + (resourceRevisionChanged ? 1 : 0) : 1;
   const status = existingObservation ? "updated" : "created";
   const operationId = crypto.randomUUID();
-  const existingIdentity = await binding
-    .prepare("select plugin_id from plugin_observation_identities where identity_key=?")
-    .bind(identityKey)
-    .first<{ plugin_id: string }>();
+  const existingIdentity = await binding.get<{ plugin_id: string }>(
+    parameterizedSql("select plugin_id from plugin_observation_identities where identity_key=?", [
+      identityKey,
+    ]),
+  );
   if (existingIdentity && existingIdentity.plugin_id !== plugin.id)
     throw new OperationHttpError(
       409,
@@ -1460,128 +1472,133 @@ export async function upsertObservation(
     };
 
   const now = Date.now();
-  const statements: D1PreparedStatement[] = [];
+  const statements: BatchItem<"sqlite">[] = [];
   if (newPlugin) {
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugins(
             id,slug,identity_key,package_name,name,description,author_handle,category,badge,
             latest_version,compatibility_range,verification_status,trust_tier,lifecycle_status,
             status,dshx_detected,featured,created_at,updated_at
           ) values(?,?,?,?,?,?,?,?,? ,?,?,?,'community','active','draft',0,0,?,?)`,
-        )
-        .bind(
-          newPlugin.id,
-          newPlugin.slug,
-          newPlugin.identityKey,
-          newPlugin.packageName,
-          newPlugin.name,
-          "",
-          newPlugin.authorHandle,
-          "uncategorized",
-          "community",
-          "0.0.0",
-          "*",
-          "pending",
-          now,
-          now,
+          [
+            newPlugin.id,
+            newPlugin.slug,
+            newPlugin.identityKey,
+            newPlugin.packageName,
+            newPlugin.name,
+            "",
+            newPlugin.authorHandle,
+            "uncategorized",
+            "community",
+            "0.0.0",
+            "*",
+            "pending",
+            now,
+            now,
+          ],
         ),
+      ),
     );
   }
   const stateWriteIndex = statements.length;
   if (stateRow) {
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `update plugin_operational_state set
             state=?,revision=?,last_operation_id=?,detection_json=?,facts_json=?,sources_json=?,
             field_provenance_json=?,last_observed_at=?,updated_at=?
            where plugin_id=? and revision=?`,
-        )
-        .bind(
-          merged.state,
-          afterRevision,
-          operationId,
-          merged.detection ? stableJson(merged.detection) : null,
-          stableJson(merged.facts),
-          stableJson(merged.sources),
-          stableJson(merged.provenance),
-          merged.lastObservedAt,
-          now,
-          plugin.id,
-          state.revision,
+          [
+            merged.state,
+            afterRevision,
+            operationId,
+            merged.detection ? stableJson(merged.detection) : null,
+            stableJson(merged.facts),
+            stableJson(merged.sources),
+            stableJson(merged.provenance),
+            merged.lastObservedAt,
+            now,
+            plugin.id,
+            state.revision,
+          ],
         ),
+      ),
     );
   } else {
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_operational_state(
             plugin_id,state,visibility,revision,last_operation_id,detection_json,facts_json,sources_json,
             field_provenance_json,last_observed_at,created_at,updated_at
           ) values(?,?,?,?,?,?,?,?,?,?,?,?)`,
-        )
-        .bind(
-          plugin.id,
-          merged.state,
-          state.visibility,
-          afterRevision,
-          operationId,
-          merged.detection ? stableJson(merged.detection) : null,
-          stableJson(merged.facts),
-          stableJson(merged.sources),
-          stableJson(merged.provenance),
-          merged.lastObservedAt,
-          now,
-          now,
+          [
+            plugin.id,
+            merged.state,
+            state.visibility,
+            afterRevision,
+            operationId,
+            merged.detection ? stableJson(merged.detection) : null,
+            stableJson(merged.facts),
+            stableJson(merged.sources),
+            stableJson(merged.provenance),
+            merged.lastObservedAt,
+            now,
+            now,
+          ],
         ),
+      ),
     );
   }
   if (!existingIdentity)
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_observation_identities(
             identity_key,plugin_id,kind,identity_json,last_observed_at,created_at
           ) select ?,?,?,?,?,? from plugin_operational_state
             where plugin_id=? and last_operation_id=?`,
-        )
-        .bind(
-          identityKey,
-          plugin.id,
-          observation.identity.kind,
-          stableJson(observation.identity),
-          observedAt,
-          now,
-          plugin.id,
-          operationId,
+          [
+            identityKey,
+            plugin.id,
+            observation.identity.kind,
+            stableJson(observation.identity),
+            observedAt,
+            now,
+            plugin.id,
+            operationId,
+          ],
         ),
+      ),
     );
   else
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `update plugin_observation_identities set identity_json=?,last_observed_at=?
            where identity_key=? and plugin_id=? and coalesce(last_observed_at,0)<=? and exists(
              select 1 from plugin_operational_state
              where plugin_id=? and last_operation_id=?
            )`,
-        )
-        .bind(
-          stableJson(observation.identity),
-          observedAt,
-          identityKey,
-          plugin.id,
-          observedAt,
-          plugin.id,
-          operationId,
+          [
+            stableJson(observation.identity),
+            observedAt,
+            identityKey,
+            plugin.id,
+            observedAt,
+            plugin.id,
+            operationId,
+          ],
         ),
+      ),
     );
   if (existingObservation)
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `update plugin_observations set
             observed_at=?,source_kind=?,source_url=?,source_ref=?,source_etag=?,
             source_content_hash=?,source_availability=?,payload_hash=?,payload_json=?,
@@ -1589,97 +1606,101 @@ export async function upsertObservation(
               select 1 from plugin_operational_state
               where plugin_id=? and last_operation_id=?
             )`,
-        )
-        .bind(
-          observedAt,
-          observation.source.kind,
-          observation.source.url,
-          observation.source.ref ?? null,
-          observation.source.etag ?? null,
-          observation.source.contentHash ?? null,
-          observation.source.availability,
-          payloadHash,
-          payload,
-          actorTokenId,
-          now,
-          observation.observationId,
-          plugin.id,
-          operationId,
+          [
+            observedAt,
+            observation.source.kind,
+            observation.source.url,
+            observation.source.ref ?? null,
+            observation.source.etag ?? null,
+            observation.source.contentHash ?? null,
+            observation.source.availability,
+            payloadHash,
+            payload,
+            actorTokenId,
+            now,
+            observation.observationId,
+            plugin.id,
+            operationId,
+          ],
         ),
+      ),
     );
   else
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_observations(
             observation_id,schema_version,plugin_id,identity_key,observed_at,source_kind,source_url,
             source_ref,source_etag,source_content_hash,source_availability,payload_hash,payload_json,
             actor_token_id,created_at,updated_at
           ) select ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? from plugin_operational_state
             where plugin_id=? and last_operation_id=?`,
-        )
-        .bind(
-          observation.observationId,
-          1,
-          plugin.id,
-          identityKey,
-          observedAt,
-          observation.source.kind,
-          observation.source.url,
-          observation.source.ref ?? null,
-          observation.source.etag ?? null,
-          observation.source.contentHash ?? null,
-          observation.source.availability,
-          payloadHash,
-          payload,
-          actorTokenId,
-          now,
-          now,
-          plugin.id,
-          operationId,
+          [
+            observation.observationId,
+            1,
+            plugin.id,
+            identityKey,
+            observedAt,
+            observation.source.kind,
+            observation.source.url,
+            observation.source.ref ?? null,
+            observation.source.etag ?? null,
+            observation.source.contentHash ?? null,
+            observation.source.availability,
+            payloadHash,
+            payload,
+            actorTokenId,
+            now,
+            now,
+            plugin.id,
+            operationId,
+          ],
         ),
+      ),
     );
   if (factsProjectionChanged) statements.push(...preparedProjectionStatements);
   if (merged.state === "published" && state.visibility === "visible")
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `update plugins set status='published',published_at=coalesce(published_at,?),
             first_published_at=coalesce(first_published_at,?),updated_at=?
            where id=? and exists(
              select 1 from plugin_operational_state
              where plugin_id=? and last_operation_id=?
            )`,
-        )
-        .bind(now, now, now, plugin.id, plugin.id, operationId),
+          [now, now, now, plugin.id, plugin.id, operationId],
+        ),
+      ),
     );
   statements.push(
-    binding
-      .prepare(
+    binding.run(
+      parameterizedSql(
         `insert into plugin_operation_audit(
           id,request_id,actor_token_id,action,resource_type,resource_id,plugin_id,
           before_revision,after_revision,details_json,created_at
         ) select ?,?,?,?,?,?,?,?,?,?,? from plugin_operational_state
           where plugin_id=? and last_operation_id=?`,
-      )
-      .bind(
-        crypto.randomUUID(),
-        requestId,
-        actorTokenId,
-        `observation.${status}`,
-        "observation",
-        observation.observationId,
-        plugin.id,
-        stateRow ? state.revision : null,
-        afterRevision,
-        stableJson({ identity: identityKey, diff: merged.diff }),
-        now,
-        plugin.id,
-        operationId,
+        [
+          crypto.randomUUID(),
+          requestId,
+          actorTokenId,
+          `observation.${status}`,
+          "observation",
+          observation.observationId,
+          plugin.id,
+          stateRow ? state.revision : null,
+          afterRevision,
+          stableJson({ identity: identityKey, diff: merged.diff }),
+          now,
+          plugin.id,
+          operationId,
+        ],
       ),
+    ),
   );
   try {
-    const results = await binding.batch(statements);
+    const results = await runDrizzleBatch(binding, statements);
     if (!results[stateWriteIndex]?.meta.changes)
       throw new OperationHttpError(
         409,
@@ -1699,13 +1720,17 @@ export async function upsertObservation(
         { repairHint: "Run plugin get and retry the observation." },
       );
     if (error instanceof Error && /UNIQUE constraint failed/i.test(error.message)) {
-      const winner = await binding
-        .prepare(
+      const winner = await binding.get<{
+        plugin_id: string;
+        identity_key: string;
+        payload_hash: string;
+      }>(
+        parameterizedSql(
           `select plugin_id,identity_key,payload_hash from plugin_observations
            where observation_id=?`,
-        )
-        .bind(observation.observationId)
-        .first<{ plugin_id: string; identity_key: string; payload_hash: string }>();
+          [observation.observationId],
+        ),
+      );
       if (winner?.identity_key === identityKey && winner.payload_hash === payloadHash)
         return {
           identity: identityKey,
@@ -1713,10 +1738,12 @@ export async function upsertObservation(
           status: "unchanged",
           revision:
             (
-              await binding
-                .prepare("select revision from plugin_operational_state where plugin_id=?")
-                .bind(winner.plugin_id)
-                .first<{ revision: number }>()
+              await binding.get<{ revision: number }>(
+                parameterizedSql(
+                  "select revision from plugin_operational_state where plugin_id=?",
+                  [winner.plugin_id],
+                ),
+              )
             )?.revision ?? null,
           diff: [],
         };
@@ -1740,7 +1767,7 @@ export async function upsertObservation(
 }
 
 export async function upsertObservationBatch(
-  binding: D1Database,
+  binding: Database,
   actorTokenId: string,
   requestId: string,
   inputs: unknown[],
@@ -1939,9 +1966,9 @@ function summarizePluginRow(row: OpsListRow) {
   };
 }
 
-async function scanPluginRows(binding: D1Database, start: [number, string] | null, limit: number) {
-  return binding
-    .prepare(
+async function scanPluginRows(binding: Database, start: [number, string] | null, limit: number) {
+  return binding.all<OpsListRow>(
+    parameterizedSql(
       `select p.id,p.slug,p.identity_key,p.package_name,p.name,p.description,p.author_handle,
         p.category,p.latest_version,p.compatibility_range,p.status,p.lifecycle_status,
         p.repository_url,p.homepage_url,p.license_spdx,p.created_at,
@@ -1963,18 +1990,18 @@ async function scanPluginRows(binding: D1Database, start: [number, string] | nul
        left join plugin_curations c on c.plugin_id=p.id
        where (? is null or o.updated_at < ? or (o.updated_at=? and p.id<?))
        order by o.updated_at desc,p.id desc limit ?`,
-    )
-    .bind(start?.[0] ?? null, start?.[0] ?? null, start?.[0] ?? null, start?.[1] ?? null, limit)
-    .all<OpsListRow>();
+      [start?.[0] ?? null, start?.[0] ?? null, start?.[0] ?? null, start?.[1] ?? null, limit],
+    ),
+  );
 }
 
-export async function listOpsPlugins(binding: D1Database, query: OpsPluginListQuery) {
+export async function listOpsPlugins(binding: Database, query: OpsPluginListQuery) {
   let scanCursor = decodeCursor(query.cursor);
   const matches: Array<ReturnType<typeof summarizePluginRow>> = [];
   let exhausted = false;
   while (matches.length <= query.limit && !exhausted) {
     const page = await scanPluginRows(binding, scanCursor, Math.max(100, query.limit * 2));
-    const rows = page.results ?? [];
+    const rows = page;
     exhausted = rows.length < Math.max(100, query.limit * 2);
     for (const row of rows) {
       scanCursor = [row.updated_at, row.id];
@@ -2013,11 +2040,10 @@ export async function listOpsPlugins(binding: D1Database, query: OpsPluginListQu
   };
 }
 
-async function readCuration(binding: D1Database, pluginId: string) {
-  const curation = await binding
-    .prepare("select * from plugin_curations where plugin_id=?")
-    .bind(pluginId)
-    .first<Record<string, unknown>>();
+async function readCuration(binding: Database, pluginId: string) {
+  const curation = await binding.get<Record<string, unknown>>(
+    parameterizedSql("select * from plugin_curations where plugin_id=?", [pluginId]),
+  );
   if (curation)
     return {
       displayName: parseJson(curation["display_name_json"], {}),
@@ -2031,29 +2057,29 @@ async function readCuration(binding: D1Database, pluginId: string) {
       derivedFrom: parseJson(curation["derived_from_json"], []),
       updatedAt: new Date(Number(curation["updated_at"])).toISOString(),
     };
-  const localizations = await binding
-    .prepare(
+  const localizations = await binding.all<{
+    locale: "en" | "zh";
+    display_name: string;
+    short_description: string;
+    overview_markdown: string;
+    updated_at: number;
+  }>(
+    parameterizedSql(
       `select locale,display_name,short_description,overview_markdown,updated_at
        from plugin_localizations where plugin_id=? and locale in ('en','zh')
          and translation_status='ready'`,
-    )
-    .bind(pluginId)
-    .all<{
-      locale: "en" | "zh";
-      display_name: string;
-      short_description: string;
-      overview_markdown: string;
-      updated_at: number;
-    }>();
-  if ((localizations.results ?? []).length < 2) return null;
-  const categories = await binding
-    .prepare(
+      [pluginId],
+    ),
+  );
+  if (localizations.length < 2) return null;
+  const categories = await binding.all<{ slug: string }>(
+    parameterizedSql(
       `select c.slug from plugin_categories pc join categories c on c.id=pc.category_id
        where pc.plugin_id=? order by pc.is_primary desc,pc.sort_order`,
-    )
-    .bind(pluginId)
-    .all<{ slug: string }>();
-  const byLocale = new Map(localizations.results!.map((entry) => [entry.locale, entry]));
+      [pluginId],
+    ),
+  );
+  const byLocale = new Map(localizations.map((entry) => [entry.locale, entry]));
   return {
     displayName: {
       en: byLocale.get("en")!.display_name,
@@ -2067,16 +2093,14 @@ async function readCuration(binding: D1Database, pluginId: string) {
       en: byLocale.get("en")!.overview_markdown,
       zh: byLocale.get("zh")!.overview_markdown,
     },
-    categories: (categories.results ?? []).map((entry) => entry.slug),
+    categories: categories.map((entry) => entry.slug),
     tags: [],
     derivedFrom: [],
-    updatedAt: new Date(
-      Math.max(...localizations.results!.map((entry) => entry.updated_at)),
-    ).toISOString(),
+    updatedAt: new Date(Math.max(...localizations.map((entry) => entry.updated_at))).toISOString(),
   };
 }
 
-export async function getOpsPlugin(binding: D1Database, idOrSlug: string) {
+export async function getOpsPlugin(binding: Database, idOrSlug: string) {
   const plugin = await findPlugin(binding, idOrSlug);
   if (!plugin)
     throw new OperationHttpError(404, "plugin_not_found", "Plugin not found", false, {
@@ -2087,51 +2111,51 @@ export async function getOpsPlugin(binding: D1Database, idOrSlug: string) {
   const sources = parseJson<SourceSummary[]>(state.sources_json, []);
   const curation = await readCuration(binding, plugin.id);
   const [identities, targets, media, audit] = await Promise.all([
-    binding
-      .prepare(
+    binding.all<{ identity_key: string; kind: string; identity_json: string }>(
+      parameterizedSql(
         "select identity_key,kind,identity_json from plugin_observation_identities where plugin_id=? order by created_at",
-      )
-      .bind(plugin.id)
-      .all<{ identity_key: string; kind: string; identity_json: string }>(),
-    binding
-      .prepare(
+        [plugin.id],
+      ),
+    ),
+    binding.all<Record<string, unknown>>(
+      parameterizedSql(
         `select kind,spec,package_path packagePath,package_name packageName,version,is_primary isPrimary,status,
           verified_at observedAt from plugin_install_targets where plugin_id=?
          order by is_primary desc,updated_at desc`,
-      )
-      .bind(plugin.id)
-      .all<Record<string, unknown>>(),
-    binding
-      .prepare(
+        [plugin.id],
+      ),
+    ),
+    binding.all<Record<string, unknown>>(
+      parameterizedSql(
         `select m.id,m.kind,m.sha256,m.content_type contentType,m.width,m.height,m.byte_size byteSize,
           m.status,m.created_at createdAt,
           (select json_group_object(locale,alt_text) from plugin_media_localizations l where l.media_id=m.id) altText
          from plugin_media m where m.plugin_id=? order by m.sort_order,m.created_at`,
-      )
-      .bind(plugin.id)
-      .all<Record<string, unknown>>(),
-    binding
-      .prepare(
+        [plugin.id],
+      ),
+    ),
+    binding.all<Record<string, unknown>>(
+      parameterizedSql(
         `select id,request_id requestId,actor_token_id actorTokenId,action,resource_type resourceType,
           resource_id resourceId,before_revision beforeRevision,after_revision afterRevision,
           details_json details,created_at createdAt
          from plugin_operation_audit where plugin_id=? order by created_at desc limit 20`,
-      )
-      .bind(plugin.id)
-      .all<Record<string, unknown>>(),
+        [plugin.id],
+      ),
+    ),
   ]);
   const risks = riskSignals(
     facts,
     sources,
     Boolean(curation),
     false,
-    (targets.results ?? []).filter((target) => target["status"] === "unavailable").length,
+    targets.filter((target) => target["status"] === "unavailable").length,
   );
   return {
     id: plugin.id,
     slug: plugin.slug,
     identity: plugin.identity_key,
-    identities: (identities.results ?? []).map((entry) => ({
+    identities: identities.map((entry) => ({
       key: entry.identity_key,
       ...parseJson(entry.identity_json, { kind: entry.kind }),
     })),
@@ -2151,7 +2175,7 @@ export async function getOpsPlugin(binding: D1Database, idOrSlug: string) {
     installTargets:
       Array.isArray(facts["installTargets"]) && facts["installTargets"].length
         ? facts["installTargets"]
-        : (targets.results ?? []).map((target) => ({
+        : targets.map((target) => ({
             ...target,
             primary: Boolean(target["isPrimary"]),
             available: target["status"] !== "unavailable",
@@ -2162,12 +2186,12 @@ export async function getOpsPlugin(binding: D1Database, idOrSlug: string) {
     curation,
     riskSignals: risks,
     needs: needsFor(facts, sources, curation, risks),
-    media: (media.results ?? []).map((entry) => ({
+    media: media.map((entry) => ({
       ...entry,
       altText: parseJson(entry["altText"], {}),
       createdAt: new Date(Number(entry["createdAt"])).toISOString(),
     })),
-    recentAudit: (audit.results ?? []).map((entry) => ({
+    recentAudit: audit.map((entry) => ({
       ...entry,
       details: parseJson(entry["details"], {}),
       createdAt: new Date(Number(entry["createdAt"])).toISOString(),
@@ -2176,7 +2200,7 @@ export async function getOpsPlugin(binding: D1Database, idOrSlug: string) {
 }
 
 export async function curatePlugin(
-  binding: D1Database,
+  binding: Database,
   actorTokenId: string,
   requestId: string,
   idOrSlug: string,
@@ -2198,10 +2222,10 @@ export async function curatePlugin(
         details: { expectedRevision: ifRevision, actualRevision: state.revision },
       },
     );
-  const categories = await binding
-    .prepare("select id,slug from categories where active=1")
-    .all<{ id: string; slug: string }>();
-  const bySlug = new Map((categories.results ?? []).map((entry) => [entry.slug, entry.id]));
+  const categories = await binding.all<{ id: string; slug: string }>(
+    parameterizedSql("select id,slug from categories where active=1", []),
+  );
+  const bySlug = new Map(categories.map((entry) => [entry.slug, entry.id]));
   const unknown = content.categories.filter((category) => !bySlug.has(category));
   if (unknown.length)
     throw new OperationHttpError(
@@ -2216,10 +2240,9 @@ export async function curatePlugin(
     );
   const before = await readCuration(binding, plugin.id);
   const hasStoredCuration = Boolean(
-    await binding
-      .prepare("select 1 from plugin_curations where plugin_id=?")
-      .bind(plugin.id)
-      .first(),
+    await binding.get(
+      parameterizedSql("select 1 from plugin_curations where plugin_id=?", [plugin.id]),
+    ),
   );
   if (
     hasStoredCuration &&
@@ -2239,44 +2262,46 @@ export async function curatePlugin(
     ).length === 0
       ? "published"
       : "draft";
-  const statements: D1PreparedStatement[] = [];
+  const statements: BatchItem<"sqlite">[] = [];
   const stateWriteIndex = statements.length;
   if (!existingState)
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_operational_state(
             plugin_id,state,visibility,revision,last_operation_id,detection_json,facts_json,sources_json,
             field_provenance_json,last_observed_at,created_at,updated_at
           ) values(?,?,?,?,?,?,?,?,?,?,?,?)`,
-        )
-        .bind(
-          plugin.id,
-          nextState,
-          state.visibility,
-          nextRevision,
-          operationId,
-          state.detection_json,
-          state.facts_json,
-          state.sources_json,
-          state.field_provenance_json,
-          state.last_observed_at,
-          state.created_at,
-          state.updated_at,
+          [
+            plugin.id,
+            nextState,
+            state.visibility,
+            nextRevision,
+            operationId,
+            state.detection_json,
+            state.facts_json,
+            state.sources_json,
+            state.field_provenance_json,
+            state.last_observed_at,
+            state.created_at,
+            state.updated_at,
+          ],
         ),
+      ),
     );
   else
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `update plugin_operational_state set state=?,revision=?,last_operation_id=?,updated_at=?
            where plugin_id=? and revision=?`,
-        )
-        .bind(nextState, nextRevision, operationId, now, plugin.id, state.revision),
+          [nextState, nextRevision, operationId, now, plugin.id, state.revision],
+        ),
+      ),
     );
   statements.push(
-    binding
-      .prepare(
+    binding.run(
+      parameterizedSql(
         `insert into plugin_curations(
           plugin_id,display_name_json,short_description_json,overview_markdown_json,
           source_readme_hash,categories_json,tags_json,derived_from_json,updated_at
@@ -2289,114 +2314,121 @@ export async function curatePlugin(
           source_readme_hash=excluded.source_readme_hash,
           categories_json=excluded.categories_json,tags_json=excluded.tags_json,
           derived_from_json=excluded.derived_from_json,updated_at=excluded.updated_at`,
-      )
-      .bind(
-        plugin.id,
-        stableJson(content.displayName),
-        stableJson(content.shortDescription),
-        stableJson(content.overviewMarkdown),
-        content.sourceReadmeHash ?? null,
-        stableJson(content.categories),
-        stableJson(content.tags),
-        stableJson(content.derivedFrom),
-        now,
-        plugin.id,
-        operationId,
+        [
+          plugin.id,
+          stableJson(content.displayName),
+          stableJson(content.shortDescription),
+          stableJson(content.overviewMarkdown),
+          content.sourceReadmeHash ?? null,
+          stableJson(content.categories),
+          stableJson(content.tags),
+          stableJson(content.derivedFrom),
+          now,
+          plugin.id,
+          operationId,
+        ],
       ),
-    binding
-      .prepare(
+    ),
+    binding.run(
+      parameterizedSql(
         `delete from plugin_localizations where plugin_id=?
          and exists(select 1 from plugin_operational_state where plugin_id=? and last_operation_id=?)`,
-      )
-      .bind(plugin.id, plugin.id, operationId),
+        [plugin.id, plugin.id, operationId],
+      ),
+    ),
   );
   for (const locale of ["en", "zh"] as const)
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_localizations(
             plugin_id,locale,display_name,short_description,overview_markdown,highlights_json,
             seo_title,seo_description,source_locale,source_content_hash,translation_status,
             translator,translated_at,created_at,updated_at
           ) select ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
           from plugin_operational_state where plugin_id=? and last_operation_id=?`,
-        )
-        .bind(
-          plugin.id,
-          locale,
-          content.displayName[locale],
-          content.shortDescription[locale],
-          content.overviewMarkdown[locale],
-          "[]",
-          content.displayName[locale].slice(0, 80),
-          content.shortDescription[locale].slice(0, 200),
-          locale,
-          sourceHash,
-          "ready",
-          "agent",
-          now,
-          now,
-          now,
-          plugin.id,
-          operationId,
+          [
+            plugin.id,
+            locale,
+            content.displayName[locale],
+            content.shortDescription[locale],
+            content.overviewMarkdown[locale],
+            "[]",
+            buildPluginSeoTitle(content.displayName[locale], locale),
+            buildPluginSeoDescription(content.shortDescription[locale], locale),
+            locale,
+            sourceHash,
+            "ready",
+            "agent",
+            now,
+            now,
+            now,
+            plugin.id,
+            operationId,
+          ],
         ),
+      ),
     );
   statements.push(
-    binding
-      .prepare(
+    binding.run(
+      parameterizedSql(
         `delete from plugin_categories where plugin_id=?
          and exists(select 1 from plugin_operational_state where plugin_id=? and last_operation_id=?)`,
-      )
-      .bind(plugin.id, plugin.id, operationId),
+        [plugin.id, plugin.id, operationId],
+      ),
+    ),
   );
   for (let index = 0; index < content.categories.length; index += 1)
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_categories(plugin_id,category_id,is_primary,sort_order)
            select ?,?,?,? from plugin_operational_state where plugin_id=? and last_operation_id=?`,
-        )
-        .bind(
-          plugin.id,
-          bySlug.get(content.categories[index]!)!,
-          index === 0 ? 1 : 0,
-          index,
-          plugin.id,
-          operationId,
+          [
+            plugin.id,
+            bySlug.get(content.categories[index]!)!,
+            index === 0 ? 1 : 0,
+            index,
+            plugin.id,
+            operationId,
+          ],
         ),
+      ),
     );
   statements.push(
-    binding
-      .prepare(
+    binding.run(
+      parameterizedSql(
         `delete from plugin_search where plugin_id=?
          and exists(select 1 from plugin_operational_state where plugin_id=? and last_operation_id=?)`,
-      )
-      .bind(plugin.id, plugin.id, operationId),
+        [plugin.id, plugin.id, operationId],
+      ),
+    ),
   );
   for (const locale of ["en", "zh"] as const)
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_search(
             plugin_id,locale,display_name,short_description,package_name,publisher_login,category_names
           ) select ?,?,?,?,?,?,? from plugin_operational_state
             where plugin_id=? and last_operation_id=?`,
-        )
-        .bind(
-          plugin.id,
-          locale,
-          content.displayName[locale],
-          content.shortDescription[locale],
-          plugin.package_name,
-          plugin.author_handle,
-          content.categories.join(" "),
-          plugin.id,
-          operationId,
+          [
+            plugin.id,
+            locale,
+            content.displayName[locale],
+            content.shortDescription[locale],
+            plugin.package_name,
+            plugin.author_handle,
+            content.categories.join(" "),
+            plugin.id,
+            operationId,
+          ],
         ),
+      ),
     );
   statements.push(
-    binding
-      .prepare(
+    binding.run(
+      parameterizedSql(
         `update plugins set name=?,description=?,category=?,
           status=case when ?='hidden' then 'archived'
             when ?='published' then 'published' else 'draft' end,
@@ -2406,49 +2438,51 @@ export async function curatePlugin(
           updated_at=? where id=? and exists(
             select 1 from plugin_operational_state where plugin_id=? and last_operation_id=?
           )`,
-      )
-      .bind(
-        content.displayName.en,
-        content.shortDescription.en,
-        content.categories[0] ?? "uncategorized",
-        state.visibility,
-        nextState,
-        nextState,
-        state.visibility,
-        now,
-        nextState,
-        state.visibility,
-        now,
-        now,
-        plugin.id,
-        plugin.id,
-        operationId,
+        [
+          content.displayName.en,
+          content.shortDescription.en,
+          content.categories[0] ?? "uncategorized",
+          state.visibility,
+          nextState,
+          nextState,
+          state.visibility,
+          now,
+          nextState,
+          state.visibility,
+          now,
+          now,
+          plugin.id,
+          plugin.id,
+          operationId,
+        ],
       ),
-    binding
-      .prepare(
+    ),
+    binding.run(
+      parameterizedSql(
         `insert into plugin_operation_audit(
           id,request_id,actor_token_id,action,resource_type,resource_id,plugin_id,
           before_revision,after_revision,details_json,created_at
         ) select ?,?,?,?,?,?,?,?,?,?,? from plugin_operational_state
           where plugin_id=? and last_operation_id=?`,
-      )
-      .bind(
-        crypto.randomUUID(),
-        requestId,
-        actorTokenId,
-        "plugin.curate",
-        "plugin",
-        plugin.id,
-        plugin.id,
-        state.revision,
-        nextRevision,
-        stableJson({ before, after: content }),
-        now,
-        plugin.id,
-        operationId,
+        [
+          crypto.randomUUID(),
+          requestId,
+          actorTokenId,
+          "plugin.curate",
+          "plugin",
+          plugin.id,
+          plugin.id,
+          state.revision,
+          nextRevision,
+          stableJson({ before, after: content }),
+          now,
+          plugin.id,
+          operationId,
+        ],
       ),
+    ),
   );
-  const results = await binding.batch(statements);
+  const results = await runDrizzleBatch(binding, statements);
   const revisionResult = results[stateWriteIndex];
   if (!revisionResult?.meta.changes)
     throw new OperationHttpError(409, "revision_conflict", "Plugin changed during curation", true, {
@@ -2463,7 +2497,7 @@ export async function curatePlugin(
 }
 
 export async function setPluginVisibility(
-  binding: D1Database,
+  binding: Database,
   actorTokenId: string,
   requestId: string,
   idOrSlug: string,
@@ -2481,47 +2515,49 @@ export async function setPluginVisibility(
   const operationId = crypto.randomUUID();
   const hasContent = Boolean(await readCuration(binding, plugin.id));
   const restoredStatus = state.state === "published" && hasContent ? "published" : "draft";
-  const statements: D1PreparedStatement[] = [];
+  const statements: BatchItem<"sqlite">[] = [];
   const stateWriteIndex = statements.length;
   if (!existingState)
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_operational_state(
             plugin_id,state,visibility,revision,last_operation_id,detection_json,facts_json,sources_json,
             field_provenance_json,visibility_reason,visibility_changed_at,last_observed_at,created_at,updated_at
           ) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        )
-        .bind(
-          plugin.id,
-          state.state,
-          visibility,
-          nextRevision,
-          operationId,
-          state.detection_json,
-          state.facts_json,
-          state.sources_json,
-          state.field_provenance_json,
-          reason,
-          now,
-          state.last_observed_at,
-          now,
-          now,
+          [
+            plugin.id,
+            state.state,
+            visibility,
+            nextRevision,
+            operationId,
+            state.detection_json,
+            state.facts_json,
+            state.sources_json,
+            state.field_provenance_json,
+            reason,
+            now,
+            state.last_observed_at,
+            now,
+            now,
+          ],
         ),
+      ),
     );
   else
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `update plugin_operational_state set visibility=?,visibility_reason=?,
             visibility_changed_at=?,revision=?,last_operation_id=?,updated_at=?
            where plugin_id=? and revision=?`,
-        )
-        .bind(visibility, reason, now, nextRevision, operationId, now, plugin.id, state.revision),
+          [visibility, reason, now, nextRevision, operationId, now, plugin.id, state.revision],
+        ),
+      ),
     );
   statements.push(
-    binding
-      .prepare(
+    binding.run(
+      parameterizedSql(
         `update plugins set status=?,
           published_at=case when ?='published' then coalesce(published_at,?) else published_at end,
           first_published_at=case when ?='published'
@@ -2529,43 +2565,45 @@ export async function setPluginVisibility(
           updated_at=? where id=? and exists(
           select 1 from plugin_operational_state where plugin_id=? and last_operation_id=?
         )`,
-      )
-      .bind(
-        visibility === "hidden" ? "archived" : restoredStatus,
-        visibility === "hidden" ? "archived" : restoredStatus,
-        now,
-        visibility === "hidden" ? "archived" : restoredStatus,
-        now,
-        now,
-        plugin.id,
-        plugin.id,
-        operationId,
+        [
+          visibility === "hidden" ? "archived" : restoredStatus,
+          visibility === "hidden" ? "archived" : restoredStatus,
+          now,
+          visibility === "hidden" ? "archived" : restoredStatus,
+          now,
+          now,
+          plugin.id,
+          plugin.id,
+          operationId,
+        ],
       ),
-    binding
-      .prepare(
+    ),
+    binding.run(
+      parameterizedSql(
         `insert into plugin_operation_audit(
           id,request_id,actor_token_id,action,resource_type,resource_id,plugin_id,
           before_revision,after_revision,details_json,created_at
         ) select ?,?,?,?,?,?,?,?,?,?,? from plugin_operational_state
           where plugin_id=? and last_operation_id=?`,
-      )
-      .bind(
-        crypto.randomUUID(),
-        requestId,
-        actorTokenId,
-        visibility === "hidden" ? "plugin.hide" : "plugin.restore",
-        "plugin",
-        plugin.id,
-        plugin.id,
-        state.revision,
-        nextRevision,
-        stableJson({ visibility, reason }),
-        now,
-        plugin.id,
-        operationId,
+        [
+          crypto.randomUUID(),
+          requestId,
+          actorTokenId,
+          visibility === "hidden" ? "plugin.hide" : "plugin.restore",
+          "plugin",
+          plugin.id,
+          plugin.id,
+          state.revision,
+          nextRevision,
+          stableJson({ visibility, reason }),
+          now,
+          plugin.id,
+          operationId,
+        ],
       ),
+    ),
   );
-  const results = await binding.batch(statements);
+  const results = await runDrizzleBatch(binding, statements);
   const update = results[stateWriteIndex];
   if (!update?.meta.changes)
     throw new OperationHttpError(
@@ -2584,12 +2622,12 @@ function submissionCursor(createdAt: number, id: string) {
   return encodeCursor(createdAt, id);
 }
 
-export async function listOpsSubmissions(binding: D1Database, query: SubmissionListQuery) {
+export async function listOpsSubmissions(binding: Database, query: SubmissionListQuery) {
   const cursor = decodeCursor(query.cursor);
   const statuses = query.status ?? [];
   const statusClause = statuses.length ? `status in (${statuses.map(() => "?").join(",")})` : "1=1";
-  const result = await binding
-    .prepare(
+  const result = await binding.all<Record<string, unknown>>(
+    parameterizedSql(
       `select id,user_id userId,repository_url repositoryUrl,
         repository_full_name repositoryFullName,status,source_hash sourceHash,
         resolution_json resolution,created_at createdAt,updated_at updatedAt
@@ -2597,17 +2635,17 @@ export async function listOpsSubmissions(binding: D1Database, query: SubmissionL
        where ${statusClause}
          and (? is null or created_at<? or (created_at=? and id<?))
        order by created_at desc,id desc limit ?`,
-    )
-    .bind(
-      ...statuses,
-      cursor?.[0] ?? null,
-      cursor?.[0] ?? null,
-      cursor?.[0] ?? null,
-      cursor?.[1] ?? null,
-      query.limit + 1,
-    )
-    .all<Record<string, unknown>>();
-  const rows = result.results ?? [];
+      [
+        ...statuses,
+        cursor?.[0] ?? null,
+        cursor?.[0] ?? null,
+        cursor?.[0] ?? null,
+        cursor?.[1] ?? null,
+        query.limit + 1,
+      ],
+    ),
+  );
+  const rows = result;
   const page: Array<Record<string, unknown> & { id: string; createdAt: string }> = rows
     .slice(0, query.limit)
     .map((row) => ({
@@ -2627,17 +2665,17 @@ export async function listOpsSubmissions(binding: D1Database, query: SubmissionL
   };
 }
 
-export async function getOpsSubmission(binding: D1Database, id: string) {
-  const row = await binding
-    .prepare(
+export async function getOpsSubmission(binding: Database, id: string) {
+  const row = await binding.get<Record<string, unknown>>(
+    parameterizedSql(
       `select id,user_id userId,repository_url repositoryUrl,
         repository_full_name repositoryFullName,status,source_hash sourceHash,
         resolution_json resolution,
         created_at createdAt,updated_at updatedAt
        from plugin_submissions where id=?`,
-    )
-    .bind(id)
-    .first<Record<string, unknown>>();
+      [id],
+    ),
+  );
   if (!row)
     throw new OperationHttpError(404, "submission_not_found", "Submission not found", false);
   return {
@@ -2649,7 +2687,7 @@ export async function getOpsSubmission(binding: D1Database, id: string) {
 }
 
 export async function resolveOpsSubmission(
-  binding: D1Database,
+  binding: Database,
   actorTokenId: string,
   requestId: string,
   id: string,
@@ -2698,30 +2736,32 @@ export async function resolveOpsSubmission(
     }
   }
   const now = Date.now();
-  const result = await binding.batch([
-    binding
-      .prepare(
+  const result = await runDrizzleBatch(binding, [
+    binding.run(
+      parameterizedSql(
         "update plugin_submissions set status='resolved',resolution_json=?,updated_at=? where id=? and resolution_json is null",
-      )
-      .bind(stableJson(resolution), now, id),
-    binding
-      .prepare(
+        [stableJson(resolution), now, id],
+      ),
+    ),
+    binding.run(
+      parameterizedSql(
         `insert into plugin_operation_audit(
           id,request_id,actor_token_id,action,resource_type,resource_id,plugin_id,
           details_json,created_at
         ) select ?,?,?,?,?,?,?,?,? where changes()=1`,
-      )
-      .bind(
-        crypto.randomUUID(),
-        requestId,
-        actorTokenId,
-        `submission.${resolution.result}`,
-        "submission",
-        id,
-        resolution.pluginId ?? null,
-        stableJson({ resolution }),
-        now,
+        [
+          crypto.randomUUID(),
+          requestId,
+          actorTokenId,
+          `submission.${resolution.result}`,
+          "submission",
+          id,
+          resolution.pluginId ?? null,
+          stableJson({ resolution }),
+          now,
+        ],
       ),
+    ),
   ]);
   if (!result[0]?.meta.changes) {
     const winner = await getOpsSubmission(binding, id);
@@ -2738,7 +2778,7 @@ export async function resolveOpsSubmission(
 }
 
 export async function getOpsStatus(
-  binding: D1Database,
+  binding: Database,
   auth: { authenticated: boolean; scopes: string[] },
 ) {
   const plugins = await listOpsPlugins(binding, { limit: 100 });
@@ -2749,9 +2789,9 @@ export async function getOpsStatus(
     items.push(...page.items);
     cursor = page.nextCursor;
   }
-  const submissions = await binding
-    .prepare("select count(*) count from plugin_submissions where status='queued'")
-    .first<{ count: number }>();
+  const submissions = await binding.get<{ count: number }>(
+    parameterizedSql("select count(*) count from plugin_submissions where status='queued'", []),
+  );
   return {
     hub: { reachable: true, version: "ops-v1" },
     auth,
@@ -2786,28 +2826,29 @@ function issue(code: string, severity: AuditIssue["severity"], ids: string[]): A
 }
 
 export async function auditOperations(
-  binding: D1Database,
+  binding: Database,
   bucket: R2Bucket | undefined,
   scope: "catalog" | "storage" | "community",
 ) {
   const issues: AuditIssue[] = [];
   if (scope === "catalog") {
-    const states = await binding
-      .prepare(
+    const states = await binding.all<{
+      plugin_id: string;
+      state: "draft" | "published";
+      facts_json: string;
+      sources_json: string;
+      last_observed_at: number | null;
+    }>(
+      parameterizedSql(
         "select plugin_id,state,facts_json,sources_json,last_observed_at from plugin_operational_state",
-      )
-      .all<{
-        plugin_id: string;
-        state: "draft" | "published";
-        facts_json: string;
-        sources_json: string;
-        last_observed_at: number | null;
-      }>();
+        [],
+      ),
+    );
     const invalidUrls: string[] = [];
     const stale: string[] = [];
     const unavailableTargets: string[] = [];
     const relationErrors: string[] = [];
-    for (const row of states.results ?? []) {
+    for (const row of states) {
       const sources = parseJson<SourceSummary[]>(row.sources_json, []);
       if (sourceStale(sources)) stale.push(row.plugin_id);
       for (const source of sources) {
@@ -2826,36 +2867,39 @@ export async function auditOperations(
       if (row.state === "published" && !parseJson(row.facts_json, null))
         relationErrors.push(row.plugin_id);
     }
-    const duplicates = await binding
-      .prepare(
+    const duplicates = await binding.all<{ value: string }>(
+      parameterizedSql(
         `select json_extract(facts_json,'$.package.name') value from plugin_operational_state
          where json_extract(facts_json,'$.package.name') is not null
          group by json_extract(facts_json,'$.package.name') having count(*)>1`,
-      )
-      .all<{ value: string }>();
-    const orphanObservations = await binding
-      .prepare(
+        [],
+      ),
+    );
+    const orphanObservations = await binding.all<{ id: string }>(
+      parameterizedSql(
         `select o.observation_id id from plugin_observations o
          left join plugins p on p.id=o.plugin_id where p.id is null`,
-      )
-      .all<{ id: string }>();
-    const missingSearch = await binding
-      .prepare(
+        [],
+      ),
+    );
+    const missingSearch = await binding.all<{ id: string }>(
+      parameterizedSql(
         `select l.plugin_id||':'||l.locale id from plugin_localizations l
          left join plugin_search s on s.plugin_id=l.plugin_id and s.locale=l.locale
          where l.translation_status='ready' and s.plugin_id is null`,
-      )
-      .all<{ id: string }>();
+        [],
+      ),
+    );
     for (const entry of [
       issue(
         "identity.duplicate",
         "critical",
-        (duplicates.results ?? []).map((row) => row.value),
+        duplicates.map((row) => row.value),
       ),
       issue(
         "source.orphaned",
         "critical",
-        (orphanObservations.results ?? []).map((row) => row.id),
+        orphanObservations.map((row) => row.id),
       ),
       issue("source.invalid_url", "critical", invalidUrls),
       issue("source.stale", "warning", stale),
@@ -2863,66 +2907,68 @@ export async function auditOperations(
       issue(
         "search.index_missing",
         "warning",
-        (missingSearch.results ?? []).map((row) => row.id),
+        missingSearch.map((row) => row.id),
       ),
       issue("catalog.relationship_invalid", "critical", relationErrors),
     ])
       if (entry) issues.push(entry);
   }
   if (scope === "storage") {
-    const media = await binding
-      .prepare("select id,r2_key,sha256 from plugin_media where status='active'")
-      .all<{ id: string; r2_key: string; sha256: string }>();
+    const media = await binding.all<{ id: string; r2_key: string; sha256: string }>(
+      parameterizedSql("select id,r2_key,sha256 from plugin_media where status='active'", []),
+    );
     const missing: string[] = [];
-    const invalidHash = (media.results ?? [])
+    const invalidHash = media
       .filter((entry) => !/^[a-f0-9]{64}$/.test(entry.sha256))
       .map((entry) => entry.id);
-    if (!bucket) missing.push(...(media.results ?? []).map((entry) => entry.id));
+    if (!bucket) missing.push(...media.map((entry) => entry.id));
     if (bucket)
-      for (const entry of media.results ?? [])
-        if (!(await bucket.head(entry.r2_key))) missing.push(entry.id);
-    const missingAlt = await binding
-      .prepare(
+      for (const entry of media) if (!(await bucket.head(entry.r2_key))) missing.push(entry.id);
+    const missingAlt = await binding.all<{ id: string }>(
+      parameterizedSql(
         `select m.id from plugin_media m cross join (select 'en' locale union all select 'zh') wanted
          left join plugin_media_localizations l on l.media_id=m.id and l.locale=wanted.locale
          where m.status='active' and (l.media_id is null or trim(l.alt_text)='')`,
-      )
-      .all<{ id: string }>();
+        [],
+      ),
+    );
     for (const entry of [
       issue("media.ref_broken", "critical", missing),
       issue("media.hash_invalid", "critical", invalidHash),
       issue(
         "media.alt_missing",
         "warning",
-        (missingAlt.results ?? []).map((row) => row.id),
+        missingAlt.map((row) => row.id),
       ),
     ])
       if (entry) issues.push(entry);
   }
   if (scope === "community") {
-    const orphanReports = await binding
-      .prepare(
+    const orphanReports = await binding.all<{ id: string }>(
+      parameterizedSql(
         `select r.id from content_reports r
          where (r.target_type='plugin' and not exists(select 1 from plugins p where p.id=r.target_id))
             or (r.target_type='review' and not exists(select 1 from plugin_reviews p where p.id=r.target_id))
             or (r.target_type='reply' and not exists(select 1 from review_replies p where p.id=r.target_id))`,
-      )
-      .all<{ id: string }>();
-    const unresolved = await binding
-      .prepare(
+        [],
+      ),
+    );
+    const unresolved = await binding.all<{ id: string }>(
+      parameterizedSql(
         "select id from content_reports where status='open' and created_at<(unixepoch()-604800)*1000",
-      )
-      .all<{ id: string }>();
+        [],
+      ),
+    );
     for (const entry of [
       issue(
         "community.relationship_invalid",
         "critical",
-        (orphanReports.results ?? []).map((row) => row.id),
+        orphanReports.map((row) => row.id),
       ),
       issue(
         "community.report_stale",
         "warning",
-        (unresolved.results ?? []).map((row) => row.id),
+        unresolved.map((row) => row.id),
       ),
     ])
       if (entry) issues.push(entry);

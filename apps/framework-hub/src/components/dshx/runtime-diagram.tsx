@@ -1,7 +1,7 @@
-import { motion, useInView } from "motion/react";
+import { m, useInView } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { useI18n } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { cn } from "@/lib/utils";
 
@@ -121,7 +121,7 @@ function FlowPath({
         dashed && "runtime-motion-flow-dashed",
       )}
     >
-      <motion.path
+      <m.path
         d={d}
         className="runtime-motion-flow-base"
         initial={reduceMotion ? false : { pathLength: 0.72, opacity: 0.28 }}
@@ -132,7 +132,7 @@ function FlowPath({
           ease: ENTRY_EASE,
         }}
       />
-      <motion.path
+      <m.path
         d={d}
         className="runtime-motion-flow-beam"
         initial={false}
@@ -200,7 +200,7 @@ function ArchitectureNode({
 }: ArchitectureNodeProps) {
   return (
     <g transform={`translate(${x} ${y})`}>
-      <motion.g
+      <m.g
         className={cn("runtime-motion-node", `runtime-motion-node-${tone}`)}
         initial={reduceMotion ? false : { opacity: 0.72, scale: 0.96, y: 4 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -242,7 +242,7 @@ function ArchitectureNode({
             <circle r="2" />
           </g>
         ) : null}
-      </motion.g>
+      </m.g>
     </g>
   );
 }
@@ -284,7 +284,7 @@ function Satellite({
 }: SatelliteProps) {
   return (
     <g transform={`translate(${x} ${y})`}>
-      <motion.g
+      <m.g
         className={cn("runtime-motion-satellite", `runtime-motion-satellite-${tone}`)}
         initial={reduceMotion ? false : { opacity: 0.68, scale: 0.92 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -304,7 +304,7 @@ function Satellite({
         <text x={-width / 2 + 33} y="4">
           {label}
         </text>
-      </motion.g>
+      </m.g>
     </g>
   );
 }
@@ -320,7 +320,7 @@ function Core({
 }) {
   return (
     <g transform="translate(360 205)">
-      <motion.g
+      <m.g
         className="runtime-motion-core-orbit"
         initial={false}
         animate={running ? { rotate: 360 } : { rotate: 0 }}
@@ -331,8 +331,8 @@ function Core({
         <circle r="58" />
         <circle className="runtime-motion-core-orbit-violet" cx="0" cy="-58" r="2.5" />
         <circle className="runtime-motion-core-orbit-teal" cx="58" cy="0" r="2.5" />
-      </motion.g>
-      <motion.g
+      </m.g>
+      <m.g
         className="runtime-motion-core"
         initial={reduceMotion ? false : { opacity: 0.8, scale: 0.96 }}
         animate={
@@ -376,8 +376,8 @@ function Core({
         <circle className="runtime-motion-core-port" cx="-51" cy="-15" r="3.5" />
         <circle className="runtime-motion-core-port" cx="51" cy="-15" r="3.5" />
         <circle className="runtime-motion-core-port" cx="-9" cy="51" r="3.5" />
-      </motion.g>
-      <motion.text
+      </m.g>
+      <m.text
         className="runtime-motion-core-label"
         y="76"
         textAnchor="middle"
@@ -386,7 +386,7 @@ function Core({
         transition={{ duration: reduceMotion ? 0 : 0.6, delay: reduceMotion ? 0 : 0.52 }}
       >
         {label}
-      </motion.text>
+      </m.text>
     </g>
   );
 }
@@ -520,7 +520,7 @@ export function RuntimeDiagram({ className }: { className?: string | undefined }
 
           <g className="runtime-motion-particles">
             {pluginParticles.map((particle) => (
-              <motion.circle
+              <m.circle
                 key={`${particle.cx}-${particle.cy}`}
                 className={`runtime-motion-particle runtime-motion-particle-${particle.tone}`}
                 cx={particle.cx}

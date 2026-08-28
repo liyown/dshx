@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth/auth.server";
 import { appealCreateSchema } from "@/lib/community/contracts";
 import { requireCommunityWrite } from "@/lib/community/guard.server";
 import { createAppeal, listAppeals } from "@/lib/community/marketplace.server";
-import { requireD1 } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/me/appeals/")({
@@ -13,7 +13,7 @@ export const Route = createFileRoute("/api/me/appeals/")({
       GET: async ({ request, context }) => {
         try {
           const auth = await requireSession(request, context);
-          return Response.json(await listAppeals(requireD1(context), auth.session.user.id));
+          return Response.json(await listAppeals(requireDatabase(context), auth.session.user.id));
         } catch (error) {
           return jsonError(error);
         }
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/api/me/appeals/")({
             input.turnstileToken,
           );
           return Response.json(
-            await createAppeal(requireD1(context), auth.session.user.id, input),
+            await createAppeal(requireDatabase(context), auth.session.user.id, input),
             { status: 201 },
           );
         } catch (error) {

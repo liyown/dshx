@@ -37,7 +37,7 @@ describe("public catalog surfaces", () => {
       "utf8",
     );
     expect(page).toContain("PluginSubmissionDialog");
-    expect(dialog).toContain('fetch("/api/submissions"');
+    expect(dialog).toContain('apiRequest("/api/submissions"');
     expect(dialog).toContain('mode="direct"');
     expect(dialog).not.toMatch(/authClient|useSession|account\/submissions/);
     const endpoint = readFileSync(
@@ -55,12 +55,11 @@ describe("public catalog surfaces", () => {
       new URL("../../routes/$locale/operations/index.tsx", import.meta.url),
       "utf8",
     );
-    const sitemap = readFileSync(new URL("../../routes/sitemap[.]xml.ts", import.meta.url), "utf8");
+    const sitemap = readFileSync(new URL("../sitemap.ts", import.meta.url), "utf8");
     expect(page).toContain("whitespace-pre-wrap");
-    expect(page).toContain('hrefLang: "en"');
-    expect(page).toContain('hrefLang: "zh"');
+    expect(page).toContain('localizedAlternates("/operations")');
     expect(page).not.toMatch(/dangerouslySetInnerHTML|ReactMarkdown|marked\(/);
-    expect(sitemap).toContain("`${site}/${locale}/operations`");
+    expect(sitemap).toContain('"/operations"');
   });
 
   it("separates localized curation from the escaped original README", () => {
@@ -68,7 +67,8 @@ describe("public catalog surfaces", () => {
       new URL("../../routes/$locale/plugins/$slug.tsx", import.meta.url),
       "utf8",
     );
-    expect(detail).toContain('active === "readme"');
+    expect(detail).toContain('section === "readme"');
+    expect(detail).toContain("hidden={active !== section}");
     expect(detail).toContain("detail.sourceReadme");
     expect(detail).toContain("plugin.curatedOverview");
     expect(detail).toContain("<pre");

@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Container, Wordmark, XMark } from "./primitives";
-import { localizedPath, useI18n, type MessageKey } from "@/lib/i18n";
+import { localizedPath, type MessageKey } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 
 const groups: {
   title: MessageKey;
@@ -13,6 +14,7 @@ const groups: {
       { key: "nav.operations", to: "/operations" },
       { key: "nav.docs", to: "/docs" },
       { key: "footer.compatibility", to: "/docs/compatibility" },
+      { key: "footer.about", to: "/about" },
     ],
   },
   {

@@ -1,12 +1,10 @@
-import { and, eq } from "drizzle-orm";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { requireSession } from "@/lib/auth/auth.server";
-import { randomToken, sha256 } from "@/lib/auth/tokens.server";
+import { createPluginClaim } from "@/lib/catalog/claims.application.server";
 import { claimCreateSchema } from "@/lib/catalog/contracts";
 import { requireCommunityWrite } from "@/lib/community/guard.server";
-import { pluginClaims, plugins } from "@/lib/db/schema";
-import { HttpError, jsonError, readJson, uuid } from "@/lib/http";
+import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/plugins/$slug/claims")({
   server: {
@@ -23,47 +21,12 @@ export const Route = createFileRoute("/api/plugins/$slug/claims")({
             "claim",
             input.turnstileToken,
           );
-          const [plugin] = await db
-            .select()
-            .from(plugins)
-            .where(eq(plugins.slug, params.slug))
-            .limit(1);
-          if (!plugin?.primaryRepositoryId)
-            throw new HttpError(404, "Plugin repository not found", "plugin_not_found");
-          const [existing] = await db
-            .select()
-            .from(pluginClaims)
-            .where(
-              and(
-                eq(pluginClaims.userId, session.user.id),
-                eq(pluginClaims.idempotencyKey, input.idempotencyKey),
-              ),
-            )
-            .limit(1);
-          if (existing) return Response.json({ claim: existing, challengeToken: null });
-          const challengeToken = randomToken("claim");
-          const id = uuid();
-          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1_000);
-          await db.insert(pluginClaims).values({
-            id,
-            pluginId: plugin.id,
+          const result = await createPluginClaim(db, {
+            ...input,
             userId: session.user.id,
-            repositoryId: plugin.primaryRepositoryId,
-            challengeTokenHash: await sha256(challengeToken),
-            idempotencyKey: input.idempotencyKey,
-            expiresAt,
+            slug: params.slug,
           });
-          return Response.json(
-            {
-              claim: { id, pluginId: plugin.id, status: "pending", expiresAt },
-              challengeToken,
-              file: {
-                path: ".github/dshx-hub-claim.json",
-                body: { pluginId: plugin.id, claimToken: challengeToken },
-              },
-            },
-            { status: 201 },
-          );
+          return Response.json(result.body, { status: result.status });
         } catch (error) {
           return jsonError(error);
         }

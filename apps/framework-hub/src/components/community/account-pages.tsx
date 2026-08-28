@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { z, type ZodType } from "zod";
 
 import { AccountAccess, AccountLoading, AccountShell } from "./account-shell";
 import { Turnstile } from "./turnstile";
@@ -6,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useI18n } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
+import { apiKeys, apiRequest, apiSchemas } from "@/lib/api-client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,26 +22,31 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-type ApiError = { error?: { message?: string } };
+function useAccountEndpoint<T>(endpoint: string, schema: ZodType<T>) {
+  const query = useQuery({
+    queryKey: apiKeys.endpoint(endpoint),
+    queryFn: ({ signal }) => apiRequest(endpoint, schema, { signal }),
+  });
+  return {
+    data: query.data ?? null,
+    error: query.error instanceof Error ? query.error.message : null,
+    reload: async () => {
+      await query.refetch();
+    },
+  };
+}
 
-function useAccountEndpoint<T>(endpoint: string) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const load = useCallback(async () => {
-    const response = await fetch(endpoint);
-    const payload = (await response.json()) as T & ApiError;
-    if (!response.ok) {
-      setError(payload.error?.message ?? "Account data could not be loaded.");
-      setData(null);
-      return;
-    }
-    setData(payload);
-    setError(null);
-  }, [endpoint]);
-  useEffect(() => {
-    void load();
-  }, [load]);
-  return { data, error, reload: load };
+type JsonMutationInput = {
+  readonly path: string;
+  readonly method: "POST" | "PUT" | "PATCH" | "DELETE";
+  readonly json: unknown;
+  readonly schema: ZodType;
+};
+
+function useJsonMutation() {
+  return useMutation<unknown, Error, JsonMutationInput>({
+    mutationFn: ({ path, method, json, schema }) => apiRequest(path, schema, { method, json }),
+  });
 }
 
 function randomKey(prefix: string) {
@@ -50,7 +58,7 @@ export function AccountOverview() {
     bookmarks: Array<Record<string, unknown>>;
     pluginFollows: Array<Record<string, unknown>>;
     publisherFollows: Array<Record<string, unknown>>;
-  }>("/api/me/relationships");
+  }>("/api/me/relationships", apiSchemas.relationships);
   return (
     <AccountShell
       title="Your marketplace"
@@ -81,14 +89,17 @@ export function AccountOverview() {
 export function NotificationsPage() {
   const { data, error, reload } = useAccountEndpoint<{ items: Array<Record<string, unknown>> }>(
     "/api/me/notifications",
+    apiSchemas.itemPage,
   );
+  const mutation = useJsonMutation();
   const [token, setToken] = useState("");
   const [challenge, setChallenge] = useState(0);
   async function read(id: string) {
-    await fetch(`/api/me/notifications/${id}/read`, {
+    await mutation.mutateAsync({
+      path: `/api/me/notifications/${id}/read`,
       method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ turnstileToken: token, idempotencyKey: randomKey("notification") }),
+      json: { turnstileToken: token, idempotencyKey: randomKey("notification") },
+      schema: apiSchemas.object,
     });
     setToken("");
     setChallenge((value) => value + 1);
@@ -145,28 +156,33 @@ export function NotificationsPage() {
 export function SubmissionsPage() {
   const { data, error, reload } = useAccountEndpoint<{ items: Array<Record<string, unknown>> }>(
     "/api/me/submissions",
+    apiSchemas.itemPage,
   );
+  const mutation = useJsonMutation();
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [token, setToken] = useState("");
   const [challenge, setChallenge] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   async function submit() {
-    const response = await fetch("/api/me/submissions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        repositoryUrl,
-        turnstileToken: token,
-        idempotencyKey: randomKey("submission"),
-      }),
-    });
-    const payload = (await response.json()) as ApiError;
-    setToken("");
-    setChallenge((value) => value + 1);
-    if (!response.ok) {
-      setMessage(payload.error?.message ?? "Submission failed.");
+    try {
+      await mutation.mutateAsync({
+        path: "/api/me/submissions",
+        method: "POST",
+        json: {
+          repositoryUrl,
+          turnstileToken: token,
+          idempotencyKey: randomKey("submission"),
+        },
+        schema: apiSchemas.object,
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Submission failed.");
+      setToken("");
+      setChallenge((value) => value + 1);
       return;
     }
+    setToken("");
+    setChallenge((value) => value + 1);
     setRepositoryUrl("");
     setMessage("Repository queued for the operations Agent.");
     await reload();
@@ -213,53 +229,62 @@ export function CollectionsPage() {
   const { locale } = useI18n();
   const { data, error, reload } = useAccountEndpoint<{ items: Array<Record<string, unknown>> }>(
     "/api/me/collections",
+    apiSchemas.itemPage,
   );
+  const mutation = useJsonMutation();
   const [name, setName] = useState("");
   const [token, setToken] = useState("");
   const [challenge, setChallenge] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   async function create() {
-    const response = await fetch("/api/me/collections", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name,
-        visibility: "public",
-        turnstileToken: token,
-        idempotencyKey: randomKey("collection"),
-      }),
-    });
+    try {
+      await mutation.mutateAsync({
+        path: "/api/me/collections",
+        method: "POST",
+        json: {
+          name,
+          visibility: "public",
+          turnstileToken: token,
+          idempotencyKey: randomKey("collection"),
+        },
+        schema: apiSchemas.object,
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Collection could not be created.");
+      setToken("");
+      setChallenge((value) => value + 1);
+      return;
+    }
     setName("");
     setToken("");
     setChallenge((value) => value + 1);
-    if (!response.ok) {
-      const payload = (await response.json()) as ApiError;
-      setMessage(payload.error?.message ?? "Collection could not be created.");
-      return;
-    }
     setMessage("Public collection created.");
     await reload();
   }
   async function toggleVisibility(item: Record<string, unknown>) {
     const next = item["visibility"] === "public" ? "private" : "public";
-    const response = await fetch(`/api/me/collections/${String(item["id"])}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        visibility: next,
-        turnstileToken: token,
-        idempotencyKey: randomKey("collection-visibility"),
-      }),
-    });
-    const payload = (await response.json()) as ApiError;
-    setMessage(
-      response.ok
-        ? `Collection is now ${next}.`
-        : (payload.error?.message ?? "Collection privacy could not be changed."),
-    );
+    let changed = false;
+    try {
+      await mutation.mutateAsync({
+        path: `/api/me/collections/${String(item["id"])}`,
+        method: "PATCH",
+        json: {
+          visibility: next,
+          turnstileToken: token,
+          idempotencyKey: randomKey("collection-visibility"),
+        },
+        schema: apiSchemas.object,
+      });
+      changed = true;
+      setMessage(`Collection is now ${next}.`);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Collection privacy could not be changed.",
+      );
+    }
     setToken("");
     setChallenge((value) => value + 1);
-    if (response.ok) await reload();
+    if (changed) await reload();
   }
   return (
     <AccountShell
@@ -327,21 +352,24 @@ export function CollectionsPage() {
 export function AppealsPage() {
   const { data, error, reload } = useAccountEndpoint<{ items: Array<Record<string, unknown>> }>(
     "/api/me/appeals",
+    apiSchemas.itemPage,
   );
+  const mutation = useJsonMutation();
   const [actionId, setActionId] = useState("");
   const [statement, setStatement] = useState("");
   const [token, setToken] = useState("");
   const [challenge, setChallenge] = useState(0);
   async function submit() {
-    await fetch("/api/me/appeals", {
+    await mutation.mutateAsync({
+      path: "/api/me/appeals",
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+      json: {
         moderationActionId: actionId,
         statement,
         turnstileToken: token,
         idempotencyKey: randomKey("appeal"),
-      }),
+      },
+      schema: apiSchemas.object,
     });
     setActionId("");
     setStatement("");
@@ -400,7 +428,11 @@ export function AppealsPage() {
 }
 
 export function SettingsPage() {
-  const { data, error, reload } = useAccountEndpoint<Record<string, unknown>>("/api/me/profile");
+  const { data, error, reload } = useAccountEndpoint<Record<string, unknown>>(
+    "/api/me/profile",
+    apiSchemas.object,
+  );
+  const mutation = useJsonMutation();
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [token, setToken] = useState("");
@@ -413,32 +445,34 @@ export function SettingsPage() {
     }
   }, [data]);
   async function save() {
-    await fetch("/api/me/profile", {
+    await mutation.mutateAsync({
+      path: "/api/me/profile",
       method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+      json: {
         displayName: name,
         bio,
         preferredLocale: data?.["preferred_locale"] === "zh" ? "zh" : "en",
         turnstileToken: token,
         idempotencyKey: randomKey("profile"),
-      }),
+      },
+      schema: apiSchemas.object,
     });
     setToken("");
     setChallenge((value) => value + 1);
     await reload();
   }
   async function removeAccount() {
-    const response = await fetch("/api/me/account", {
+    await mutation.mutateAsync({
+      path: "/api/me/account",
       method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+      json: {
         confirmation: "DELETE",
         turnstileToken: token,
         idempotencyKey: randomKey("account-delete"),
-      }),
+      },
+      schema: z.object({ deleted: z.boolean(), anonymized: z.boolean() }),
     });
-    if (response.ok) window.location.assign("/en");
+    window.location.assign("/en");
   }
   return (
     <AccountShell

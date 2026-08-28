@@ -9,7 +9,7 @@ import {
   readOperationJson,
 } from "@/lib/catalog/operations-v1.http";
 import { upsertObservationBatch } from "@/lib/catalog/operations-v1.server";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 
 export const Route = createFileRoute("/api/ops/v1/observations:batch")({
   server: {
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/api/ops/v1/observations:batch")({
           return operationSuccess(
             request,
             await upsertObservationBatch(
-              requireD1(context),
+              requireDatabase(context),
               actor.token.id,
               requestId,
               input.observations,

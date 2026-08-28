@@ -229,12 +229,14 @@ describe("public catalog repository loaders", () => {
       name: `English localized ${suffix}`,
     });
     expect(first.items).toHaveLength(1);
+    expect(first).toMatchObject({ page: 1, pageSize: 1, total: 2, totalPages: 2 });
     expect(first.items[0]?.category).toBe(selected.slug);
     expect(first.nextCursor).toEqual(expect.any(String));
 
     const second = await listCatalogMarketplace(db, { ...query, cursor: first.nextCursor! });
     expect(second.categories).toEqual(first.categories);
     expect(second.items).toHaveLength(1);
+    expect(second).toMatchObject({ page: 2, pageSize: 1, total: 2, totalPages: 2 });
     expect(second.items[0]?.slug).not.toBe(first.items[0]?.slug);
     expect(second.items[0]?.category).toBe(selected.slug);
     expect(second.nextCursor).toBeNull();
@@ -247,6 +249,57 @@ describe("public catalog repository loaders", () => {
       slug: selected.slug,
       name: `中文 localized ${suffix}`,
     });
+  });
+
+  it("derives featured and trending order from plugin facts instead of legacy flags", async () => {
+    const suffix = randomSuffix();
+    const category = await insertCategory(db, suffix, "derived-ranking");
+    const weak = await insertPublishedPlugin(db, {
+      suffix,
+      label: "legacy-featured",
+      category: category.slug,
+      updatedAt: new Date(),
+    });
+    const strong = await insertPublishedPlugin(db, {
+      suffix,
+      label: "installable-popular",
+      category: category.slug,
+      repositoryUrl: `https://github.com/public-fixture/installable-popular-${suffix}`,
+      updatedAt: new Date(Date.now() - 86_400_000),
+    });
+    await addCategoryMemberships(db, [weak.id, strong.id], [category.id]);
+    await addExactNpmTarget(db, strong);
+    await db.run(sql`update plugins set featured=1 where id=${weak.id}`);
+    await db.insert(pluginMetricsCurrent).values([
+      { pluginId: weak.id, githubStars: 1, trendScore7d: 999 },
+      { pluginId: strong.id, githubStars: 120, trendScore7d: 0 },
+    ]);
+
+    const query = {
+      locale: "en" as const,
+      q: "",
+      category: category.slug,
+      limit: 1,
+    };
+    for (const sort of ["featured", "trending"] as const) {
+      const first = await listCatalogDiscovery(db, { ...query, sort });
+      expect(first).toMatchObject({ page: 1, pageSize: 1, total: 2, totalPages: 2 });
+      expect(first.items).toHaveLength(1);
+      expect(first.nextCursor).toEqual(expect.any(String));
+
+      const second = await listCatalogDiscovery(db, {
+        ...query,
+        sort,
+        cursor: first.nextCursor!,
+      });
+      expect(second).toMatchObject({ page: 2, pageSize: 1, total: 2, totalPages: 2 });
+      expect(second.items).toHaveLength(1);
+      expect(second.nextCursor).toBeNull();
+      expect([...first.items, ...second.items].map((item) => item.slug)).toEqual([
+        strong.slug,
+        weak.slug,
+      ]);
+    }
   });
 
   it("filters discovery and marketplace through every normalized category membership", async () => {
@@ -386,12 +439,7 @@ describe("public catalog repository loaders", () => {
       id: unverified.id,
       plugin: { badge: "community" },
     });
-    for (const placeholder of [
-      withoutTarget,
-      staleTarget,
-      duplicatePrimary,
-      mutablePrimary,
-    ]) {
+    for (const placeholder of [withoutTarget, staleTarget, duplicatePrimary, mutablePrimary]) {
       await expect(getCatalogMarketplacePlugin(db, placeholder.slug, "en")).resolves.toBeNull();
     }
   });

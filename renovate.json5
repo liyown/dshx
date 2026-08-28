@@ -30,13 +30,6 @@
       automerge: false,
     },
     {
-      description: "Keep the Nitro beta isolated",
-      matchPackageNames: ["nitro"],
-      groupName: "Nitro beta",
-      dependencyDashboardApproval: true,
-      automerge: false,
-    },
-    {
       description: "Update the TanStack stack together",
       matchPackageNames: ["@tanstack/**"],
       groupName: "TanStack stack",

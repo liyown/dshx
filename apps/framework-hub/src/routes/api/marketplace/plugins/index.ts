@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { listMarketplacePlugins } from "@/lib/catalog/application.server";
 import { marketplaceListQuerySchema, marketplaceListResponseSchema } from "@/lib/catalog/contracts";
-import { listCatalogMarketplace } from "@/lib/catalog/repository.server";
 import { requireDatabase } from "@/lib/db/client";
 import { jsonError } from "@/lib/http";
 
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/api/marketplace/plugins/")({
               ? Number(url.searchParams.get("limit"))
               : undefined,
           });
-          const result = await listCatalogMarketplace(requireDatabase(context), query);
+          const result = await listMarketplacePlugins(requireDatabase(context), query);
           return Response.json(marketplaceListResponseSchema.parse(result));
         } catch (error) {
           return jsonError(error);

@@ -10,7 +10,7 @@ import {
   parseOperationInput,
 } from "@/lib/catalog/operations-v1.http";
 import { uploadOperationMedia } from "@/lib/catalog/operations-v1.media.server";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { requireBindings } from "@/lib/db/context";
 
 export const Route = createFileRoute("/api/ops/v1/plugins/$id/media")({
@@ -66,7 +66,7 @@ export const Route = createFileRoute("/api/ops/v1/plugins/$id/media")({
           }
           const metadata = parseOperationInput(operationMediaMetadataSchema, metadataJson);
           const data = await uploadOperationMedia(
-            requireD1(context),
+            requireDatabase(context),
             requireBindings(context).PLUGIN_MEDIA,
             actor.token.id,
             requestId,

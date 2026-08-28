@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
 import type { MarketplaceListQuery, PluginListQuery } from "./contracts";
@@ -23,6 +23,8 @@ type ListRow = {
   github_stars: number | null;
   npm_downloads_week: number | null;
   trend_score_7d: number | null;
+  quality_score?: number | null;
+  popularity_score?: number | null;
   publisher_login: string | null;
   publisher_avatar_url: string | null;
   icon_media_id: string | null;
@@ -56,31 +58,37 @@ function toCard(row: ListRow): CatalogCard {
       login: row.publisher_login ?? row.author_handle,
       avatarUrl: row.publisher_avatar_url,
     },
-    featured: row.featured === 1,
-    trending: (row.trend_score_7d ?? 0) > 0,
+    featured: (row.quality_score ?? 0) >= 60,
+    trending: (row.popularity_score ?? 0) > 0,
     isNew:
       row.latest_published_at !== null && Date.now() - row.latest_published_at < 30 * 86_400_000,
   };
 }
 
-function encodeCursor(primary: number, updatedAt: number, id: string): string {
-  return btoa(JSON.stringify([primary, updatedAt, id]))
+function encodeCursor(primary: number, updatedAt: number, id: string, page: number): string {
+  return btoa(JSON.stringify([primary, updatedAt, id, page]))
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replaceAll("=", "");
 }
 
-function decodeCursor(value?: string | null): [number, number, string] | null {
+function decodeCursor(value?: string | null): [number, number, string, number] | null {
   if (!value) return null;
   try {
     const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
     const parsed = JSON.parse(atob(normalized)) as unknown;
-    return Array.isArray(parsed) &&
+    if (
+      Array.isArray(parsed) &&
       typeof parsed[0] === "number" &&
       typeof parsed[1] === "number" &&
       typeof parsed[2] === "string"
-      ? [parsed[0], parsed[1], parsed[2]]
-      : null;
+    ) {
+      const page = parsed[3] === undefined ? 2 : parsed[3];
+      return Number.isSafeInteger(page) && page >= 2
+        ? [parsed[0], parsed[1], parsed[2], page]
+        : null;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -128,71 +136,264 @@ const latestPublishedAt = sql`coalesce(
   p.published_at
 )`;
 
+const dayMs = 86_400_000;
+
+function catalogQualityScore(now: number): SQL {
+  return sql`(
+    case when ${marketplaceTargetEligibility} then 15 else 0 end
+    + case when p.verification_status = 'verified' then 5 else 0 end
+    + case when p.repository_url is not null and trim(p.repository_url) != '' then 4 else 0 end
+    + case when p.dshx_detected = 1 then 3 else 0 end
+    + case when exists(
+        select 1 from plugin_source_documents source_document
+        where source_document.plugin_id = p.id
+          and source_document.kind = 'readme'
+          and source_document.availability = 'available'
+          and source_document.source_url != ''
+      ) then 3 else 0 end
+    + case when requested.translation_status = 'ready' then 8 else 0 end
+    + case
+        when length(trim(coalesce(requested.overview_markdown, ''))) >= 240 then 7
+        when length(trim(coalesce(requested.overview_markdown, ''))) >= 80 then 3
+        else 0
+      end
+    + case
+        when exists(
+          select 1 from plugin_source_documents source_document
+          where source_document.plugin_id = p.id
+            and source_document.kind = 'readme'
+            and source_document.availability = 'available'
+            and length(coalesce(source_document.content, '')) >= 800
+        ) then 6
+        when exists(
+          select 1 from plugin_source_documents source_document
+          where source_document.plugin_id = p.id
+            and source_document.kind = 'readme'
+            and source_document.availability = 'available'
+            and length(coalesce(source_document.content, '')) >= 200
+        ) then 3
+        else 0
+      end
+    + case when p.license_spdx is not null and trim(p.license_spdx) != '' then 2 else 0 end
+    + case when exists(
+        select 1 from plugin_media media
+        where media.plugin_id = p.id and media.kind = 'screenshot' and media.status = 'active'
+      ) then 2 else 0 end
+    + case
+        when trim(p.compatibility_range) != '' and trim(p.compatibility_range) != '*' then 7
+        else 0
+      end
+    + case when exists(
+        select 1 from plugin_releases release
+        where release.plugin_id = p.id
+          and release.version = p.latest_version
+          and release.channel = 'stable'
+          and release.deprecated = 0
+      ) then 8 else 0 end
+    + case when exists(
+        select 1 from plugin_releases release
+        where release.plugin_id = p.id
+          and release.version = p.latest_version
+          and release.compatibility_source in ('manifest', 'peer-dependency')
+      ) then 5 else 0 end
+    + case when exists(
+        select 1 from plugin_install_targets install_target
+        where install_target.plugin_id = p.id
+          and install_target.is_primary = 1
+          and install_target.status = 'active'
+          and (
+            (install_target.kind = 'npm' and install_target.integrity is not null)
+            or
+            (install_target.kind = 'github' and exists(
+              select 1 from plugin_releases release
+              where release.plugin_id = p.id
+                and release.version = p.latest_version
+                and release.git_tag is not null
+                and trim(release.git_tag) != ''
+            ))
+          )
+      ) then 5 else 0 end
+    + case when p.lifecycle_status = 'active' then 6 else 0 end
+    + case
+        when p.last_synced_at >= ${now - 30 * dayMs} then 5
+        when p.last_synced_at >= ${now - 90 * dayMs} then 2
+        else 0
+      end
+    + case
+        when ${latestPublishedAt} >= ${now - 180 * dayMs} then 6
+        when ${latestPublishedAt} >= ${now - 365 * dayMs} then 3
+        else 0
+      end
+    + case when (
+        select count(*) from plugin_releases release where release.plugin_id = p.id
+      ) >= 2 then 3 else 0 end
+  )`;
+}
+
+function catalogPopularityScore(now: number): SQL {
+  return sql`(
+    case
+      when coalesce(base.github_stars, 0) >= 1000 then 30
+      when coalesce(base.github_stars, 0) >= 300 then 26
+      when coalesce(base.github_stars, 0) >= 100 then 22
+      when coalesce(base.github_stars, 0) >= 50 then 18
+      when coalesce(base.github_stars, 0) >= 20 then 14
+      when coalesce(base.github_stars, 0) >= 10 then 10
+      when coalesce(base.github_stars, 0) >= 5 then 6
+      when coalesce(base.github_stars, 0) >= 1 then 2
+      else 0
+    end
+    + case
+      when coalesce(base.npm_downloads_week, 0) >= 10000 then 30
+      when coalesce(base.npm_downloads_week, 0) >= 3000 then 26
+      when coalesce(base.npm_downloads_week, 0) >= 1000 then 22
+      when coalesce(base.npm_downloads_week, 0) >= 300 then 18
+      when coalesce(base.npm_downloads_week, 0) >= 100 then 14
+      when coalesce(base.npm_downloads_week, 0) >= 30 then 10
+      when coalesce(base.npm_downloads_week, 0) >= 10 then 6
+      when coalesce(base.npm_downloads_week, 0) >= 1 then 2
+      else 0
+    end
+    + case
+      when (select count(*) from plugin_bookmarks bookmark where bookmark.plugin_id = base.id) >= 50 then 10
+      when (select count(*) from plugin_bookmarks bookmark where bookmark.plugin_id = base.id) >= 20 then 8
+      when (select count(*) from plugin_bookmarks bookmark where bookmark.plugin_id = base.id) >= 10 then 6
+      when (select count(*) from plugin_bookmarks bookmark where bookmark.plugin_id = base.id) >= 5 then 4
+      when (select count(*) from plugin_bookmarks bookmark where bookmark.plugin_id = base.id) >= 1 then 2
+      else 0
+    end
+    + case
+      when (select count(*) from plugin_follows follow where follow.plugin_id = base.id) >= 50 then 10
+      when (select count(*) from plugin_follows follow where follow.plugin_id = base.id) >= 20 then 8
+      when (select count(*) from plugin_follows follow where follow.plugin_id = base.id) >= 10 then 6
+      when (select count(*) from plugin_follows follow where follow.plugin_id = base.id) >= 5 then 4
+      when (select count(*) from plugin_follows follow where follow.plugin_id = base.id) >= 1 then 2
+      else 0
+    end
+    + case
+      when coalesce(base.review_count, 0) >= 20
+        and coalesce(base.rating_sum, 0) * 1.0 / base.review_count >= 4.5 then 10
+      when coalesce(base.review_count, 0) >= 10
+        and coalesce(base.rating_sum, 0) * 1.0 / base.review_count >= 4 then 8
+      when coalesce(base.review_count, 0) >= 5
+        and coalesce(base.rating_sum, 0) * 1.0 / base.review_count >= 4 then 6
+      when coalesce(base.review_count, 0) >= 1 then 2
+      else 0
+    end
+    + case
+      when base.latest_published_at >= ${now - 30 * dayMs} then 5
+      when base.latest_published_at >= ${now - 90 * dayMs} then 3
+      when base.latest_published_at >= ${now - 180 * dayMs} then 1
+      else 0
+    end
+    + case
+      when base.quality_score >= 80 then 5
+      when base.quality_score >= 60 then 3
+      when base.quality_score >= 40 then 1
+      else 0
+    end
+  )`;
+}
+
 async function listCatalogPluginPage(
   db: Database,
   query: PluginListQuery | MarketplaceListQuery,
   marketplaceOnly: boolean,
 ) {
   const cursor = decodeCursor(query.cursor);
+  const currentPage = cursor?.[3] ?? 1;
   const search = query.q.trim();
+  const now = Date.now();
+  const qualityScore = catalogQualityScore(now);
+  const popularityScore = catalogPopularityScore(now);
   const primarySort =
     query.sort === "stars"
-      ? sql`coalesce(m.github_stars, 0)`
+      ? sql`coalesce(scored.github_stars, 0)`
       : query.sort === "downloads"
-        ? sql`coalesce(m.npm_downloads_week, 0)`
+        ? sql`coalesce(scored.npm_downloads_week, 0)`
         : query.sort === "latest"
-          ? sql`coalesce(${latestPublishedAt}, 0)`
+          ? sql`coalesce(scored.latest_published_at, 0)`
           : query.sort === "trending"
-            ? sql`coalesce(m.trend_score_7d, 0)`
+            ? sql`scored.popularity_score`
             : query.sort === "featured"
-              ? sql`p.featured`
-              : sql`p.updated_at`;
-  const secondarySort = query.sort === "latest" ? sql`cast(0 as integer)` : sql`p.updated_at`;
-  const conditions = [
+              ? sql`scored.quality_score`
+              : sql`scored.updated_at`;
+  const secondarySort =
+    query.sort === "latest"
+      ? sql`cast(0 as integer)`
+      : query.sort === "featured"
+        ? sql`scored.popularity_score`
+        : query.sort === "trending"
+          ? sql`scored.quality_score`
+          : sql`scored.updated_at`;
+  const baseConditions = [
     sql`p.status = 'published'`,
     sql`p.lifecycle_status in ('active', 'unmaintained')`,
   ];
-  if (marketplaceOnly) conditions.push(marketplaceTargetEligibility);
+  if (marketplaceOnly) baseConditions.push(marketplaceTargetEligibility);
   if (query.category)
-    conditions.push(sql`exists(
+    baseConditions.push(sql`exists(
       select 1 from plugin_categories category_membership
       join categories category on category.id = category_membership.category_id
       where category_membership.plugin_id = p.id
         and category.slug = ${query.category}
     )`);
-  if (cursor)
-    conditions.push(
-      sql`(${primarySort} < ${cursor[0]} or (${primarySort} = ${cursor[0]} and (${secondarySort} < ${cursor[1]} or (${secondarySort} = ${cursor[1]} and p.id < ${cursor[2]}))))`,
-    );
   if (search) {
     const searchExpression = `"${search.replaceAll('"', '""')}"`;
-    conditions.push(
+    baseConditions.push(
       sql`p.id in (select plugin_id from plugin_search where plugin_search match ${searchExpression} and locale = ${query.locale})`,
     );
   }
-  const order = sql`${primarySort} desc, ${secondarySort} desc, p.id desc`;
-  const rows = await db.all<ListRow>(sql`
-    select p.id, p.slug, p.package_name,
-      coalesce(case when requested.translation_status = 'ready' then requested.display_name end,
-               case when fallback.translation_status = 'ready' then fallback.display_name end, p.name) as name,
-      coalesce(case when requested.translation_status = 'ready' then requested.short_description end,
-               case when fallback.translation_status = 'ready' then fallback.short_description end, p.description) as description,
-      p.author_handle, p.latest_version, p.compatibility_range, p.category, p.badge,
-      p.featured, ${latestPublishedAt} latest_published_at, p.updated_at,
-      m.github_stars, m.npm_downloads_week, m.trend_score_7d,
-      pub.login publisher_login, pub.avatar_url publisher_avatar_url,
-      (select pm.id from plugin_media pm
-       where pm.plugin_id=p.id and pm.kind='icon' and pm.status='active'
-       order by pm.sort_order,pm.created_at limit 1) icon_media_id
-    from plugins p
-    left join publishers pub on pub.id = p.publisher_id
-    left join plugin_localizations requested on requested.plugin_id = p.id and requested.locale = ${query.locale}
-    left join plugin_localizations fallback on fallback.plugin_id = p.id and fallback.locale = case when ${query.locale} = 'en' then 'zh' else 'en' end
-    left join plugin_metrics_current m on m.plugin_id = p.id
-    where ${sql.join(conditions, sql` and `)}
-    order by ${order}
-    limit ${query.limit + 1}
-  `);
+  const cursorConditions: SQL[] = [];
+  if (cursor)
+    cursorConditions.push(
+      sql`(${primarySort} < ${cursor[0]} or (${primarySort} = ${cursor[0]} and (${secondarySort} < ${cursor[1]} or (${secondarySort} = ${cursor[1]} and scored.id < ${cursor[2]}))))`,
+    );
+  const order = sql`${primarySort} desc, ${secondarySort} desc, scored.id desc`;
+  const [rows, count] = await Promise.all([
+    db.all<ListRow>(sql`
+      with catalog_base as (
+        select p.id, p.slug, p.package_name,
+        coalesce(case when requested.translation_status = 'ready' then requested.display_name end,
+                 case when fallback.translation_status = 'ready' then fallback.display_name end, p.name) as name,
+        coalesce(case when requested.translation_status = 'ready' then requested.short_description end,
+                 case when fallback.translation_status = 'ready' then fallback.short_description end, p.description) as description,
+        p.author_handle, p.latest_version, p.compatibility_range, p.category, p.badge,
+        p.featured, ${latestPublishedAt} latest_published_at, p.updated_at,
+        m.github_stars, m.npm_downloads_week, m.trend_score_7d, m.review_count, m.rating_sum,
+        ${qualityScore} quality_score,
+        pub.login publisher_login, pub.avatar_url publisher_avatar_url,
+        (select pm.id from plugin_media pm
+         where pm.plugin_id=p.id and pm.kind='icon' and pm.status='active'
+         order by pm.sort_order,pm.created_at limit 1) icon_media_id
+      from plugins p
+      left join publishers pub on pub.id = p.publisher_id
+      left join plugin_localizations requested on requested.plugin_id = p.id and requested.locale = ${query.locale}
+      left join plugin_localizations fallback on fallback.plugin_id = p.id and fallback.locale = case when ${query.locale} = 'en' then 'zh' else 'en' end
+      left join plugin_metrics_current m on m.plugin_id = p.id
+      where ${sql.join(baseConditions, sql` and `)}
+      ), catalog_scored as (
+        select base.*, ${popularityScore} popularity_score
+        from catalog_base base
+      )
+      select scored.id, scored.slug, scored.package_name, scored.name, scored.description,
+        scored.author_handle, scored.latest_version, scored.compatibility_range,
+        scored.category, scored.badge, scored.featured, scored.latest_published_at,
+        scored.updated_at, scored.github_stars, scored.npm_downloads_week, scored.trend_score_7d,
+        scored.quality_score, scored.popularity_score, scored.publisher_login,
+        scored.publisher_avatar_url, scored.icon_media_id
+      from catalog_scored scored
+      where ${cursorConditions.length > 0 ? sql.join(cursorConditions, sql` and `) : sql`1 = 1`}
+      order by ${order}
+      limit ${query.limit + 1}
+    `),
+    db.get<{ total: number }>(sql`
+      select count(*) as total
+      from plugins p
+      where ${sql.join(baseConditions, sql` and `)}
+    `),
+  ]);
+  const total = count?.total ?? 0;
   const hasMore = rows.length > query.limit;
   const page = rows.slice(0, query.limit);
   const last = page.at(-1);
@@ -208,14 +409,25 @@ async function listCatalogPluginPage(
                 : query.sort === "latest"
                   ? (last.latest_published_at ?? 0)
                   : query.sort === "trending"
-                    ? (last.trend_score_7d ?? 0)
+                    ? (last.popularity_score ?? 0)
                     : query.sort === "featured"
-                      ? last.featured
+                      ? (last.quality_score ?? 0)
                       : last.updated_at,
-            query.sort === "latest" ? 0 : last.updated_at,
+            query.sort === "latest"
+              ? 0
+              : query.sort === "featured"
+                ? (last.popularity_score ?? 0)
+                : query.sort === "trending"
+                  ? (last.quality_score ?? 0)
+                  : last.updated_at,
             last.id,
+            currentPage + 1,
           )
         : null,
+    page: currentPage,
+    pageSize: query.limit,
+    total,
+    totalPages: Math.ceil(total / query.limit),
   };
 }
 
@@ -348,8 +560,12 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
       where plugin_id=${row.id} and kind='readme'
       limit 1
     `),
-    db.all<{ locale: string; translation_status: string }>(
-      sql`select locale, translation_status from plugin_localizations where plugin_id = ${row.id}`,
+    db.all<{
+      locale: "en" | "zh";
+      translation_status: string;
+      overview_markdown: string;
+    }>(
+      sql`select locale, translation_status, overview_markdown from plugin_localizations where plugin_id = ${row.id}`,
     ),
     db.all<ListRow>(
       sql`select p.id, p.slug, p.package_name, p.name, p.description, p.author_handle,
@@ -368,11 +584,19 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
        order by p.featured desc, p.updated_at desc limit 3`,
     ),
   ]);
-  const ready = new Set(
+  const contentReady = new Set(
     localeStates
-      .filter((state) => state.translation_status === "ready")
+      .filter(
+        (state) =>
+          state.translation_status === "ready" && state.overview_markdown.trim().length > 0,
+      )
       .map((state) => state.locale),
   );
+  const globallyIndexable =
+    (row.lifecycle_status === "active" || row.lifecycle_status === "unmaintained") &&
+    targets.some((target) => target.is_primary === 1 && target.status === "active") &&
+    sourceDocuments.some((document) => document.availability === "available");
+  const indexableLocales = globallyIndexable ? [...contentReady] : [];
   const reviewCount = row.review_count ?? 0;
   return {
     plugin: toCard(row),
@@ -386,8 +610,8 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
     installNotesMarkdown: row.install_notes_markdown,
     seoTitle: row.seo_title ?? row.name,
     seoDescription: row.seo_description ?? row.description,
-    indexable: ready.has(locale) && row.lifecycle_status !== "unavailable",
-    readyLocales: [...ready],
+    indexable: indexableLocales.includes(locale),
+    readyLocales: indexableLocales,
     redirectSlug: canonicalSlug !== slug ? canonicalSlug : null,
     installTargets: targets,
     releases,

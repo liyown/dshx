@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth/auth.server";
 import { profileUpdateSchema } from "@/lib/community/contracts";
 import { requireCommunityWrite } from "@/lib/community/guard.server";
 import { getMe, updateProfile } from "@/lib/community/marketplace.server";
-import { requireD1 } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/me/profile")({
@@ -13,7 +13,7 @@ export const Route = createFileRoute("/api/me/profile")({
       GET: async ({ request, context }) => {
         try {
           const auth = await requireSession(request, context);
-          return Response.json(await getMe(requireD1(context), auth.session.user.id));
+          return Response.json(await getMe(requireDatabase(context), auth.session.user.id));
         } catch (error) {
           return jsonError(error);
         }
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/api/me/profile")({
             input.turnstileToken,
           );
           return Response.json(
-            await updateProfile(requireD1(context), auth.session.user.id, input),
+            await updateProfile(requireDatabase(context), auth.session.user.id, input),
           );
         } catch (error) {
           return jsonError(error);

@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth/auth.server";
 import { relationshipWriteSchema } from "@/lib/community/contracts";
 import { requireCommunityWrite } from "@/lib/community/guard.server";
 import { setPluginRelationship } from "@/lib/community/marketplace.server";
-import { requireD1 } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/me/plugins/$pluginId/bookmark")({
@@ -30,7 +30,7 @@ async function mutate(request: Request, context: unknown, pluginId: string, enab
     );
     return Response.json(
       await setPluginRelationship(
-        requireD1(context),
+        requireDatabase(context),
         auth.session.user.id,
         pluginId,
         "bookmark",

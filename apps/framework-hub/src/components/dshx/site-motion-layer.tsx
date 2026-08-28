@@ -1,5 +1,5 @@
 import { useRouterState } from "@tanstack/react-router";
-import { motion, useScroll, useSpring, useTransform } from "motion/react";
+import { m, useScroll, useSpring, useTransform } from "motion/react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { useHydratedReducedMotion } from "./use-hydrated-reduced-motion";
@@ -98,7 +98,7 @@ export function SiteMotionLayer() {
 
   return (
     <div className="site-motion-layer" aria-hidden="true">
-      <motion.div
+      <m.div
         className="site-pixel-blast-stage"
         style={{
           y: reduceMotion ? 0 : fieldY,
@@ -126,11 +126,11 @@ export function SiteMotionLayer() {
             />
           </Suspense>
         )}
-      </motion.div>
+      </m.div>
 
       <div className="site-motion-readability" />
 
-      <motion.div
+      <m.div
         className="site-motion-focus"
         style={{ y: reduceMotion ? 0 : glowY }}
         animate={{ x: `${glowX}vw`, opacity: reduceMotion ? 0.18 : 0.42 }}
@@ -139,8 +139,8 @@ export function SiteMotionLayer() {
 
       <div className="site-scroll-rail">
         <span className="site-scroll-rail-track" />
-        <motion.span className="site-scroll-rail-progress" style={{ scaleY: railProgress }} />
-        <motion.span className="site-scroll-rail-pulse" style={{ top: progressPosition }} />
+        <m.span className="site-scroll-rail-progress" style={{ scaleY: railProgress }} />
+        <m.span className="site-scroll-rail-pulse" style={{ top: progressPosition }} />
         {scene.count > 1 ? (
           <span className="site-scroll-scenes">
             {Array.from({ length: scene.count }, (_, index) => (

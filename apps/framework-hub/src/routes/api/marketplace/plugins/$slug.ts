@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { readMarketplacePlugin } from "@/lib/catalog/application.server";
 import { marketplaceDetailResponseSchema, pluginListQuerySchema } from "@/lib/catalog/contracts";
-import { getCatalogMarketplacePlugin } from "@/lib/catalog/repository.server";
 import { requireDatabase } from "@/lib/db/client";
 import { jsonError } from "@/lib/http";
 
@@ -14,11 +14,7 @@ export const Route = createFileRoute("/api/marketplace/plugins/$slug")({
           const { locale } = pluginListQuerySchema.parse({
             locale: url.searchParams.get("locale") ?? undefined,
           });
-          const result = await getCatalogMarketplacePlugin(
-            requireDatabase(context),
-            params.slug,
-            locale,
-          );
+          const result = await readMarketplacePlugin(requireDatabase(context), params.slug, locale);
           if (!result)
             return Response.json(
               { error: { code: "not_found", message: "Plugin not found" } },

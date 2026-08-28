@@ -7,7 +7,7 @@ import {
   operationSuccess,
   serializeOperationError,
 } from "@/lib/catalog/operations-v1.http";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { HttpError } from "@/lib/http";
 
 export const Route = createFileRoute("/api/ops/v1/status")({
@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/ops/v1/status")({
             }
           return operationSuccess(
             request,
-            await getOpsStatus(requireD1(context), {
+            await getOpsStatus(requireDatabase(context), {
               authenticated: Boolean(auth),
               scopes: auth?.token.scopesJson ?? [],
             }),

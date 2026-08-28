@@ -1,7 +1,10 @@
 import { CircleCheck, LoaderCircle } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { z } from "zod";
 
-import { useI18n } from "@/lib/i18n";
+import { apiKeys, apiRequest } from "@/lib/api-client";
+import { useI18n } from "@/lib/i18n/use-i18n";
 
 declare global {
   interface Window {
@@ -22,6 +25,12 @@ declare global {
 
 let scriptPromise: Promise<void> | null = null;
 const verificationEvent = "dshx:human-verification";
+const turnstileConfigSchema = z.object({ turnstileSiteKey: z.string().nullable() });
+const verificationSchema = z.object({
+  verified: z.boolean(),
+  expiresAt: z.string().nullable(),
+});
+const verificationResultSchema = z.object({ expiresAt: z.string() });
 
 function broadcastVerification(expiresAt: string | null) {
   window.dispatchEvent(new CustomEvent(verificationEvent, { detail: { expiresAt } }));
@@ -74,6 +83,24 @@ export function Turnstile({
   );
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const bootstrapQuery = useQuery({
+    queryKey: [...apiKeys.endpoint("/api/config"), "turnstile", mode],
+    queryFn: async ({ signal }) => {
+      const config = await apiRequest("/api/config", turnstileConfigSchema, { signal });
+      if (mode === "direct") return { config, verification: null };
+      const verification = await apiRequest("/api/community/verification", verificationSchema, {
+        signal,
+      });
+      return { config, verification };
+    },
+  });
+  const { mutateAsync: verifySession } = useMutation({
+    mutationFn: (turnstileToken: string) =>
+      apiRequest("/api/community/verification", verificationResultSchema, {
+        method: "POST",
+        json: { turnstileToken },
+      }),
+  });
 
   useEffect(() => {
     if (mode === "direct") return;
@@ -94,57 +121,25 @@ export function Turnstile({
   }, [mode, onToken]);
 
   useEffect(() => {
-    let cancelled = false;
-    if (mode === "direct") {
-      void fetch("/api/config")
-        .then(async (configResponse) => {
-          if (!configResponse.ok) throw new Error("configuration");
-          const config = (await configResponse.json()) as { turnstileSiteKey: string | null };
-          if (cancelled) return;
-          setSiteKey(config.turnstileSiteKey);
-          onToken("");
-          setStatus("required");
-        })
-        .catch(() => {
-          if (cancelled) return;
-          onToken("");
-          setError(t("community.verification.loadFailed"));
-          setStatus("required");
-        });
-      return () => {
-        cancelled = true;
-      };
+    if (bootstrapQuery.isError) {
+      onToken("");
+      setError(t("community.verification.loadFailed"));
+      setStatus("required");
+      return;
     }
-    void Promise.all([fetch("/api/config"), fetch("/api/community/verification")])
-      .then(async ([configResponse, verificationResponse]) => {
-        if (!configResponse.ok || !verificationResponse.ok) throw new Error("configuration");
-        const config = (await configResponse.json()) as { turnstileSiteKey: string | null };
-        const verification = (await verificationResponse.json()) as {
-          verified: boolean;
-          expiresAt: string | null;
-        };
-        if (cancelled) return;
-        setSiteKey(config.turnstileSiteKey);
-        if (verification.verified && verification.expiresAt) {
-          setExpiresAt(verification.expiresAt);
-          setStatus("verified");
-          onToken("verified-session");
-          broadcastVerification(verification.expiresAt);
-        } else {
-          onToken("");
-          setStatus("required");
-        }
-      })
-      .catch(() => {
-        if (cancelled) return;
-        onToken("");
-        setError(t("community.verification.loadFailed"));
-        setStatus("required");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, onToken, t]);
+    if (!bootstrapQuery.data) return;
+    setSiteKey(bootstrapQuery.data.config.turnstileSiteKey);
+    const verification = bootstrapQuery.data.verification;
+    if (verification?.verified && verification.expiresAt) {
+      setExpiresAt(verification.expiresAt);
+      setStatus("verified");
+      onToken("verified-session");
+      broadcastVerification(verification.expiresAt);
+      return;
+    }
+    onToken("");
+    setStatus("required");
+  }, [bootstrapQuery.data, bootstrapQuery.isError, onToken, t]);
 
   const verify = useCallback(
     async (turnstileToken: string) => {
@@ -159,17 +154,7 @@ export function Turnstile({
         return;
       }
       try {
-        const response = await fetch("/api/community/verification", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ turnstileToken }),
-        });
-        const payload = (await response.json()) as {
-          expiresAt?: string;
-          error?: { message?: string };
-        };
-        if (!response.ok || !payload.expiresAt)
-          throw new Error(payload.error?.message ?? t("community.verification.failed"));
+        const payload = await verifySession(turnstileToken);
         setExpiresAt(payload.expiresAt);
         setStatus("verified");
         onToken("verified-session");
@@ -183,7 +168,7 @@ export function Turnstile({
         setStatus("required");
       }
     },
-    [mode, onToken, t],
+    [mode, onToken, t, verifySession],
   );
 
   useEffect(() => {

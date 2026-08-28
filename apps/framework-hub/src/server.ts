@@ -1,85 +1,18 @@
-import "./lib/error-capture";
+import { env } from "cloudflare:workers";
+import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 
-import { consumeLastCapturedError } from "./lib/error-capture";
+import { withHomepageDiscoveryHeaders } from "./lib/discovery-link-headers";
 import { renderErrorPage } from "./lib/error-page";
+import { describeError } from "./lib/error-logging";
 import { isLocale, localeFromAcceptLanguage, localeFromPathname } from "./lib/i18n";
+import {
+  acceptsMarkdown,
+  isMarkdownNegotiablePage,
+  withMarkdownVary,
+} from "./lib/markdown-negotiation";
 import type { AppBindings, AppRequestContext } from "./lib/db/context";
 
-type ServerEntry = {
-  fetch: (
-    request: Request,
-    options: { context: AppRequestContext },
-  ) => Promise<Response> | Response;
-};
-
-type CloudflareRequest = Request & {
-  runtime?: {
-    cloudflare?: {
-      env?: AppBindings;
-    };
-  };
-};
-
-type NitroGlobal = typeof globalThis & {
-  __env__?: AppBindings;
-  __dshxDevBindingsPromise__?: Promise<AppBindings>;
-};
-
-let serverEntryPromise: Promise<ServerEntry> | undefined;
-
-async function getServerEntry(): Promise<ServerEntry> {
-  if (!serverEntryPromise) {
-    serverEntryPromise = import("@tanstack/react-start/server-entry").then(
-      (m) => (m.default ?? m) as ServerEntry,
-    );
-  }
-  return serverEntryPromise;
-}
-
-function hasDatabaseBinding(value: unknown): value is AppBindings {
-  return value != null && typeof value === "object" && "DB" in value;
-}
-
-function hasWaitUntil(value: unknown): value is { waitUntil(promise: Promise<unknown>): void } {
-  return (
-    value != null &&
-    typeof value === "object" &&
-    "waitUntil" in value &&
-    typeof value.waitUntil === "function"
-  );
-}
-
-async function loadDevBindings(): Promise<AppBindings> {
-  if (!import.meta.env.DEV) return {};
-
-  const nitroGlobal = globalThis as NitroGlobal;
-  nitroGlobal.__dshxDevBindingsPromise__ ??= import("wrangler")
-    .then(({ getPlatformProxy }) =>
-      getPlatformProxy<Env>({
-        configPath: "wrangler.jsonc",
-        persist: true,
-        remoteBindings: false,
-      }),
-    )
-    .then((proxy) => proxy.env)
-    .catch((error) => {
-      console.error(error);
-      return {};
-    });
-
-  return nitroGlobal.__dshxDevBindingsPromise__;
-}
-
-async function resolveBindings(request: Request, explicitEnv: unknown): Promise<AppBindings> {
-  const runtimeEnv = (request as CloudflareRequest).runtime?.cloudflare?.env;
-  if (runtimeEnv) return runtimeEnv;
-  if (hasDatabaseBinding(explicitEnv)) return explicitEnv;
-  const nitroEnv = (globalThis as NitroGlobal).__env__;
-  if (nitroEnv) return nitroEnv;
-  return loadDevBindings();
-}
-
-function withSecurityHeaders(response: Response) {
+function withSecurityHeaders(response: Response, request: Request): Response {
   const headers = new Headers(response.headers);
   headers.set("x-content-type-options", "nosniff");
   headers.set("referrer-policy", "strict-origin-when-cross-origin");
@@ -87,8 +20,30 @@ function withSecurityHeaders(response: Response) {
   headers.set("x-frame-options", "SAMEORIGIN");
   headers.set(
     "content-security-policy",
-    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://registry.npmjs.org https://api.npmjs.org https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com",
+    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' https://registry.npmjs.org https://api.npmjs.org https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com",
   );
+  const pathname = new URL(request.url).pathname;
+  if (response.status === 401 && pathname.startsWith("/api/") && !headers.has("www-authenticate")) {
+    headers.set(
+      "www-authenticate",
+      `Bearer resource_metadata="${new URL("/.well-known/oauth-protected-resource", request.url)}"`,
+    );
+  }
+  if (pathname.startsWith("/assets/") || pathname.startsWith("/fonts/")) {
+    headers.set("cache-control", "public, max-age=31536000, immutable");
+  }
+  const cacheablePublicPage =
+    request.method === "GET" &&
+    response.status === 200 &&
+    !request.headers.has("authorization") &&
+    !request.headers.has("cookie") &&
+    !headers.has("set-cookie") &&
+    /^\/(?:en|zh)(?:\/(?:about|categories|docs|examples|legal|operations|plugins|publishers)(?:\/|$))?$/.test(
+      pathname,
+    );
+  if (cacheablePublicPage) {
+    headers.set("cache-control", "public, max-age=60, s-maxage=300, stale-while-revalidate=86400");
+  }
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -99,7 +54,30 @@ function withSecurityHeaders(response: Response) {
 export function redirectToLocale(request: Request): Response | undefined {
   const url = new URL(request.url);
   const firstSegment = url.pathname.split("/")[1];
-  if (isLocale(firstSegment)) return undefined;
+  if (isLocale(firstSegment)) {
+    let changed = false;
+    if (url.pathname.length > `/${firstSegment}`.length && url.pathname.endsWith("/")) {
+      url.pathname = url.pathname.replace(/\/+$/, "");
+      changed = true;
+    }
+    if (url.pathname === `/${firstSegment}/plugins`) {
+      for (const name of ["q", "category", "cursor"] as const) {
+        if (url.searchParams.get(name) === "") {
+          url.searchParams.delete(name);
+          changed = true;
+        }
+      }
+      if (url.searchParams.get("sort") === "featured" || url.searchParams.get("sort") === "") {
+        url.searchParams.delete("sort");
+        changed = true;
+      }
+    }
+    if (url.pathname === `/${firstSegment}/operations` && url.searchParams.get("cursor") === "") {
+      url.searchParams.delete("cursor");
+      changed = true;
+    }
+    return changed ? Response.redirect(url, 308) : undefined;
+  }
 
   const isRoot = url.pathname === "/";
   const isLegacyPage =
@@ -107,61 +85,67 @@ export function redirectToLocale(request: Request): Response | undefined {
     /^\/examples(?:\/)?$/.test(url.pathname) ||
     /^\/plugins(?:\/[^/]+)?(?:\/)?$/.test(url.pathname);
   if (!isRoot && !isLegacyPage) return undefined;
-
+  if (isRoot) {
+    url.pathname = "/en";
+    return Response.redirect(url, 308);
+  }
   const locale = localeFromAcceptLanguage(request.headers.get("accept-language"));
-  url.pathname = "/" + locale + (url.pathname === "/" ? "" : url.pathname);
+  url.pathname = `/${locale}${url.pathname}`;
   return Response.redirect(url, 302);
 }
 
-// h3 swallows in-handler throws into a normal 500 Response with body
-// {"unhandled":true,"message":"HTTPError"} — try/catch alone never fires for those.
-async function normalizeCatastrophicSsrResponse(
-  response: Response,
-  request: Request,
-): Promise<Response> {
-  if (response.status < 500) return response;
-  const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.includes("application/json")) return response;
-
-  const body = await response.clone().text();
-  if (!isH3SwallowedErrorBody(body)) return response;
-
-  console.error(consumeLastCapturedError() ?? new Error(`h3 swallowed SSR error: ${body}`));
-  return new Response(renderErrorPage(localeFromPathname(new URL(request.url).pathname)), {
-    status: 500,
-    headers: { "content-type": "text/html; charset=utf-8" },
-  });
+function requestId(request: Request): string {
+  return (
+    request.headers.get("cf-ray") ?? request.headers.get("x-request-id") ?? crypto.randomUUID()
+  );
 }
 
-function isH3SwallowedErrorBody(body: string): boolean {
-  try {
-    const payload = JSON.parse(body) as { unhandled?: unknown; message?: unknown };
-    return payload.unhandled === true && payload.message === "HTTPError";
-  } catch {
-    return false;
-  }
+function logRequestError(request: Request, id: string, error: unknown): void {
+  console.error(
+    JSON.stringify({
+      level: "error",
+      requestId: id,
+      method: request.method,
+      pathname: new URL(request.url).pathname,
+      error: describeError(error),
+    }),
+  );
 }
 
-export default {
-  async fetch(request: Request, env: unknown, ctx: unknown) {
+export default createServerEntry({
+  async fetch(request) {
+    const id = requestId(request);
     try {
-      const localeRedirect = redirectToLocale(request);
-      if (localeRedirect) return localeRedirect;
-      const handler = await getServerEntry();
-      const context: AppRequestContext = {
-        cloudflare: await resolveBindings(request, env),
-        ...(hasWaitUntil(ctx) ? { executionCtx: ctx } : {}),
-      };
-      const response = await handler.fetch(request, {
-        context,
-      });
-      return withSecurityHeaders(await normalizeCatastrophicSsrResponse(response, request));
+      const redirect = redirectToLocale(request);
+      if (redirect)
+        return withHomepageDiscoveryHeaders(withSecurityHeaders(redirect, request), request);
+
+      const context: AppRequestContext = { cloudflare: env as AppBindings };
+      if (isMarkdownNegotiablePage(request) && acceptsMarkdown(request)) {
+        const { renderAgentMarkdownResponse } = await import("./lib/agent-document.server");
+        const markdown = await renderAgentMarkdownResponse(request, context);
+        if (markdown) {
+          return withHomepageDiscoveryHeaders(withSecurityHeaders(markdown, request), request);
+        }
+      }
+
+      const response = await handler.fetch(request, { context });
+      const negotiated = isMarkdownNegotiablePage(request) ? withMarkdownVary(response) : response;
+      return withHomepageDiscoveryHeaders(withSecurityHeaders(negotiated, request), request);
     } catch (error) {
-      console.error(error);
-      return new Response(renderErrorPage(localeFromPathname(new URL(request.url).pathname)), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
+      logRequestError(request, id, error);
+      const response = new Response(
+        renderErrorPage(localeFromPathname(new URL(request.url).pathname)),
+        {
+          status: 500,
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "x-request-id": id,
+            "cache-control": "no-store",
+          },
+        },
+      );
+      return withHomepageDiscoveryHeaders(withSecurityHeaders(response, request), request);
     }
   },
-};
+});

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { DocsOverview } from "@/components/dshx/docs-content";
 import { parseLocale } from "@/lib/i18n";
+import { buildSeoHead, localizedAlternates } from "@/lib/seo";
 
 const headCopy = {
   en: {
@@ -20,16 +21,23 @@ export const Route = createFileRoute("/$locale/docs/")({
   head: ({ params }) => {
     const locale = parseLocale(params.locale);
     const copy = headCopy[locale];
-    return {
-      meta: [
-        { title: copy.title },
-        { name: "description", content: copy.description },
-        { property: "og:title", content: copy.title },
-        { property: "og:description", content: copy.description },
-        { name: "robots", content: "index,follow" },
+    return buildSeoHead({
+      locale,
+      path: `/${locale}/docs`,
+      title: copy.title,
+      description: copy.description,
+      alternates: localizedAlternates("/docs"),
+      structuredData: [
+        {
+          "@id": `https://dshx.io/${locale}/docs#collection`,
+          "@type": "CollectionPage",
+          name: copy.title,
+          description: copy.description,
+          url: `https://dshx.io/${locale}/docs`,
+          inLanguage: locale === "zh" ? "zh-CN" : "en",
+        },
       ],
-      links: [{ rel: "canonical", href: `https://dshx.io/${locale}/docs` }],
-    };
+    });
   },
   component: DocsOverview,
 });

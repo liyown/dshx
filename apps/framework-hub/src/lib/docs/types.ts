@@ -45,14 +45,26 @@ export interface DocsChapterCopy {
   readonly sections: readonly DocsSection[];
 }
 
+export interface DocsReference {
+  readonly label: string;
+  readonly url: string;
+}
+
 export interface DocsChapterDefinition<Slug extends string = string> {
   readonly slug: Slug;
   readonly group: DocsGroup;
+  readonly lastVerified: string;
+  readonly references: readonly DocsReference[];
   readonly copy: Readonly<Record<Locale, DocsChapterCopy>>;
 }
 
 export function defineDocsChapter<const Slug extends string>(
-  chapter: DocsChapterDefinition<Slug>,
+  chapter: Omit<DocsChapterDefinition<Slug>, "lastVerified" | "references"> &
+    Partial<Pick<DocsChapterDefinition<Slug>, "lastVerified" | "references">>,
 ): DocsChapterDefinition<Slug> {
-  return chapter;
+  return {
+    lastVerified: "2026-08-28",
+    references: [{ label: "DSHX source repository", url: "https://github.com/liyown/dshx" }],
+    ...chapter,
+  };
 }

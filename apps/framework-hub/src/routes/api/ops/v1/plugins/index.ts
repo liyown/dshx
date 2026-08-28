@@ -8,7 +8,7 @@ import {
   parseOperationInput,
 } from "@/lib/catalog/operations-v1.http";
 import { listOpsPlugins } from "@/lib/catalog/operations-v1.server";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 
 function values(params: URLSearchParams, name: string) {
   const items = [
@@ -40,7 +40,7 @@ export const Route = createFileRoute("/api/ops/v1/plugins/")({
             limit: params.has("limit") ? Number(params.get("limit")) : undefined,
             cursor: params.get("cursor") ?? undefined,
           });
-          return operationSuccess(request, await listOpsPlugins(requireD1(context), query));
+          return operationSuccess(request, await listOpsPlugins(requireDatabase(context), query));
         } catch (error) {
           return operationFailure(request, error);
         }

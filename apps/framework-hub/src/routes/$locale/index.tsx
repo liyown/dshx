@@ -17,8 +17,10 @@ import { useHydratedReducedMotion } from "@/components/dshx/use-hydrated-reduced
 import { useSiteScrollMotion } from "@/components/dshx/use-site-scroll-motion";
 import { loadCatalog } from "@/lib/catalog/functions";
 import type { CatalogCard } from "@/lib/catalog/types";
-import { createTranslator, localizedPath, parseLocale, useI18n } from "@/lib/i18n";
+import { createTranslator, localizedPath, parseLocale } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 import { DSHX_VERSION, MARKETPLACE_REFERENCE_PLUGIN } from "@/lib/reference-plugin";
+import { buildSeoHead, localizedAlternates } from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/")({
   loader: ({ params }) =>
@@ -28,41 +30,45 @@ export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
     const locale = parseLocale(params.locale);
     const t = createTranslator(locale);
-    const canonical = `https://dshx.io/${locale}`;
-    return {
-      meta: [
-        { title: t("seo.title") },
+    return buildSeoHead({
+      locale,
+      path: `/${locale}`,
+      title: t("seo.title"),
+      description: t("seo.description"),
+      alternates: localizedAlternates("/"),
+      structuredData: [
         {
-          name: "description",
-          content: t("seo.description"),
+          "@id": "https://dshx.io/#website",
+          "@type": "WebSite",
+          name: "DSHX",
+          url: "https://dshx.io",
+          inLanguage: locale === "zh" ? "zh-CN" : "en",
+          description: t("seo.description"),
+          publisher: { "@id": "https://dshx.io/#organization" },
         },
-        { property: "og:title", content: t("seo.title") },
         {
-          property: "og:description",
-          content: t("seo.ogDescription"),
+          "@id": "https://dshx.io/#organization",
+          "@type": "Organization",
+          name: "DSHX",
+          url: "https://dshx.io",
+          sameAs: [
+            "https://github.com/liyown/dshx",
+            "https://www.npmjs.com/package/@becomeopc/dshx",
+          ],
         },
-        { property: "og:url", content: canonical },
-      ],
-      links: [
-        { rel: "canonical", href: canonical },
-        { rel: "alternate", hrefLang: "en", href: "https://dshx.io/en" },
-        { rel: "alternate", hrefLang: "zh", href: "https://dshx.io/zh" },
-        { rel: "alternate", hrefLang: "x-default", href: "https://dshx.io/en" },
-      ],
-      scripts: [
         {
-          type: "application/ld+json",
-          children: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "WebSite",
-            name: "DSHX",
-            url: "https://dshx.io",
-            inLanguage: locale === "zh" ? "zh-CN" : "en",
-            description: t("seo.description"),
-          }),
+          "@id": "https://dshx.io/#source",
+          "@type": "SoftwareSourceCode",
+          name: "DSHX",
+          description: t("seo.description"),
+          codeRepository: "https://github.com/liyown/dshx",
+          programmingLanguage: ["TypeScript", "JavaScript"],
+          license: "https://opensource.org/license/mit",
+          runtimePlatform: "DeepSeek Harness",
+          version: DSHX_VERSION,
         },
       ],
-    };
+    });
   },
   component: Home,
 });

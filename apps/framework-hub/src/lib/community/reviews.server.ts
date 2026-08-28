@@ -1,7 +1,13 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
-import { pluginMaintainers, pluginReviews, plugins } from "@/lib/db/schema";
+import {
+  pluginMaintainers,
+  pluginReviews,
+  plugins,
+  reviewReplies,
+  userBlocks,
+} from "@/lib/db/schema";
 import { HttpError } from "@/lib/http";
 
 export async function requireReviewablePlugin(db: Database, slug: string, userId: string) {
@@ -85,4 +91,85 @@ export async function softDeletePluginReview(db: Database, pluginId: string, use
       "approval_required",
     );
   throw new HttpError(404, "Review not found", "review_not_found");
+}
+
+export async function listPublishedPluginReviews(
+  db: Database,
+  input: { slug: string; cursor: number; limit: number },
+) {
+  return db.all<{ created_at: number } & Record<string, unknown>>(sql`
+    select r.id, r.rating, r.locale, r.body, r.created_at, r.updated_at,
+      u.name as user_name, u.image as user_image,
+      (select json_group_array(json_object('id', rr.id, 'locale', rr.locale, 'body', rr.body,
+        'createdAt', rr.created_at, 'userName', ru.name))
+       from review_replies rr join user ru on ru.id = rr.user_id
+       where rr.review_id = r.id and rr.status = 'published') as replies
+    from plugin_reviews r join plugins p on p.id = r.plugin_id join user u on u.id = r.user_id
+    where p.slug = ${input.slug} and r.status = 'published' and r.created_at < ${input.cursor}
+    order by r.created_at desc limit ${input.limit + 1}
+  `);
+}
+
+export async function findPublishedReview(db: Database, id: string) {
+  const [review] = await db
+    .select()
+    .from(pluginReviews)
+    .where(and(eq(pluginReviews.id, id), eq(pluginReviews.status, "published")))
+    .limit(1);
+  return review ?? null;
+}
+
+export async function usersBlockEachOther(db: Database, leftUserId: string, rightUserId: string) {
+  const [blocked] = await db
+    .select({ blockerUserId: userBlocks.blockerUserId })
+    .from(userBlocks)
+    .where(
+      or(
+        and(eq(userBlocks.blockerUserId, leftUserId), eq(userBlocks.blockedUserId, rightUserId)),
+        and(eq(userBlocks.blockerUserId, rightUserId), eq(userBlocks.blockedUserId, leftUserId)),
+      ),
+    )
+    .limit(1);
+  return Boolean(blocked);
+}
+
+export async function findReplyByIdempotencyKey(db: Database, idempotencyKey: string) {
+  const [reply] = await db
+    .select()
+    .from(reviewReplies)
+    .where(eq(reviewReplies.idempotencyKey, idempotencyKey))
+    .limit(1);
+  return reply ?? null;
+}
+
+export async function insertReviewReply(db: Database, value: typeof reviewReplies.$inferInsert) {
+  const [reply] = await db.insert(reviewReplies).values(value).returning();
+  return reply!;
+}
+
+export async function updateOwnedReviewReply(
+  db: Database,
+  input: { id: string; userId: string; body: string; locale: "en" | "zh" },
+) {
+  const [reply] = await db
+    .update(reviewReplies)
+    .set({ body: input.body, locale: input.locale, updatedAt: new Date() })
+    .where(
+      and(
+        eq(reviewReplies.id, input.id),
+        eq(reviewReplies.userId, input.userId),
+        eq(reviewReplies.status, "published"),
+      ),
+    )
+    .returning();
+  return reply ?? null;
+}
+
+export async function deleteOwnedReviewReply(db: Database, id: string, userId: string) {
+  const [reply] = await db
+    .update(reviewReplies)
+    .set({ status: "deleted", deletedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(reviewReplies.id, id), eq(reviewReplies.userId, userId)))
+    .returning();
+  return reply ?? null;
 }

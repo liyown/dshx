@@ -1,6 +1,10 @@
 import type { z } from "zod";
+import type { BatchItem } from "drizzle-orm/batch";
 
 import type { moderationActionSchema } from "@/lib/catalog/contracts";
+import type { Database } from "@/lib/db/client";
+import { runDrizzleBatch } from "@/lib/db/batch";
+import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { HttpError, uuid } from "@/lib/http";
 
 type ModerationInput = z.infer<typeof moderationActionSchema>;
@@ -31,9 +35,9 @@ function parseJson<T>(value: string, fallback: T): T {
   }
 }
 
-export async function listModerationQueue(binding: D1Database) {
-  const result = await binding
-    .prepare(
+export async function listModerationQueue(binding: Database) {
+  const result = await binding.all<QueueRow>(
+    parameterizedSql(
       `select cr.target_type,cr.target_id,
         json_group_array(cr.id) report_ids,
         json_group_array(json_object(
@@ -75,10 +79,11 @@ export async function listModerationQueue(binding: D1Database) {
       group by cr.target_type,cr.target_id
       order by oldest_reported_at asc
       limit 100`,
-    )
-    .all<QueueRow>();
+      [],
+    ),
+  );
 
-  return (result.results ?? []).map((row) => ({
+  return result.map((row) => ({
     targetType: row.target_type,
     targetId: row.target_id,
     reportIds: parseJson<string[]>(row.report_ids, []),
@@ -108,27 +113,27 @@ export async function listModerationQueue(binding: D1Database) {
   }));
 }
 
-async function validateReports(binding: D1Database, input: ModerationInput) {
+async function validateReports(binding: Database, input: ModerationInput) {
   if (input.reportIds.length === 0) return;
   const placeholders = input.reportIds.map(() => "?").join(",");
-  const reports = await binding
-    .prepare(
+  const reports = await binding.all<{
+    id: string;
+    target_type: string;
+    target_id: string;
+    status: string;
+    author_user_id: string;
+  }>(
+    parameterizedSql(
       `select cr.id,cr.target_type,cr.target_id,cr.status,
         coalesce(pr.user_id,rr.user_id) author_user_id
       from content_reports cr
       left join plugin_reviews pr on cr.target_type='review' and pr.id=cr.target_id
       left join review_replies rr on cr.target_type='reply' and rr.id=cr.target_id
       where cr.id in (${placeholders})`,
-    )
-    .bind(...input.reportIds)
-    .all<{
-      id: string;
-      target_type: string;
-      target_id: string;
-      status: string;
-      author_user_id: string;
-    }>();
-  const matching = (reports.results ?? []).filter((report) => {
+      [...input.reportIds],
+    ),
+  );
+  const matching = reports.filter((report) => {
     if (input.targetType === "user") {
       return (
         ["open", "resolved"].includes(report.status) && report.author_user_id === input.targetId
@@ -149,7 +154,7 @@ async function validateReports(binding: D1Database, input: ModerationInput) {
   }
 }
 
-async function validateTarget(binding: D1Database, input: ModerationInput) {
+async function validateTarget(binding: Database, input: ModerationInput) {
   const table = {
     plugin: "plugins",
     review: "plugin_reviews",
@@ -159,10 +164,11 @@ async function validateTarget(binding: D1Database, input: ModerationInput) {
     user: "user_profiles",
   }[input.targetType];
   const column = ["user", "profile"].includes(input.targetType) ? "user_id" : "id";
-  const target = await binding
-    .prepare(`select ${column} id from ${table} where ${column}=? limit 1`)
-    .bind(input.targetId)
-    .first<{ id: string }>();
+  const target = await binding.get<{ id: string }>(
+    parameterizedSql(`select ${column} id from ${table} where ${column}=? limit 1`, [
+      input.targetId,
+    ]),
+  );
   if (!target) throw new HttpError(404, "Moderation target not found", "target_not_found");
 }
 
@@ -202,7 +208,7 @@ function validateAutomaticPolicy(input: ModerationInput, now: number) {
 }
 
 export async function applyModerationAction(
-  binding: D1Database,
+  binding: Database,
   actorId: string,
   input: ModerationInput,
 ) {
@@ -219,61 +225,83 @@ export async function applyModerationAction(
   const now = Date.now();
   validateAutomaticPolicy(input, now);
   const actionId = uuid();
-  const statements: D1PreparedStatement[] = [];
+  const statements: BatchItem<"sqlite">[] = [];
   if (input.targetType === "review" && ["hide", "restore"].includes(input.action)) {
     statements.push(
-      binding
-        .prepare("update plugin_reviews set status=?,updated_at=? where id=?")
-        .bind(input.action === "hide" ? "hidden" : "published", now, input.targetId),
+      binding.run(
+        parameterizedSql("update plugin_reviews set status=?,updated_at=? where id=?", [
+          input.action === "hide" ? "hidden" : "published",
+          now,
+          input.targetId,
+        ]),
+      ),
     );
   }
   if (input.targetType === "reply" && ["hide", "restore"].includes(input.action)) {
     statements.push(
-      binding
-        .prepare("update review_replies set status=?,updated_at=? where id=?")
-        .bind(input.action === "hide" ? "hidden" : "published", now, input.targetId),
+      binding.run(
+        parameterizedSql("update review_replies set status=?,updated_at=? where id=?", [
+          input.action === "hide" ? "hidden" : "published",
+          now,
+          input.targetId,
+        ]),
+      ),
     );
   }
   if (input.targetType === "user" && ["restrict", "ban"].includes(input.action)) {
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into user_restrictions(
             id,user_id,kind,reason,starts_at,expires_at,created_by_actor_type,created_by_actor_id
           ) values(?,?,?,?,?,?,?,?)`,
-        )
-        .bind(
-          uuid(),
-          input.targetId,
-          input.action === "ban" ? "ban" : "write",
-          input.reason,
-          now,
-          Date.parse(input.expiresAt!),
-          "api_token",
-          actorId,
+          [
+            uuid(),
+            input.targetId,
+            input.action === "ban" ? "ban" : "write",
+            input.reason,
+            now,
+            Date.parse(input.expiresAt!),
+            "api_token",
+            actorId,
+          ],
         ),
-      binding
-        .prepare("update user_profiles set status=?,updated_at=? where user_id=?")
-        .bind(input.action === "ban" ? "banned" : "restricted", now, input.targetId),
+      ),
+      binding.run(
+        parameterizedSql("update user_profiles set status=?,updated_at=? where user_id=?", [
+          input.action === "ban" ? "banned" : "restricted",
+          now,
+          input.targetId,
+        ]),
+      ),
     );
   }
   if (input.targetType === "user" && ["unrestrict", "unban"].includes(input.action)) {
     statements.push(
-      binding
-        .prepare("update user_restrictions set revoked_at=? where user_id=? and revoked_at is null")
-        .bind(now, input.targetId),
-      binding
-        .prepare("update user_profiles set status='active',updated_at=? where user_id=?")
-        .bind(now, input.targetId),
+      binding.run(
+        parameterizedSql(
+          "update user_restrictions set revoked_at=? where user_id=? and revoked_at is null",
+          [now, input.targetId],
+        ),
+      ),
+      binding.run(
+        parameterizedSql("update user_profiles set status='active',updated_at=? where user_id=?", [
+          now,
+          input.targetId,
+        ]),
+      ),
     );
   }
 
   if (input.reportIds.length > 0) {
     const placeholders = input.reportIds.map(() => "?").join(",");
     statements.push(
-      binding
-        .prepare(`update content_reports set status=?,resolved_at=? where id in (${placeholders})`)
-        .bind(input.action === "dismiss" ? "dismissed" : "resolved", now, ...input.reportIds),
+      binding.run(
+        parameterizedSql(
+          `update content_reports set status=?,resolved_at=? where id in (${placeholders})`,
+          [input.action === "dismiss" ? "dismissed" : "resolved", now, ...input.reportIds],
+        ),
+      ),
     );
   }
 
@@ -285,26 +313,27 @@ export async function applyModerationAction(
     policyVersion: input.policyVersion ?? null,
   };
   statements.push(
-    binding
-      .prepare(
+    binding.run(
+      parameterizedSql(
         `insert into moderation_actions(
           id,actor_type,actor_id,action,target_type,target_id,reason,metadata_json,created_at
         ) values(?,?,?,?,?,?,?,?,?)`,
-      )
-      .bind(
-        actionId,
-        "api_token",
-        actorId,
-        input.action,
-        input.targetType,
-        input.targetId,
-        input.reason,
-        JSON.stringify(metadata),
-        now,
+        [
+          actionId,
+          "api_token",
+          actorId,
+          input.action,
+          input.targetType,
+          input.targetId,
+          input.reason,
+          JSON.stringify(metadata),
+          now,
+        ],
       ),
+    ),
   );
 
-  await binding.batch(statements);
+  await runDrizzleBatch(binding, statements);
   return {
     id: actionId,
     actorType: "api_token" as const,

@@ -8,7 +8,7 @@ import {
   getCollection,
   updateCollection,
 } from "@/lib/community/marketplace.server";
-import { requireD1 } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/me/collections/$id")({
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/api/me/collections/$id")({
         try {
           const auth = await requireSession(request, context);
           return Response.json(
-            await getCollection(requireD1(context), params.id, auth.session.user.id),
+            await getCollection(requireDatabase(context), params.id, auth.session.user.id),
           );
         } catch (error) {
           return jsonError(error);
@@ -37,7 +37,12 @@ export const Route = createFileRoute("/api/me/collections/$id")({
             input.turnstileToken,
           );
           return Response.json(
-            await updateCollection(requireD1(context), params.id, auth.session.user.id, input),
+            await updateCollection(
+              requireDatabase(context),
+              params.id,
+              auth.session.user.id,
+              input,
+            ),
           );
         } catch (error) {
           return jsonError(error);
@@ -56,7 +61,7 @@ export const Route = createFileRoute("/api/me/collections/$id")({
             input.turnstileToken,
           );
           return Response.json(
-            await deleteCollection(requireD1(context), params.id, auth.session.user.id),
+            await deleteCollection(requireDatabase(context), params.id, auth.session.user.id),
           );
         } catch (error) {
           return jsonError(error);

@@ -21,9 +21,3 @@ export function requireDatabase(context: unknown): Database {
   if (!binding) throw new DatabaseUnavailableError();
   return createDatabase(binding);
 }
-
-export function requireD1(context: unknown): D1Database {
-  const binding = requireBindings(context).DB;
-  if (!binding) throw new DatabaseUnavailableError();
-  return binding;
-}

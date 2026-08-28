@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createApproval } from "@/lib/approvals/service.server";
 import { requireApiToken } from "@/lib/auth/tokens.server";
 import { userRoleSchema } from "@/lib/catalog/contracts";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { HttpError, jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/ops/users/$id/role")({
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/api/ops/users/$id/role")({
           if (actor.profile.role !== "admin")
             throw new HttpError(403, "Administrator role required", "forbidden");
           const input = await readJson(request, userRoleSchema);
-          const approval = await createApproval(requireD1(context), actor, {
+          const approval = await createApproval(requireDatabase(context), actor, {
             kind: "role_change",
             risk: "critical",
             subjectType: "user",

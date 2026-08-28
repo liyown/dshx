@@ -77,18 +77,18 @@ describe("approval ledger and registered effects with local D1", () => {
       idempotencyKey: `role:${target}`,
     });
 
-    const created = await createApproval(proxy.env.DB, actor, input);
-    const duplicate = await createApproval(proxy.env.DB, actor, input);
+    const created = await createApproval(db, actor, input);
+    const duplicate = await createApproval(db, actor, input);
     expect(duplicate.id).toBe(created.id);
     await expect(
-      createApproval(proxy.env.DB, actor, {
+      createApproval(db, actor, {
         ...input,
         preconditions: { fieldThatDoesNotExist: true },
         idempotencyKey: `invalid-precondition:${target}`,
       }),
     ).rejects.toThrow("Unknown subject precondition");
 
-    const returned = await decideApproval(proxy.env.DB, created.id!, admin, {
+    const returned = await decideApproval(db, created.id!, admin, {
       action: "request_changes",
       reason: "Attach the authorization ticket",
     });
@@ -96,7 +96,7 @@ describe("approval ledger and registered effects with local D1", () => {
 
     const otherTarget = await user();
     await expect(
-      reviseApproval(proxy.env.DB, created.id!, actor, {
+      reviseApproval(db, created.id!, actor, {
         title: input.title,
         summary: input.summary,
         evidence: { ticket: "fixture-1", authorized: true },
@@ -106,7 +106,7 @@ describe("approval ledger and registered effects with local D1", () => {
       }),
     ).rejects.toThrow("must match its approval subject");
 
-    const revised = await reviseApproval(proxy.env.DB, created.id!, actor, {
+    const revised = await reviseApproval(db, created.id!, actor, {
       title: input.title,
       summary: input.summary,
       evidence: { ticket: "fixture-1", authorized: true },
@@ -117,7 +117,7 @@ describe("approval ledger and registered effects with local D1", () => {
     expect(revised.status).toBe("pending");
     expect(revised.currentVersion).toBe(2);
 
-    const approved = await decideApproval(proxy.env.DB, created.id!, admin, {
+    const approved = await decideApproval(db, created.id!, admin, {
       action: "approve",
       reason: "Authorization verified",
     });
@@ -138,7 +138,7 @@ describe("approval ledger and registered effects with local D1", () => {
     const admin = await user("admin");
     const actor = await tokenActor(admin);
     const stale = await createApproval(
-      proxy.env.DB,
+      db,
       actor,
       approvalCreateSchema.parse({
         kind: "role_change",
@@ -163,15 +163,13 @@ describe("approval ledger and registered effects with local D1", () => {
     )
       .bind(Date.now(), target)
       .run();
-    await expect(
-      decideApproval(proxy.env.DB, stale.id!, admin, { action: "approve" }),
-    ).rejects.toThrow("stale");
-    expect((await getApproval(proxy.env.DB, stale.id!, undefined, true)).request!.status).toBe(
-      "superseded",
+    await expect(decideApproval(db, stale.id!, admin, { action: "approve" })).rejects.toThrow(
+      "stale",
     );
+    expect((await getApproval(db, stale.id!, undefined, true)).request!.status).toBe("superseded");
 
     const agentRequest = await createApproval(
-      proxy.env.DB,
+      db,
       actor,
       approvalCreateSchema.parse({
         kind: "ops_exception",
@@ -191,9 +189,9 @@ describe("approval ledger and registered effects with local D1", () => {
         idempotencyKey: `agent:${target}`,
       }),
     );
-    await decideApproval(proxy.env.DB, agentRequest.id!, admin, { action: "approve" });
-    const lease = await claimAgentEffect(proxy.env.DB, agentRequest.id!, actor);
-    const result = await completeAgentEffect(proxy.env.DB, agentRequest.id!, actor, {
+    await decideApproval(db, agentRequest.id!, admin, { action: "approve" });
+    const lease = await claimAgentEffect(db, agentRequest.id!, actor);
+    const result = await completeAgentEffect(db, agentRequest.id!, actor, {
       leaseToken: lease.leaseToken,
       status: "succeeded",
       output: { resumed: true },
@@ -201,7 +199,7 @@ describe("approval ledger and registered effects with local D1", () => {
     expect(result.duplicate).toBe(false);
     expect(
       (
-        await completeAgentEffect(proxy.env.DB, agentRequest.id!, actor, {
+        await completeAgentEffect(db, agentRequest.id!, actor, {
           leaseToken: lease.leaseToken,
           status: "succeeded",
           output: { resumed: true },
@@ -215,7 +213,7 @@ describe("approval ledger and registered effects with local D1", () => {
     const admin = await user("admin");
     const actor = await tokenActor(admin);
     const request = await createApproval(
-      proxy.env.DB,
+      db,
       actor,
       approvalCreateSchema.parse({
         kind: "role_change",
@@ -236,17 +234,22 @@ describe("approval ledger and registered effects with local D1", () => {
       }),
     );
     let batches = 0;
-    const failingBinding = {
-      prepare: proxy.env.DB.prepare.bind(proxy.env.DB),
-      batch: async (statements: D1PreparedStatement[]) => {
-        batches += 1;
-        if (batches === 2) throw new Error("simulated domain write failure");
-        return proxy.env.DB.batch(statements);
+    const failingClient = new Proxy(proxy.env.DB, {
+      get(target, property) {
+        if (property === "batch")
+          return async (statements: D1PreparedStatement[]) => {
+            batches += 1;
+            if (batches === 2) throw new Error("simulated domain write failure");
+            return target.batch(statements);
+          };
+        const value = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
       },
-    } as unknown as D1Database;
+    }) as D1Database;
+    const failingDatabase = createDatabase(failingClient);
 
     await expect(
-      decideApproval(failingBinding, request.id!, admin, { action: "approve" }),
+      decideApproval(failingDatabase, request.id!, admin, { action: "approve" }),
     ).rejects.toThrow("Approved effect failed");
     const notification = await proxy.env.DB.prepare(
       "select kind from notification_events where subject_type='approval' and subject_id=? order by created_at desc limit 1",
@@ -262,7 +265,7 @@ describe("approval ledger and registered effects with local D1", () => {
     const actor = await tokenActor(admin);
     const makeRequest = async (suffix: string) => {
       const request = await createApproval(
-        proxy.env.DB,
+        db,
         actor,
         approvalCreateSchema.parse({
           kind: "ops_exception",
@@ -282,7 +285,7 @@ describe("approval ledger and registered effects with local D1", () => {
           idempotencyKey: `agent-${suffix}:${target}`,
         }),
       );
-      await decideApproval(proxy.env.DB, request.id!, admin, { action: "approve" });
+      await decideApproval(db, request.id!, admin, { action: "approve" });
       return request;
     };
 
@@ -290,24 +293,20 @@ describe("approval ledger and registered effects with local D1", () => {
     await proxy.env.DB.prepare("update user_profiles set updated_at=? where user_id=?")
       .bind(Date.now() + 1_000, target)
       .run();
-    await expect(claimAgentEffect(proxy.env.DB, stale.id!, actor)).rejects.toThrow("stale");
-    expect((await getApproval(proxy.env.DB, stale.id!, undefined, true)).request!.status).toBe(
-      "superseded",
-    );
+    await expect(claimAgentEffect(db, stale.id!, actor)).rejects.toThrow("stale");
+    expect((await getApproval(db, stale.id!, undefined, true)).request!.status).toBe("superseded");
 
     const failed = await makeRequest("failed");
-    const firstLease = await claimAgentEffect(proxy.env.DB, failed.id!, actor);
-    await completeAgentEffect(proxy.env.DB, failed.id!, actor, {
+    const firstLease = await claimAgentEffect(db, failed.id!, actor);
+    await completeAgentEffect(db, failed.id!, actor, {
       leaseToken: firstLease.leaseToken,
       status: "failed",
       error: "fixture failure",
     });
-    await expect(claimAgentEffect(proxy.env.DB, failed.id!, actor)).rejects.toThrow(
-      "administrator retry",
-    );
-    const retried = await retryApprovedEffect(proxy.env.DB, failed.id!, admin, "Retry verified");
+    await expect(claimAgentEffect(db, failed.id!, actor)).rejects.toThrow("administrator retry");
+    const retried = await retryApprovedEffect(db, failed.id!, admin, "Retry verified");
     expect(retried.effect!.status).toBe("awaiting_agent");
-    await expect(claimAgentEffect(proxy.env.DB, failed.id!, actor)).resolves.toMatchObject({
+    await expect(claimAgentEffect(db, failed.id!, actor)).resolves.toMatchObject({
       attempt: 2,
     });
   });

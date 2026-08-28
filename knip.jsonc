@@ -36,6 +36,8 @@
     },
     "apps/framework-hub": {
       "entry": ["src/lib/email/previews/*.tsx"],
+      "ignore": ["src/test/cloudflare-workers.ts"],
+      "ignoreDependencies": ["cloudflare"],
     },
   },
 }

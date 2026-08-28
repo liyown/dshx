@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, CircleAlert, Clock3, ShieldCheck } from "lucid
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SignInButton } from "@/components/community/auth-controls";
+import { ThemeToggle } from "@/components/dshx/theme-toggle";
 import { cn } from "@/lib/utils";
 
 export type ApprovalListItem = {
@@ -108,9 +109,12 @@ export function AdminHeader({ back }: { back?: boolean }) {
             <span className="text-sm text-muted-foreground">Approval ledger</span>
           </div>
         </div>
-        <a href="/en" className="text-sm text-muted-foreground hover:text-foreground">
-          Back to marketplace
-        </a>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <a href="/en" className="text-sm text-muted-foreground hover:text-foreground">
+            Back to marketplace
+          </a>
+        </div>
       </div>
     </header>
   );

@@ -4,7 +4,7 @@ import { getOptionalSession, requireSameOrigin } from "@/lib/auth/auth.server";
 import { submissionCreateSchema } from "@/lib/community/contracts";
 import { anonymousSubmissionKey, createSubmission } from "@/lib/community/marketplace.server";
 import { verifyTurnstileToken } from "@/lib/community/verification.server";
-import { requireD1 } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { requireBindings } from "@/lib/db/context";
 import { jsonError, readJson } from "@/lib/http";
 
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/api/submissions/")({
             ? `user:${userId}`
             : await anonymousSubmissionKey(request, bindings.BETTER_AUTH_SECRET!);
           return Response.json(
-            await createSubmission(requireD1(context), {
+            await createSubmission(requireDatabase(context), {
               userId,
               submitterKey,
               repositoryUrl: input.repositoryUrl,

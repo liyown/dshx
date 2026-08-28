@@ -13,6 +13,7 @@ describe("documentation registry", () => {
   it("publishes one stable entry for every chapter", () => {
     expect(DOC_SLUGS).toEqual([
       "getting-started",
+      "architecture",
       "project-model",
       "creator",
       "host-contributions",
@@ -22,6 +23,8 @@ describe("documentation registry", () => {
       "conversation",
       "cli-and-inspect",
       "compatibility",
+      "publishing",
+      "troubleshooting",
     ]);
     expect(new Set(DOC_SLUGS).size).toBe(DOC_SLUGS.length);
     expect(DOC_CHAPTERS.map((chapter) => chapter.slug)).toEqual(DOC_SLUGS);
@@ -41,6 +44,8 @@ describe("documentation registry", () => {
       expect(copy.navigation).not.toBe("");
       expect(copy.title).not.toBe("");
       expect(copy.description).not.toBe("");
+      expect(getDocsChapter(slug).lastVerified).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(getDocsChapter(slug).references.length).toBeGreaterThan(0);
       expect(copy.sections.length).toBeGreaterThan(0);
       expect(new Set(copy.sections.map((section) => section.id)).size).toBe(copy.sections.length);
       expect(copy.sections.map((section) => section.id)).toEqual(englishSections);

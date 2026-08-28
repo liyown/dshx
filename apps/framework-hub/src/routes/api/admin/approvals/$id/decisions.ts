@@ -3,9 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { approvalDecisionSchema } from "@/lib/approvals/contracts";
 import { decideApproval } from "@/lib/approvals/service.server";
 import { requireAdminSession, requireSameOrigin } from "@/lib/auth/auth.server";
-import { requireD1 } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { scheduleCriticalApprovalEmail } from "@/lib/email/delivery.server";
 import { HttpError, jsonError, readJson } from "@/lib/http";
+import { catalogChanged, publishCatalogChanged } from "@/lib/sitemap-cache";
 
 export const Route = createFileRoute("/api/admin/approvals/$id/decisions")({
   server: {
@@ -16,11 +17,12 @@ export const Route = createFileRoute("/api/admin/approvals/$id/decisions")({
           const admin = await requireAdminSession(request, context);
           const input = await readJson(request, approvalDecisionSchema);
           const result = await decideApproval(
-            requireD1(context),
+            requireDatabase(context),
             params.id,
             admin.session.user.id,
             input,
           );
+          if (input.action === "approve") publishCatalogChanged(catalogChanged(request));
           scheduleCriticalApprovalEmail(
             context,
             params.id,

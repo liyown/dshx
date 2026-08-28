@@ -1,5 +1,10 @@
+import type { BatchItem } from "drizzle-orm/batch";
+
 import type { OperationMediaMetadata } from "./operations-v1.contracts";
 import { OperationHttpError } from "./operations-v1.http";
+import type { Database } from "@/lib/db/client";
+import { runDrizzleBatch } from "@/lib/db/batch";
+import { parameterizedSql } from "@/lib/db/parameterized-sql";
 
 const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/avif"]);
 const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -109,7 +114,7 @@ async function sha256(bytes: ArrayBuffer): Promise<string> {
 }
 
 export async function uploadOperationMedia(
-  binding: D1Database,
+  binding: Database,
   bucket: R2Bucket | undefined,
   actorTokenId: string,
   requestId: string,
@@ -156,30 +161,30 @@ export async function uploadOperationMedia(
       false,
       { path: "file" },
     );
-  const plugin = await binding
-    .prepare(
+  const plugin = await binding.get<{
+    id: string;
+    status: string;
+    published_at: number | null;
+    package_name: string;
+    latest_version: string;
+    description: string;
+    license_spdx: string | null;
+    homepage_url: string | null;
+    repository_url: string | null;
+    compatibility_range: string;
+    last_synced_at: number | null;
+    created_at: number;
+    updated_at: number;
+    revision: number | null;
+  }>(
+    parameterizedSql(
       `select p.id,p.status,p.published_at,p.package_name,p.latest_version,p.description,p.license_spdx,
         p.homepage_url,p.repository_url,p.compatibility_range,p.last_synced_at,p.created_at,p.updated_at,
         o.revision from plugins p
        left join plugin_operational_state o on o.plugin_id=p.id where p.id=?`,
-    )
-    .bind(pluginId)
-    .first<{
-      id: string;
-      status: string;
-      published_at: number | null;
-      package_name: string;
-      latest_version: string;
-      description: string;
-      license_spdx: string | null;
-      homepage_url: string | null;
-      repository_url: string | null;
-      compatibility_range: string;
-      last_synced_at: number | null;
-      created_at: number;
-      updated_at: number;
-      revision: number | null;
-    }>();
+      [pluginId],
+    ),
+  );
   if (!plugin) throw new OperationHttpError(404, "plugin_not_found", "Plugin not found", false);
   const hash = await sha256(bytes);
   if (metadata.sourceSha256 !== hash)
@@ -187,8 +192,17 @@ export async function uploadOperationMedia(
       path: "metadata.sourceSha256",
       details: { computedSha256: hash },
     });
-  const existing = await binding
-    .prepare(
+  const existing = await binding.get<{
+    id: string;
+    key: string;
+    sourceUrl: string | null;
+    observedAt: number | null;
+    altEn: string | null;
+    altZh: string | null;
+    captionEn: string | null;
+    captionZh: string | null;
+  }>(
+    parameterizedSql(
       `select m.id,m.r2_key key,m.source_url sourceUrl,m.observed_at observedAt,
         max(case when l.locale='en' then l.alt_text end) altEn,
         max(case when l.locale='zh' then l.alt_text end) altZh,
@@ -196,18 +210,9 @@ export async function uploadOperationMedia(
         max(case when l.locale='zh' then l.caption end) captionZh
        from plugin_media m left join plugin_media_localizations l on l.media_id=m.id
        where m.plugin_id=? and m.kind=? and m.sha256=? group by m.id limit 1`,
-    )
-    .bind(pluginId, metadata.kind, hash)
-    .first<{
-      id: string;
-      key: string;
-      sourceUrl: string | null;
-      observedAt: number | null;
-      altEn: string | null;
-      altZh: string | null;
-      captionEn: string | null;
-      captionZh: string | null;
-    }>();
+      [pluginId, metadata.kind, hash],
+    ),
+  );
   const revision = plugin.revision ?? 1;
   const sameMetadata =
     existing &&
@@ -239,123 +244,127 @@ export async function uploadOperationMedia(
   const mediaId = existing?.id ?? crypto.randomUUID();
   const nextRevision = revision + 1;
   const operationId = crypto.randomUUID();
-  const statements: D1PreparedStatement[] = [];
+  const statements: BatchItem<"sqlite">[] = [];
   const stateWriteIndex = statements.length;
   if (plugin.revision == null)
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_operational_state(
             plugin_id,state,visibility,revision,last_operation_id,detection_json,facts_json,sources_json,
             field_provenance_json,last_observed_at,created_at,updated_at
           ) values(?,?,?,?,?,?,?,?,?,?,?,?)`,
-        )
-        .bind(
-          pluginId,
-          plugin.status === "published" ||
+          [
+            pluginId,
+            plugin.status === "published" ||
             (plugin.status === "archived" && plugin.published_at != null)
-            ? "published"
-            : "draft",
-          plugin.status === "archived" ? "hidden" : "visible",
-          nextRevision,
-          operationId,
-          null,
-          JSON.stringify({
-            package: {
-              name: plugin.package_name,
-              version: plugin.latest_version,
-              ...(plugin.description ? { description: plugin.description } : {}),
-              ...(plugin.license_spdx ? { license: plugin.license_spdx } : {}),
-              ...(plugin.homepage_url ? { homepageUrl: plugin.homepage_url } : {}),
-              ...(plugin.repository_url ? { repositoryUrl: plugin.repository_url } : {}),
-            },
-            ...(plugin.compatibility_range && plugin.compatibility_range !== "*"
-              ? { compatibility: { declaredRange: plugin.compatibility_range } }
-              : {}),
-          }),
-          plugin.repository_url
-            ? JSON.stringify([
-                {
-                  kind: "github",
-                  url: plugin.repository_url,
-                  availability: "available",
-                  lastObservedAt: new Date(
-                    plugin.last_synced_at ?? plugin.updated_at,
-                  ).toISOString(),
-                  lastSuccessfulAt: new Date(
-                    plugin.last_synced_at ?? plugin.updated_at,
-                  ).toISOString(),
-                  observationId: `legacy:${pluginId}`,
-                },
-              ])
-            : "[]",
-          "{}",
-          plugin.last_synced_at ?? plugin.updated_at,
-          now,
-          now,
+              ? "published"
+              : "draft",
+            plugin.status === "archived" ? "hidden" : "visible",
+            nextRevision,
+            operationId,
+            null,
+            JSON.stringify({
+              package: {
+                name: plugin.package_name,
+                version: plugin.latest_version,
+                ...(plugin.description ? { description: plugin.description } : {}),
+                ...(plugin.license_spdx ? { license: plugin.license_spdx } : {}),
+                ...(plugin.homepage_url ? { homepageUrl: plugin.homepage_url } : {}),
+                ...(plugin.repository_url ? { repositoryUrl: plugin.repository_url } : {}),
+              },
+              ...(plugin.compatibility_range && plugin.compatibility_range !== "*"
+                ? { compatibility: { declaredRange: plugin.compatibility_range } }
+                : {}),
+            }),
+            plugin.repository_url
+              ? JSON.stringify([
+                  {
+                    kind: "github",
+                    url: plugin.repository_url,
+                    availability: "available",
+                    lastObservedAt: new Date(
+                      plugin.last_synced_at ?? plugin.updated_at,
+                    ).toISOString(),
+                    lastSuccessfulAt: new Date(
+                      plugin.last_synced_at ?? plugin.updated_at,
+                    ).toISOString(),
+                    observationId: `legacy:${pluginId}`,
+                  },
+                ])
+              : "[]",
+            "{}",
+            plugin.last_synced_at ?? plugin.updated_at,
+            now,
+            now,
+          ],
         ),
+      ),
     );
   else
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `update plugin_operational_state set revision=?,last_operation_id=?,updated_at=?
            where plugin_id=? and revision=?`,
-        )
-        .bind(nextRevision, operationId, now, pluginId, revision),
+          [nextRevision, operationId, now, pluginId, revision],
+        ),
+      ),
     );
   const mediaWriteIndex = statements.length;
   if (existing)
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `update plugin_media set source_url=?,observed_at=?,updated_at=?
            where id=? and exists(
              select 1 from plugin_operational_state
              where plugin_id=? and last_operation_id=?
            )`,
-        )
-        .bind(
-          metadata.sourceUrl ?? null,
-          Date.parse(metadata.observedAt),
-          now,
-          mediaId,
-          pluginId,
-          operationId,
+          [
+            metadata.sourceUrl ?? null,
+            Date.parse(metadata.observedAt),
+            now,
+            mediaId,
+            pluginId,
+            operationId,
+          ],
         ),
+      ),
     );
   else
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_media(
             id,plugin_id,kind,r2_key,source_url,sha256,content_type,width,height,byte_size,
             sort_order,status,observed_at,created_at,updated_at
           ) select ?,?,?,?,?,?,?,?,?,?,0,'active',?,?,? from plugin_operational_state
             where plugin_id=? and last_operation_id=?`,
-        )
-        .bind(
-          mediaId,
-          pluginId,
-          metadata.kind,
-          key,
-          metadata.sourceUrl ?? null,
-          hash,
-          file.type,
-          dimensions.width,
-          dimensions.height,
-          file.size,
-          Date.parse(metadata.observedAt),
-          now,
-          now,
-          pluginId,
-          operationId,
+          [
+            mediaId,
+            pluginId,
+            metadata.kind,
+            key,
+            metadata.sourceUrl ?? null,
+            hash,
+            file.type,
+            dimensions.width,
+            dimensions.height,
+            file.size,
+            Date.parse(metadata.observedAt),
+            now,
+            now,
+            pluginId,
+            operationId,
+          ],
         ),
+      ),
     );
   for (const locale of ["en", "zh"] as const)
     statements.push(
-      binding
-        .prepare(
+      binding.run(
+        parameterizedSql(
           `insert into plugin_media_localizations(media_id,locale,alt_text,caption)
            select ?,?,?,? from plugin_operational_state
              where plugin_id=? and last_operation_id=? and exists(
@@ -363,62 +372,65 @@ export async function uploadOperationMedia(
              )
            on conflict(media_id,locale) do update set
              alt_text=excluded.alt_text,caption=excluded.caption`,
-        )
-        .bind(
-          mediaId,
-          locale,
-          metadata.altText[locale],
-          metadata.caption?.[locale] ?? null,
-          pluginId,
-          operationId,
-          mediaId,
+          [
+            mediaId,
+            locale,
+            metadata.altText[locale],
+            metadata.caption?.[locale] ?? null,
+            pluginId,
+            operationId,
+            mediaId,
+          ],
         ),
+      ),
     );
   statements.push(
-    binding
-      .prepare(
+    binding.run(
+      parameterizedSql(
         `update plugins set updated_at=? where id=? and exists(
           select 1 from plugin_operational_state
           where plugin_id=? and last_operation_id=?
         ) and exists(select 1 from plugin_media where id=?)`,
-      )
-      .bind(now, pluginId, pluginId, operationId, mediaId),
-    binding
-      .prepare(
+        [now, pluginId, pluginId, operationId, mediaId],
+      ),
+    ),
+    binding.run(
+      parameterizedSql(
         `insert into plugin_operation_audit(
           id,request_id,actor_token_id,action,resource_type,resource_id,plugin_id,
           before_revision,after_revision,details_json,created_at
         ) select ?,?,?,?,?,?,?,?,?,?,? from plugin_operational_state
           where plugin_id=? and last_operation_id=?
             and exists(select 1 from plugin_media where id=?)`,
-      )
-      .bind(
-        crypto.randomUUID(),
-        requestId,
-        actorTokenId,
-        existing ? "media.update" : "media.upload",
-        "media",
-        mediaId,
-        pluginId,
-        revision,
-        nextRevision,
-        JSON.stringify({
-          kind: metadata.kind,
-          sha256: hash,
-          contentType: file.type,
-          byteSize: file.size,
-          width: dimensions.width,
-          height: dimensions.height,
-          observedAt: metadata.observedAt,
-        }),
-        now,
-        pluginId,
-        operationId,
-        mediaId,
+        [
+          crypto.randomUUID(),
+          requestId,
+          actorTokenId,
+          existing ? "media.update" : "media.upload",
+          "media",
+          mediaId,
+          pluginId,
+          revision,
+          nextRevision,
+          JSON.stringify({
+            kind: metadata.kind,
+            sha256: hash,
+            contentType: file.type,
+            byteSize: file.size,
+            width: dimensions.width,
+            height: dimensions.height,
+            observedAt: metadata.observedAt,
+          }),
+          now,
+          pluginId,
+          operationId,
+          mediaId,
+        ],
       ),
+    ),
   );
   try {
-    const results = await binding.batch(statements);
+    const results = await runDrizzleBatch(binding, statements);
     const revisionResult = results[stateWriteIndex];
     const mediaResult = results[mediaWriteIndex];
     if (!revisionResult?.meta.changes || !mediaResult?.meta.changes)

@@ -1,6 +1,9 @@
 import { z } from "zod";
+import type { BatchItem } from "drizzle-orm/batch";
 
 import type { ApprovalEffectKind } from "./contracts";
+import type { Database } from "@/lib/db/client";
+import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { HttpError, uuid } from "@/lib/http";
 
 type EffectDefinition = {
@@ -14,11 +17,11 @@ type EffectDefinition = {
     input: Record<string, unknown>,
   ) => void;
   prepare?: (
-    binding: D1Database,
+    binding: Database,
     input: Record<string, unknown>,
     actorUserId: string,
     reason: string,
-  ) => D1PreparedStatement[];
+  ) => BatchItem<"sqlite">[];
 };
 
 const userRoleInput = z.object({
@@ -99,9 +102,13 @@ const definitions: Record<ApprovalEffectKind, EffectDefinition> = {
     prepare: (binding, raw) => {
       const input = userRoleInput.parse(raw);
       return [
-        binding
-          .prepare("update user_profiles set role=?,updated_at=? where user_id=?")
-          .bind(input.role, Date.now(), input.userId),
+        binding.run(
+          parameterizedSql("update user_profiles set role=?,updated_at=? where user_id=?", [
+            input.role,
+            Date.now(),
+            input.userId,
+          ]),
+        ),
       ];
     },
   },
@@ -127,25 +134,29 @@ const definitions: Record<ApprovalEffectKind, EffectDefinition> = {
       const table = input.targetType === "review" ? "plugin_reviews" : "review_replies";
       const now = Date.now();
       return [
-        binding
-          .prepare(`update ${table} set status='published',updated_at=? where id=?`)
-          .bind(now, input.targetId),
-        binding
-          .prepare(
+        binding.run(
+          parameterizedSql(`update ${table} set status='published',updated_at=? where id=?`, [
+            now,
+            input.targetId,
+          ]),
+        ),
+        binding.run(
+          parameterizedSql(
             `insert into moderation_actions(id,actor_type,actor_id,action,target_type,target_id,reason,metadata_json,created_at)
              values(?,?,?,?,?,?,?,?,?)`,
-          )
-          .bind(
-            uuid(),
-            "user",
-            actorUserId,
-            "restore",
-            input.targetType,
-            input.targetId,
-            reason,
-            JSON.stringify({ source: "approval" }),
-            now,
+            [
+              uuid(),
+              "user",
+              actorUserId,
+              "restore",
+              input.targetType,
+              input.targetId,
+              reason,
+              JSON.stringify({ source: "approval" }),
+              now,
+            ],
           ),
+        ),
       ];
     },
   },
@@ -171,58 +182,68 @@ const definitions: Record<ApprovalEffectKind, EffectDefinition> = {
       const now = Date.now();
       if (input.action === "ban") {
         return [
-          binding
-            .prepare(
+          binding.run(
+            parameterizedSql(
               `insert into user_restrictions(id,user_id,kind,reason,starts_at,expires_at,created_by_actor_type,created_by_actor_id)
                values(?,?,?,?,?,?,?,?)`,
-            )
-            .bind(uuid(), input.userId, "ban", input.reason, now, null, "user", actorUserId),
-          binding
-            .prepare("update user_profiles set status='banned',updated_at=? where user_id=?")
-            .bind(now, input.userId),
-          binding
-            .prepare(
+              [uuid(), input.userId, "ban", input.reason, now, null, "user", actorUserId],
+            ),
+          ),
+          binding.run(
+            parameterizedSql(
+              "update user_profiles set status='banned',updated_at=? where user_id=?",
+              [now, input.userId],
+            ),
+          ),
+          binding.run(
+            parameterizedSql(
               `insert into moderation_actions(id,actor_type,actor_id,action,target_type,target_id,reason,metadata_json,created_at)
                values(?,?,?,?,?,?,?,?,?)`,
-            )
-            .bind(
+              [
+                uuid(),
+                "user",
+                actorUserId,
+                "ban",
+                "user",
+                input.userId,
+                input.reason,
+                JSON.stringify({ source: "approval" }),
+                now,
+              ],
+            ),
+          ),
+        ];
+      }
+      return [
+        binding.run(
+          parameterizedSql(
+            "update user_restrictions set revoked_at=? where user_id=? and revoked_at is null",
+            [now, input.userId],
+          ),
+        ),
+        binding.run(
+          parameterizedSql(
+            "update user_profiles set status='active',updated_at=? where user_id=?",
+            [now, input.userId],
+          ),
+        ),
+        binding.run(
+          parameterizedSql(
+            `insert into moderation_actions(id,actor_type,actor_id,action,target_type,target_id,reason,metadata_json,created_at)
+             values(?,?,?,?,?,?,?,?,?)`,
+            [
               uuid(),
               "user",
               actorUserId,
-              "ban",
+              input.action,
               "user",
               input.userId,
               input.reason,
               JSON.stringify({ source: "approval" }),
               now,
-            ),
-        ];
-      }
-      return [
-        binding
-          .prepare(
-            "update user_restrictions set revoked_at=? where user_id=? and revoked_at is null",
-          )
-          .bind(now, input.userId),
-        binding
-          .prepare("update user_profiles set status='active',updated_at=? where user_id=?")
-          .bind(now, input.userId),
-        binding
-          .prepare(
-            `insert into moderation_actions(id,actor_type,actor_id,action,target_type,target_id,reason,metadata_json,created_at)
-             values(?,?,?,?,?,?,?,?,?)`,
-          )
-          .bind(
-            uuid(),
-            "user",
-            actorUserId,
-            input.action,
-            "user",
-            input.userId,
-            input.reason,
-            JSON.stringify({ source: "approval" }),
-            now,
+            ],
           ),
+        ),
       ];
     },
   },
@@ -238,9 +259,13 @@ const definitions: Record<ApprovalEffectKind, EffectDefinition> = {
     prepare: (binding, raw) => {
       const input = pluginLifecycleInput.parse(raw);
       return [
-        binding
-          .prepare("update plugins set lifecycle_status=?,updated_at=? where id=?")
-          .bind(input.lifecycleStatus, Date.now(), input.pluginId),
+        binding.run(
+          parameterizedSql("update plugins set lifecycle_status=?,updated_at=? where id=?", [
+            input.lifecycleStatus,
+            Date.now(),
+            input.pluginId,
+          ]),
+        ),
       ];
     },
   },
@@ -264,20 +289,22 @@ const definitions: Record<ApprovalEffectKind, EffectDefinition> = {
       const now = Date.now();
       return input.action === "revoke"
         ? [
-            binding
-              .prepare(
+            binding.run(
+              parameterizedSql(
                 "update plugin_maintainers set revoked_at=? where plugin_id=? and user_id=? and revoked_at is null",
-              )
-              .bind(now, input.pluginId, input.userId),
+                [now, input.pluginId, input.userId],
+              ),
+            ),
           ]
         : [
-            binding
-              .prepare(
+            binding.run(
+              parameterizedSql(
                 `insert into plugin_maintainers(plugin_id,user_id,role,source,claim_id,added_at,revoked_at)
                  values(?,?,?,?,?,?,null)
                  on conflict(plugin_id,user_id) do update set role=excluded.role,source='manual',revoked_at=null`,
-              )
-              .bind(input.pluginId, input.userId, input.role, "manual", null, now),
+                [input.pluginId, input.userId, input.role, "manual", null, now],
+              ),
+            ),
           ];
     },
   },

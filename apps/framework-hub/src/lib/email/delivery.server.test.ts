@@ -37,7 +37,7 @@ function fakeDatabase(row: Row | null): D1Database {
   return {
     prepare: vi.fn(() => ({
       bind: vi.fn(() => ({
-        first: vi.fn(async () => row),
+        all: vi.fn(async () => ({ results: row ? [row] : [] })),
       })),
     })),
   } as unknown as D1Database;
@@ -128,11 +128,11 @@ describe("critical approval email delivery", () => {
     scheduleCriticalApprovalEmail(
       {
         cloudflare: { DB: fakeDatabase(verifiedRow) },
-        executionCtx: { waitUntil: (promise: Promise<unknown>) => pending.push(promise) },
       },
       "approval-1",
       "approval.approved",
       client,
+      (promise) => pending.push(promise),
     );
 
     expect(pending).toHaveLength(1);

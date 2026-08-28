@@ -1,13 +1,18 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { z } from "zod";
 import { Container, Chip, ButtonLink, SectionLabel } from "@/components/dshx/primitives";
 import { PluginCommunityActions } from "@/components/community/plugin-actions";
 import { ReplyDialog, ReportDialog } from "@/components/community/community-dialogs";
 import { PluginGlyph, PublisherIdentity } from "@/components/dshx/plugin-card";
 import { loadCatalogDetail } from "@/lib/catalog/functions";
-import { selectInstallTarget } from "@/lib/catalog/install-target";
+import { buildPluginInstallCommand, selectInstallTarget } from "@/lib/catalog/install-target";
 import { cn } from "@/lib/utils";
-import { createTranslator, localizedPath, parseLocale, useI18n } from "@/lib/i18n";
+import { createTranslator, localizedPath, parseLocale } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
+import { breadcrumbList, buildSeoHead, localizedAlternatesForLocales } from "@/lib/seo";
+import { apiKeys, apiRequest } from "@/lib/api-client";
 
 export const Route = createFileRoute("/$locale/plugins/$slug")({
   loader: async ({ params }) => {
@@ -40,20 +45,29 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
       p.version,
       loaderData.repositoryUrl,
     );
-    const canonical = `${loaderData.siteUrl}/${params.locale}/plugins/${p.slug}`;
+    const locale = parseLocale(params.locale);
+    const path = `/${locale}/plugins/${p.slug}`;
+    const canonical = `https://dshx.io${path}`;
     const socialImage = loaderData.media[0]
       ? `${loaderData.siteUrl}/api/media/${loaderData.media[0].id}`
       : null;
+    const sameAs = [loaderData.repositoryUrl];
+    if (primaryTarget?.kind === "npm")
+      sameAs.push(`https://www.npmjs.com/package/${primaryTarget.package_name}`);
+    const title = loaderData.seoTitle;
     const software = {
-      "@context": "https://schema.org",
+      "@id": `${canonical}#software`,
       "@type": "SoftwareApplication",
       name: p.name,
       description: loaderData.seoDescription,
+      url: canonical,
       applicationCategory: "DeveloperApplication",
       softwareVersion: p.version,
+      softwareRequirements: `DeepSeek Harness ${p.compat}`,
       operatingSystem: "Cross-platform",
-      ...(primaryTarget ? { downloadUrl: primaryTarget.spec } : {}),
       author: { "@type": "Person", name: p.author },
+      isPartOf: { "@id": `https://dshx.io/${locale}/plugins#directory` },
+      sameAs: sameAs.filter((value): value is string => Boolean(value)),
       ...(loaderData.rating && loaderData.rating.count >= 2
         ? {
             aggregateRating: {
@@ -64,67 +78,34 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
           }
         : {}),
     };
-    const breadcrumbs = {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        { "@type": "ListItem", position: 1, name: "DSHX", item: loaderData.siteUrl },
-        {
-          "@type": "ListItem",
-          position: 2,
-          name: "Plugins",
-          item: `${loaderData.siteUrl}/${params.locale}/plugins`,
-        },
-        { "@type": "ListItem", position: 3, name: p.name, item: canonical },
+    return buildSeoHead({
+      locale,
+      path,
+      title,
+      description: loaderData.seoDescription,
+      robots: loaderData.indexable ? "index,follow" : "noindex,follow",
+      alternates: localizedAlternatesForLocales(`/plugins/${p.slug}`, loaderData.readyLocales),
+      ...(socialImage
+        ? {
+            image: {
+              url: socialImage,
+              alt: loaderData.media[0]?.alt_text ?? p.name,
+              ...(loaderData.media[0]?.width == null ? {} : { width: loaderData.media[0].width }),
+              ...(loaderData.media[0]?.height == null
+                ? {}
+                : { height: loaderData.media[0].height }),
+            },
+          }
+        : {}),
+      structuredData: [
+        software,
+        breadcrumbList([
+          { name: "DSHX", path: `/${locale}` },
+          { name: "Plugins", path: `/${locale}/plugins` },
+          { name: p.name, path },
+        ]),
       ],
-    };
-    return {
-      meta: [
-        { title: loaderData.seoTitle },
-        { name: "description", content: loaderData.seoDescription },
-        { name: "robots", content: loaderData.indexable ? "index,follow" : "noindex,follow" },
-        { property: "og:title", content: loaderData.seoTitle },
-        { property: "og:description", content: loaderData.seoDescription },
-        { property: "og:type", content: "website" },
-        { property: "og:url", content: canonical },
-        { name: "twitter:card", content: "summary_large_image" },
-        { name: "twitter:title", content: loaderData.seoTitle },
-        { name: "twitter:description", content: loaderData.seoDescription },
-        ...(socialImage
-          ? [
-              { property: "og:image", content: socialImage },
-              { property: "og:image:alt", content: loaderData.media[0]?.alt_text ?? p.name },
-              { name: "twitter:image", content: socialImage },
-            ]
-          : []),
-      ],
-      links: [
-        { rel: "canonical", href: canonical },
-        ...(loaderData.readyLocales.length === 2
-          ? [
-              {
-                rel: "alternate",
-                hrefLang: "en",
-                href: `${loaderData.siteUrl}/en/plugins/${p.slug}`,
-              },
-              {
-                rel: "alternate",
-                hrefLang: "zh",
-                href: `${loaderData.siteUrl}/zh/plugins/${p.slug}`,
-              },
-              {
-                rel: "alternate",
-                hrefLang: "x-default",
-                href: `${loaderData.siteUrl}/en/plugins/${p.slug}`,
-              },
-            ]
-          : []),
-      ],
-      scripts: [
-        { type: "application/ld+json", children: JSON.stringify(software) },
-        { type: "application/ld+json", children: JSON.stringify(breadcrumbs) },
-      ],
-    };
+    });
   },
   component: PluginDetail,
 });
@@ -166,7 +147,7 @@ function PluginDetail() {
     plugin.version,
     detail.repositoryUrl,
   );
-  const install = primaryTarget ? `dsh plugin --profile <profile> add ${primaryTarget.spec}` : null;
+  const install = primaryTarget ? buildPluginInstallCommand(primaryTarget.spec) : null;
   const repositoryUrl = parseHttpUrl(detail.repositoryUrl);
   const unavailable = t("plugin.unavailable");
   const facts = [
@@ -250,11 +231,15 @@ function PluginDetail() {
 
         <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_260px]">
           <div>
-            <div className="flex flex-wrap gap-5 border-b border-border pb-3">
+            <div className="flex flex-wrap gap-5 border-b border-border pb-3" role="tablist">
               {sections.map((s) => (
                 <button
                   type="button"
                   key={s}
+                  id={`plugin-tab-${s}`}
+                  role="tab"
+                  aria-selected={active === s}
+                  aria-controls={`plugin-panel-${s}`}
                   onClick={() => setActive(s)}
                   className={cn(
                     "relative pb-3 text-[13.5px] transition-colors",
@@ -272,14 +257,29 @@ function PluginDetail() {
             </div>
 
             <div className="mt-8 space-y-6">
-              {active === "overview" ? <OverviewPanel detail={detail} locale={locale} /> : null}
-              {active === "readme" ? <ReadmePanel detail={detail} locale={locale} /> : null}
-              {active === "releases" ? <ReleasesPanel releases={detail.releases} /> : null}
-              {active === "dependencies" ? (
-                <DependenciesPanel dependencies={detail.dependencies} />
-              ) : null}
-              {active === "media" ? <MediaPanel media={detail.media} name={plugin.name} /> : null}
-              {active === "reviews" ? <ReviewsPanel slug={plugin.slug} locale={locale} /> : null}
+              {sections.map((section) => (
+                <div
+                  key={section}
+                  id={`plugin-panel-${section}`}
+                  role="tabpanel"
+                  aria-labelledby={`plugin-tab-${section}`}
+                  hidden={active !== section}
+                >
+                  {section === "overview" ? (
+                    <OverviewPanel detail={detail} locale={locale} />
+                  ) : section === "readme" ? (
+                    <ReadmePanel detail={detail} locale={locale} />
+                  ) : section === "releases" ? (
+                    <ReleasesPanel releases={detail.releases} />
+                  ) : section === "dependencies" ? (
+                    <DependenciesPanel dependencies={detail.dependencies} />
+                  ) : section === "media" ? (
+                    <MediaPanel media={detail.media} name={plugin.name} />
+                  ) : (
+                    <ReviewsPanel slug={plugin.slug} locale={locale} />
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -371,7 +371,7 @@ function OverviewPanel({
                 className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <code className="font-mono text-xs text-ink-foreground">
-                  dsh plugin --profile &lt;profile&gt; add {target.spec}
+                  {buildPluginInstallCommand(target.spec)}
                 </code>
                 <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
                   {target.kind} · {target.status}
@@ -435,6 +435,8 @@ function ReadmePanel({
         ) : null}
       </div>
     );
+  const content = readme.content.slice(0, 65_536);
+  const truncated = content.length < readme.content.length;
   return (
     <section>
       <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
@@ -444,6 +446,7 @@ function ReadmePanel({
             <span>{readme.sourcePath ?? "README.md"}</span>
             {readme.sourceRef ? <span>ref {readme.sourceRef}</span> : null}
             <span>{formatCatalogDate(readme.observedAt, locale)}</span>
+            {readme.contentHash ? <span>sha256 {readme.contentHash.slice(0, 12)}</span> : null}
           </div>
         </div>
         {sourceUrl ? (
@@ -461,8 +464,15 @@ function ReadmePanel({
         dir="auto"
         className="mt-6 max-w-[75ch] whitespace-pre-wrap break-words font-mono text-[12.5px] leading-6 text-muted-foreground"
       >
-        {readme.content}
+        {content}
       </pre>
+      {truncated ? (
+        <p className="mt-4 text-[12.5px] leading-6 text-muted-foreground">
+          {locale === "zh"
+            ? "为控制页面体积，这里展示 README 的前 64 KiB；完整原文请使用上方来源链接。"
+            : "To keep the page bounded, this view shows the first 64 KiB of the README. Use the source link above for the complete document."}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -611,6 +621,33 @@ type ReviewItem = {
   replies: string | Array<{ id: string; body: string; userName: string; createdAt: number }>;
 };
 
+const reviewPageSchema = z.object({
+  items: z.array(
+    z
+      .object({
+        id: z.string(),
+        rating: z.number(),
+        locale: z.string(),
+        body: z.string().nullable(),
+        created_at: z.number(),
+        user_name: z.string(),
+        user_image: z.string().nullable(),
+        replies: z.union([
+          z.string(),
+          z.array(
+            z.object({
+              id: z.string(),
+              body: z.string(),
+              userName: z.string(),
+              createdAt: z.number(),
+            }),
+          ),
+        ]),
+      })
+      .passthrough(),
+  ),
+});
+
 function reviewReplies(value: ReviewItem["replies"]) {
   if (Array.isArray(value)) return value;
   try {
@@ -624,28 +661,21 @@ function reviewReplies(value: ReviewItem["replies"]) {
 }
 
 function ReviewsPanel({ slug, locale }: { slug: string; locale: "en" | "zh" }) {
-  const [items, setItems] = useState<ReviewItem[] | null>(null);
+  const queryClient = useQueryClient();
+  const path = `/api/plugins/${encodeURIComponent(slug)}/reviews?limit=50`;
+  const query = useQuery({
+    queryKey: apiKeys.endpoint(path),
+    queryFn: ({ signal }) => apiRequest(path, reviewPageSchema, { signal }),
+  });
   useEffect(() => {
-    let live = true;
-    const load = () =>
-      void fetch(`/api/plugins/${encodeURIComponent(slug)}/reviews?limit=50`)
-        .then((response) => response.json() as Promise<{ items: ReviewItem[] }>)
-        .then((page) => {
-          if (live) setItems(page.items);
-        })
-        .catch(() => {
-          if (live) setItems([]);
-        });
     const changed = (event: Event) => {
-      if ((event as CustomEvent<{ slug?: string }>).detail?.slug === slug) load();
+      if ((event as CustomEvent<{ slug?: string }>).detail?.slug === slug)
+        void queryClient.invalidateQueries({ queryKey: apiKeys.endpoint(path) });
     };
-    load();
     window.addEventListener("dshx:reviews-changed", changed);
-    return () => {
-      live = false;
-      window.removeEventListener("dshx:reviews-changed", changed);
-    };
-  }, [slug]);
+    return () => window.removeEventListener("dshx:reviews-changed", changed);
+  }, [path, queryClient, slug]);
+  const items = query.data?.items ?? (query.isError ? [] : null);
   if (!items)
     return <EmptyPanel>{locale === "zh" ? "正在读取评价…" : "Loading reviews…"}</EmptyPanel>;
   if (!items.length)

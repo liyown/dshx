@@ -15,7 +15,6 @@ import {
   type PluginCurationContent,
   type PluginObservationV1,
 } from "./operations-v1.contracts";
-import { OperationHttpError } from "./operations-v1.http";
 import { uploadOperationMedia } from "./operations-v1.media.server";
 import { getCatalogPlugin, listCatalogMarketplace } from "./repository.server";
 import {
@@ -190,9 +189,9 @@ describe("operations v1 atomic catalog model with local D1", () => {
     return row!.plugin_id;
   }
 
-  function raceBeforeBatch(id: string): D1Database {
+  function raceBeforeBatch(id: string): Database {
     let raced = false;
-    return new Proxy(binding, {
+    const client = new Proxy(binding, {
       get(target, property) {
         if (property === "batch")
           return async (statements: D1PreparedStatement[]) => {
@@ -205,12 +204,13 @@ describe("operations v1 atomic catalog model with local D1", () => {
                 .bind(id)
                 .run();
             }
-            return binding.batch(statements);
+            return target.batch(statements);
           };
         const value = Reflect.get(target, property);
         return typeof value === "function" ? value.bind(target) : value;
       },
     }) as D1Database;
+    return createDatabase(client);
   }
 
   it("merges targets per source while blocking older high-priority facts and unavailable payloads", async () => {
@@ -234,7 +234,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
         ],
       },
     });
-    await upsertObservation(binding, actorTokenId, crypto.randomUUID(), newer);
+    await upsertObservation(db, actorTokenId, crypto.randomUUID(), newer);
     const older = await npmObservation(packageName, {
       observedAt: timestamp(20),
       sourceKind: "npm",
@@ -251,9 +251,9 @@ describe("operations v1 atomic catalog model with local D1", () => {
         ],
       },
     });
-    await upsertObservation(binding, actorTokenId, crypto.randomUUID(), older);
+    await upsertObservation(db, actorTokenId, crypto.randomUUID(), older);
     const id = await pluginId(`npm:${packageName}`);
-    const beforeUnavailable = await getOpsPlugin(binding, id);
+    const beforeUnavailable = await getOpsPlugin(db, id);
     expect(beforeUnavailable.facts).toMatchObject({
       package: { version: "2.0.0", description: "newer GitHub fact" },
     });
@@ -277,8 +277,8 @@ describe("operations v1 atomic catalog model with local D1", () => {
         ],
       },
     });
-    await upsertObservation(binding, actorTokenId, crypto.randomUUID(), unavailable);
-    const afterUnavailable = await getOpsPlugin(binding, id);
+    await upsertObservation(db, actorTokenId, crypto.randomUUID(), unavailable);
+    const afterUnavailable = await getOpsPlugin(db, id);
     expect(afterUnavailable.facts).toEqual(beforeUnavailable.facts);
     expect(afterUnavailable.installTargets).toEqual(beforeUnavailable.installTargets);
     expect(afterUnavailable.sources).toEqual(
@@ -301,7 +301,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
     const packageName = `@ops/content-priority-${crypto.randomUUID()}`;
     const observedAt = timestamp(3);
     await upsertObservation(
-      binding,
+      db,
       actorTokenId,
       crypto.randomUUID(),
       await npmObservation(packageName, {
@@ -312,7 +312,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
       }),
     );
     const result = await upsertObservation(
-      binding,
+      db,
       actorTokenId,
       crypto.randomUUID(),
       await npmObservation(packageName, {
@@ -348,14 +348,14 @@ describe("operations v1 atomic catalog model with local D1", () => {
         ],
       },
     });
-    const created = await upsertObservation(binding, actorTokenId, crypto.randomUUID(), initial);
+    const created = await upsertObservation(db, actorTokenId, crypto.randomUUID(), initial);
     const id = created.pluginId!;
     expect(
       await binding.prepare("select status from plugins where id=?").bind(id).first(),
     ).toMatchObject({ status: "draft" });
 
     const curated = curation("Protected", categorySlug);
-    await curatePlugin(binding, actorTokenId, crypto.randomUUID(), id, curated, created.revision!);
+    await curatePlugin(db, actorTokenId, crypto.randomUUID(), id, curated, created.revision!);
     expect(
       await binding.prepare("select status,description from plugins where id=?").bind(id).first(),
     ).toMatchObject({ status: "published", description: curated.shortDescription.en });
@@ -377,25 +377,18 @@ describe("operations v1 atomic catalog model with local D1", () => {
         package: { name: packageName, version: "1.1.0", description: "new source description" },
       },
     });
-    await upsertObservation(binding, actorTokenId, crypto.randomUUID(), refresh);
+    await upsertObservation(db, actorTokenId, crypto.randomUUID(), refresh);
     expect(
       await binding.prepare("select status,description from plugins where id=?").bind(id).first(),
     ).toMatchObject({ status: "published", description: curated.shortDescription.en });
 
-    await setPluginVisibility(
-      binding,
-      actorTokenId,
-      crypto.randomUUID(),
-      id,
-      "hidden",
-      "Manual review",
-    );
+    await setPluginVisibility(db, actorTokenId, crypto.randomUUID(), id, "hidden", "Manual review");
     const hiddenRefresh = await npmObservation(packageName, {
       confirmed: true,
       observedAt: timestamp(1),
       facts: { package: { name: packageName, version: "1.2.0" } },
     });
-    await upsertObservation(binding, actorTokenId, crypto.randomUUID(), hiddenRefresh);
+    await upsertObservation(db, actorTokenId, crypto.randomUUID(), hiddenRefresh);
     expect(
       await binding.prepare("select status from plugins where id=?").bind(id).first(),
     ).toMatchObject({
@@ -413,7 +406,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
     const sourceUrl = `https://github.com/${fullName}`;
     const firstReadmeHash = "a".repeat(64);
     const created = await upsertObservation(
-      binding,
+      db,
       actorTokenId,
       crypto.randomUUID(),
       await githubObservation(
@@ -458,7 +451,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
       sourceReadmeHash: firstReadmeHash,
       derivedFrom: [sourceUrl],
     };
-    await curatePlugin(binding, actorTokenId, crypto.randomUUID(), id, curated, created.revision!);
+    await curatePlugin(db, actorTokenId, crypto.randomUUID(), id, curated, created.revision!);
 
     expect(
       await binding
@@ -485,7 +478,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
       content: "# Source plugin\n\nPublishes structured source events.",
       contentHash: firstReadmeHash,
     });
-    const publicDetail = await getCatalogPlugin(db, (await getOpsPlugin(binding, id)).slug, "zh");
+    const publicDetail = await getCatalogPlugin(db, (await getOpsPlugin(db, id)).slug, "zh");
     expect(publicDetail?.plugin.publisher.avatarUrl).toBe(
       `https://avatars.githubusercontent.com/u/${suffix}`,
     );
@@ -497,7 +490,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
 
     const secondReadmeHash = "b".repeat(64);
     const refreshed = await upsertObservation(
-      binding,
+      db,
       actorTokenId,
       crypto.randomUUID(),
       await githubObservation(
@@ -520,16 +513,16 @@ describe("operations v1 atomic catalog model with local D1", () => {
         },
       ),
     );
-    expect((await getOpsPlugin(binding, id)).needs).toContain("content");
+    expect((await getOpsPlugin(db, id)).needs).toContain("content");
     await curatePlugin(
-      binding,
+      db,
       actorTokenId,
       crypto.randomUUID(),
       id,
       { ...curated, sourceReadmeHash: secondReadmeHash },
       refreshed.revision!,
     );
-    expect((await getOpsPlugin(binding, id)).needs).not.toContain("content");
+    expect((await getOpsPlugin(db, id)).needs).not.toContain("content");
   });
 
   it("makes dry-run validate target conflicts without writing anything", async () => {
@@ -543,7 +536,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
         ],
       },
     });
-    await upsertObservation(binding, actorTokenId, crypto.randomUUID(), first);
+    await upsertObservation(db, actorTokenId, crypto.randomUUID(), first);
     const secondName = `@ops/dry-b-${crypto.randomUUID()}`;
     const second = await npmObservation(secondName, {
       facts: {
@@ -558,7 +551,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
       .bind(secondName)
       .first<{ count: number }>();
     await expect(
-      upsertObservation(binding, actorTokenId, crypto.randomUUID(), second, true),
+      upsertObservation(db, actorTokenId, crypto.randomUUID(), second, true),
     ).rejects.toMatchObject({ code: "observation_identity_conflict" });
     const after = await binding
       .prepare("select count(*) count from plugins where package_name=?")
@@ -606,13 +599,13 @@ describe("operations v1 atomic catalog model with local D1", () => {
         },
       },
     );
-    const first = await upsertObservation(binding, actorTokenId, crypto.randomUUID(), a);
-    const second = await upsertObservation(binding, actorTokenId, crypto.randomUUID(), b);
+    const first = await upsertObservation(db, actorTokenId, crypto.randomUUID(), a);
+    const second = await upsertObservation(db, actorTokenId, crypto.randomUUID(), b);
     expect(second.pluginId).not.toBe(first.pluginId);
-    expect((await getOpsPlugin(binding, first.pluginId!)).riskSignals).not.toContain(
+    expect((await getOpsPlugin(db, first.pluginId!)).riskSignals).not.toContain(
       "identity-conflict",
     );
-    expect((await getOpsPlugin(binding, second.pluginId!)).riskSignals).not.toContain(
+    expect((await getOpsPlugin(db, second.pluginId!)).riskSignals).not.toContain(
       "identity-conflict",
     );
 
@@ -621,14 +614,9 @@ describe("operations v1 atomic catalog model with local D1", () => {
       { repositoryId, fullName: renamedFullName, subdirectory: "packages/a" },
       { observedAt: timestamp(1) },
     );
-    const renameResult = await upsertObservation(
-      binding,
-      actorTokenId,
-      crypto.randomUUID(),
-      renamed,
-    );
+    const renameResult = await upsertObservation(db, actorTokenId, crypto.randomUUID(), renamed);
     expect(renameResult.pluginId).toBe(first.pluginId);
-    expect((await getOpsPlugin(binding, first.pluginId!)).identities).toEqual(
+    expect((await getOpsPlugin(db, first.pluginId!)).identities).toEqual(
       expect.arrayContaining([expect.objectContaining({ fullName: renamedFullName })]),
     );
   });
@@ -640,7 +628,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
       observedAt: timestamp(10),
       facts: { package: { name: packageName, version: "1.0.0" } },
     });
-    const npmResult = await upsertObservation(binding, actorTokenId, crypto.randomUUID(), npm);
+    const npmResult = await upsertObservation(db, actorTokenId, crypto.randomUUID(), npm);
     const github = await githubObservation(
       {
         repositoryId: suffix,
@@ -652,14 +640,9 @@ describe("operations v1 atomic catalog model with local D1", () => {
         facts: { package: { name: packageName, version: "1.0.1" } },
       },
     );
-    const githubResult = await upsertObservation(
-      binding,
-      actorTokenId,
-      crypto.randomUUID(),
-      github,
-    );
+    const githubResult = await upsertObservation(db, actorTokenId, crypto.randomUUID(), github);
     expect(githubResult.pluginId).toBe(npmResult.pluginId);
-    expect((await getOpsPlugin(binding, npmResult.pluginId!)).identities).toEqual(
+    expect((await getOpsPlugin(db, npmResult.pluginId!)).identities).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: "npm", packageName }),
         expect.objectContaining({
@@ -683,13 +666,8 @@ describe("operations v1 atomic catalog model with local D1", () => {
       { repositoryId, fullName, subdirectory: `${prefix}two` },
       { observedAt: timestamp(5) },
     );
-    const firstResult = await upsertObservation(binding, actorTokenId, crypto.randomUUID(), first);
-    const secondResult = await upsertObservation(
-      binding,
-      actorTokenId,
-      crypto.randomUUID(),
-      second,
-    );
+    const firstResult = await upsertObservation(db, actorTokenId, crypto.randomUUID(), first);
+    const secondResult = await upsertObservation(db, actorTokenId, crypto.randomUUID(), second);
     expect(secondResult.pluginId).not.toBe(firstResult.pluginId);
     const names = await binding
       .prepare("select package_name packageName from plugins where id in (?,?) order by id")
@@ -720,7 +698,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
         },
       },
     );
-    const created = await upsertObservation(binding, actorTokenId, crypto.randomUUID(), initial);
+    const created = await upsertObservation(db, actorTokenId, crypto.randomUUID(), initial);
     await binding
       .prepare(
         `update plugin_operational_state set facts_json=json_object(
@@ -736,7 +714,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
         facts: { repository: { description: "partial refresh" } },
       },
     );
-    await upsertObservation(binding, actorTokenId, crypto.randomUUID(), partial);
+    await upsertObservation(db, actorTokenId, crypto.randomUUID(), partial);
     expect(
       await binding
         .prepare(
@@ -762,7 +740,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
       facts: { package: { name: packageName, version: "1.0.0" } },
     });
     const batch = await upsertObservationBatch(
-      binding,
+      db,
       actorTokenId,
       crypto.randomUUID(),
       [observation, { invalid: true }],
@@ -775,8 +753,8 @@ describe("operations v1 atomic catalog model with local D1", () => {
       facts: { package: { name: concurrentName, version: "1.0.0" } },
     });
     const outcomes = await Promise.all([
-      upsertObservation(binding, actorTokenId, crypto.randomUUID(), concurrent),
-      upsertObservation(binding, actorTokenId, crypto.randomUUID(), concurrent),
+      upsertObservation(db, actorTokenId, crypto.randomUUID(), concurrent),
+      upsertObservation(db, actorTokenId, crypto.randomUUID(), concurrent),
     ]);
     expect(outcomes.map((outcome) => outcome.status).sort()).toEqual(["created", "unchanged"]);
     expect(
@@ -793,12 +771,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
       confirmed: true,
       facts: { package: { name: packageName, version: "1.0.0" } },
     });
-    const created = await upsertObservation(
-      binding,
-      actorTokenId,
-      crypto.randomUUID(),
-      observation,
-    );
+    const created = await upsertObservation(db, actorTokenId, crypto.randomUUID(), observation);
     const id = created.pluginId!;
     await expect(
       curatePlugin(
@@ -883,7 +856,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
   it("deduplicates identical media metadata and revisions metadata changes", async () => {
     const packageName = `@ops/media-${crypto.randomUUID()}`;
     const created = await upsertObservation(
-      binding,
+      db,
       actorTokenId,
       crypto.randomUUID(),
       await npmObservation(packageName, {
@@ -910,7 +883,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
       altText: { en: "Pixel", zh: "像素" },
     };
     const first = await uploadOperationMedia(
-      binding,
+      db,
       proxy.env.PLUGIN_MEDIA,
       actorTokenId,
       crypto.randomUUID(),
@@ -919,7 +892,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
       metadata,
     );
     const unchanged = await uploadOperationMedia(
-      binding,
+      db,
       proxy.env.PLUGIN_MEDIA,
       actorTokenId,
       crypto.randomUUID(),
@@ -928,7 +901,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
       metadata,
     );
     const updated = await uploadOperationMedia(
-      binding,
+      db,
       proxy.env.PLUGIN_MEDIA,
       actorTokenId,
       crypto.randomUUID(),
@@ -942,7 +915,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
   });
 
   it("combines repeated list dimensions with OR within each dimension and AND across them", async () => {
-    const page = await listOpsPlugins(binding, {
+    const page = await listOpsPlugins(db, {
       state: ["draft", "published"],
       needs: ["content", "metadata"],
       source: ["npm", "github"],
@@ -973,23 +946,23 @@ describe("operations v1 atomic catalog model with local D1", () => {
       status: "queued",
       idempotencyKey: crypto.randomUUID(),
     });
-    const listed = await listOpsSubmissions(binding, {
+    const listed = await listOpsSubmissions(db, {
       status: ["queued", "qualified"],
       limit: 10,
     });
     expect(listed.items).toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
-    const detail = await getOpsSubmission(binding, id);
+    const detail = await getOpsSubmission(db, id);
     expect(detail).not.toHaveProperty("legacyCatalogRunId");
     expect(detail).not.toHaveProperty("catalogRunId");
     const resolution = { result: "ignored" as const, reason: "Not a DSHX plugin" };
     await expect(
-      resolveOpsSubmission(binding, actorTokenId, crypto.randomUUID(), id, resolution),
+      resolveOpsSubmission(db, actorTokenId, crypto.randomUUID(), id, resolution),
     ).resolves.toMatchObject({ status: "updated", resolution });
     await expect(
-      resolveOpsSubmission(binding, actorTokenId, crypto.randomUUID(), id, resolution),
+      resolveOpsSubmission(db, actorTokenId, crypto.randomUUID(), id, resolution),
     ).resolves.toMatchObject({ status: "unchanged" });
     await expect(
-      resolveOpsSubmission(binding, actorTokenId, crypto.randomUUID(), id, {
+      resolveOpsSubmission(db, actorTokenId, crypto.randomUUID(), id, {
         result: "ignored",
         reason: "Different decision",
       }),
@@ -1014,7 +987,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
         ],
       },
     });
-    const plugin = await upsertObservation(binding, actorTokenId, crypto.randomUUID(), observation);
+    const plugin = await upsertObservation(db, actorTokenId, crypto.randomUUID(), observation);
     const submissionId = crypto.randomUUID();
     await db.insert(pluginSubmissions).values({
       id: submissionId,
@@ -1027,13 +1000,13 @@ describe("operations v1 atomic catalog model with local D1", () => {
     });
     const resolution = { result: "accepted" as const, pluginId: plugin.pluginId! };
     await expect(
-      resolveOpsSubmission(binding, actorTokenId, crypto.randomUUID(), submissionId, resolution),
+      resolveOpsSubmission(db, actorTokenId, crypto.randomUUID(), submissionId, resolution),
     ).rejects.toMatchObject({
       code: "submission_plugin_incomplete",
       options: { details: { needs: ["content"] } },
     });
     await curatePlugin(
-      binding,
+      db,
       actorTokenId,
       crypto.randomUUID(),
       plugin.pluginId!,
@@ -1041,7 +1014,7 @@ describe("operations v1 atomic catalog model with local D1", () => {
       plugin.revision!,
     );
     await expect(
-      resolveOpsSubmission(binding, actorTokenId, crypto.randomUUID(), submissionId, resolution),
+      resolveOpsSubmission(db, actorTokenId, crypto.randomUUID(), submissionId, resolution),
     ).resolves.toMatchObject({ status: "updated", resolution });
   });
 });

@@ -9,7 +9,8 @@ import {
   readOperationJson,
 } from "@/lib/catalog/operations-v1.http";
 import { setPluginVisibility } from "@/lib/catalog/operations-v1.server";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
+import { catalogChanged, publishCatalogChanged } from "@/lib/sitemap-cache";
 
 export const Route = createFileRoute("/api/ops/v1/plugins/$id/visibility")({
   server: {
@@ -19,18 +20,16 @@ export const Route = createFileRoute("/api/ops/v1/plugins/$id/visibility")({
         try {
           const actor = await requireApiToken(requireDatabase(context), request, "catalog:write");
           const input = await readOperationJson(request, pluginVisibilityRequestSchema);
-          return operationSuccess(
-            request,
-            await setPluginVisibility(
-              requireD1(context),
-              actor.token.id,
-              requestId,
-              params.id,
-              input.visibility,
-              input.reason,
-            ),
-            { requestId },
+          const result = await setPluginVisibility(
+            requireDatabase(context),
+            actor.token.id,
+            requestId,
+            params.id,
+            input.visibility,
+            input.reason,
           );
+          publishCatalogChanged(catalogChanged(request));
+          return operationSuccess(request, result, { requestId });
         } catch (error) {
           return operationFailure(request, error, requestId);
         }

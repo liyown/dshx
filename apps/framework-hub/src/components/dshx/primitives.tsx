@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { localizedPath, useI18n } from "@/lib/i18n";
+import { localizedPath } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 
 /* ---------- X motif ---------- */
 

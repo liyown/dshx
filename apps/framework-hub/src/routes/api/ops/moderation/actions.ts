@@ -4,7 +4,7 @@ import { createApproval } from "@/lib/approvals/service.server";
 import { requireApiToken } from "@/lib/auth/tokens.server";
 import { moderationActionSchema } from "@/lib/catalog/contracts";
 import { applyModerationAction } from "@/lib/community/moderation.server";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { HttpError, jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/ops/moderation/actions")({
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/api/ops/moderation/actions")({
             const idempotencyKey = request.headers.get("idempotency-key");
             if (!idempotencyKey)
               throw new HttpError(422, "Idempotency-Key header required", "idempotency_required");
-            const approval = await createApproval(requireD1(context), actor, {
+            const approval = await createApproval(requireDatabase(context), actor, {
               kind: contentRestore ? "content_restore" : "permanent_access_change",
               risk: contentRestore ? "high" : "critical",
               subjectType: contentRestore ? (input.targetType as "review" | "reply") : "user",
@@ -54,7 +54,11 @@ export const Route = createFileRoute("/api/ops/moderation/actions")({
             });
             return Response.json({ approval, requiresApproval: true }, { status: 202 });
           }
-          const action = await applyModerationAction(requireD1(context), actor.token.id, input);
+          const action = await applyModerationAction(
+            requireDatabase(context),
+            actor.token.id,
+            input,
+          );
           return Response.json(action, { status: 201 });
         } catch (error) {
           return jsonError(error);

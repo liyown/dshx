@@ -1,6 +1,4 @@
-import { createContext, useContext } from "react";
-import type { ReactNode } from "react";
-import { locales, messages, type Locale, type MessageKey } from "./messages";
+import { messages, type Locale, type MessageKey } from "./messages";
 
 export { locales, messages } from "./messages";
 export type { Locale, MessageKey } from "./messages";
@@ -60,23 +58,6 @@ export function createTranslator(locale: Locale): Translate {
     }
     return value;
   };
-}
-
-type I18nContextValue = { locale: Locale; t: Translate };
-const I18nContext = createContext<I18nContextValue | null>(null);
-
-export function I18nProvider({ locale, children }: { locale: Locale; children: ReactNode }) {
-  return (
-    <I18nContext.Provider value={{ locale, t: createTranslator(locale) }}>
-      {children}
-    </I18nContext.Provider>
-  );
-}
-
-export function useI18n(): I18nContextValue {
-  const value = useContext(I18nContext);
-  if (!value) throw new Error("useI18n must be used inside I18nProvider");
-  return value;
 }
 
 export function formatDate(value: string, locale: Locale): string {

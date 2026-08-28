@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, stripSearchParams, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, LayoutGrid, List, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -7,7 +7,9 @@ import { Chip, Container, SectionLabel } from "@/components/dshx/primitives";
 import { PluginSubmissionDialog } from "@/components/community/plugin-submission-dialog";
 import { catalogSortValues, type PluginListQuery } from "@/lib/catalog/contracts";
 import { loadCatalog } from "@/lib/catalog/functions";
-import { createTranslator, parseLocale, useI18n } from "@/lib/i18n";
+import { createTranslator, parseLocale } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
+import { breadcrumbList, buildSeoHead, localizedAlternates, publicUrl } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
 type CatalogSort = PluginListQuery["sort"];
@@ -32,6 +34,11 @@ export const Route = createFileRoute("/$locale/plugins/")({
     sort: isCatalogSort(search["sort"]) ? search["sort"] : ("featured" as CatalogSort),
     cursor: typeof search["cursor"] === "string" ? search["cursor"] : "",
   }),
+  search: {
+    middlewares: [
+      stripSearchParams({ q: "", category: "", sort: "featured" as CatalogSort, cursor: "" }),
+    ],
+  },
   loaderDeps: ({ search }) => search,
   loader: ({ params, deps }) =>
     loadCatalog({
@@ -44,26 +51,45 @@ export const Route = createFileRoute("/$locale/plugins/")({
         ...(deps.cursor ? { cursor: deps.cursor } : {}),
       },
     }),
-  head: ({ params, match }) => {
+  head: ({ loaderData, params, match }) => {
     const t = createTranslator(parseLocale(params.locale));
     const hasIndexVariant = Object.values(match.search).some(
       (value) => Boolean(value) && value !== "featured",
     );
-    return {
-      meta: [
-        { title: t("plugins.title") },
-        { name: "description", content: t("plugins.intro") },
-        { property: "og:title", content: t("plugins.title") },
-        { property: "og:description", content: t("plugins.intro") },
-        { name: "robots", content: hasIndexVariant ? "noindex,follow" : "index,follow" },
+    return buildSeoHead({
+      locale: parseLocale(params.locale),
+      path: `/${params.locale}/plugins`,
+      title: t("plugins.metaTitle"),
+      description: t("plugins.intro"),
+      robots: hasIndexVariant ? "noindex,follow" : "index,follow",
+      alternates: localizedAlternates("/plugins"),
+      structuredData: [
+        {
+          "@id": `https://dshx.io/${params.locale}/plugins#directory`,
+          "@type": "CollectionPage",
+          name: t("plugins.metaTitle"),
+          description: t("plugins.intro"),
+          url: `https://dshx.io/${params.locale}/plugins`,
+          inLanguage: params.locale === "zh" ? "zh-CN" : "en",
+          mainEntity: { "@id": `https://dshx.io/${params.locale}/plugins#items` },
+        },
+        {
+          "@id": `https://dshx.io/${params.locale}/plugins#items`,
+          "@type": "ItemList",
+          numberOfItems: loaderData?.total ?? 0,
+          itemListElement: (loaderData?.items ?? []).map((plugin, index) => ({
+            "@type": "ListItem",
+            position: index + 1,
+            name: plugin.name,
+            url: publicUrl(`/${params.locale}/plugins/${plugin.slug}`),
+          })),
+        },
+        breadcrumbList([
+          { name: "DSHX", path: `/${params.locale}` },
+          { name: t("plugins.title"), path: `/${params.locale}/plugins` },
+        ]),
       ],
-      links: [
-        { rel: "canonical", href: `https://dshx.io/${params.locale}/plugins` },
-        { rel: "alternate", hrefLang: "en", href: "https://dshx.io/en/plugins" },
-        { rel: "alternate", hrefLang: "zh", href: "https://dshx.io/zh/plugins" },
-        { rel: "alternate", hrefLang: "x-default", href: "https://dshx.io/en/plugins" },
-      ],
-    };
+    });
   },
   component: PluginsPage,
 });
@@ -117,7 +143,7 @@ function PluginsPage() {
             className="w-full bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
           />
           <Chip className="shrink-0 whitespace-nowrap">
-            {t("plugins.results", { count: catalog.items.length })}
+            {t("plugins.results", { count: catalog.total })}
           </Chip>
         </label>
 
@@ -135,12 +161,25 @@ function PluginsPage() {
             {t("plugins.all")}
           </button>
           {catalog.categories.map((category) => (
-            <button
-              type="button"
+            <Link
               key={category.slug}
-              onClick={() =>
-                updateSearch({ category: category.slug === search.category ? "" : category.slug })
-              }
+              to="/$locale/categories/$slug"
+              params={{ locale: params.locale, slug: category.slug }}
+              onClick={(event) => {
+                if (
+                  event.button !== 0 ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                updateSearch({
+                  category: category.slug === search.category ? "" : category.slug,
+                });
+              }}
               className={cn(
                 "rounded-md border px-2.5 py-1 font-mono text-[11.5px] transition-colors",
                 search.category === category.slug
@@ -149,7 +188,7 @@ function PluginsPage() {
               )}
             >
               {category.name}
-            </button>
+            </Link>
           ))}
         </div>
 
@@ -217,17 +256,31 @@ function PluginsPage() {
           </p>
         ) : null}
 
-        {catalog.nextCursor ? (
-          <div className="mt-10 flex justify-center">
-            <Link
-              to="/$locale/plugins"
-              params={{ locale: params.locale }}
-              search={{ ...search, cursor: catalog.nextCursor }}
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-border-strong bg-surface px-4 text-sm transition-colors hover:bg-surface-2"
-            >
-              Load next page <ArrowRight className="size-4" data-icon="inline-end" />
-            </Link>
-          </div>
+        {catalog.totalPages > 0 ? (
+          <nav
+            aria-label={t("plugins.pagination")}
+            className={cn(
+              "mt-10 flex flex-wrap items-center gap-4 border-t border-border pt-4",
+              catalog.nextCursor ? "justify-between" : "justify-center",
+            )}
+          >
+            <span className="font-mono text-[11.5px] text-muted-foreground">
+              {t("plugins.pagePosition", {
+                page: catalog.page,
+                totalPages: catalog.totalPages,
+              })}
+            </span>
+            {catalog.nextCursor ? (
+              <Link
+                to="/$locale/plugins"
+                params={{ locale: params.locale }}
+                search={{ ...search, cursor: catalog.nextCursor }}
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-border-strong bg-surface px-4 text-sm transition-colors hover:bg-surface-2"
+              >
+                {t("plugins.nextPage")} <ArrowRight className="size-4" data-icon="inline-end" />
+              </Link>
+            ) : null}
+          </nav>
         ) : null}
 
         <div className="mt-16 rounded-xl border border-dashed border-border-strong p-6">

@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 
 import { Container } from "@/components/dshx/primitives";
 import { getDocsChapter, getDocsNavigation, type DocsSlug } from "@/lib/docs";
-import { useI18n } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 import { cn } from "@/lib/utils";
 
 const shellCopy = {

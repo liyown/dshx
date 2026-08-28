@@ -11,7 +11,7 @@ import {
   latestOperationReport,
   publishOperationReport,
 } from "@/lib/catalog/operation-reports.server";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 
 export const Route = createFileRoute("/api/ops/v1/reports/")({
   server: {
@@ -19,20 +19,20 @@ export const Route = createFileRoute("/api/ops/v1/reports/")({
       GET: async ({ request, context }) => {
         try {
           await requireApiToken(requireDatabase(context), request, "catalog:write");
-          return operationSuccess(request, await latestOperationReport(requireD1(context)));
+          return operationSuccess(request, await latestOperationReport(requireDatabase(context)));
         } catch (error) {
           return operationFailure(request, error);
         }
       },
       POST: async ({ request, context }) => {
         try {
-          const actor = await requireApiToken(
-            requireDatabase(context),
-            request,
-            "catalog:write",
-          );
+          const actor = await requireApiToken(requireDatabase(context), request, "catalog:write");
           const input = await readOperationJson(request, operationReportInputSchema);
-          const result = await publishOperationReport(requireD1(context), actor.token.id, input);
+          const result = await publishOperationReport(
+            requireDatabase(context),
+            actor.token.id,
+            input,
+          );
           return operationSuccess(request, result, {
             status: result.status === "created" ? 201 : 200,
           });

@@ -12,7 +12,7 @@ import {
   type DocsBlock,
   type DocsSlug,
 } from "@/lib/docs";
-import { useI18n } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 
 import { DocsLayout } from "./docs-layout";
 
@@ -176,7 +176,9 @@ function ChapterPager({ slug }: { slug: DocsSlug }) {
 
 export function DocsChapter({ slug }: { slug: DocsSlug }) {
   const { locale } = useI18n();
-  const chapter = getDocsChapter(slug).copy[locale];
+  const definition = getDocsChapter(slug);
+  const chapter = definition.copy[locale];
+  const showVerification = ["architecture", "publishing", "troubleshooting"].includes(slug);
 
   return (
     <DocsLayout activeSlug={slug}>
@@ -204,6 +206,30 @@ export function DocsChapter({ slug }: { slug: DocsSlug }) {
             ))}
           </section>
         ))}
+
+        {showVerification ? (
+          <section id="verification" className="docs-section scroll-mt-24">
+            <div className="docs-api-label">{locale === "zh" ? "验证" : "verification"}</div>
+            <h2>{locale === "zh" ? "来源与最后验证" : "Sources and last verification"}</h2>
+            <p>
+              {locale === "zh" ? "最后验证日期：" : "Last verified: "}
+              <time dateTime={definition.lastVerified}>{definition.lastVerified}</time>
+            </p>
+            <ul className="mt-6 max-w-[46rem] space-y-3 text-[14px] leading-6 text-muted-foreground">
+              {definition.references.map((reference) => (
+                <li key={reference.url}>
+                  <a
+                    href={reference.url}
+                    rel="noreferrer"
+                    className="text-accent underline-offset-4 hover:underline"
+                  >
+                    {reference.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         <ChapterPager slug={slug} />
       </article>

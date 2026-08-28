@@ -1,6 +1,7 @@
 import type { Locale } from "@/lib/i18n";
 
 import { cliAndInspect } from "./chapters/cli-and-inspect";
+import { architecture } from "./chapters/architecture";
 import { compatibility } from "./chapters/compatibility";
 import { conversation } from "./chapters/conversation";
 import { creator } from "./chapters/creator";
@@ -8,12 +9,15 @@ import { gettingStarted } from "./chapters/getting-started";
 import { hostContributions } from "./chapters/host-contributions";
 import { projectModel } from "./chapters/project-model";
 import { prompt } from "./chapters/prompt";
+import { publishing } from "./chapters/publishing";
 import { settings } from "./chapters/settings";
 import { typedApi } from "./chapters/typed-api";
+import { troubleshooting } from "./chapters/troubleshooting";
 import type { DocsChapterDefinition, DocsGroup } from "./types";
 
 const DOC_CHAPTERS = [
   gettingStarted,
+  architecture,
   projectModel,
   creator,
   hostContributions,
@@ -23,6 +27,8 @@ const DOC_CHAPTERS = [
   conversation,
   cliAndInspect,
   compatibility,
+  publishing,
+  troubleshooting,
 ] as const satisfies readonly DocsChapterDefinition[];
 
 type ChapterSlugTuple<Chapters extends readonly DocsChapterDefinition[]> = {
@@ -98,4 +104,10 @@ export function getDocsNavigation(locale: Locale): readonly DocsNavigationGroup[
 }
 
 export { DOC_CHAPTERS };
-export type { DocsBlock, DocsChapterCopy, DocsChapterDefinition, DocsSection } from "./types";
+export type {
+  DocsBlock,
+  DocsChapterCopy,
+  DocsChapterDefinition,
+  DocsReference,
+  DocsSection,
+} from "./types";

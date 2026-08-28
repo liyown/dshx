@@ -1,79 +1,112 @@
-import { sql } from "drizzle-orm";
 import { createFileRoute } from "@tanstack/react-router";
+import { waitUntil } from "cloudflare:workers";
 
 import { requireDatabase } from "@/lib/db/client";
-import { requireBindings } from "@/lib/db/context";
-import { DOC_SLUGS } from "@/lib/docs";
-import { jsonError } from "@/lib/http";
+import type { AppRequestContext } from "@/lib/db/context";
+import { PUBLIC_SITE_URL } from "@/lib/seo";
+import { conditionalSitemapResponse } from "@/lib/sitemap";
+import { buildCurrentSitemap } from "@/lib/sitemap.application.server";
+import {
+  SITEMAP_FRESH_CACHE_PATH,
+  SITEMAP_STALE_CACHE_PATH,
+  type BackgroundScheduler,
+  sitemapCache,
+  sitemapCacheRequest,
+} from "@/lib/sitemap-cache";
 
-function escapeXml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+function storedResponse(response: Response, maxAge: number): Response {
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", `public, max-age=${maxAge}`);
+  return new Response(response.body, { status: response.status, headers });
+}
+
+async function cachedSitemap(cache: Cache | null, request: Request, path: string) {
+  if (!cache) return null;
+  const response = await cache.match(sitemapCacheRequest(new URL(request.url).origin, path));
+  return response ? conditionalSitemapResponse(request, response) : null;
+}
+
+export async function generateSitemap(
+  _request: Request,
+  context: AppRequestContext,
+): Promise<Response> {
+  const db = requireDatabase(context);
+  return buildCurrentSitemap(db, PUBLIC_SITE_URL);
+}
+
+async function writeSitemapCache(
+  cache: Cache,
+  request: Request,
+  generated: Response,
+): Promise<void> {
+  const origin = new URL(request.url).origin;
+  await Promise.all([
+    cache.put(
+      sitemapCacheRequest(origin, SITEMAP_FRESH_CACHE_PATH),
+      storedResponse(generated.clone(), 21_600),
+    ),
+    cache.put(
+      sitemapCacheRequest(origin, SITEMAP_STALE_CACHE_PATH),
+      storedResponse(generated.clone(), 108_000),
+    ),
+  ]);
+}
+
+async function refreshSitemap(
+  cache: Cache,
+  request: Request,
+  context: AppRequestContext,
+): Promise<void> {
+  const generated = await generateSitemap(request, context);
+  await writeSitemapCache(cache, request, generated);
+}
+
+export async function serveSitemap(
+  request: Request,
+  appContext: AppRequestContext,
+  cache = sitemapCache(),
+  schedule: BackgroundScheduler = waitUntil,
+): Promise<Response> {
+  const fresh = await cachedSitemap(cache, request, SITEMAP_FRESH_CACHE_PATH);
+  if (fresh) return fresh;
+
+  const stale = await cachedSitemap(cache, request, SITEMAP_STALE_CACHE_PATH);
+  if (stale && cache) {
+    const refresh = refreshSitemap(cache, request, appContext).catch((error: unknown) => {
+      console.error(error);
+    });
+    schedule(refresh);
+    const headers = new Headers(stale.headers);
+    headers.set("x-sitemap-cache", "stale-while-revalidate");
+    return new Response(stale.body, { status: stale.status, headers });
+  }
+
+  try {
+    const generated = await generateSitemap(request, appContext);
+    if (cache) {
+      const cacheWrites = writeSitemapCache(cache, request, generated.clone());
+      schedule(cacheWrites);
+    }
+    return conditionalSitemapResponse(request, generated);
+  } catch (error) {
+    console.error(error);
+    return new Response("Sitemap is temporarily unavailable.", {
+      status: 503,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+        "retry-after": "60",
+      },
+    });
+  }
 }
 
 export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
-      GET: async ({ context }) => {
-        try {
-          const db = requireDatabase(context);
-          const site = (requireBindings(context).SITE_URL ?? "https://dshx.dev").replace(/\/$/, "");
-          const [plugins, categories, publishers] = await Promise.all([
-            db.all<{ slug: string; locale: string; updated_at: number }>(sql`
-        select p.slug,l.locale,p.updated_at from plugins p join plugin_localizations l on l.plugin_id=p.id
-        where p.status='published' and p.lifecycle_status in ('active','unmaintained') and l.translation_status='ready'
-        order by p.updated_at desc
-      `),
-            db.all<{ slug: string; locale: string }>(
-              sql`select c.slug,l.locale from categories c join category_localizations l on l.category_id=c.id where c.active=1`,
-            ),
-            db.all<{ login: string; locale: string; updated_at: number }>(
-              sql`select p.login,l.locale,p.updated_at from publishers p join publisher_localizations l on l.publisher_id=p.id where l.status='ready'`,
-            ),
-          ]);
-          const base = ["en", "zh"].flatMap((locale) => [
-            `${site}/${locale}`,
-            `${site}/${locale}/plugins`,
-            `${site}/${locale}/operations`,
-            `${site}/${locale}/docs`,
-            ...DOC_SLUGS.map((slug) => `${site}/${locale}/docs/${slug}`),
-          ]);
-          const urls = [
-            ...base.map((loc) => `<url><loc>${escapeXml(loc)}</loc></url>`),
-            ...["privacy", "terms", "community"].flatMap((document) =>
-              ["en", "zh"].map(
-                (locale) =>
-                  `<url><loc>${escapeXml(`${site}/${locale}/legal/${document}`)}</loc></url>`,
-              ),
-            ),
-            ...plugins.map(
-              (plugin) =>
-                `<url><loc>${escapeXml(`${site}/${plugin.locale}/plugins/${plugin.slug}`)}</loc><lastmod>${new Date(plugin.updated_at).toISOString()}</lastmod></url>`,
-            ),
-            ...categories.map(
-              (category) =>
-                `<url><loc>${escapeXml(`${site}/${category.locale}/categories/${category.slug}`)}</loc></url>`,
-            ),
-            ...publishers.map(
-              (publisher) =>
-                `<url><loc>${escapeXml(`${site}/${publisher.locale}/publishers/${publisher.login}`)}</loc><lastmod>${new Date(publisher.updated_at).toISOString()}</lastmod></url>`,
-            ),
-          ];
-          return new Response(
-            `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join("")}</urlset>`,
-            {
-              headers: {
-                "content-type": "application/xml; charset=utf-8",
-                "cache-control": "public, max-age=3600",
-              },
-            },
-          );
-        } catch (error) {
-          return jsonError(error);
-        }
+      GET: async ({ request, context }) => {
+        const appContext = context as unknown as AppRequestContext;
+        return serveSitemap(request, appContext);
       },
     },
   },

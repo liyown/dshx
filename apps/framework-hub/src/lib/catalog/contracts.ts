@@ -57,6 +57,10 @@ const marketplaceCardResponseSchema = z
 export const marketplaceListResponseSchema = z.object({
   items: z.array(marketplaceCardResponseSchema).max(50),
   nextCursor: z.string().max(500).nullable(),
+  page: z.number().int().min(1),
+  pageSize: z.number().int().min(1).max(50),
+  total: z.number().int().min(0),
+  totalPages: z.number().int().min(0),
   categories: z
     .array(
       z.object({

@@ -1,21 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { localeFromBrowser } from "@/lib/i18n";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
-  component: RootRedirect,
+  beforeLoad: () => {
+    throw redirect({ href: "/en", statusCode: 308 });
+  },
 });
-
-function RootRedirect() {
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    void navigate({
-      to: "/$locale",
-      params: { locale: localeFromBrowser() },
-      replace: true,
-    });
-  }, [navigate]);
-
-  return <div className="min-h-screen bg-background" aria-hidden />;
-}

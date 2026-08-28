@@ -1,15 +1,18 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, stripSearchParams } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 
 import { Container, SectionLabel } from "@/components/dshx/primitives";
 import { loadPublicOperationReports } from "@/lib/catalog/operation-report-functions";
 import { formatOperationReportDate } from "@/lib/catalog/operation-report-view";
-import { createTranslator, parseLocale, useI18n } from "@/lib/i18n";
+import { createTranslator, parseLocale } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
+import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/operations/")({
   validateSearch: (search: Record<string, unknown>) => ({
     cursor: typeof search["cursor"] === "string" ? search["cursor"].slice(0, 1_000) : "",
   }),
+  search: { middlewares: [stripSearchParams({ cursor: "" })] },
   loaderDeps: ({ search }) => search,
   loader: ({ params, deps }) =>
     loadPublicOperationReports({
@@ -19,24 +22,31 @@ export const Route = createFileRoute("/$locale/operations/")({
         ...(deps.cursor ? { cursor: deps.cursor } : {}),
       },
     }),
-  head: ({ params }) => {
+  head: ({ params, match }) => {
     const locale = parseLocale(params.locale);
     const t = createTranslator(locale);
-    return {
-      meta: [
-        { title: t("operations.metaTitle") },
-        { name: "description", content: t("operations.intro") },
-        { property: "og:title", content: t("operations.metaTitle") },
-        { property: "og:description", content: t("operations.intro") },
-        { name: "robots", content: "index,follow" },
+    return buildSeoHead({
+      locale,
+      path: `/${locale}/operations`,
+      title: t("operations.metaTitle"),
+      description: t("operations.intro"),
+      robots: match.search.cursor ? "noindex,follow" : "index,follow",
+      alternates: localizedAlternates("/operations"),
+      structuredData: [
+        {
+          "@id": `https://dshx.io/${locale}/operations#collection`,
+          "@type": "CollectionPage",
+          name: t("operations.metaTitle"),
+          description: t("operations.intro"),
+          url: `https://dshx.io/${locale}/operations`,
+          inLanguage: locale === "zh" ? "zh-CN" : "en",
+        },
+        breadcrumbList([
+          { name: "DSHX", path: `/${locale}` },
+          { name: t("operations.title"), path: `/${locale}/operations` },
+        ]),
       ],
-      links: [
-        { rel: "canonical", href: `https://dshx.io/${locale}/operations` },
-        { rel: "alternate", hrefLang: "en", href: "https://dshx.io/en/operations" },
-        { rel: "alternate", hrefLang: "zh", href: "https://dshx.io/zh/operations" },
-        { rel: "alternate", hrefLang: "x-default", href: "https://dshx.io/en/operations" },
-      ],
-    };
+    });
   },
   component: OperationsPage,
 });

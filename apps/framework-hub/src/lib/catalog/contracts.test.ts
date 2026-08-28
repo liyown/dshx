@@ -56,6 +56,10 @@ describe("marketplace response boundaries", () => {
     const result = marketplaceListResponseSchema.parse({
       items: [card],
       nextCursor: null,
+      page: 1,
+      pageSize: 24,
+      total: 1,
+      totalPages: 1,
       categories: [{ slug: "tools", name: "Tools" }],
     });
     expect(result.items[0]?.["author"]).toBe("example");
@@ -90,6 +94,10 @@ describe("marketplace response boundaries", () => {
       marketplaceListResponseSchema.safeParse({
         items: [{ ...card, compat: "dsh latest" }],
         nextCursor: null,
+        page: 1,
+        pageSize: 24,
+        total: 1,
+        totalPages: 1,
         categories: [],
       }).success,
     ).toBe(false);

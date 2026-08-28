@@ -1,7 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 
 import { Container } from "@/components/dshx/primitives";
-import { localizedPath, useI18n } from "@/lib/i18n";
+import { localizedPath } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 import { cn } from "@/lib/utils";
 
 const sections = [

@@ -1,12 +1,13 @@
-import { and, eq } from "drizzle-orm";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { requireSession } from "@/lib/auth/auth.server";
 import { communityDeleteSchema, replyCreateSchema } from "@/lib/catalog/contracts";
 import { requireCommunityWrite } from "@/lib/community/guard.server";
-import { sanitizeUserText } from "@/lib/community/contracts";
-import { reviewReplies } from "@/lib/db/schema";
-import { HttpError, jsonError, readJson } from "@/lib/http";
+import {
+  editReviewReply,
+  removeReviewReply,
+} from "@/lib/community/review-replies.application.server";
+import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/replies/$id")({
   server: {
@@ -23,22 +24,11 @@ export const Route = createFileRoute("/api/replies/$id")({
             "reply-edit",
             input.turnstileToken,
           );
-          const [reply] = await db
-            .update(reviewReplies)
-            .set({
-              body: sanitizeUserText(input.body)!,
-              locale: input.locale,
-              updatedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(reviewReplies.id, params.id),
-                eq(reviewReplies.userId, session.user.id),
-                eq(reviewReplies.status, "published"),
-              ),
-            )
-            .returning();
-          if (!reply) throw new HttpError(404, "Reply not found", "reply_not_found");
+          const reply = await editReviewReply(db, {
+            ...input,
+            replyId: params.id,
+            userId: session.user.id,
+          });
           return Response.json(reply);
         } catch (error) {
           return jsonError(error);
@@ -56,12 +46,7 @@ export const Route = createFileRoute("/api/replies/$id")({
             "reply-delete",
             input.turnstileToken,
           );
-          const [reply] = await db
-            .update(reviewReplies)
-            .set({ status: "deleted", deletedAt: new Date(), updatedAt: new Date() })
-            .where(and(eq(reviewReplies.id, params.id), eq(reviewReplies.userId, session.user.id)))
-            .returning();
-          if (!reply) throw new HttpError(404, "Reply not found", "reply_not_found");
+          const reply = await removeReviewReply(db, params.id, session.user.id);
           return Response.json(reply);
         } catch (error) {
           return jsonError(error);

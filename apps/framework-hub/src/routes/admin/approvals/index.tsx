@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, SlidersHorizontal } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 
 import {
@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { hasAdminAccess } from "@/lib/auth/functions";
+import { apiKeys, apiRequest } from "@/lib/api-client";
 
 const searchSchema = z.object({
   status: z.string().optional(),
@@ -41,6 +42,13 @@ type ApprovalPage = {
   items: ApprovalListItem[];
   counts: Array<{ status: string; count: number }>;
 };
+
+const approvalPageSchema = z
+  .object({
+    items: z.array(z.looseObject({})),
+    counts: z.array(z.object({ status: z.string(), count: z.number() })),
+  })
+  .transform((value) => value as unknown as ApprovalPage);
 
 const directionContract = `<!--
 THESIS: A quiet evidence ledger where irreversible decisions feel deliberate, never casual.
@@ -67,28 +75,19 @@ export const Route = createFileRoute("/admin/approvals/")({
 function ApprovalQueuePage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/admin/approvals/" });
-  const [data, setData] = useState<ApprovalPage | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setError(null);
-    const params = new URLSearchParams();
-    if (search.status) params.set("status", search.status);
-    if (search.kind) params.set("kind", search.kind);
-    if (search.risk) params.set("risk", search.risk);
-    const response = await fetch(`/api/admin/approvals?${params.toString()}`);
-    const payload = (await response.json()) as ApprovalPage & { error?: { message?: string } };
-    if (!response.ok) {
-      setError(payload.error?.message ?? "The approval ledger could not be loaded.");
-      setData(null);
-      return;
-    }
-    setData(payload);
-  }, [search.kind, search.risk, search.status]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const query = useQuery({
+    queryKey: apiKeys.approvalList(search),
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams();
+      if (search.status) params.set("status", search.status);
+      if (search.kind) params.set("kind", search.kind);
+      if (search.risk) params.set("risk", search.risk);
+      const suffix = params.size ? `?${params.toString()}` : "";
+      return apiRequest(`/api/admin/approvals${suffix}`, approvalPageSchema, { signal });
+    },
+  });
+  const data = query.data ?? null;
+  const error = query.error instanceof Error ? query.error.message : null;
 
   const pending = data?.counts.find((entry) => entry.status === "pending")?.count ?? 0;
 

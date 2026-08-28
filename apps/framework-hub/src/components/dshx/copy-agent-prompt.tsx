@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { getDshxDeveloperPrompt } from "@/lib/agent-prompt";
-import { useI18n } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/use-i18n";
 import { cn } from "@/lib/utils";
 
 const copy = {

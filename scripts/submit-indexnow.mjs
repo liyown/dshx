@@ -18,16 +18,31 @@ if (!sitemapResponse.ok) {
 }
 
 const xml = await sitemapResponse.text()
-const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match =>
+const extractedUrls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match =>
   match[1].replaceAll('&amp;', '&').replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>'),
 )
+const urls = [...new Set(extractedUrls)]
 
 if (urls.length === 0) {
   throw new Error(`Sitemap contains no URLs: ${sitemapUrl}`)
 }
 
-if (urls.some(url => new URL(url).host !== new URL(siteUrl).host)) {
-  throw new Error('Sitemap contains a URL outside dshx.io; refusing to submit it.')
+if (urls.length > 50_000) {
+  throw new Error(`Sitemap contains ${urls.length} URLs; refusing a submission above 50,000.`)
+}
+
+for (const url of urls) {
+  const parsed = new URL(url)
+  if (parsed.protocol !== 'https:' || parsed.host !== new URL(siteUrl).host) {
+    throw new Error(`Sitemap contains an invalid or off-site URL: ${url}`)
+  }
+  if (parsed.search || parsed.hash) {
+    throw new Error(`Sitemap contains a parameterized URL: ${url}`)
+  }
+}
+
+if (extractedUrls.length !== urls.length) {
+  console.log(`Removed ${extractedUrls.length - urls.length} duplicate sitemap URLs before batching`)
 }
 
 console.log(`${dryRun ? 'Would submit' : 'Submitting'} ${urls.length} URLs from ${sitemapUrl}`)

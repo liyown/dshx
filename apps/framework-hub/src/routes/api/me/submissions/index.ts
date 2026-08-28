@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth/auth.server";
 import { submissionCreateSchema } from "@/lib/community/contracts";
 import { requireCommunityWrite } from "@/lib/community/guard.server";
 import { createSubmission, listSubmissions } from "@/lib/community/marketplace.server";
-import { requireD1 } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/me/submissions/")({
@@ -13,7 +13,9 @@ export const Route = createFileRoute("/api/me/submissions/")({
       GET: async ({ request, context }) => {
         try {
           const auth = await requireSession(request, context);
-          return Response.json(await listSubmissions(requireD1(context), auth.session.user.id));
+          return Response.json(
+            await listSubmissions(requireDatabase(context), auth.session.user.id),
+          );
         } catch (error) {
           return jsonError(error);
         }
@@ -31,15 +33,12 @@ export const Route = createFileRoute("/api/me/submissions/")({
             input.turnstileToken,
           );
           return Response.json(
-            await createSubmission(
-              requireD1(context),
-              {
-                userId: auth.session.user.id,
-                submitterKey: `user:${auth.session.user.id}`,
-                repositoryUrl: input.repositoryUrl,
-                idempotencyKey: input.idempotencyKey,
-              },
-            ),
+            await createSubmission(requireDatabase(context), {
+              userId: auth.session.user.id,
+              submitterKey: `user:${auth.session.user.id}`,
+              repositoryUrl: input.repositoryUrl,
+              idempotencyKey: input.idempotencyKey,
+            }),
             { status: 201 },
           );
         } catch (error) {

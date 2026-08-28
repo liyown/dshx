@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth/auth.server";
 import { relationshipWriteSchema } from "@/lib/community/contracts";
 import { requireCommunityWrite } from "@/lib/community/guard.server";
 import { setCollectionPlugin } from "@/lib/community/marketplace.server";
-import { requireD1 } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/me/collections/$id/plugins/$pluginId")({
@@ -38,7 +38,7 @@ async function mutate(
     );
     return Response.json(
       await setCollectionPlugin(
-        requireD1(context),
+        requireDatabase(context),
         collectionId,
         pluginId,
         auth.session.user.id,

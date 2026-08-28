@@ -29,6 +29,6 @@ export const loadCatalogDetail = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const detail = await getCatalogPlugin(requireDatabase(context), data.slug, data.locale);
     return detail
-      ? { ...detail, siteUrl: requireBindings(context).SITE_URL ?? "https://dshx.dev" }
+      ? { ...detail, siteUrl: requireBindings(context).SITE_URL ?? "https://dshx.io" }
       : null;
   });

@@ -8,7 +8,7 @@ import {
   parseOperationInput,
 } from "@/lib/catalog/operations-v1.http";
 import { listOpsSubmissions } from "@/lib/catalog/operations-v1.server";
-import { requireD1, requireDatabase } from "@/lib/db/client";
+import { requireDatabase } from "@/lib/db/client";
 
 function statuses(params: URLSearchParams) {
   const values = [
@@ -35,7 +35,10 @@ export const Route = createFileRoute("/api/ops/v1/submissions/")({
             limit: params.has("limit") ? Number(params.get("limit")) : undefined,
             cursor: params.get("cursor") ?? undefined,
           });
-          return operationSuccess(request, await listOpsSubmissions(requireD1(context), query));
+          return operationSuccess(
+            request,
+            await listOpsSubmissions(requireDatabase(context), query),
+          );
         } catch (error) {
           return operationFailure(request, error);
         }
