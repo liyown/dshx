@@ -110,8 +110,13 @@ type ImportCache = {
 };
 
 type ExistingCatalog = {
+  curatedIdentities: Set<string>;
+  directIdentities: Set<string>;
   identities: Set<string>;
+  importedIdentities: Set<string>;
   packageNames: Set<string>;
+  pluginIds: Map<string, string>;
+  publishedIdentities: Set<string>;
   repositories: Set<string>;
 };
 
@@ -167,7 +172,16 @@ function productionCatalog(): ExistingCatalog {
     "dshx-framework-hub",
     "--remote",
     "--command",
-    "select identity_key,null package_name,null repository_url from plugin_observation_identities union all select null identity_key,package_name,repository_url from plugins",
+    `select i.identity_key,i.plugin_id,p.package_name,p.repository_url,
+      exists(select 1 from plugin_observations o where o.identity_key=i.identity_key and o.source_url like 'https://dshmk.com/plugins/%') imported,
+      exists(select 1 from plugin_observations o where o.identity_key=i.identity_key and o.source_kind in ('github','npm')) direct,
+      exists(select 1 from plugin_curations c where c.plugin_id=i.plugin_id) curated,
+      case when s.state='published' then 1 else 0 end published
+    from plugin_observation_identities i
+    join plugins p on p.id=i.plugin_id
+    left join plugin_operational_state s on s.plugin_id=i.plugin_id
+    union all
+    select null identity_key,p.id plugin_id,p.package_name,p.repository_url,0 imported,0 direct,0 curated,0 published from plugins p`,
     "--json",
   ];
   let output = "";
@@ -191,19 +205,39 @@ function productionCatalog(): ExistingCatalog {
   const parsed = JSON.parse(output) as Array<{
     results?: Array<{
       identity_key?: string;
+      plugin_id?: string;
       package_name?: string;
       repository_url?: string;
+      imported?: number;
+      direct?: number;
+      curated?: number;
+      published?: number;
     }>;
     success?: boolean;
   }>;
   if (!parsed[0]?.success)
     throw new Error("Production catalog identity query did not succeed.");
   const rows = parsed[0].results ?? [];
+  const identifiedRows = rows.filter(
+    (row): row is typeof row & { identity_key: string } =>
+      Boolean(row.identity_key),
+  );
   return {
-    identities: new Set(
-      rows
-        .map((row) => row.identity_key)
-        .filter((value): value is string => Boolean(value)),
+    curatedIdentities: new Set(
+      identifiedRows
+        .filter((row) => row.curated === 1)
+        .map((row) => row.identity_key),
+    ),
+    directIdentities: new Set(
+      identifiedRows
+        .filter((row) => row.direct === 1)
+        .map((row) => row.identity_key),
+    ),
+    identities: new Set(identifiedRows.map((row) => row.identity_key)),
+    importedIdentities: new Set(
+      identifiedRows
+        .filter((row) => row.imported === 1)
+        .map((row) => row.identity_key),
     ),
     packageNames: new Set(
       rows
@@ -214,6 +248,16 @@ function productionCatalog(): ExistingCatalog {
       rows
         .map((row) => repositoryName(row.repository_url))
         .filter((value): value is string => Boolean(value)),
+    ),
+    pluginIds: new Map(
+      identifiedRows.flatMap((row) =>
+        row.plugin_id ? [[row.identity_key, row.plugin_id] as const] : [],
+      ),
+    ),
+    publishedIdentities: new Set(
+      identifiedRows
+        .filter((row) => row.published === 1)
+        .map((row) => row.identity_key),
     ),
   };
 }
@@ -283,7 +327,7 @@ async function retry<T>(
       lastError = error;
       if (attempt < attempts)
         await new Promise((resolve) =>
-          setTimeout(resolve, Math.min(8_000, 1_000 * 2 ** (attempt - 1))),
+          setTimeout(resolve, Math.min(30_000, 1_000 * 2 ** (attempt - 1))),
         );
     }
   }
@@ -1211,12 +1255,13 @@ async function upsertBatches(
     const envelope = await retry(
       `observation batch ${index + 1}`,
       () => upsertPlugins(hub, { observations: batch }, dryRun),
-      5,
+      8,
     );
     results.push(...resultRows(envelope));
     process.stdout.write(
       `Observation batch ${index + 1}/${Math.ceil(observations.length / batchSize)}: ${JSON.stringify(summarizeStatuses(resultRows(envelope)))}\n`,
     );
+    if (!dryRun) await new Promise((resolve) => setTimeout(resolve, 750));
   }
   return results;
 }
@@ -1285,13 +1330,23 @@ async function main(): Promise<void> {
       return result;
     },
   );
-  const discovery = selected.map((candidate) =>
-    discoveryObservation(candidate, catalog.generatedAt),
-  );
-  const direct = prepared.flatMap((item) =>
+  const discovery = selected
+    .filter(
+      (candidate) =>
+        !currentCatalog.importedIdentities.has(identityFor(candidate)),
+    )
+    .map((candidate) => discoveryObservation(candidate, catalog.generatedAt));
+  const directPrepared = prepared.flatMap((item) =>
     item.directObservation ? [item.directObservation] : [],
   );
-  const curatable = prepared.filter(
+  const direct = directPrepared.filter((observation) => {
+    const identity =
+      observation.identity.kind === "npm"
+        ? `npm:${observation.identity.packageName}`
+        : `github:${observation.identity.repositoryId}:${observation.identity.subdirectory}`;
+    return !currentCatalog.directIdentities.has(identity);
+  });
+  const curatablePrepared = prepared.filter(
     (
       item,
     ): item is PreparedCandidate & {
@@ -1299,14 +1354,21 @@ async function main(): Promise<void> {
       curation: NonNullable<PreparedCandidate["curation"]>;
     } => Boolean(item.directObservation && item.curation),
   );
+  const curatable = curatablePrepared.filter(
+    (item) =>
+      !currentCatalog.publishedIdentities.has(identityFor(item.candidate)),
+  );
   const validation = {
     upstreamGeneratedAt: catalog.generatedAt,
     verifiedCandidates: verified.length,
     selected: selected.length,
-    discoveryObservations: discovery.length,
-    directObservations: direct.length,
-    curatable: curatable.length,
-    retainedAsDraft: selected.length - curatable.length,
+    discoveryObservations: selected.length,
+    pendingDiscoveryObservations: discovery.length,
+    directObservations: directPrepared.length,
+    pendingDirectObservations: direct.length,
+    curatable: curatablePrepared.length,
+    pendingCurations: curatable.length,
+    retainedAsDraft: selected.length - curatablePrepared.length,
     preparationReasons: Object.fromEntries(
       Object.entries(
         Object.groupBy(
@@ -1318,7 +1380,7 @@ async function main(): Promise<void> {
         .sort((left, right) => right[1] - left[1])
         .slice(0, 12),
     ),
-    samples: curatable.slice(0, 5).map((item) => ({
+    samples: curatablePrepared.slice(0, 5).map((item) => ({
       identity: identityFor(item.candidate),
       description: item.curation.shortDescription,
       install: executableCandidate(item.candidate)?.specifier,
@@ -1339,7 +1401,7 @@ async function main(): Promise<void> {
   const directResults = direct.length
     ? await upsertBatches(direct, 10, false)
     : [];
-  const pluginIds = new Map<string, string>();
+  const pluginIds = new Map(currentCatalog.pluginIds);
   for (const result of [...discoveryResults, ...directResults]) {
     if (
       typeof result.identity === "string" &&
@@ -1398,17 +1460,30 @@ async function main(): Promise<void> {
   const rejectedObservations = [...discoveryResults, ...directResults].filter(
     (result) => result.status === "rejected",
   ).length;
-  const published = curationResults.filter(
-    (result) => result.status !== "rejected" && result.status !== "incomplete",
-  ).length;
   const incomplete = curationResults.filter(
     (result) => result.status === "incomplete",
   ).length;
   const rejectedCurations = curationResults.filter(
     (result) => result.status === "rejected",
   ).length;
+  const finalCatalog = productionCatalog();
+  const selectedIdentities = selected.map(identityFor);
+  const imported = selectedIdentities.filter((identity) =>
+    finalCatalog.importedIdentities.has(identity),
+  ).length;
+  const directComplete = selectedIdentities.filter((identity) =>
+    finalCatalog.directIdentities.has(identity),
+  ).length;
+  const published = selectedIdentities.filter((identity) =>
+    finalCatalog.publishedIdentities.has(identity),
+  ).length;
   const outcome =
-    rejectedObservations || incomplete || rejectedCurations
+    rejectedObservations ||
+    incomplete ||
+    rejectedCurations ||
+    imported !== selected.length ||
+    directComplete < directPrepared.length ||
+    published < curatablePrepared.length
       ? ("partial" as const)
       : ("completed" as const);
   const completedAt = new Date();
@@ -1419,15 +1494,15 @@ async function main(): Promise<void> {
     completedAt: completedAt.toISOString(),
     outcome,
     body: {
-      en: `Completed a one-time public catalog intake across ${selected.length} newly discovered stable plugin identities. ${discoveryResults.length - rejectedObservations} source leads were recorded with deduplication and provenance; ${directResults.length} entries received direct repository or package facts, exact installation targets, publisher data, and saved README evidence. ${published} entries passed the substantive bilingual content gate and were published with default web-profile installation guidance; ${selected.length - published} remain drafts instead of exposing placeholder copy. Observation rejections: ${rejectedObservations}; incomplete or rejected curations: ${incomplete + rejectedCurations}.`,
-      zh: `已完成一次性公开目录增补，共处理 ${selected.length} 个新发现的稳定插件身份。经身份去重与来源留痕，成功记录 ${discoveryResults.length - rejectedObservations} 条发现数据；其中 ${directResults.length} 条进一步补齐了仓库或包事实、精确安装目标、发布者资料与原始 README 证据。${published} 条通过实质性双语内容门槛并发布，安装说明统一使用默认 web profile；其余 ${selected.length - published} 条保留为草稿，避免占位内容进入前台。观察写入拒绝 ${rejectedObservations} 条，内容未完成或拒绝 ${incomplete + rejectedCurations} 条。`,
+      en: `Completed a one-time public catalog intake across ${selected.length} newly discovered stable plugin identities. ${imported} source leads were recorded with deduplication and provenance; ${directComplete} entries now have direct repository or package facts, exact installation targets, publisher data, and saved README evidence. ${published} entries passed the substantive bilingual content gate and are published with default web-profile installation guidance; ${selected.length - published} remain drafts instead of exposing placeholder copy. Observation rejections: ${rejectedObservations}; incomplete or rejected curations: ${incomplete + rejectedCurations}.`,
+      zh: `已完成一次性公开目录增补，共处理 ${selected.length} 个新发现的稳定插件身份。经身份去重与来源留痕，已记录 ${imported} 条发现数据；其中 ${directComplete} 条已补齐仓库或包事实、精确安装目标、发布者资料与原始 README 证据。${published} 条通过实质性双语内容门槛并发布，安装说明统一使用默认 web profile；其余 ${selected.length - published} 条保留为草稿，避免占位内容进入前台。观察写入拒绝 ${rejectedObservations} 条，内容未完成或拒绝 ${incomplete + rejectedCurations} 条。`,
     },
   };
   await publishReport(hub, report);
   cache.completed = outcome === "completed";
   saveCache(cache);
   process.stdout.write(
-    `${JSON.stringify({ mode: "applied", runId, bookmark, outcome, validation, results: { discovery: summarizeStatuses(discoveryResults), direct: summarizeStatuses(directResults), curation: summarizeStatuses(curationResults as Array<Record<string, unknown>>), published, retainedAsDraft: selected.length - published } }, null, 2)}\n`,
+    `${JSON.stringify({ mode: "applied", runId, bookmark, outcome, validation, results: { discovery: summarizeStatuses(discoveryResults), direct: summarizeStatuses(directResults), curation: summarizeStatuses(curationResults as Array<Record<string, unknown>>), imported, directComplete, published, retainedAsDraft: selected.length - published } }, null, 2)}\n`,
   );
 }
 
