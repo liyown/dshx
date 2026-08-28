@@ -103,6 +103,7 @@ type PreparedCandidate = {
 };
 
 type ImportCache = {
+  blockedIdentities?: string[];
   completed?: boolean;
   generatedAt?: string;
   selectedIdentities?: string[];
@@ -118,12 +119,16 @@ type ExistingCatalog = {
   pluginIds: Map<string, string>;
   publishedIdentities: Set<string>;
   repositories: Set<string>;
+  shortSeoIdentities: Set<string>;
 };
 
 const upstreamUrl = "https://api.dshmk.com/";
 const hub = optionValue("--hub") ?? "https://dshx.io";
 const apply = process.argv.includes("--apply");
 const requestedLimit = numberOption("--limit");
+const requestedIdentities = optionValues("--identity");
+const repairShortSeo = process.argv.includes("--repair-short-seo");
+const recurate = process.argv.includes("--recurate");
 const concurrency = numberOption("--concurrency") ?? 8;
 const cachePath = join(tmpdir(), "dshx-public-catalog-import-v1.json");
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -134,6 +139,12 @@ const runId = randomUUID();
 function optionValue(name: string): string | undefined {
   const index = process.argv.indexOf(name);
   return index < 0 ? undefined : process.argv[index + 1];
+}
+
+function optionValues(name: string): string[] {
+  return process.argv.flatMap((value, index, values) =>
+    value === name && values[index + 1] ? [values[index + 1]] : [],
+  );
 }
 
 function numberOption(name: string): number | undefined {
@@ -153,7 +164,11 @@ function loadCache(): ImportCache {
   if (!existsSync(cachePath)) return { translations: {} };
   try {
     const parsed = JSON.parse(readFileSync(cachePath, "utf8")) as ImportCache;
-    return { ...parsed, translations: parsed.translations ?? {} };
+    return {
+      ...parsed,
+      blockedIdentities: parsed.blockedIdentities ?? [],
+      translations: parsed.translations ?? {},
+    };
   } catch {
     return { translations: {} };
   }
@@ -176,12 +191,13 @@ function productionCatalog(): ExistingCatalog {
       exists(select 1 from plugin_observations o where o.identity_key=i.identity_key and o.source_url like 'https://dshmk.com/plugins/%') imported,
       exists(select 1 from plugin_observations o where o.identity_key=i.identity_key and o.source_kind in ('github','npm')) direct,
       exists(select 1 from plugin_curations c where c.plugin_id=i.plugin_id) curated,
-      case when s.state='published' then 1 else 0 end published
+      case when s.state='published' then 1 else 0 end published,
+      exists(select 1 from plugin_localizations l where l.plugin_id=i.plugin_id and ((l.locale='en' and length(l.seo_description)<48) or (l.locale='zh' and length(l.seo_description)<24))) short_seo
     from plugin_observation_identities i
     join plugins p on p.id=i.plugin_id
     left join plugin_operational_state s on s.plugin_id=i.plugin_id
     union all
-    select null identity_key,p.id plugin_id,p.package_name,p.repository_url,0 imported,0 direct,0 curated,0 published from plugins p`,
+    select null identity_key,p.id plugin_id,p.package_name,p.repository_url,0 imported,0 direct,0 curated,0 published,0 short_seo from plugins p`,
     "--json",
   ];
   let output = "";
@@ -212,6 +228,7 @@ function productionCatalog(): ExistingCatalog {
       direct?: number;
       curated?: number;
       published?: number;
+      short_seo?: number;
     }>;
     success?: boolean;
   }>;
@@ -248,6 +265,11 @@ function productionCatalog(): ExistingCatalog {
       rows
         .map((row) => repositoryName(row.repository_url))
         .filter((value): value is string => Boolean(value)),
+    ),
+    shortSeoIdentities: new Set(
+      identifiedRows
+        .filter((row) => row.short_seo === 1)
+        .map((row) => row.identity_key),
     ),
     pluginIds: new Map(
       identifiedRows.flatMap((row) =>
@@ -787,6 +809,17 @@ function meaningful(value: string | undefined): value is string {
   );
 }
 
+function capabilityEvidence(value: string): boolean {
+  const normalized = cleanMarkdownLine(value);
+  return (
+    meaningful(normalized) &&
+    !/(?:if you (?:are|run)|from source|repo(?:sitory)? root|checkout|clone|installation|install with|npm (?:install|run)|pnpm|yarn|\bcd\s|如果|源码运行|仓库根目录|安装命令)/iu.test(
+      normalized,
+    ) &&
+    !/\b(?:is|are|the|and|or|to|for|with|of|a|an)$/iu.test(normalized)
+  );
+}
+
 function readmeEvidence(readme: string): {
   intro?: string;
   features: string[];
@@ -795,45 +828,73 @@ function readmeEvidence(readme: string): {
   const lines = withoutCode.split(/\r?\n/);
   const paragraphs: string[] = [];
   const bullets: string[] = [];
+  const preferredBullets: string[] = [];
   let paragraph: string[] = [];
+  let bullet: string[] = [];
+  let preferredSection = false;
+  let bulletIsPreferred = false;
   const flush = () => {
     const value = cleanMarkdownLine(paragraph.join(" "));
     if (meaningful(value) && value.length <= 700) paragraphs.push(value);
     paragraph = [];
   };
+  const flushBullet = () => {
+    const value = cleanMarkdownLine(bullet.join(" "));
+    if (
+      capabilityEvidence(value) &&
+      value.length <= 700 &&
+      !/install|安装|clone|license|许可证/i.test(value)
+    )
+      (bulletIsPreferred ? preferredBullets : bullets).push(value);
+    bullet = [];
+  };
   for (const raw of lines) {
     const trimmed = raw.trim();
     if (!trimmed) {
       flush();
+      flushBullet();
       continue;
     }
     if (
-      /^(?:\[!|<img|https?:\/\/|npm |pnpm |yarn |dsh plugin|#{1,6}\s)/i.test(
-        trimmed,
-      )
+      /^(?:\[!|<img|https?:\/\/|npm |pnpm |yarn |dsh plugin)/i.test(trimmed)
     ) {
       flush();
+      flushBullet();
+      continue;
+    }
+    if (/^#{1,6}\s/.test(trimmed)) {
+      flush();
+      flushBullet();
+      preferredSection =
+        /(?:features?|highlights?|capabilit|功能|特性|主要能力)/iu.test(
+          trimmed,
+        );
       continue;
     }
     if (/^[-+*•]\s+/.test(trimmed)) {
       flush();
-      const value = cleanMarkdownLine(trimmed);
-      if (
-        meaningful(value) &&
-        value.length <= 260 &&
-        !/install|安装|clone|license|许可证/i.test(value)
-      )
-        bullets.push(value);
+      flushBullet();
+      bullet = [trimmed];
+      bulletIsPreferred = preferredSection;
       continue;
     }
+    if (bullet.length && /^\s{2,}\S/.test(raw)) {
+      bullet.push(trimmed);
+      continue;
+    }
+    flushBullet();
     paragraph.push(trimmed);
   }
   flush();
+  flushBullet();
+  const preferred = [...new Set(preferredBullets)];
   const unique = [...new Set(bullets)];
   const intro = paragraphs.find(meaningful);
-  if (unique.length) return { intro, features: unique.slice(0, 5) };
-  const fallback = paragraphs.filter((value) => value !== intro).slice(0, 4);
-  return { intro, features: fallback };
+  if (preferred.length) return { intro, features: preferred.slice(0, 5) };
+  const fallback = paragraphs
+    .filter((value) => value !== intro && capabilityEvidence(value))
+    .slice(0, 4);
+  return { intro, features: fallback.length ? fallback : unique.slice(0, 5) };
 }
 
 function inferLanguage(value: string): "en" | "zh" {
@@ -857,6 +918,36 @@ function trimText(value: string, maximum: number): string {
   return `${(boundary > maximum * 0.55 ? clipped.slice(0, boundary + 1) : clipped).trim()}…`;
 }
 
+function buildShortDescription(input: {
+  description: string;
+  features: string[];
+  locale: "en" | "zh";
+}): string {
+  let summary = trimText(input.description, 240);
+  for (const feature of input.features) {
+    const substantive =
+      input.locale === "en"
+        ? summary.length >= 72 &&
+          (summary.match(/[A-Za-z][A-Za-z0-9'-]*/g) ?? []).length >= 10
+        : summary.length >= 36 &&
+          (summary.match(/[\u3400-\u9fff]/g) ?? []).length >= 18;
+    if (substantive) break;
+    const detail = trimText(feature, input.locale === "en" ? 170 : 120);
+    const comparableSummary = summary.toLocaleLowerCase();
+    const comparableDetail = detail.toLocaleLowerCase();
+    if (
+      comparableSummary.includes(comparableDetail) ||
+      comparableDetail.includes(comparableSummary)
+    )
+      continue;
+    summary = trimText(
+      `${summary.replace(/[.!?。！？；;：:]$/u, "")}${input.locale === "zh" ? "；" : " — "}${detail}`,
+      240,
+    );
+  }
+  return summary;
+}
+
 async function translateParts(
   parts: string[],
   from: "en" | "zh",
@@ -869,15 +960,25 @@ async function translateParts(
   const cached = cache.translations?.[key];
   let translated = cached;
   if (!translated) {
-    const url = new URL("https://translate.googleapis.com/translate_a/single");
-    url.searchParams.set("client", "gtx");
-    url.searchParams.set("sl", from === "zh" ? "zh-CN" : "en");
-    url.searchParams.set("tl", to === "zh" ? "zh-CN" : "en");
-    url.searchParams.set("dt", "t");
-    url.searchParams.set("q", input);
-    const response = await fetchResponse(url.toString());
-    const body = (await response.json()) as unknown[][][];
-    translated = (body[0] ?? [])
+    const body = new URLSearchParams({
+      client: "gtx",
+      sl: from === "zh" ? "zh-CN" : "en",
+      tl: to === "zh" ? "zh-CN" : "en",
+      dt: "t",
+      q: input,
+    });
+    const response = await fetchResponse(
+      "https://translate.googleapis.com/translate_a/single",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+        },
+        body,
+      },
+    );
+    const payload = (await response.json()) as unknown[][][];
+    translated = (payload[0] ?? [])
       .map((piece) => String(piece?.[0] ?? ""))
       .join("");
     cache.translations ??= {};
@@ -1156,7 +1257,7 @@ async function prepareCandidate(
       const clauses = rawDescription
         .split(/[。.!?；;]+/)
         .map(cleanMarkdownLine)
-        .filter(meaningful);
+        .filter(capabilityEvidence);
       sourceFeatures.push(...clauses.slice(0, 4));
     }
     if (!sourceFeatures.length)
@@ -1185,8 +1286,8 @@ async function prepareCandidate(
         zh: trimText(candidate.name || factsPackage.name, 120),
       },
       shortDescription: {
-        en: trimText(localized.en.description, 240),
-        zh: trimText(localized.zh.description, 240),
+        en: buildShortDescription({ ...localized.en, locale: "en" }),
+        zh: buildShortDescription({ ...localized.zh, locale: "zh" }),
       },
       overviewMarkdown: {
         en: buildOverview({
@@ -1248,6 +1349,22 @@ function summarizeStatuses(results: Array<Record<string, unknown>>) {
   return counts;
 }
 
+function observationIdentity(observation: PluginObservationV1): string {
+  return observation.identity.kind === "npm"
+    ? `npm:${observation.identity.packageName}`
+    : `github:${observation.identity.repositoryId}:${observation.identity.subdirectory}`;
+}
+
+function isIdentityConflict(result: Record<string, unknown>): boolean {
+  const error = result.error;
+  return (
+    Boolean(error) &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "observation_identity_conflict"
+  );
+}
+
 async function upsertBatches(
   observations: PluginObservationV1[],
   batchSize: number,
@@ -1279,6 +1396,7 @@ async function upsertBatches(
 
 async function main(): Promise<void> {
   const cache = loadCache();
+  const blockedIdentities = new Set(cache.blockedIdentities ?? []);
   const upstreamResponse = await fetchResponse(upstreamUrl);
   const catalog = (await upstreamResponse.json()) as SourceCatalog;
   if (catalog.schemaVersion !== 1 || !Array.isArray(catalog.repositories))
@@ -1295,7 +1413,13 @@ async function main(): Promise<void> {
   );
   const currentCatalog = productionCatalog();
   let selected: SourceRepository[];
-  if (apply && cache.selectedIdentities?.length && !cache.completed) {
+  if (repairShortSeo || recurate) {
+    selected = verified.filter(
+      (candidate) =>
+        recurate ||
+        currentCatalog.shortSeoIdentities.has(identityFor(candidate)),
+    );
+  } else if (apply && cache.selectedIdentities?.length && !cache.completed) {
     const saved = new Set(cache.selectedIdentities);
     selected = verified.filter((candidate) =>
       saved.has(identityFor(candidate)),
@@ -1317,6 +1441,12 @@ async function main(): Promise<void> {
       saveCache(cache);
     }
   }
+  if (requestedIdentities.length) {
+    const requested = new Set(requestedIdentities);
+    selected = selected.filter((candidate) =>
+      requested.has(identityFor(candidate)),
+    );
+  }
   if (!selected.length) {
     process.stdout.write(
       `${JSON.stringify({ mode: apply ? "apply" : "dry-run", verifiedCandidates: verified.length, selected: 0, message: "No new stable identities." }, null, 2)}\n`,
@@ -1324,7 +1454,7 @@ async function main(): Promise<void> {
     return;
   }
   process.stdout.write(
-    `Selected ${selected.length} missing identities from ${verified.length} verified, single-target candidates.\n`,
+    `Selected ${selected.length} ${repairShortSeo ? "short-SEO" : "missing"} identities from ${verified.length} verified, single-target candidates.\n`,
   );
   const repositories = await graphRepositories(selected);
   const prepared = await mapConcurrent(
@@ -1351,11 +1481,11 @@ async function main(): Promise<void> {
     item.directObservation ? [item.directObservation] : [],
   );
   const direct = directPrepared.filter((observation) => {
-    const identity =
-      observation.identity.kind === "npm"
-        ? `npm:${observation.identity.packageName}`
-        : `github:${observation.identity.repositoryId}:${observation.identity.subdirectory}`;
-    return !currentCatalog.directIdentities.has(identity);
+    const identity = observationIdentity(observation);
+    return (
+      (!currentCatalog.directIdentities.has(identity) || recurate) &&
+      !blockedIdentities.has(identity)
+    );
   });
   const curatablePrepared = prepared.filter(
     (
@@ -1367,7 +1497,10 @@ async function main(): Promise<void> {
   );
   const pendingCurationCandidates = curatablePrepared.filter(
     (item) =>
-      !currentCatalog.publishedIdentities.has(identityFor(item.candidate)),
+      !currentCatalog.publishedIdentities.has(identityFor(item.candidate)) ||
+      recurate ||
+      (repairShortSeo &&
+        currentCatalog.shortSeoIdentities.has(identityFor(item.candidate))),
   );
   const validation = {
     upstreamGeneratedAt: catalog.generatedAt,
@@ -1377,6 +1510,7 @@ async function main(): Promise<void> {
     pendingDiscoveryObservations: discovery.length,
     directObservations: directPrepared.length,
     pendingDirectObservations: direct.length,
+    knownIdentityConflicts: blockedIdentities.size,
     curatable: curatablePrepared.length,
     pendingCurations: pendingCurationCandidates.length,
     retainedAsDraft: selected.length - curatablePrepared.length,
@@ -1412,6 +1546,12 @@ async function main(): Promise<void> {
   const directResults = direct.length
     ? await upsertBatches(direct, 10, false)
     : [];
+  for (const result of directResults) {
+    if (isIdentityConflict(result) && typeof result.identity === "string")
+      blockedIdentities.add(result.identity);
+  }
+  cache.blockedIdentities = [...blockedIdentities].sort();
+  saveCache(cache);
   const afterDirectCatalog = productionCatalog();
   const publishableIdentities = new Set<string>();
   const curatableByPlugin = new Map<
@@ -1425,7 +1565,10 @@ async function main(): Promise<void> {
     if (!pluginId) continue;
     publishableIdentities.add(identity);
     if (
-      !afterDirectCatalog.publishedIdentities.has(identity) &&
+      (!afterDirectCatalog.publishedIdentities.has(identity) ||
+        recurate ||
+        (repairShortSeo &&
+          afterDirectCatalog.shortSeoIdentities.has(identity))) &&
       !curatableByPlugin.has(pluginId)
     )
       curatableByPlugin.set(pluginId, item);
@@ -1441,13 +1584,17 @@ async function main(): Promise<void> {
       try {
         let curated: Awaited<ReturnType<typeof curatePlugin>> | undefined;
         for (let attempt = 1; attempt <= 2; attempt += 1) {
-          const current = await getPlugin(hub, pluginId);
+          const current = await retry(
+            `curation state ${identity}`,
+            () => getPlugin(hub, pluginId),
+            8,
+          );
           const state = current.data as { revision?: number };
           try {
             curated = await retry(
               `curation ${identity}`,
               () => curatePlugin(hub, pluginId, item.curation, state.revision),
-              3,
+              8,
             );
             break;
           } catch (error) {
@@ -1460,7 +1607,11 @@ async function main(): Promise<void> {
           }
         }
         if (!curated) throw new Error("Curation did not return a result.");
-        const verifiedPlugin = await getPlugin(hub, pluginId);
+        const verifiedPlugin = await retry(
+          `curation verification ${identity}`,
+          () => getPlugin(hub, pluginId),
+          8,
+        );
         const verification = verifiedPlugin.data as {
           needs?: string[];
           state?: string;
@@ -1499,6 +1650,13 @@ async function main(): Promise<void> {
   const rejectedCurations = curationResults.filter(
     (result) => result.status === "rejected",
   ).length;
+  const unsuccessfulCurations = curationResults.filter(
+    (result) => result.status === "incomplete" || result.status === "rejected",
+  );
+  if (unsuccessfulCurations.length)
+    process.stdout.write(
+      `Unsuccessful curations: ${JSON.stringify(unsuccessfulCurations)}\n`,
+    );
   const finalCatalog = productionCatalog();
   const selectedIdentities = selected.map(identityFor);
   const imported = selectedIdentities.filter((identity) =>
@@ -1507,9 +1665,25 @@ async function main(): Promise<void> {
   const directComplete = selectedIdentities.filter((identity) =>
     finalCatalog.directIdentities.has(identity),
   ).length;
+  const directPreparedIdentities = new Set(
+    directPrepared.map(observationIdentity),
+  );
+  const blockedDirect = [...directPreparedIdentities].filter(
+    (identity) =>
+      blockedIdentities.has(identity) &&
+      !finalCatalog.directIdentities.has(identity),
+  ).length;
+  const directSatisfied = [...directPreparedIdentities].filter(
+    (identity) =>
+      finalCatalog.directIdentities.has(identity) ||
+      blockedIdentities.has(identity),
+  ).length;
   const publishedIdentities = selectedIdentities.filter((identity) =>
     finalCatalog.publishedIdentities.has(identity),
   );
+  const remainingShortSeo = selectedIdentities.filter((identity) =>
+    finalCatalog.shortSeoIdentities.has(identity),
+  ).length;
   const publishedPluginIds = new Set(
     publishedIdentities.flatMap((identity) => {
       const pluginId = finalCatalog.pluginIds.get(identity);
@@ -1518,7 +1692,9 @@ async function main(): Promise<void> {
   );
   const outcome =
     imported !== selected.length ||
-    directComplete < directPrepared.length ||
+    directSatisfied < directPreparedIdentities.size ||
+    (recurate && curatablePrepared.length !== selected.length) ||
+    (repairShortSeo && remainingShortSeo > 0) ||
     publishedPluginIds.size <
       new Set(
         [...publishableIdentities].flatMap((identity) => {
@@ -1535,16 +1711,27 @@ async function main(): Promise<void> {
     startedAt: startedAt.toISOString(),
     completedAt: completedAt.toISOString(),
     outcome,
-    body: {
-      en: `Completed a one-time public catalog intake across ${selected.length} newly discovered stable plugin identities. ${imported} source leads were recorded with deduplication and provenance; ${directComplete} entries now have direct repository or package facts, exact installation targets, publisher data, and saved README evidence. ${publishedPluginIds.size} plugins passed the substantive bilingual content gate and are published with default web-profile installation guidance; ${selected.length - publishedIdentities.length} identities remain drafts instead of exposing placeholder copy. Observation rejections: ${rejectedObservations}; incomplete or rejected curations: ${incomplete + rejectedCurations}.`,
-      zh: `已完成一次性公开目录增补，共处理 ${selected.length} 个新发现的稳定插件身份。经身份去重与来源留痕，已记录 ${imported} 条发现数据；其中 ${directComplete} 条已补齐仓库或包事实、精确安装目标、发布者资料与原始 README 证据。${publishedPluginIds.size} 个插件通过实质性双语内容门槛并发布，安装说明统一使用默认 web profile；其余 ${selected.length - publishedIdentities.length} 个身份保留为草稿，避免占位内容进入前台。观察写入拒绝 ${rejectedObservations} 条，内容未完成或拒绝 ${incomplete + rejectedCurations} 条。`,
-    },
+    body: repairShortSeo
+      ? {
+          en: `Completed evidence-based SEO enrichment for ${selected.length} published plugins with unusually short search descriptions. Public README capability details were folded into the bilingual summaries, SEO metadata was regenerated, and default web-profile installation guidance was preserved. Remaining short SEO descriptions: ${remainingShortSeo}; incomplete or rejected curations: ${incomplete + rejectedCurations}.`,
+          zh: `已完成 ${selected.length} 个已发布插件的短 SEO 描述增补。双语摘要依据公开 README 的具体能力补充信息并重新生成 SEO 元数据，同时保留默认 web profile 安装说明。仍偏短的 SEO 描述 ${remainingShortSeo} 条，内容未完成或拒绝 ${incomplete + rejectedCurations} 条。`,
+        }
+      : recurate
+        ? {
+            en: `Completed targeted content-quality repair for ${selected.length} published plugins. Procedural setup fragments were excluded from capability summaries, incomplete source fragments were discarded, and bilingual SEO metadata was regenerated from substantive public README evidence. Incomplete or rejected curations: ${incomplete + rejectedCurations}.`,
+            zh: `已完成 ${selected.length} 个已发布插件的定向内容质量修复。能力摘要已排除安装步骤等操作性片段，丢弃不完整来源句，并依据公开 README 的实质信息重新生成双语 SEO 元数据。内容未完成或拒绝 ${incomplete + rejectedCurations} 条。`,
+          }
+        : {
+            en: `Completed a one-time public catalog intake across ${selected.length} newly discovered stable plugin identities. ${imported} source leads were recorded with deduplication and provenance; ${directComplete} entries now have direct repository or package facts, exact installation targets, publisher data, and saved README evidence. ${blockedDirect} package-identity conflicts remain quarantined as drafts without overwriting canonical records. ${publishedPluginIds.size} plugins passed the substantive bilingual content gate and are published with default web-profile installation guidance; ${selected.length - publishedIdentities.length} identities remain drafts instead of exposing placeholder copy. Incomplete or rejected curations: ${incomplete + rejectedCurations}.`,
+            zh: `已完成一次性公开目录增补，共处理 ${selected.length} 个新发现的稳定插件身份。经身份去重与来源留痕，已记录 ${imported} 条发现数据；其中 ${directComplete} 条已补齐仓库或包事实、精确安装目标、发布者资料与原始 README 证据。${blockedDirect} 条包身份冲突已隔离为草稿，未覆盖现有正式记录。${publishedPluginIds.size} 个插件通过实质性双语内容门槛并发布，安装说明统一使用默认 web profile；其余 ${selected.length - publishedIdentities.length} 个身份保留为草稿，避免占位内容进入前台。内容未完成或拒绝 ${incomplete + rejectedCurations} 条。`,
+          },
   };
-  await publishReport(hub, report);
-  cache.completed = outcome === "completed";
+  await retry("maintenance report", () => publishReport(hub, report), 8);
+  if (!requestedIdentities.length && !repairShortSeo && !recurate)
+    cache.completed = outcome === "completed";
   saveCache(cache);
   process.stdout.write(
-    `${JSON.stringify({ mode: "applied", runId, bookmark, outcome, validation, results: { discovery: summarizeStatuses(discoveryResults), direct: summarizeStatuses(directResults), curation: summarizeStatuses(curationResults as Array<Record<string, unknown>>), imported, directComplete, published: publishedPluginIds.size, retainedAsDraft: selected.length - publishedIdentities.length } }, null, 2)}\n`,
+    `${JSON.stringify({ mode: "applied", runId, bookmark, outcome, validation, results: { discovery: summarizeStatuses(discoveryResults), direct: summarizeStatuses(directResults), curation: summarizeStatuses(curationResults as Array<Record<string, unknown>>), imported, directComplete, blockedDirect, remainingShortSeo, published: publishedPluginIds.size, retainedAsDraft: selected.length - publishedIdentities.length } }, null, 2)}\n`,
   );
 }
 
