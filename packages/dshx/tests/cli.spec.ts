@@ -39,6 +39,19 @@ function io(): CliIO & { out: PassThrough; err: PassThrough } {
   return { stdin, stdout: out, stderr: err, out, err }
 }
 
+type SetRawModeMock = ReturnType<typeof vi.fn<(mode: boolean) => void>>
+
+function ttyIO(): CliIO & { stdin: PassThrough & { isTTY: boolean; setRawMode: SetRawModeMock }; out: PassThrough; err: PassThrough } {
+  const stdin = new PassThrough() as PassThrough & { isTTY: boolean; setRawMode: SetRawModeMock }
+  stdin.isTTY = true
+  stdin.setRawMode = vi.fn<(mode: boolean) => void>()
+  const out = new PassThrough() as PassThrough & { isTTY?: boolean }
+  const err = new PassThrough() as PassThrough & { isTTY?: boolean }
+  out.isTTY = true
+  err.isTTY = true
+  return { stdin, stdout: out, stderr: err, out, err }
+}
+
 async function text(stream: PassThrough): Promise<string> {
   return new Promise(resolve => {
     const chunks: Buffer[] = []
@@ -195,6 +208,28 @@ describe('CLI commands', () => {
     streams.out.end()
     streams.err.end()
     await expect(text(streams.out)).resolves.toContain('Built @test/plugin')
+  })
+
+  it('uses terminal colors and compact relative artifact paths on a TTY', async () => {
+    const streams = ttyIO()
+    const value = project()
+    const code = await runCli(['build'], {
+      io: streams,
+      runtime: {
+        ...offlineChecks,
+        resolveConfig: async () => value,
+        checkManifest: async () => [],
+        buildHost: async () => ({ output: [{ fileName: 'index.js' }] }) as never,
+        buildClient: async () => ({ output: [{ fileName: 'client.js' }] }) as never,
+      },
+    })
+    expect(code).toBe(0)
+    streams.out.end()
+    streams.err.end()
+    const output = await text(streams.out)
+    expect(output).toContain('✓ Built @test/plugin')
+    expect(output).toContain('dist/index.js')
+    expect(output).not.toContain('/project/plugin/dist/index.js')
   })
 
   it('builds a no-op Host root artifact for an explicit Client-only project', async () => {
@@ -515,6 +550,39 @@ describe('CLI commands', () => {
     expect(output).toContain('DSHX: test-version')
     expect(output).toContain('Installed DSH: 0.1.0-rc.8 (verified)')
     expect(output).toContain('Plugin peer range: >=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2')
+  })
+
+  it('pauses TTY stdin after Ctrl+C so the dev command can exit cleanly', async () => {
+    const streams = ttyIO()
+    const value = project()
+    const close = vi.fn(async () => undefined)
+    const fakeSession: DevSession = {
+      state: { hostBuild: 'ok', clientBuild: 'ok', hostRestartRequired: false, dshProcess: 'running' },
+      diagnostics: [],
+      on: () => () => undefined,
+      restart: async () => undefined,
+      close,
+    }
+    const paused = vi.spyOn(streams.stdin, 'pause')
+    const codePromise = runCli(['dev'], {
+      io: streams,
+      runtime: {
+        resolveConfig: async () => value,
+        checkManifest: async () => [],
+        ensureProfile: async () => profile(value),
+        startDev: async () => {
+          setTimeout(() => streams.stdin.write('\u0003'), 0)
+          return fakeSession
+        },
+      },
+    })
+    await expect(codePromise).resolves.toBe(0)
+    expect(close).toHaveBeenCalledOnce()
+    expect(paused).toHaveBeenCalled()
+    expect(streams.stdin.setRawMode).toHaveBeenNthCalledWith(1, true)
+    expect(streams.stdin.setRawMode).toHaveBeenLastCalledWith(false)
+    streams.out.end()
+    streams.err.end()
   })
 
   it('inspects runtime slots as clean JSON without linking the Profile', async () => {

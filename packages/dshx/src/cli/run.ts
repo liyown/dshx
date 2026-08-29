@@ -1,6 +1,7 @@
 import type { Readable, Writable } from 'node:stream'
 import { createRequire } from 'node:module'
-import { resolve as resolvePath } from 'node:path'
+import { relative, resolve as resolvePath } from 'node:path'
+import { styleText } from 'node:util'
 import { isCancel, select, text } from '@clack/prompts'
 import { buildClient, buildHost } from '../compiler/index.js'
 import { resolveDshxConfig } from '../config/resolve.js'
@@ -102,6 +103,20 @@ function write(stream: Writable, text: string): void {
   stream.write(text)
 }
 
+type TerminalStyle = Parameters<typeof styleText>[0]
+
+function paint(stream: Writable, style: TerminalStyle, text: string): string {
+  const terminal = stream as Writable & { isTTY?: boolean }
+  if (terminal.isTTY !== true || process.env.NO_COLOR !== undefined || process.env.TERM === 'dumb') return text
+  return styleText(style, text)
+}
+
+function statusSymbol(stream: Writable, status: 'success' | 'pending' | 'failure'): string {
+  if (status === 'success') return paint(stream, ['bold', 'green'], '✓')
+  if (status === 'failure') return paint(stream, ['bold', 'red'], '×')
+  return paint(stream, ['bold', 'yellow'], '●')
+}
+
 function diagnosticFromError(error: unknown, fallbackFile = ''): DshxDiagnostic {
   if (error instanceof DshxError) {
     return {
@@ -123,7 +138,11 @@ function diagnosticFromError(error: unknown, fallbackFile = ''): DshxDiagnostic 
 
 function printDiagnostic(io: CliIO, item: DshxDiagnostic): void {
   const location = item.file === '' ? '' : `\n  file: ${item.file}`
-  write(io.stderr, `${item.code} [${item.severity}] ${item.message}${location}\n  hint: ${item.hint}\n`)
+  const severityStyle: TerminalStyle = item.severity === 'error' ? ['bold', 'red'] : ['bold', 'yellow']
+  const heading = paint(io.stderr, severityStyle, `${item.code} [${item.severity}]`)
+  const file = location === '' ? '' : paint(io.stderr, 'gray', location)
+  const hint = paint(io.stderr, 'cyan', `hint: ${item.hint}`)
+  write(io.stderr, `${heading} ${item.message}${file}\n  ${hint}\n`)
 }
 
 function printVerboseCause(io: CliIO, error: unknown): void {
@@ -220,14 +239,24 @@ function compatibilitySummary(assessment: DshProjectCompatibilityAssessment, dsh
   }
 }
 
-function printCompatibilitySummary(io: CliIO, assessment: DshProjectCompatibilityAssessment, dshxVersion: string): void {
+function printCompatibilitySummary(io: CliIO, assessment: DshProjectCompatibilityAssessment, dshxVersion: string, verbose = false): void {
   const status = assessment.installedVersion === undefined ? 'not detected' : (assessment.resolution?.support ?? 'unsupported')
-  write(io.stdout, 'DSH compatibility\n')
-  write(io.stdout, `  DSHX: ${dshxVersion}\n`)
-  write(io.stdout, `  Plugin peer range: ${assessment.declaredRange ?? 'not declared'}\n`)
-  write(io.stdout, `  Installed DSH: ${assessment.installedVersion ?? 'not detected'}${assessment.installedVersion === undefined ? '' : ` (${status})`}\n`)
-  write(io.stdout, `  Adapter: ${assessment.compatibility.id} / ${assessment.compatibility.protocolGeneration} (${assessment.compatibility.lifecycle})\n`)
-  write(io.stdout, `  Capabilities: ${assessment.capabilities.join(', ')}\n`)
+  const label = (value: string): string => paint(io.stdout, 'gray', value)
+  write(io.stdout, `${paint(io.stdout, ['bold', 'cyan'], '◆ DSH compatibility')}\n`)
+  write(io.stdout, `  ${label('DSHX:')} ${paint(io.stdout, 'cyan', dshxVersion)}\n`)
+  write(io.stdout, `  ${label('Plugin peer range:')} ${assessment.declaredRange ?? 'not declared'}\n`)
+  write(
+    io.stdout,
+    `  ${label('Installed DSH:')} ${paint(io.stdout, 'cyan', assessment.installedVersion ?? 'not detected')}${assessment.installedVersion === undefined ? '' : ` (${paint(io.stdout, status === 'unsupported' ? 'red' : 'green', status)})`}\n`,
+  )
+  write(
+    io.stdout,
+    `  ${label('Adapter:')} ${assessment.compatibility.id} / ${assessment.compatibility.protocolGeneration} (${paint(io.stdout, 'green', assessment.compatibility.lifecycle)})\n`,
+  )
+  write(
+    io.stdout,
+    `  ${label('Capabilities:')} ${assessment.capabilities.length} available${verbose ? `\n    ${assessment.capabilities.join('\n    ')}` : ''}\n`,
+  )
 }
 
 async function runBuild(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
@@ -343,8 +372,11 @@ async function runBuild(args: CliArgs, options: CliRunOptions, project: Resolved
   const targetDiagnostics = await (runtime.checkPackageTargets ?? checkPackageTargets)(project)
   for (const item of targetDiagnostics) printDiagnostic(io, item)
   if (hasErrors(targetDiagnostics)) return 1
-  write(io.stdout, `Built ${project.packageId} in ${project.outDir}\n`)
-  for (const artifact of artifacts) write(io.stdout, `  ${artifact}\n`)
+  const outputDirectory = relative(project.root, project.outDir) || '.'
+  write(io.stdout, `${statusSymbol(io.stdout, 'success')} ${paint(io.stdout, ['bold', 'green'], `Built ${project.packageId}`)}\n`)
+  write(io.stdout, `  ${paint(io.stdout, 'gray', 'Output:')} ${paint(io.stdout, 'cyan', outputDirectory)}\n`)
+  write(io.stdout, `  ${paint(io.stdout, 'gray', 'Artifacts:')} ${artifacts.length}\n`)
+  for (const artifact of artifacts) write(io.stdout, `    ${paint(io.stdout, 'gray', '•')} ${relative(project.root, artifact) || artifact}\n`)
   return 0
 }
 
@@ -544,13 +576,20 @@ async function runCheck(args: CliArgs, options: CliRunOptions, project: Resolved
     )
   } else {
     for (const item of diagnostics) printDiagnostic(io, item)
-    printCompatibilitySummary(io, result.compatibility, options.version ?? VERSION)
-    write(io.stdout, `Typecheck: ${result.typecheck.status}\n`)
-    write(io.stdout, `Runtime: ${result.runtime.status}${result.runtime.requested ? '' : ' (use dshx check --runtime to require it)'}\n`)
+    printCompatibilitySummary(io, result.compatibility, options.version ?? VERSION, args.verbose)
+    write(
+      io.stdout,
+      `${statusSymbol(io.stdout, result.typecheck.status === 'passed' ? 'success' : 'failure')} Typecheck: ${paint(io.stdout, result.typecheck.status === 'passed' ? 'green' : 'red', result.typecheck.status)}\n`,
+    )
+    write(
+      io.stdout,
+      `${statusSymbol(io.stdout, result.runtime.status === 'passed' ? 'success' : result.runtime.status === 'failed' ? 'failure' : 'pending')} Runtime: ${paint(io.stdout, result.runtime.status === 'passed' ? 'green' : result.runtime.status === 'failed' ? 'red' : 'yellow', result.runtime.status)}${result.runtime.requested ? '' : paint(io.stdout, 'gray', ' (use dshx check --runtime to require it)')}\n`,
+    )
     if (args.fix && fix.diff !== '') {
       write(io.stdout, `${fix.applied ? 'Applied' : 'Planned'} manifest repair:\n${fix.diff}`)
     }
-    if (!hasErrors(diagnostics)) write(io.stdout, `Check passed for ${result.project.packageId}\n`)
+    if (!hasErrors(diagnostics))
+      write(io.stdout, `${statusSymbol(io.stdout, 'success')} ${paint(io.stdout, ['bold', 'green'], `Check passed for ${result.project.packageId}`)}\n`)
   }
   return hasErrors(diagnostics) ? 1 : 0
 }
@@ -892,12 +931,15 @@ async function runAddHook(args: CliArgs, options: CliRunOptions, project: Resolv
   return result.diagnostics.some(item => item.severity === 'error') ? 1 : 0
 }
 
-function eventLine(event: DevEvent): string | undefined {
-  if (event.type === 'build-success') return `${event.face} build succeeded${event.initial ? ' (initial)' : ''}`
-  if (event.type === 'client-rebuilt') return 'client rebuilt'
-  if (event.type === 'host-restart-required') return 'Host rebuilt; press r to restart DSH'
-  if (event.type === 'dsh-exit') return `DSH exited${event.code === null ? ` by ${event.signal ?? 'signal'}` : ` with code ${event.code}`}`
-  if (event.type === 'build-error') return `${event.face} build failed`
+function eventLine(stream: Writable, event: DevEvent): string | undefined {
+  const face = event.type === 'build-success' || event.type === 'build-error' ? `${event.face[0]?.toUpperCase()}${event.face.slice(1)}` : ''
+  if (event.type === 'build-success')
+    return `${statusSymbol(stream, 'success')} ${paint(stream, 'green', `${face} build succeeded`)}${event.initial ? paint(stream, 'gray', ' (initial)') : ''}`
+  if (event.type === 'client-rebuilt') return `${statusSymbol(stream, 'success')} ${paint(stream, 'green', 'Client rebuilt')}`
+  if (event.type === 'host-restart-required') return `${statusSymbol(stream, 'pending')} Host rebuilt; press ${paint(stream, 'cyan', 'r')} to restart DSH`
+  if (event.type === 'dsh-exit')
+    return `${statusSymbol(stream, 'failure')} ${paint(stream, 'red', `DSH exited${event.code === null ? ` by ${event.signal ?? 'signal'}` : ` with code ${event.code}`}`)}`
+  if (event.type === 'build-error') return `${statusSymbol(stream, 'failure')} ${paint(stream, 'red', `${face} build failed`)}`
   return undefined
 }
 
@@ -930,7 +972,7 @@ async function runDev(args: CliArgs, options: CliRunOptions, project: ResolvedDs
   ]
   for (const item of finalDiagnostics) printDiagnostic(io, item)
   if (hasErrors(finalDiagnostics)) return 1
-  printCompatibilitySummary(io, assessment, options.version ?? VERSION)
+  printCompatibilitySummary(io, assessment, options.version ?? VERSION, args.verbose)
   let session: DevSession
   try {
     session = await (runtime.startDev ?? startDevSession)(project, {
@@ -951,8 +993,13 @@ async function runDev(args: CliArgs, options: CliRunOptions, project: ResolvedDs
   const close = async (code: number): Promise<void> => {
     if (closing) return
     closing = true
-    if (io.stdin.isTTY && io.stdin.setRawMode) io.stdin.setRawMode(false)
+    if (io.stdin.isTTY) {
+      if (io.stdin.setRawMode) io.stdin.setRawMode(false)
+      io.stdin.pause()
+      if (io.stdout === process.stdout) write(io.stdout, `\n${statusSymbol(io.stdout, 'pending')} Stopping development session...\n`)
+    }
     await session.close()
+    if (io.stdout === process.stdout) write(io.stdout, `${statusSymbol(io.stdout, 'success')} Development session stopped\n`)
     resolveExit(code)
   }
   const onSignal = (): void => {
@@ -961,7 +1008,7 @@ async function runDev(args: CliArgs, options: CliRunOptions, project: ResolvedDs
   process.once('SIGINT', onSignal)
   process.once('SIGTERM', onSignal)
   const onEvent = session.on(event => {
-    const line = eventLine(event)
+    const line = eventLine(io.stderr, event)
     if (line !== undefined) write(io.stderr, `${line}\n`)
     if (event.type === 'dsh-exit' && !io.stdin.isTTY) void close(1)
   })
@@ -974,7 +1021,8 @@ async function runDev(args: CliArgs, options: CliRunOptions, project: ResolvedDs
     if (io.stdin.setRawMode) io.stdin.setRawMode(true)
     io.stdin.on('data', onData)
   }
-  write(io.stdout, `Dev session started for ${project.packageId}\n`)
+  write(io.stdout, `${paint(io.stdout, ['bold', 'cyan'], '◆ Dev session')} ${paint(io.stdout, ['bold', 'white'], project.packageId)}\n`)
+  if (io.stdin.isTTY) write(io.stdout, `  ${paint(io.stdout, 'gray', 'r restart  •  q / Ctrl+C stop')}\n`)
   const code = await done
   onEvent()
   if (io.stdin.isTTY) io.stdin.off('data', onData)

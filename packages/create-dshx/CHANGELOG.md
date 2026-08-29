@@ -1,5 +1,7 @@
 # create-dshx
 
+## 0.1.4-preview.2
+
 ## 0.1.4-preview.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @becomeopc/dshx
 
+## 0.1.4-preview.2
+
+### Patch Changes
+
+- Exit development sessions cleanly on the first Ctrl+C and present compact, color-coded build, check, and dev status output in interactive terminals.
+
 ## 0.1.4-preview.1
 
 ## 0.1.4-preview.0

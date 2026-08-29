@@ -47,12 +47,11 @@ function childFromExeca(
   env: NodeJS.ProcessEnv,
   executable: 'local' | 'global',
 ): Promise<DevChildProcess> {
-  const command = executable === 'global' ? 'dsh' : 'pnpm'
-  const commandArgs = executable === 'global' ? [...args] : ['exec', 'dsh', ...args]
-  const subprocess = execa(command, commandArgs, {
+  const subprocess = execa('dsh', [...args], {
     cwd: project.root,
     env,
-    stdio: 'inherit',
+    preferLocal: executable === 'local',
+    stdio: ['ignore', 'inherit', 'inherit'],
     reject: false,
   })
   const child = subprocess.nodeChildProcess
