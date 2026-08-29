@@ -1,3 +1,6 @@
+/** Bump when a template-only change must invalidate cached social images. */
+export const SOCIAL_CARD_REVISION = "2";
+
 export function truncateSocialText(value: string, maximum: number): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= maximum) return normalized;

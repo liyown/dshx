@@ -21,6 +21,7 @@ import { createTranslator, localizedPath, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { DSHX_VERSION, MARKETPLACE_REFERENCE_PLUGIN } from "@/lib/reference-plugin";
 import { buildSeoHead, localizedAlternates, socialCardUrl } from "@/lib/seo";
+import { SOCIAL_CARD_REVISION } from "@/lib/social-card-data";
 
 export const Route = createFileRoute("/$locale/")({
   loader: ({ params }) =>
@@ -37,7 +38,12 @@ export const Route = createFileRoute("/$locale/")({
       description: t("seo.description"),
       alternates: localizedAlternates("/"),
       image: {
-        url: socialCardUrl(`/og/home/${locale}/card.png`, DSHX_VERSION, t("seo.ogDescription")),
+        url: socialCardUrl(
+          `/og/home/${locale}/card.png`,
+          SOCIAL_CARD_REVISION,
+          DSHX_VERSION,
+          t("seo.ogDescription"),
+        ),
         alt: t("home.heroTitle"),
         width: 1200,
         height: 630,

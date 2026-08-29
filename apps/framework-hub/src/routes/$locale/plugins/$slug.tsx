@@ -18,6 +18,7 @@ import {
   socialCardUrl,
 } from "@/lib/seo";
 import { apiKeys, apiRequest } from "@/lib/api-client";
+import { SOCIAL_CARD_REVISION } from "@/lib/social-card-data";
 
 export const Route = createFileRoute("/$locale/plugins/$slug")({
   loader: async ({ params }) => {
@@ -90,6 +91,7 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
       image: {
         url: socialCardUrl(
           `/og/plugins/${locale}/${p.slug}/card.png`,
+          SOCIAL_CARD_REVISION,
           p.updated,
           p.name,
           loaderData.seoDescription,
