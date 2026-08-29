@@ -1,6 +1,6 @@
 {
   "name": "@becomeopc/dshx",
-  "version": "0.1.4-preview.2",
+  "version": "0.1.4-preview.3",
   "description": "Build and debug typed DeepSeek Harness Host and Client plugins with TypeScript and Vite.",
   "keywords": [
     "deepseek",

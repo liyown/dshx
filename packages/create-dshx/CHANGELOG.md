@@ -1,5 +1,11 @@
 # create-dshx
 
+## 0.1.4-preview.3
+
+### Patch Changes
+
+- b05991b: Make the generated Showcase refresh button issue exactly one Host request per click and render the returned status without a second status query.
+
 ## 0.1.4-preview.2
 
 ## 0.1.4-preview.1
