@@ -97,6 +97,11 @@ describe('create-dshx', () => {
     expect(host.includes('settings: [runtimeSettings]')).toBe(template === 'showcase')
     expect(host.includes('apis: [statusHostApi]')).toBe(template === 'showcase')
     expect(client.includes("useApiQuery(statusApi, 'get', { enabled: true })")).toBe(template === 'showcase')
+    expect(client.includes("useApiQuery(statusApi, 'refresh', {")).toBe(template === 'showcase')
+    expect(client.includes('enabled: false')).toBe(template === 'showcase')
+    expect(client.includes('onClick={refresh.refetch}')).toBe(template === 'showcase')
+    expect(client).not.toContain('status.refetch()')
+    expect(client).not.toContain('api.refresh(')
     expect(client.includes('useSettings(runtimeSettings)')).toBe(template === 'showcase')
     expect(client).not.toContain('Conversation')
 

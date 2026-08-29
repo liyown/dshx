@@ -202,19 +202,20 @@ export default defineHost({
 
 function renderShowcaseClient(context: TemplateContext, style: ProjectStyle): string {
   return `import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { defineClient, defineSlot, useApi, useApiQuery, useSettings } from '@becomeopc/dshx/client'
+import { defineClient, defineSlot, useApiQuery, useSettings } from '@becomeopc/dshx/client'
 import { statusApi } from './api/status.js'
 import { runtimeSettings } from './settings.js'
 ${styleImport(style)}
 function RuntimeDeck() {
-  const api = useApi(statusApi)
   const status = useApiQuery(statusApi, 'get', { enabled: true })
+  const refresh = useApiQuery(statusApi, 'refresh', {
+    input: { force: true },
+    enabled: false,
+  })
   const settings = useSettings(runtimeSettings)
   const showActivity = settings.value?.showActivity ?? true
-
-  const refresh = () => {
-    void api.refresh({ force: true }).then(() => status.refetch()).catch(() => status.refetch())
-  }
+  const currentStatus = refresh.data ?? status.data
+  const isRefreshing = refresh.fetchStatus === 'fetching'
   const toggleActivity = () => {
     void settings.set('showActivity', !showActivity).catch(() => undefined)
   }
@@ -226,22 +227,23 @@ function RuntimeDeck() {
           <p${classAttribute(style, 'eyebrow', 'dshx:m-0 dshx:text-xs dshx:font-semibold dshx:uppercase dshx:tracking-widest dshx:text-emerald-300')}>DSHX Runtime</p>
           <h2${classAttribute(style, 'title', 'dshx:mt-1 dshx:mb-0 dshx:text-base dshx:font-semibold')}>${context.packageId}</h2>
         </div>
-        <span${classAttribute(style, 'badge', 'dshx:rounded-full dshx:bg-emerald-400/10 dshx:px-2 dshx:py-1 dshx:text-[10px] dshx:font-bold dshx:text-emerald-300')}>{status.fetchStatus}</span>
+        <span${classAttribute(style, 'badge', 'dshx:rounded-full dshx:bg-emerald-400/10 dshx:px-2 dshx:py-1 dshx:text-[10px] dshx:font-bold dshx:text-emerald-300')}>{isRefreshing ? 'refreshing' : status.fetchStatus}</span>
       </header>
 
       <div${classAttribute(style, 'body', 'dshx:grid dshx:gap-3 dshx:p-4')}>
         <p${classAttribute(style, 'message', 'dshx:m-0 dshx:text-sm dshx:text-slate-300')} aria-live="polite">
-          {status.status === 'pending' ? 'Connecting to Host…' : status.status === 'error' ? status.error.message : <>{status.data.project} · {status.data.requestCount} requests</>}
+          {currentStatus === undefined ? (status.status === 'error' ? status.error.message : 'Connecting to Host…') : <>{currentStatus.project} · {currentStatus.requestCount} requests</>}
         </p>
 
         {showActivity ? <p${classAttribute(style, 'activity', 'dshx:m-0 dshx:rounded-lg dshx:bg-slate-900 dshx:px-3 dshx:py-2 dshx:text-xs dshx:text-slate-400')}>Slot registered. Prompt and Settings are live.</p> : null}
 
         <div${classAttribute(style, 'actions', 'dshx:flex dshx:flex-wrap dshx:gap-2')}>
-          <button${classAttribute(style, 'button', 'dshx:rounded-md dshx:bg-emerald-300 dshx:px-3 dshx:py-2 dshx:text-xs dshx:font-semibold dshx:text-slate-950')} type="button" onClick={refresh}>Refresh</button>
+          <button${classAttribute(style, 'button', 'dshx:rounded-md dshx:bg-emerald-300 dshx:px-3 dshx:py-2 dshx:text-xs dshx:font-semibold dshx:text-slate-950')} type="button" disabled={isRefreshing} onClick={refresh.refetch}>{isRefreshing ? 'Refreshing…' : 'Refresh'}</button>
           <button${classAttribute(style, 'secondaryButton', 'dshx:rounded-md dshx:border dshx:border-slate-700 dshx:bg-transparent dshx:px-3 dshx:py-2 dshx:text-xs dshx:font-semibold dshx:text-slate-200')} type="button" disabled={!settings.writable || settings.mutation.pending} onClick={toggleActivity}>
             {settings.mutation.pending ? 'Saving…' : showActivity ? 'Hide activity' : 'Show activity'}
           </button>
         </div>
+        {refresh.error ? <p${classAttribute(style, 'error', 'dshx:m-0 dshx:text-xs dshx:text-red-300')} role="status">{refresh.error.message}</p> : null}
         {settings.error ? <p${classAttribute(style, 'error', 'dshx:m-0 dshx:text-xs dshx:text-red-300')} role="status">{settings.error.message}</p> : null}
       </div>
     </section>
