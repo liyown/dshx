@@ -98,7 +98,7 @@ pnpm create dshx@preview <name> \
   [--package-manager pnpm|yarn|npm]
 ```
 
-`--yes` defaults to `starter + css-modules`. Interactive mode asks for template and style independently. The initializer refuses an existing target directory and writes only dependencies/provider edges used by the selected combination. See [Creator](./guides/creator.md).
+`--yes` defaults to `starter + css-modules`. Interactive mode asks for template and style independently, follows the invoking package manager, and shows animated progress while dependencies install. The initializer refuses an existing target directory and writes the selected provider edges plus runtime packages required by the compiled Host. See [Creator](./guides/creator.md).
 
 ## `dshx-hub`
 

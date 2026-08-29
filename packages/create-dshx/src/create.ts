@@ -9,6 +9,7 @@ import type { CommandRunner, CreateDiagnostic, CreateProjectOptions, CreateProje
 export interface CreateDependencies {
   readonly fs?: FileSystem
   readonly runner?: CommandRunner
+  readonly environment?: Readonly<Record<string, string | undefined>>
   readonly dshxVersion?: string
   readonly dshVersion?: string
   readonly dshRange?: string
@@ -78,13 +79,21 @@ async function packageManagerFromProject(root: string, fs: FileSystem): Promise<
   return undefined
 }
 
+function packageManagerFromEnvironment(environment: Readonly<Record<string, string | undefined>>): PackageManager | undefined {
+  const manager = environment.npm_config_user_agent?.split('/')[0]
+  return manager === 'pnpm' || manager === 'yarn' || manager === 'npm' ? manager : undefined
+}
+
 export async function detectPackageManager(
   root: string,
   fs: FileSystem = defaultFileSystem,
   runner: CommandRunner = defaultCommandRunner,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<PackageManager | undefined> {
   const projectManager = await packageManagerFromProject(root, fs)
   if (projectManager !== undefined) return projectManager
+  const invokingManager = packageManagerFromEnvironment(environment)
+  if (invokingManager !== undefined) return invokingManager
   for (const manager of ['pnpm', 'yarn', 'npm'] as const) {
     if (await commandAvailable(manager, runner)) return manager
   }
@@ -154,7 +163,7 @@ export async function createProject(options: CreateProjectOptions, dependencies:
   }
 
   if (options.install === false) return { root, packageId: options.name, template, style, files, installed: false, diagnostics: [] }
-  const manager = options.packageManager ?? (await detectPackageManager(root, fs, runner))
+  const manager = options.packageManager ?? (await detectPackageManager(root, fs, runner, dependencies.environment ?? process.env))
   if (manager === undefined)
     return {
       root,
@@ -173,7 +182,12 @@ export async function createProject(options: CreateProjectOptions, dependencies:
       ],
     }
   const command = installCommand(manager)
+  options.onInstallProgress?.({ phase: 'start', packageManager: manager })
   const result = await runner(command.command, command.args, { cwd: root })
+  options.onInstallProgress?.({
+    phase: result.exitCode === 0 ? 'success' : 'failure',
+    packageManager: manager,
+  })
   if (result.exitCode !== 0)
     return {
       root,

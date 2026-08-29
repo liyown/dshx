@@ -31,6 +31,10 @@ export interface FileSystem {
   readonly readFile: (path: string) => Promise<string>
 }
 export type PackageManager = 'pnpm' | 'yarn' | 'npm'
+export type InstallProgressEvent =
+  | { readonly phase: 'start'; readonly packageManager: PackageManager }
+  | { readonly phase: 'success'; readonly packageManager: PackageManager }
+  | { readonly phase: 'failure'; readonly packageManager: PackageManager }
 export type TemplateName = 'starter' | 'showcase'
 export type ProjectStyle = 'css-modules' | 'tailwind' | 'none'
 export interface CreateProjectOptions {
@@ -40,6 +44,7 @@ export interface CreateProjectOptions {
   readonly cwd?: string
   readonly install?: boolean
   readonly packageManager?: PackageManager
+  readonly onInstallProgress?: (event: InstallProgressEvent) => void
   readonly dshxVersion?: string
   /** Exact DSH version installed for local development. */
   readonly dshVersion?: string

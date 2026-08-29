@@ -22,7 +22,9 @@ pnpm create dshx@preview my-plugin --template starter --style none
 - `tailwind` uses Tailwind v4's Vite plugin, CSS-first configuration, a `dshx:` prefix, and omits Preflight so the plugin cannot reset the shared DSH page.
 - `none` emits no stylesheet or styling dependency.
 
-Every generated project provides `check`, `build`, `dev --open`, and `prepack`; `prepack` runs the offline check and production build through the selected package manager. The initializer refuses to overwrite an existing directory, pins the matching DSHX release, installs the latest verified DSH boundary for local development, and only declares dependencies and provider edges used by the selected combination. A starter that uses `defineLocale()` includes the required `@deepseek-ai/dsh-client-locale` provider edge automatically.
+Every generated project provides `check`, `build`, `dev --open`, and `prepack`; `prepack` runs the offline check and production build through the selected package manager. The initializer refuses to overwrite an existing directory, pins the matching DSHX release, installs the latest verified DSH boundary for local development, and declares the selected providers plus the runtime packages required by the compiled Host. A starter that uses `defineLocale()` includes the required `@deepseek-ai/dsh-client-locale` provider edge automatically.
+
+Interactive dependency installation displays an animated status line until the package manager succeeds or fails. The initializer follows the package manager that invoked it (`npm create`, `pnpm create`, or Yarn), unless `--package-manager` explicitly overrides that choice.
 
 ## Automation
 
@@ -39,7 +41,7 @@ pnpm create dshx@preview my-plugin --package-manager pnpm
 - `--package-manager pnpm|yarn|npm` overrides detection.
 - `--cwd <path>` selects the parent directory.
 
-Package-manager detection checks the explicit flag, existing lockfiles, the nearest `packageManager` declaration, and available commands on `PATH`, in that order.
+Package-manager detection checks the explicit flag, existing lockfiles, the nearest `packageManager` declaration, the invoking package manager, and available commands on `PATH`, in that order.
 
 See the [DSHX documentation](https://dshx.io/docs) and [repository](https://github.com/liyown/dshx) for the full development workflow.
 

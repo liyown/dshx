@@ -108,7 +108,8 @@ describe('create-dshx', () => {
     expect(Boolean(manifest.devDependencies['@deepseek-ai/dsh-client-connection'])).toBe(template === 'showcase')
     expect(Boolean(manifest.peerDependencies['@deepseek-ai/dsh-client-connection'])).toBe(template === 'showcase')
     expect(Boolean(manifest.devDependencies['@deepseek-ai/dsh-system-prompt'])).toBe(template === 'showcase')
-    expect(Boolean(manifest.devDependencies['@deepseek-ai/dsh-settings'])).toBe(template === 'showcase')
+    expect(manifest.devDependencies['@deepseek-ai/dsh-settings']).toBe(DEFAULT_DSH_VERSION)
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-settings']).toBe(DEFAULT_DSH_RANGE)
 
     if (style === 'tailwind') {
       const css = await readFile(resolve(result.root, 'src/styles.css'), 'utf8')
@@ -160,8 +161,64 @@ describe('create-dshx', () => {
       calls.push(args[0] ?? '')
       return { exitCode: args[0] === 'pnpm' ? 0 : 1 }
     }
-    await expect(detectPackageManager(root, fs, pathRunner)).resolves.toBe('pnpm')
+    await expect(detectPackageManager(root, fs, pathRunner, {})).resolves.toBe('pnpm')
     expect(calls).toEqual(['pnpm'])
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it('uses the invoking package manager before PATH fallback', async () => {
+    const root = await temp()
+    const calls: string[] = []
+    const runner = async (command: string): Promise<{ exitCode: number }> => {
+      calls.push(command)
+      return { exitCode: 0 }
+    }
+    await expect(
+      detectPackageManager(root, defaultFileSystem, runner, {
+        npm_config_user_agent: 'npm/11.6.0 node/v25.8.1 darwin arm64',
+      }),
+    ).resolves.toBe('npm')
+    expect(calls).toEqual([])
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it('reports dependency installation progress around the selected manager', async () => {
+    const root = await temp()
+    const events: string[] = []
+    const runner = async (command: string): Promise<{ exitCode: number }> => ({
+      exitCode: command === 'npm' ? 0 : 1,
+    })
+    const result = await createProject(
+      {
+        name: 'progress-demo',
+        cwd: root,
+        packageManager: 'npm',
+        onInstallProgress: event => events.push(`${event.phase}:${event.packageManager}`),
+      },
+      { runner },
+    )
+    expect(result.installed).toBe(true)
+    expect(events).toEqual(['start:npm', 'success:npm'])
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it('renders live install progress in an interactive terminal', async () => {
+    const root = await temp()
+    const output = new PassThrough()
+    const chunks: Buffer[] = []
+    output.on('data', chunk => chunks.push(Buffer.from(chunk)))
+    const input = new PassThrough() as PassThrough & { isTTY?: boolean }
+    input.isTTY = true
+    const runner = async (): Promise<{ exitCode: number }> => {
+      await new Promise(resolveDelay => setTimeout(resolveDelay, 150))
+      return { exitCode: 0 }
+    }
+    await expect(
+      runCreate(['spinner-demo', '--cwd', root, '--yes', '--package-manager', 'npm'], { stdin: input, stdout: output, stderr: output }, { runner }),
+    ).resolves.toBe(0)
+    const rendered = Buffer.concat(chunks).toString()
+    expect(rendered).toContain('Installing dependencies with npm')
+    expect(rendered).toContain('Dependencies installed with npm')
     await rm(root, { recursive: true, force: true })
   })
 

@@ -2,9 +2,9 @@
 import { realpathSync } from 'node:fs'
 import { stdin, stdout, stderr } from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { confirm as clackConfirm, isCancel, select as clackSelect, text as clackText } from '@clack/prompts'
+import { confirm as clackConfirm, isCancel, select as clackSelect, spinner as clackSpinner, text as clackText } from '@clack/prompts'
 import { defineCommand, parseArgs as parseCittyArgs } from 'citty'
-import { createProject, DEFAULT_STYLE, DEFAULT_TEMPLATE, packageVersion } from './create.js'
+import { createProject, DEFAULT_STYLE, DEFAULT_TEMPLATE, packageVersion, type CreateDependencies } from './create.js'
 import type { CreateIO, PackageManager, ProjectStyle, TemplateName } from './types.js'
 
 interface Args {
@@ -123,7 +123,7 @@ function printHelp(output: { write: (text: string) => void }): void {
   )
 }
 
-export async function runCreate(argv = process.argv.slice(2), io: CreateIO = {}): Promise<number> {
+export async function runCreate(argv = process.argv.slice(2), io: CreateIO = {}, dependencies: CreateDependencies = {}): Promise<number> {
   const input = io.stdin ?? stdin
   const output = io.stdout ?? stdout
   const errorOutput = io.stderr ?? stderr
@@ -231,14 +231,27 @@ export async function runCreate(argv = process.argv.slice(2), io: CreateIO = {})
       installDependencies = answer
     }
   }
-  const result = await createProject({
-    name,
-    template,
-    style,
-    ...(args.cwd === undefined ? {} : { cwd: args.cwd }),
-    install: installDependencies,
-    ...(args.packageManager === undefined ? {} : { packageManager: args.packageManager }),
-  })
+  const installSpinner = installDependencies && interactive ? clackSpinner({ output }) : undefined
+  const result = await createProject(
+    {
+      name,
+      template,
+      style,
+      ...(args.cwd === undefined ? {} : { cwd: args.cwd }),
+      install: installDependencies,
+      ...(args.packageManager === undefined ? {} : { packageManager: args.packageManager }),
+      ...(installSpinner === undefined
+        ? {}
+        : {
+            onInstallProgress: ({ phase, packageManager }) => {
+              if (phase === 'start') installSpinner.start(`Installing dependencies with ${packageManager}...`)
+              else if (phase === 'success') installSpinner.stop(`Dependencies installed with ${packageManager}`)
+              else installSpinner.error(`Dependency installation failed with ${packageManager}`)
+            },
+          }),
+    },
+    dependencies,
+  )
   for (const item of result.diagnostics) writeError(`${item.code} [${item.severity}] ${item.message}\n  file: ${item.file}\n  hint: ${item.hint}\n`)
   if (result.diagnostics.some(item => item.severity === 'error')) return 1
   output.write(`Created ${result.packageId} in ${result.root}\n`)

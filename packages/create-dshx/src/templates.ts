@@ -344,6 +344,7 @@ export const TEMPLATE_REGISTRY = {
       '@becomeopc/dshx': context.dshxVersion,
       '@deepseek-ai/dsh': context.dshVersion,
       '@deepseek-ai/dsh-cordis-host-runner': context.dshVersion,
+      '@deepseek-ai/dsh-settings': context.dshVersion,
       '@deepseek-ai/dsh-tool-cordis': context.dshVersion,
       '@deepseek-ai/dsh-tools': context.dshVersion,
       [localeProvider]: context.dshVersion,
@@ -355,6 +356,7 @@ export const TEMPLATE_REGISTRY = {
     }),
     peerDependencies: context => ({
       '@deepseek-ai/dsh': context.dshRange,
+      '@deepseek-ai/dsh-settings': context.dshRange,
       '@deepseek-ai/dsh-tools': context.dshRange,
       [localeProvider]: context.dshRange,
       [sidebarProvider]: context.dshRange,

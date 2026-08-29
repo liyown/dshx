@@ -21,7 +21,7 @@ pnpm create dshx@preview my-plugin --template starter --style none
 --cwd <parent-directory>
 ```
 
-Interactive mode asks for project name, template, style, and dependency installation. `--yes` uses `starter + css-modules` unless selectors are passed. The target directory must not already exist.
+Interactive mode asks for project name, template, style, and dependency installation. Installation keeps an animated status line visible until it succeeds or fails. The creator follows the package manager that invoked it, while `--package-manager` remains an explicit override. `--yes` uses `starter + css-modules` unless selectors are passed. The target directory must not already exist.
 
 ## Template matrix
 
@@ -83,6 +83,10 @@ interface CreateProjectOptions {
   readonly cwd?: string;
   readonly install?: boolean;
   readonly packageManager?: "pnpm" | "yarn" | "npm";
+  readonly onInstallProgress?: (event: {
+    readonly phase: "start" | "success" | "failure";
+    readonly packageManager: "pnpm" | "yarn" | "npm";
+  }) => void;
   readonly dshxVersion?: string;
   readonly dshVersion?: string;
   readonly dshRange?: string;

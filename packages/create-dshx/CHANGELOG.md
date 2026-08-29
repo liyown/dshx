@@ -1,5 +1,11 @@
 # create-dshx
 
+## 0.1.4-preview.1
+
+### Patch Changes
+
+- Install the complete Starter Host runtime dependencies, follow the package manager that invoked the creator, and show continuous progress while dependencies install.
+
 ## 0.1.4-preview.0
 
 ### Patch Changes
