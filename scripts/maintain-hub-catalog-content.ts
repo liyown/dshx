@@ -14,7 +14,7 @@ import {
   type CatalogLocale,
 } from '../apps/framework-hub/src/lib/catalog/content-quality.ts'
 import { buildPluginInstallCommand } from '../apps/framework-hub/src/lib/catalog/install-target.ts'
-import { curatedZhPluginLeads } from './hub-catalog-zh-curations.ts'
+import { curatedEnPluginLeads, curatedZhPluginLeads } from './hub-catalog-zh-curations.ts'
 
 type CatalogRow = {
   id: string
@@ -49,6 +49,13 @@ const hubDirectory = join(workspace, 'apps/framework-hub')
 const cliEntrypoint = join(workspace, 'packages/framework-hub-cli/dist/index.js')
 const apply = process.argv.includes('--apply')
 const onlyCuratedZh = process.argv.includes('--only-curated-zh')
+const requestedSlug = (() => {
+  const index = process.argv.indexOf('--slug')
+  if (index < 0) return undefined
+  const value = process.argv[index + 1]
+  if (!value || value.startsWith('--')) throw new Error('--slug requires a plugin slug.')
+  return value
+})()
 const batchSize = 75
 const startedAt = new Date()
 const runId = randomUUID()
@@ -113,8 +120,9 @@ function prepare(row: CatalogRow): PreparedPlugin {
   const installCommand = row.install_spec ? buildPluginInstallCommand(row.install_spec) : null
   const shortDescription = Object.fromEntries(
     (['en', 'zh'] as const).map(locale => {
-      const preferred = locale === 'zh' && curatedZhLead ? curatedZhLead : currentDescription[locale]
-      const overview = locale === 'zh' && curatedZhLead ? curatedZhLead : currentOverview[locale]
+      const curatedLead = locale === 'zh' ? curatedZhLead : curatedEnPluginLeads[row.slug]
+      const preferred = curatedLead ?? currentDescription[locale]
+      const overview = curatedLead ?? currentOverview[locale]
       return [locale, improveShortDescription(preferred, overview, locale)]
     }),
   ) as Localized
@@ -123,7 +131,7 @@ function prepare(row: CatalogRow): PreparedPlugin {
       locale,
       buildPluginOverview({
         description: shortDescription[locale],
-        previousOverview: locale === 'zh' && curatedZhLead ? curatedZhLead : currentOverview[locale],
+        previousOverview: (locale === 'zh' ? curatedZhLead : curatedEnPluginLeads[row.slug]) ?? currentOverview[locale],
         installCommand,
         locale,
         hasReadme: row.has_readme === 1,
@@ -230,7 +238,7 @@ left join plugin_source_documents d on d.plugin_id=p.id and d.kind='readme'
 where p.status='published'
 order by p.slug`)
 const prepared = rows.map(prepare)
-const writeSet = onlyCuratedZh ? prepared.filter(plugin => curatedZhPluginLeads[plugin.row.slug]) : prepared
+const writeSet = prepared.filter(plugin => (!onlyCuratedZh || curatedZhPluginLeads[plugin.row.slug]) && (!requestedSlug || plugin.row.slug === requestedSlug))
 const genericSourceRows = rows.filter(row => {
   const description = parseLocalized(row.short_description_json, 'short descriptions', row.slug)
   const overview = parseLocalized(row.overview_markdown_json, 'overviews', row.slug)
@@ -339,8 +347,8 @@ try {
       completedAt: completedAt.toISOString(),
       outcome: 'completed',
       body: {
-        en: `Completed reviewed Chinese content enrichment for ${writeSet.length} published plugins whose prior localization only repeated a name or redirected readers to the README. The new leads preserve concrete capabilities from saved public sources, regenerate Chinese summaries and SEO descriptions, and retain the default DSH web profile installation guidance. Production verification found no remaining known low-information Chinese templates or invalid SEO metadata.`,
-        zh: `已完成 ${writeSet.length} 个已发布插件的中文内容增补。这些条目的旧本地化仅复述名称或要求读者自行查看 README；新概述已依据保存的公开来源提炼具体用途与能力，并重新生成中文简介和 SEO 描述，同时保留默认 DSH web profile 安装说明。生产验证未发现遗留的已知低信息中文模板或不合格 SEO 元数据。`,
+        en: `Completed reviewed Chinese content enrichment for ${writeSet.length} published plugins whose prior localization only repeated a name or redirected readers to the README. The new leads preserve concrete capabilities from saved public sources, regenerate Chinese summaries and SEO descriptions, and retain the default DeepSeek Harness web profile installation guidance. Production verification found no remaining known low-information Chinese templates or invalid SEO metadata.`,
+        zh: `已完成 ${writeSet.length} 个已发布插件的中文内容增补。这些条目的旧本地化仅复述名称或要求读者自行查看 README；新概述已依据保存的公开来源提炼具体用途与能力，并重新生成中文简介和 SEO 描述，同时保留 DeepSeek Harness 默认 web profile 安装说明。生产验证未发现遗留的已知低信息中文模板或不合格 SEO 元数据。`,
       },
     }),
   )

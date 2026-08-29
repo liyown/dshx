@@ -262,7 +262,7 @@ function HomeRuntimePanel() {
       </div>
       <TechnicalRow label="CLIENT" value="React · Vite · HMR" />
       <TechnicalRow label="HOST" value="typed module" />
-      <TechnicalRow label="RUNTIME" value="DSH · Cordis" />
+      <TechnicalRow label="RUNTIME" value="DeepSeek Harness · Cordis" />
       <div
         style={{
           display: "flex",

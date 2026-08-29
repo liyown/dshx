@@ -184,7 +184,7 @@ const advantages = [
   {
     title: "home.advantage.thin.title",
     body: "home.advantage.thin.body",
-    proof: "DSH · Cordis",
+    proof: "DeepSeek Harness · Cordis",
   },
 ] as const;
 

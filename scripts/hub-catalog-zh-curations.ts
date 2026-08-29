@@ -151,7 +151,7 @@ export const curatedZhPluginLeads: Readonly<Record<string, string>> = {
   'sakuraqqq-dsh-auto-paste': '在 DSH Web 输入框粘贴大段文本时，自动保存为附件文件。',
   'severuszh-dsh-plugin-subagent-director': '按子 Agent 分别选择 LLM Provider 和模型，并通过角色模板配置其职责。',
   'smelt-ai-dsh-acp-rich':
-    '面向 DeepSeek Harness 的完整交互型 Agent Client Protocol Server，让 Smelt 中的 DSH 会话具备接近 Claude 或 Codex 的体验：流式文本与推理、工具卡片、内联 diff、PLAN 进度、用量统计、斜杠命令、权限询问以及会话恢复。',
+    '面向 DeepSeek Harness 的完整交互型 Agent Client Protocol Server，让 Smelt 中的 DeepSeek Harness 会话具备接近 Claude 或 Codex 的体验：流式文本与推理、工具卡片、内联 diff、PLAN 进度、用量统计、斜杠命令、权限询问以及会话恢复。',
   'tomowang-dsh-tui': 'DeepSeek Harness 的开源终端入口，可从 TUI 使用 DSH。',
   'tsdfy-dsh-skin-switcher': 'DSH Web 皮肤切换器，可自动发现社区皮肤并一键切换主题。',
   'txlznbzsdj-collab-dsh-session-delete': '在 DSH 侧边栏会话菜单增加带确认对话框的“删除”操作，确认后永久删除会话。',
@@ -163,4 +163,9 @@ export const curatedZhPluginLeads: Readonly<Record<string, string>> = {
     'DeepSeek Harness 的 AtomGit bundle，包含规划和实现 Issue、审查与合并 PR、发布 CLI、镜像到 GitHub 等六个内置 Skills，并集成 ag CLI 与 AtomGit/GitCode MCP 工具。',
   'yangyongzhen-dsh-session-report': '生成逐会话成本与用量报告卡，展示 token、缓存命中率、逐回合明细、持续时间和费用估算。',
   'zseven-w-dsh-openpencil': '把 OpenPencil 接入 DeepSeek Harness，可在对话中预览、检查和编辑真实的 .op 设计文档。',
+}
+
+export const curatedEnPluginLeads: Readonly<Record<string, string>> = {
+  'smelt-ai-dsh-acp-rich':
+    'A presentation-complete Agent Client Protocol server for DeepSeek Harness that gives Smelt sessions a Claude- or Codex-like experience with streaming text and reasoning, tool cards, inline diffs, PLAN progress, usage statistics, slash commands, permission prompts, and session resume.',
 }

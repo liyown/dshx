@@ -39,6 +39,7 @@ describe("catalog content quality", () => {
       hasReadme: true,
     });
     expect(overview).toContain("default web profile");
+    expect(overview).toContain("DeepSeek Harness's default web profile");
     expect(overview).toContain("public README");
     expect(overview).not.toContain("does not provide a separate feature list");
   });

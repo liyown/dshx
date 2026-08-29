@@ -110,7 +110,7 @@ export function buildPluginOverview(input: {
   );
   if (input.locale === "zh") {
     const installation = input.installCommand
-      ? `安装：使用 ${input.installCommand} 将插件添加到 DSH 默认的 web profile。`
+      ? `安装：使用 ${input.installCommand} 将插件添加到 DeepSeek Harness 默认的 web profile。`
       : "安装：当前没有可用的主安装目标，请先查看上游文档。";
     const provenance = input.hasReadme
       ? "来源与风险：本概述整理自插件的公开 README。安装前请阅读原始文档并审查源码；DSHX 仅整理公开来源声明，未独立验证安全性、兼容性或可运行性。"
@@ -119,7 +119,7 @@ export function buildPluginOverview(input: {
   }
 
   const installation = input.installCommand
-    ? `Installation: run ${input.installCommand} to add the plugin to DSH's default web profile.`
+    ? `Installation: run ${input.installCommand} to add the plugin to DeepSeek Harness's default web profile.`
     : "Installation: no active primary install target is currently available; consult the upstream documentation first.";
   const provenance = input.hasReadme
     ? "Source and risk: this overview is derived from the plugin's public README. Read the original documentation and review the source before installation; DSHX catalogs public source claims and has not independently verified security, compatibility, or operability."

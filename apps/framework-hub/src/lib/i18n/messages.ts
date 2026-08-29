@@ -56,9 +56,9 @@ const en = {
   "seo.description":
     "Open-source build-time TypeScript, React and Vite tooling for DeepSeek Harness plugins, with HMR, diagnostics and typed Host–Client APIs.",
   "seo.ogDescription":
-    "Build DSH plugins with React, Tailwind, HMR, typed APIs and runtime-aware tooling.",
+    "Build DeepSeek Harness plugins with React, Tailwind, HMR, typed APIs and runtime-aware tooling.",
   "home.compatible": "verified on DSH 0.1.0-rc.8 and 0.1.1-rc.2",
-  "home.heroTitle": "Build DSH plugins with React and Vite.",
+  "home.heroTitle": "Build DeepSeek Harness plugins with React and Vite.",
   "home.heroBody":
     "DSHX is a build-time toolchain for typed Host and React Client modules. It provides Vite builds, Client HMR, Host restart orchestration, diagnostics and typed Host–Client APIs while official DSH and Cordis services retain runtime ownership.",
   "home.viewGithub": "View on GitHub",
@@ -299,9 +299,10 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     "seo.title": "DSHX：用 TypeScript 与 React 开发 DeepSeek Harness 插件",
     "seo.description":
       "面向 DeepSeek Harness 插件的开源构建期 TypeScript、React 与 Vite 工具，提供 HMR、诊断和类型化 Host–Client API。",
-    "seo.ogDescription": "使用 React、Tailwind、HMR、类型化 API 与 Runtime 工具构建 DSH 插件。",
+    "seo.ogDescription":
+      "使用 React、Tailwind、HMR、类型化 API 与 Runtime 工具构建 DeepSeek Harness 插件。",
     "home.compatible": "已验证 DSH 0.1.0-rc.8 与 0.1.1-rc.2",
-    "home.heroTitle": "使用 React 和 Vite 开发 DSH 插件。",
+    "home.heroTitle": "使用 React 和 Vite 开发 DeepSeek Harness 插件。",
     "home.heroBody":
       "DSHX 是用于类型化 Host 与 React Client 模块的构建期工具链，提供 Vite 构建、Client HMR、Host 重启编排、诊断与类型化 Host–Client API；Runtime 仍由官方 DSH 与 Cordis 服务负责。",
     "home.viewGithub": "在 GitHub 查看",

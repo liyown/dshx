@@ -27,13 +27,14 @@ describe("social card templates", () => {
     const html = renderToStaticMarkup(
       <HomeSocialCard
         locale="en"
-        title="Build DSH plugins with React and Vite."
+        title="Build DeepSeek Harness plugins with React and Vite."
         description="Typed build tooling for the official DeepSeek Harness runtime."
         version="0.1.2"
       />,
     );
     expect(html).toContain("FRAMEWORK / HUB");
     expect(html).toContain("pnpm create dshx my-plugin");
+    expect(html).toContain("DeepSeek Harness · Cordis");
     expect(html).toContain(SOCIAL_CARD_TOKENS.background);
     expect(html).toContain(SOCIAL_CARD_TOKENS.accent);
   });
