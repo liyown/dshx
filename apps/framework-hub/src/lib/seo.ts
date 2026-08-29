@@ -25,6 +25,7 @@ export type SeoDocument = {
         readonly alt: string;
         readonly width?: number;
         readonly height?: number;
+        readonly type?: string;
       };
   readonly type?: "website" | "article";
   readonly structuredData?: readonly StructuredDataNode[];
@@ -41,6 +42,15 @@ export function normalizePublicPath(path: string): string {
 
 export function publicUrl(path: string): string {
   return `${PUBLIC_SITE_URL}${normalizePublicPath(path)}`;
+}
+
+export function socialCardUrl(path: string, ...revisionParts: readonly string[]): string {
+  let hash = 2_166_136_261;
+  for (const character of revisionParts.join("\u0000")) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return `${publicUrl(path)}?v=${(hash >>> 0).toString(36)}`;
 }
 
 export function localizedAlternates(path: string): NonNullable<SeoDocument["alternates"]> {
@@ -99,7 +109,9 @@ export function buildSeoHead(document: SeoDocument) {
       { property: "og:image", content: image.url },
       { property: "og:image:alt", content: image.alt },
       { name: "twitter:image", content: image.url },
+      { name: "twitter:image:alt", content: image.alt },
     );
+    if (image.type) meta.push({ property: "og:image:type", content: image.type });
     if (image.width !== undefined)
       meta.push({ property: "og:image:width", content: String(image.width) });
     if (image.height !== undefined)

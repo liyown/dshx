@@ -8,7 +8,6 @@ import {
   listCatalogMarketplace,
 } from "./repository.server";
 import { requireDatabase } from "@/lib/db/client";
-import { requireBindings } from "@/lib/db/context";
 
 export const loadCatalog = createServerFn({ method: "GET" })
   .validator(pluginListQuerySchema)
@@ -27,8 +26,5 @@ const detailInput = z.object({ slug: z.string().min(1).max(100), locale: z.enum(
 export const loadCatalogDetail = createServerFn({ method: "GET" })
   .validator(detailInput)
   .handler(async ({ data, context }) => {
-    const detail = await getCatalogPlugin(requireDatabase(context), data.slug, data.locale);
-    return detail
-      ? { ...detail, siteUrl: requireBindings(context).SITE_URL ?? "https://dshx.io" }
-      : null;
+    return getCatalogPlugin(requireDatabase(context), data.slug, data.locale);
   });

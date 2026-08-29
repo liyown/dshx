@@ -86,6 +86,7 @@ import { Route as ApiPluginsSlugClaimsRouteImport } from './routes/api/plugins/$
 import { Route as ApiPluginsSlugReviewRouteImport } from './routes/api/plugins/$slug/review'
 import { Route as ApiPluginsSlugReviewsRouteImport } from './routes/api/plugins/$slug/reviews'
 import { Route as ApiReviewsIdRepliesRouteImport } from './routes/api/reviews/$id/replies'
+import { Route as OgHomeLocaleCardDotpngRouteImport } from './routes/og/home/$locale/card[.]png'
 import { Route as ApiAdminApprovalsIdDecisionsRouteImport } from './routes/api/admin/approvals/$id/decisions'
 import { Route as ApiCliAuthorizationsIdApproveRouteImport } from './routes/api/cli/authorizations/$id/approve'
 import { Route as ApiMeNotificationsIdReadRouteImport } from './routes/api/me/notifications/$id/read'
@@ -100,6 +101,7 @@ import { Route as ApiOpsV1PluginsIdRouteImport } from './routes/api/ops/v1/plugi
 import { Route as ApiOpsV1ReportsIndexRouteImport } from './routes/api/ops/v1/reports/index'
 import { Route as ApiOpsV1SubmissionsIndexRouteImport } from './routes/api/ops/v1/submissions/index'
 import { Route as ApiOpsV1SubmissionsIdRouteImport } from './routes/api/ops/v1/submissions/$id'
+import { Route as OgPluginsLocaleSlugCardDotpngRouteImport } from './routes/og/plugins/$locale/$slug/card[.]png'
 import { Route as ApiAdminApprovalsIdEffectsRetryRouteImport } from './routes/api/admin/approvals/$id/effects/retry'
 import { Route as ApiMeCollectionsIdPluginsPluginIdRouteImport } from './routes/api/me/collections/$id/plugins/$pluginId'
 import { Route as ApiOpsApprovalsIdEffectsClaimRouteImport } from './routes/api/ops/approvals/$id/effects/claim'
@@ -506,6 +508,11 @@ const ApiReviewsIdRepliesRoute = ApiReviewsIdRepliesRouteImport.update({
   path: '/api/reviews/$id/replies',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OgHomeLocaleCardDotpngRoute = OgHomeLocaleCardDotpngRouteImport.update({
+  id: '/og/home/$locale/card.png',
+  path: '/og/home/$locale/card.png',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminApprovalsIdDecisionsRoute =
   ApiAdminApprovalsIdDecisionsRouteImport.update({
     id: '/decisions',
@@ -585,6 +592,12 @@ const ApiOpsV1SubmissionsIdRoute = ApiOpsV1SubmissionsIdRouteImport.update({
   path: '/api/ops/v1/submissions/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OgPluginsLocaleSlugCardDotpngRoute =
+  OgPluginsLocaleSlugCardDotpngRouteImport.update({
+    id: '/og/plugins/$locale/$slug/card.png',
+    path: '/og/plugins/$locale/$slug/card.png',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminApprovalsIdEffectsRetryRoute =
   ApiAdminApprovalsIdEffectsRetryRouteImport.update({
     id: '/effects/retry',
@@ -702,6 +715,7 @@ export interface FileRoutesByFullPath {
   '/api/plugins/$slug/review': typeof ApiPluginsSlugReviewRoute
   '/api/plugins/$slug/reviews': typeof ApiPluginsSlugReviewsRoute
   '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
+  '/og/home/$locale/card.png': typeof OgHomeLocaleCardDotpngRoute
   '/api/admin/approvals/': typeof ApiAdminApprovalsIndexRoute
   '/api/cli/authorizations/': typeof ApiCliAuthorizationsIndexRoute
   '/api/marketplace/plugins/': typeof ApiMarketplacePluginsIndexRoute
@@ -722,6 +736,7 @@ export interface FileRoutesByFullPath {
   '/api/ops/v1/observations/$observationId': typeof ApiOpsV1ObservationsObservationIdRoute
   '/api/ops/v1/plugins/$id': typeof ApiOpsV1PluginsIdRouteWithChildren
   '/api/ops/v1/submissions/$id': typeof ApiOpsV1SubmissionsIdRouteWithChildren
+  '/og/plugins/$locale/$slug/card.png': typeof OgPluginsLocaleSlugCardDotpngRoute
   '/api/ops/v1/plugins/': typeof ApiOpsV1PluginsIndexRoute
   '/api/ops/v1/reports/': typeof ApiOpsV1ReportsIndexRoute
   '/api/ops/v1/submissions/': typeof ApiOpsV1SubmissionsIndexRoute
@@ -802,6 +817,7 @@ export interface FileRoutesByTo {
   '/api/plugins/$slug/review': typeof ApiPluginsSlugReviewRoute
   '/api/plugins/$slug/reviews': typeof ApiPluginsSlugReviewsRoute
   '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
+  '/og/home/$locale/card.png': typeof OgHomeLocaleCardDotpngRoute
   '/api/admin/approvals': typeof ApiAdminApprovalsIndexRoute
   '/api/cli/authorizations': typeof ApiCliAuthorizationsIndexRoute
   '/api/marketplace/plugins': typeof ApiMarketplacePluginsIndexRoute
@@ -822,6 +838,7 @@ export interface FileRoutesByTo {
   '/api/ops/v1/observations/$observationId': typeof ApiOpsV1ObservationsObservationIdRoute
   '/api/ops/v1/plugins/$id': typeof ApiOpsV1PluginsIdRouteWithChildren
   '/api/ops/v1/submissions/$id': typeof ApiOpsV1SubmissionsIdRouteWithChildren
+  '/og/plugins/$locale/$slug/card.png': typeof OgPluginsLocaleSlugCardDotpngRoute
   '/api/ops/v1/plugins': typeof ApiOpsV1PluginsIndexRoute
   '/api/ops/v1/reports': typeof ApiOpsV1ReportsIndexRoute
   '/api/ops/v1/submissions': typeof ApiOpsV1SubmissionsIndexRoute
@@ -904,6 +921,7 @@ export interface FileRoutesById {
   '/api/plugins/$slug/review': typeof ApiPluginsSlugReviewRoute
   '/api/plugins/$slug/reviews': typeof ApiPluginsSlugReviewsRoute
   '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
+  '/og/home/$locale/card.png': typeof OgHomeLocaleCardDotpngRoute
   '/api/admin/approvals/': typeof ApiAdminApprovalsIndexRoute
   '/api/cli/authorizations/': typeof ApiCliAuthorizationsIndexRoute
   '/api/marketplace/plugins/': typeof ApiMarketplacePluginsIndexRoute
@@ -924,6 +942,7 @@ export interface FileRoutesById {
   '/api/ops/v1/observations/$observationId': typeof ApiOpsV1ObservationsObservationIdRoute
   '/api/ops/v1/plugins/$id': typeof ApiOpsV1PluginsIdRouteWithChildren
   '/api/ops/v1/submissions/$id': typeof ApiOpsV1SubmissionsIdRouteWithChildren
+  '/og/plugins/$locale/$slug/card.png': typeof OgPluginsLocaleSlugCardDotpngRoute
   '/api/ops/v1/plugins/': typeof ApiOpsV1PluginsIndexRoute
   '/api/ops/v1/reports/': typeof ApiOpsV1ReportsIndexRoute
   '/api/ops/v1/submissions/': typeof ApiOpsV1SubmissionsIndexRoute
@@ -1007,6 +1026,7 @@ export interface FileRouteTypes {
     | '/api/plugins/$slug/review'
     | '/api/plugins/$slug/reviews'
     | '/api/reviews/$id/replies'
+    | '/og/home/$locale/card.png'
     | '/api/admin/approvals/'
     | '/api/cli/authorizations/'
     | '/api/marketplace/plugins/'
@@ -1027,6 +1047,7 @@ export interface FileRouteTypes {
     | '/api/ops/v1/observations/$observationId'
     | '/api/ops/v1/plugins/$id'
     | '/api/ops/v1/submissions/$id'
+    | '/og/plugins/$locale/$slug/card.png'
     | '/api/ops/v1/plugins/'
     | '/api/ops/v1/reports/'
     | '/api/ops/v1/submissions/'
@@ -1107,6 +1128,7 @@ export interface FileRouteTypes {
     | '/api/plugins/$slug/review'
     | '/api/plugins/$slug/reviews'
     | '/api/reviews/$id/replies'
+    | '/og/home/$locale/card.png'
     | '/api/admin/approvals'
     | '/api/cli/authorizations'
     | '/api/marketplace/plugins'
@@ -1127,6 +1149,7 @@ export interface FileRouteTypes {
     | '/api/ops/v1/observations/$observationId'
     | '/api/ops/v1/plugins/$id'
     | '/api/ops/v1/submissions/$id'
+    | '/og/plugins/$locale/$slug/card.png'
     | '/api/ops/v1/plugins'
     | '/api/ops/v1/reports'
     | '/api/ops/v1/submissions'
@@ -1208,6 +1231,7 @@ export interface FileRouteTypes {
     | '/api/plugins/$slug/review'
     | '/api/plugins/$slug/reviews'
     | '/api/reviews/$id/replies'
+    | '/og/home/$locale/card.png'
     | '/api/admin/approvals/'
     | '/api/cli/authorizations/'
     | '/api/marketplace/plugins/'
@@ -1228,6 +1252,7 @@ export interface FileRouteTypes {
     | '/api/ops/v1/observations/$observationId'
     | '/api/ops/v1/plugins/$id'
     | '/api/ops/v1/submissions/$id'
+    | '/og/plugins/$locale/$slug/card.png'
     | '/api/ops/v1/plugins/'
     | '/api/ops/v1/reports/'
     | '/api/ops/v1/submissions/'
@@ -1287,6 +1312,7 @@ export interface RootRouteChildren {
   ApiOpsV1ObservationsChar58batchRoute: typeof ApiOpsV1ObservationsChar58batchRoute
   ApiOpsV1StatusRoute: typeof ApiOpsV1StatusRoute
   ApiReviewsIdRepliesRoute: typeof ApiReviewsIdRepliesRoute
+  OgHomeLocaleCardDotpngRoute: typeof OgHomeLocaleCardDotpngRoute
   ApiAdminApprovalsIndexRoute: typeof ApiAdminApprovalsIndexRoute
   ApiCliAuthorizationsIndexRoute: typeof ApiCliAuthorizationsIndexRoute
   ApiMarketplacePluginsIndexRoute: typeof ApiMarketplacePluginsIndexRoute
@@ -1305,6 +1331,7 @@ export interface RootRouteChildren {
   ApiOpsV1ObservationsObservationIdRoute: typeof ApiOpsV1ObservationsObservationIdRoute
   ApiOpsV1PluginsIdRoute: typeof ApiOpsV1PluginsIdRouteWithChildren
   ApiOpsV1SubmissionsIdRoute: typeof ApiOpsV1SubmissionsIdRouteWithChildren
+  OgPluginsLocaleSlugCardDotpngRoute: typeof OgPluginsLocaleSlugCardDotpngRoute
   ApiOpsV1PluginsIndexRoute: typeof ApiOpsV1PluginsIndexRoute
   ApiOpsV1ReportsIndexRoute: typeof ApiOpsV1ReportsIndexRoute
   ApiOpsV1SubmissionsIndexRoute: typeof ApiOpsV1SubmissionsIndexRoute
@@ -1851,6 +1878,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiReviewsIdRepliesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/og/home/$locale/card.png': {
+      id: '/og/home/$locale/card.png'
+      path: '/og/home/$locale/card.png'
+      fullPath: '/og/home/$locale/card.png'
+      preLoaderRoute: typeof OgHomeLocaleCardDotpngRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/approvals/$id/decisions': {
       id: '/api/admin/approvals/$id/decisions'
       path: '/decisions'
@@ -1947,6 +1981,13 @@ declare module '@tanstack/react-router' {
       path: '/api/ops/v1/submissions/$id'
       fullPath: '/api/ops/v1/submissions/$id'
       preLoaderRoute: typeof ApiOpsV1SubmissionsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/og/plugins/$locale/$slug/card.png': {
+      id: '/og/plugins/$locale/$slug/card.png'
+      path: '/og/plugins/$locale/$slug/card.png'
+      fullPath: '/og/plugins/$locale/$slug/card.png'
+      preLoaderRoute: typeof OgPluginsLocaleSlugCardDotpngRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/approvals/$id/effects/retry': {
@@ -2189,6 +2230,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpsV1ObservationsChar58batchRoute: ApiOpsV1ObservationsChar58batchRoute,
   ApiOpsV1StatusRoute: ApiOpsV1StatusRoute,
   ApiReviewsIdRepliesRoute: ApiReviewsIdRepliesRoute,
+  OgHomeLocaleCardDotpngRoute: OgHomeLocaleCardDotpngRoute,
   ApiAdminApprovalsIndexRoute: ApiAdminApprovalsIndexRoute,
   ApiCliAuthorizationsIndexRoute: ApiCliAuthorizationsIndexRoute,
   ApiMarketplacePluginsIndexRoute: ApiMarketplacePluginsIndexRoute,
@@ -2208,6 +2250,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiOpsV1ObservationsObservationIdRoute,
   ApiOpsV1PluginsIdRoute: ApiOpsV1PluginsIdRouteWithChildren,
   ApiOpsV1SubmissionsIdRoute: ApiOpsV1SubmissionsIdRouteWithChildren,
+  OgPluginsLocaleSlugCardDotpngRoute: OgPluginsLocaleSlugCardDotpngRoute,
   ApiOpsV1PluginsIndexRoute: ApiOpsV1PluginsIndexRoute,
   ApiOpsV1ReportsIndexRoute: ApiOpsV1ReportsIndexRoute,
   ApiOpsV1SubmissionsIndexRoute: ApiOpsV1SubmissionsIndexRoute,

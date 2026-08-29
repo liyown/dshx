@@ -20,7 +20,7 @@ import type { CatalogCard } from "@/lib/catalog/types";
 import { createTranslator, localizedPath, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { DSHX_VERSION, MARKETPLACE_REFERENCE_PLUGIN } from "@/lib/reference-plugin";
-import { buildSeoHead, localizedAlternates } from "@/lib/seo";
+import { buildSeoHead, localizedAlternates, socialCardUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/")({
   loader: ({ params }) =>
@@ -36,6 +36,13 @@ export const Route = createFileRoute("/$locale/")({
       title: t("seo.title"),
       description: t("seo.description"),
       alternates: localizedAlternates("/"),
+      image: {
+        url: socialCardUrl(`/og/home/${locale}/card.png`, DSHX_VERSION, t("seo.ogDescription")),
+        alt: t("home.heroTitle"),
+        width: 1200,
+        height: 630,
+        type: "image/png",
+      },
       structuredData: [
         {
           "@id": "https://dshx.io/#website",

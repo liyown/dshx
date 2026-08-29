@@ -11,7 +11,12 @@ import { buildPluginInstallCommand, selectInstallTarget } from "@/lib/catalog/in
 import { cn } from "@/lib/utils";
 import { createTranslator, localizedPath, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
-import { breadcrumbList, buildSeoHead, localizedAlternatesForLocales } from "@/lib/seo";
+import {
+  breadcrumbList,
+  buildSeoHead,
+  localizedAlternatesForLocales,
+  socialCardUrl,
+} from "@/lib/seo";
 import { apiKeys, apiRequest } from "@/lib/api-client";
 
 export const Route = createFileRoute("/$locale/plugins/$slug")({
@@ -48,9 +53,6 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
     const locale = parseLocale(params.locale);
     const path = `/${locale}/plugins/${p.slug}`;
     const canonical = `https://dshx.io${path}`;
-    const socialImage = loaderData.media[0]
-      ? `${loaderData.siteUrl}/api/media/${loaderData.media[0].id}`
-      : null;
     const sameAs = [loaderData.repositoryUrl];
     if (primaryTarget?.kind === "npm")
       sameAs.push(`https://www.npmjs.com/package/${primaryTarget.package_name}`);
@@ -85,18 +87,18 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
       description: loaderData.seoDescription,
       robots: loaderData.indexable ? "index,follow" : "noindex,follow",
       alternates: localizedAlternatesForLocales(`/plugins/${p.slug}`, loaderData.readyLocales),
-      ...(socialImage
-        ? {
-            image: {
-              url: socialImage,
-              alt: loaderData.media[0]?.alt_text ?? p.name,
-              ...(loaderData.media[0]?.width == null ? {} : { width: loaderData.media[0].width }),
-              ...(loaderData.media[0]?.height == null
-                ? {}
-                : { height: loaderData.media[0].height }),
-            },
-          }
-        : {}),
+      image: {
+        url: socialCardUrl(
+          `/og/plugins/${locale}/${p.slug}/card.png`,
+          p.updated,
+          p.name,
+          loaderData.seoDescription,
+        ),
+        alt: locale === "zh" ? `${p.name} 插件卡片` : `${p.name} plugin card`,
+        width: 1200,
+        height: 630,
+        type: "image/png",
+      },
       structuredData: [
         software,
         breadcrumbList([

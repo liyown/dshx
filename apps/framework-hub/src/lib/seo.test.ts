@@ -7,6 +7,7 @@ import {
   localizedAlternatesForLocales,
   normalizePublicPath,
   publicUrl,
+  socialCardUrl,
 } from "./seo";
 
 describe("SEO document builder", () => {
@@ -22,6 +23,13 @@ describe("SEO document builder", () => {
     expect(localizedAlternatesForLocales("/plugins/example", ["zh", "en"])).toEqual(
       localizedAlternates("/plugins/example"),
     );
+  });
+
+  it("gives social cards stable revisioned URLs", () => {
+    const first = socialCardUrl("/og/home/en/card.png", "0.1.2", "Build plugins");
+    expect(first).toMatch(/^https:\/\/dshx\.io\/og\/home\/en\/card\.png\?v=[a-z0-9]+$/);
+    expect(socialCardUrl("/og/home/en/card.png", "0.1.2", "Build plugins")).toBe(first);
+    expect(socialCardUrl("/og/home/en/card.png", "0.1.2", "Changed copy")).not.toBe(first);
   });
 
   it("emits one canonical and a complete reciprocal locale set", () => {
@@ -56,6 +64,30 @@ describe("SEO document builder", () => {
       "@context": "https://schema.org",
       "@graph": [{ "@type": "WebSite", name: "DSHX" }],
     });
+  });
+
+  it("emits complete Open Graph and X image metadata", () => {
+    const head = buildSeoHead({
+      locale: "en",
+      path: "/en",
+      title: "DSHX",
+      description: "Build plugins.",
+      image: {
+        url: "https://dshx.io/og/home/en/card.png?v=1",
+        alt: "DSHX social card",
+        width: 1200,
+        height: 630,
+        type: "image/png",
+      },
+    });
+    expect(head.meta).toEqual(
+      expect.arrayContaining([
+        { property: "og:image:type", content: "image/png" },
+        { name: "twitter:image:alt", content: "DSHX social card" },
+        { property: "og:image:width", content: "1200" },
+        { property: "og:image:height", content: "630" },
+      ]),
+    );
   });
 
   it("gives breadcrumb graphs a stable page-scoped identifier", () => {
