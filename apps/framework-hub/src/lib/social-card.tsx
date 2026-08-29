@@ -476,7 +476,7 @@ export function HomeSocialCard(input: HomeSocialCardInput) {
               lineHeight: 1.04,
             }}
           >
-            {truncateSocialText(input.title, input.locale === "zh" ? 34 : 58)}
+            {truncateSocialText(input.title, input.locale === "zh" ? 52 : 58)}
           </div>
           <div
             style={{

@@ -39,6 +39,18 @@ describe("social card templates", () => {
     expect(html).toContain(SOCIAL_CARD_TOKENS.accent);
   });
 
+  it("keeps the full DeepSeek Harness name on the Chinese homepage card", () => {
+    const html = renderToStaticMarkup(
+      <HomeSocialCard
+        locale="zh"
+        title="使用 React 和 Vite 开发 DeepSeek Harness 插件。"
+        description="面向 DeepSeek Harness 插件的构建工具。"
+        version="0.1.2"
+      />,
+    );
+    expect(html).toContain("使用 React 和 Vite 开发 DeepSeek Harness 插件。");
+  });
+
   it("renders real plugin identity and the exact web-profile install command", () => {
     const html = renderToStaticMarkup(
       <PluginSocialCard
