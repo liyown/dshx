@@ -1969,7 +1969,14 @@ function summarizePluginRow(row: OpsListRow) {
 async function scanPluginRows(binding: Database, start: [number, string] | null, limit: number) {
   return binding.all<OpsListRow>(
     parameterizedSql(
-      `select p.id,p.slug,p.identity_key,p.package_name,p.name,p.description,p.author_handle,
+      `with conflicting_package_names as (
+        select json_extract(facts_json,'$.package.name') package_name
+        from plugin_operational_state
+        where json_extract(facts_json,'$.package.name') is not null
+        group by json_extract(facts_json,'$.package.name')
+        having count(*)>1
+      )
+       select p.id,p.slug,p.identity_key,p.package_name,p.name,p.description,p.author_handle,
         p.category,p.latest_version,p.compatibility_range,p.status,p.lifecycle_status,
         p.repository_url,p.homepage_url,p.license_spdx,p.created_at,
         o.plugin_id,o.state,o.visibility,o.revision,o.detection_json,o.facts_json,o.sources_json,
@@ -1979,15 +1986,11 @@ async function scanPluginRows(binding: Database, start: [number, string] | null,
         c.source_readme_hash,
         (select count(*) from plugin_localizations l where l.plugin_id=p.id and l.translation_status='ready') ready_locale_count,
         (select count(*) from plugin_install_targets t where t.plugin_id=p.id and t.status='unavailable') unavailable_target_count,
-        case when exists(
-          select 1 from plugin_operational_state other
-          where other.plugin_id<>p.id
-            and json_extract(o.facts_json,'$.package.name') is not null
-            and json_extract(other.facts_json,'$.package.name')=
-                json_extract(o.facts_json,'$.package.name')
-        ) then 1 else 0 end identity_conflict
+        case when conflicts.package_name is null then 0 else 1 end identity_conflict
        from plugins p join plugin_operational_state o on o.plugin_id=p.id
        left join plugin_curations c on c.plugin_id=p.id
+       left join conflicting_package_names conflicts
+         on conflicts.package_name=json_extract(o.facts_json,'$.package.name')
        where (? is null or o.updated_at < ? or (o.updated_at=? and p.id<?))
        order by o.updated_at desc,p.id desc limit ?`,
       [start?.[0] ?? null, start?.[0] ?? null, start?.[0] ?? null, start?.[1] ?? null, limit],
