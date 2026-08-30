@@ -237,6 +237,18 @@ function normalizedHub(values: Record<string, unknown>): string {
   return url.toString().replace(/\/$/, "");
 }
 
+const deprecatedCommandGroups = new Set([
+  "sync",
+  "catalog",
+  "targets",
+  "metrics",
+  "maintenance",
+  "approvals",
+  "moderation",
+  "users",
+  "contract",
+]);
+
 function deprecatedCommand(group: string): never {
   const replacements: Record<string, string> = {
     sync: "Use source inspect, plugin upsert, and plugin list as independent operations.",
@@ -558,20 +570,7 @@ async function execute(
       hub(),
       scope as "catalog" | "storage" | "community" | undefined,
     );
-  } else if (
-    group &&
-    [
-      "sync",
-      "catalog",
-      "targets",
-      "metrics",
-      "maintenance",
-      "approvals",
-      "moderation",
-      "users",
-      "contract",
-    ].includes(group)
-  )
+  } else if (group && deprecatedCommandGroups.has(group))
     deprecatedCommand(group);
   else
     throw new CliError({
@@ -590,6 +589,9 @@ export async function runCli(
   streams: CliStreams = processStreams,
 ): Promise<number> {
   try {
+    const rawGroup = argv[0];
+    if (rawGroup && deprecatedCommandGroups.has(rawGroup))
+      deprecatedCommand(rawGroup);
     const parsed = parse(argv);
     const positionals = parsed.positionals;
     const values = parsed.values as Record<string, unknown>;

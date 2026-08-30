@@ -82,6 +82,9 @@ describe("CLI dispatcher and help", () => {
       ["moderation", "queue"],
       ["users", "list"],
       ["contract", "show"],
+      ["contract", "show", "--kind", "catalog"],
+      ["maintenance", "audit", "--scope", "daily"],
+      ["sync", "resume"],
     ]) {
       const io = streams();
       expect(await runCli(argv, io.streams)).toBe(1);
