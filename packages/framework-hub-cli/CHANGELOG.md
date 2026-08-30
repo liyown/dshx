@@ -1,5 +1,11 @@
 # @becomeopc/dshx-hub-cli
 
+## 0.1.2-preview.3
+
+### Patch Changes
+
+- Publish registry-resolvable runtime dependency versions so the standalone CLI can be installed outside the pnpm workspace.
+
 ## 0.1.2-preview.2
 
 ### Patch Changes

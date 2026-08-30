@@ -406,10 +406,10 @@ importers:
         specifier: 11.0.1
         version: 11.0.1
       yaml:
-        specifier: 'catalog:'
+        specifier: 2.9.0
         version: 2.9.0
       zod:
-        specifier: 'catalog:'
+        specifier: 4.4.3
         version: 4.4.3
     devDependencies:
       '@types/node':
