@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { normalizedError } from "../src/errors.js";
 import {
@@ -9,7 +12,14 @@ import {
   verifyNativeKeyringModule,
 } from "../src/keychain.js";
 
-afterEach(() => setKeyringEntryFactoryForTests());
+const temporaryDirectories: string[] = [];
+
+afterEach(() => {
+  setKeyringEntryFactoryForTests();
+  vi.unstubAllEnvs();
+  for (const directory of temporaryDirectories.splice(0))
+    rmSync(directory, { recursive: true, force: true });
+});
 
 describe("system keyring adapter", () => {
   it("loads the native module without accessing credentials", () => {
@@ -51,5 +61,45 @@ describe("system keyring adapter", () => {
           "Ensure macOS Keychain, Linux Secret Service, or Windows Credential Manager is running, then retry.",
       });
     }
+  });
+
+  it("rejects a keyring write that does not persist", () => {
+    setKeyringEntryFactoryForTests(() => ({
+      getPassword: () => null,
+      setPassword: () => undefined,
+      deletePassword: () => false,
+    }));
+    expect(() => saveToken("https://dshx.io", "secret")).toThrowError(
+      expect.objectContaining({
+        issue: expect.objectContaining({
+          code: "keyring_persistence_failed",
+        }),
+      }),
+    );
+  });
+
+  it("uses a private operations-state fallback when a headless keyring silently drops writes", () => {
+    const stateDirectory = mkdtempSync(join(tmpdir(), "dshx-hub-keyring-"));
+    temporaryDirectories.push(stateDirectory);
+    vi.stubEnv("DSHX_HUB_OPS_STATE_DIR", stateDirectory);
+    setKeyringEntryFactoryForTests(() => ({
+      getPassword: () => null,
+      setPassword: () => undefined,
+      deletePassword: () => false,
+    }));
+
+    saveToken("https://dshx.io", "secret");
+    expect(readToken("https://dshx.io")).toBe("secret");
+    const credentials = join(stateDirectory, "credentials");
+    const [credentialFile] = readdirSync(credentials);
+    expect(credentialFile).toMatch(/^[a-f0-9]{64}\.token$/);
+    expect(statSync(credentials).mode & 0o777).toBe(0o700);
+    expect(statSync(join(credentials, credentialFile!)).mode & 0o777).toBe(
+      0o600,
+    );
+
+    deleteToken("https://dshx.io");
+    expect(readToken("https://dshx.io")).toBeNull();
+    expect(readdirSync(credentials)).toEqual([]);
   });
 });

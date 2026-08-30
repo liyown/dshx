@@ -9,7 +9,7 @@ pnpm add -g @becomeopc/dshx-hub-cli
 dshx-hub --help
 ```
 
-Authentication tokens are the only local operational state. Resource revisions, plugin data, source observations, and audit records live in the Hub. `--all` may follow pagination cursors while the current process is active, but the CLI does not save progress or require a fixed command order.
+Authentication tokens are the only local operational state. The CLI prefers the operating-system credential store and verifies every write before reporting a successful login. In explicitly configured headless operations sessions, when the system credential store cannot persist a write, `DSHX_HUB_OPS_STATE_DIR` enables an atomic file fallback under its private `credentials/` directory; the directory is forced to mode `0700` and token files to `0600`. Resource revisions, plugin data, source observations, and audit records live in the Hub. `--all` may follow pagination cursors while the current process is active, but the CLI does not save progress or require a fixed command order.
 
 ## Command surface
 

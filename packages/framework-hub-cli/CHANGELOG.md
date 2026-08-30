@@ -1,5 +1,11 @@
 # @becomeopc/dshx-hub-cli
 
+## 0.1.2-preview.4
+
+### Patch Changes
+
+- Verify Keychain persistence after login and use an atomic `0600` operations-state credential fallback when a headless macOS session silently drops Keychain writes.
+
 ## 0.1.2-preview.3
 
 ### Patch Changes
