@@ -1966,7 +1966,61 @@ function summarizePluginRow(row: OpsListRow) {
   };
 }
 
-async function scanPluginRows(binding: Database, start: [number, string] | null, limit: number) {
+function pluginNeedsSqlPrefilter(needs: OpsPluginListQuery["needs"]) {
+  if (!needs?.length) return { condition: "1=1", parameters: [] as unknown[] };
+  const parameters: unknown[] = [];
+  const conditions = needs.map((need) => {
+    switch (need) {
+      case "refresh":
+        parameters.push(new Date(Date.now() - SOURCE_STALE_MS).toISOString());
+        return `(json_array_length(o.sources_json)=0 or not exists(
+          select 1 from json_each(o.sources_json) source
+          where json_extract(source.value,'$.lastObservedAt')>=?
+        ))`;
+      case "readme":
+        return `(exists(
+          select 1 from json_each(o.sources_json) source
+          where json_extract(source.value,'$.kind') in ('github','npm')
+        ) and coalesce(json_extract(o.facts_json,'$.readme.availability'),'')
+          not in ('available','unavailable'))`;
+      case "content":
+        return `(c.plugin_id is null or (
+          json_extract(o.facts_json,'$.readme.availability')='available'
+          and json_type(o.facts_json,'$.readme.contentHash')='text'
+          and c.source_readme_hash is not json_extract(o.facts_json,'$.readme.contentHash')
+        ))`;
+      case "source":
+        return `(json_array_length(o.sources_json)=0 or not exists(
+          select 1 from json_each(o.sources_json) source
+          where coalesce(json_extract(source.value,'$.availability'),'')<>'unavailable'
+        ))`;
+      case "publisher":
+        return `(json_type(o.facts_json,'$.repository.fullName')='text' and (
+          coalesce(json_type(o.facts_json,'$.publisher.githubId'),'')<>'text'
+          or coalesce(json_type(o.facts_json,'$.publisher.avatarUrl'),'')<>'text'
+          or coalesce(json_type(o.facts_json,'$.publisher.profileUrl'),'')<>'text'
+        ))`;
+      case "metadata":
+        return `(coalesce(json_type(o.facts_json,'$.package.name'),'')<>'text'
+          or coalesce(json_type(o.facts_json,'$.package.version'),'')<>'text'
+          or conflicts.package_name is not null)`;
+      case "target":
+        return `((select count(*) from json_each(
+          coalesce(json_extract(o.facts_json,'$.installTargets'),'[]')
+        ) target where json_extract(target.value,'$.primary')=1
+          and coalesce(json_extract(target.value,'$.available'),1)<>0)<>1)`;
+    }
+  });
+  return { condition: `(${conditions.join(" or ")})`, parameters };
+}
+
+async function scanPluginRows(
+  binding: Database,
+  start: [number, string] | null,
+  limit: number,
+  needs: OpsPluginListQuery["needs"],
+) {
+  const prefilter = pluginNeedsSqlPrefilter(needs);
   return binding.all<OpsListRow>(
     parameterizedSql(
       `with conflicting_package_names as (
@@ -1992,8 +2046,16 @@ async function scanPluginRows(binding: Database, start: [number, string] | null,
        left join conflicting_package_names conflicts
          on conflicts.package_name=json_extract(o.facts_json,'$.package.name')
        where (? is null or o.updated_at < ? or (o.updated_at=? and p.id<?))
+         and ${prefilter.condition}
        order by o.updated_at desc,p.id desc limit ?`,
-      [start?.[0] ?? null, start?.[0] ?? null, start?.[0] ?? null, start?.[1] ?? null, limit],
+      [
+        start?.[0] ?? null,
+        start?.[0] ?? null,
+        start?.[0] ?? null,
+        start?.[1] ?? null,
+        ...prefilter.parameters,
+        limit,
+      ],
     ),
   );
 }
@@ -2003,7 +2065,12 @@ export async function listOpsPlugins(binding: Database, query: OpsPluginListQuer
   const matches: Array<ReturnType<typeof summarizePluginRow>> = [];
   let exhausted = false;
   while (matches.length <= query.limit && !exhausted) {
-    const page = await scanPluginRows(binding, scanCursor, Math.max(100, query.limit * 2));
+    const page = await scanPluginRows(
+      binding,
+      scanCursor,
+      Math.max(100, query.limit * 2),
+      query.needs,
+    );
     const rows = page;
     exhausted = rows.length < Math.max(100, query.limit * 2);
     for (const row of rows) {
