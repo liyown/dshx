@@ -900,7 +900,7 @@ async function startDev(root, env) {
   const timer = setTimeout(() => rejectReady(new Error(`dshx dev did not start\n${stdout}\n${stderr}`)), timeoutMs)
   child.stdout.on('data', chunk => {
     stdout += chunk.toString()
-    if (stdout.includes('Dev session started')) sessionReady = true
+    if (/^◆ Dev session\b/m.test(stdout)) sessionReady = true
     const urls = [...stdout.matchAll(/dsh web:\s+(https?:\/\/\S+)/g)]
     if (urls.length > 0) {
       webUrl = urls.at(-1)?.[1]
