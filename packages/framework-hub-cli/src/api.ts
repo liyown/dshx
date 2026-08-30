@@ -11,6 +11,8 @@ import {
 
 export type AuthenticationMode = "required" | "optional" | "none";
 
+const hubRequestTimeoutMs = 30_000;
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -110,16 +112,29 @@ export async function api<T>(
 
   let response: Response;
   try {
-    response = await fetch(new URL(path, hub), { ...init, headers });
+    const timeoutSignal = AbortSignal.timeout(hubRequestTimeoutMs);
+    response = await fetch(new URL(path, hub), {
+      ...init,
+      headers,
+      signal: init.signal
+        ? AbortSignal.any([init.signal, timeoutSignal])
+        : timeoutSignal,
+    });
   } catch (error) {
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
     throw new ApiError(
       0,
       {
-        code: "hub_unreachable",
-        message:
-          error instanceof Error ? error.message : "Unable to reach the Hub.",
+        code: timedOut ? "hub_request_timeout" : "hub_unreachable",
+        message: timedOut
+          ? `Hub request exceeded ${hubRequestTimeoutMs / 1_000} seconds.`
+          : error instanceof Error
+            ? error.message
+            : "Unable to reach the Hub.",
         retryable: true,
-        repairHint: "Check the Hub URL and network, then retry.",
+        repairHint: timedOut
+          ? "Retry once after the Hub recovers; report the slow route if it persists."
+          : "Check the Hub URL and network, then retry.",
       },
       randomUUID(),
       null,

@@ -1,5 +1,11 @@
 # @becomeopc/dshx-hub-cli
 
+## 0.1.2-preview.2
+
+### Patch Changes
+
+- Bound Hub API requests to 30 seconds and report `hub_request_timeout` instead of hanging an operations run indefinitely.
+
 ## 0.1.2-preview.1
 
 ### Patch Changes

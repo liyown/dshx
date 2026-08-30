@@ -20,6 +20,7 @@ import { getCatalogPlugin, listCatalogMarketplace } from "./repository.server";
 import {
   curatePlugin,
   expectedObservationId,
+  getOpsStatus,
   getOpsPlugin,
   getOpsSubmission,
   listOpsPlugins,
@@ -933,6 +934,36 @@ describe("operations v1 atomic catalog model with local D1", () => {
         ),
       ).toBe(true);
     }
+  });
+
+  it("computes aggregate status without paginating complete plugin projections", async () => {
+    let catalogQueries = 0;
+    const measured = new Proxy(db, {
+      get(target, property) {
+        const value = Reflect.get(target, property);
+        if (property === "all")
+          return (...args: unknown[]) => {
+            catalogQueries += 1;
+            return (value as (...values: unknown[]) => unknown).apply(target, args);
+          };
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as Database;
+
+    const status = await getOpsStatus(measured, {
+      authenticated: true,
+      scopes: ["catalog:write"],
+    });
+
+    expect(catalogQueries).toBe(1);
+    expect(status.auth).toEqual({
+      authenticated: true,
+      scopes: ["catalog:write"],
+    });
+    expect(status.catalog.plugins).toBeGreaterThan(0);
+    expect(status.catalog.published + status.catalog.drafts + status.catalog.hidden).toBe(
+      status.catalog.plugins,
+    );
   });
 
   it("lists, reads, and resolves submissions without exposing legacy workflow metadata", async () => {

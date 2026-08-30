@@ -5,6 +5,7 @@ import { setKeyringEntryFactoryForTests } from "../src/keychain.js";
 import {
   curatePlugin,
   exitCodeForSuccess,
+  hubStatus,
   latestReport,
   listPlugins,
   publishReport,
@@ -73,6 +74,26 @@ afterEach(() => {
 });
 
 describe("atomic Hub operations", () => {
+  it("bounds Hub requests and normalizes timeouts", async () => {
+    globalThis.fetch = vi.fn(async (_input, init) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      const error = new Error("The operation was aborted due to timeout");
+      error.name = "TimeoutError";
+      throw error;
+    });
+
+    const error = await hubStatus("https://hub.test").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(normalizedError(error)).toMatchObject({
+      error: {
+        code: "hub_request_timeout",
+        retryable: true,
+      },
+    });
+  });
+
   it("automatically makes repeated single upserts idempotent", async () => {
     const requests: Array<{ url: string; init?: RequestInit }> = [];
     globalThis.fetch = vi.fn(async (input, init) => {

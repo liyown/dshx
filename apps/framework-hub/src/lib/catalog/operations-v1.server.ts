@@ -2781,14 +2781,62 @@ export async function getOpsStatus(
   binding: Database,
   auth: { authenticated: boolean; scopes: string[] },
 ) {
-  const plugins = await listOpsPlugins(binding, { limit: 100 });
-  let cursor = plugins.nextCursor;
-  const items = [...plugins.items];
-  while (cursor) {
-    const page = await listOpsPlugins(binding, { cursor, limit: 100 });
-    items.push(...page.items);
-    cursor = page.nextCursor;
-  }
+  const rows = await binding.all<{
+    state: "draft" | "published";
+    visibility: "visible" | "hidden";
+    facts_json: string;
+    sources_json: string;
+    has_curation: number;
+    source_readme_hash: string | null;
+    ready_locale_count: number;
+    identity_conflict: number;
+  }>(
+    parameterizedSql(
+      `with ready_localizations as (
+        select plugin_id,count(*) ready_locale_count
+        from plugin_localizations where translation_status='ready'
+        group by plugin_id
+      ), identity_conflicts as (
+        select json_extract(facts_json,'$.package.name') package_name
+        from plugin_operational_state
+        where json_extract(facts_json,'$.package.name') is not null
+        group by package_name having count(*)>1
+      )
+      select o.state,o.visibility,o.facts_json,o.sources_json,
+        case when c.plugin_id is null then 0 else 1 end has_curation,
+        c.source_readme_hash,coalesce(l.ready_locale_count,0) ready_locale_count,
+        case when conflicts.package_name is null then 0 else 1 end identity_conflict
+      from plugin_operational_state o
+      left join plugin_curations c on c.plugin_id=o.plugin_id
+      left join ready_localizations l on l.plugin_id=o.plugin_id
+      left join identity_conflicts conflicts
+        on conflicts.package_name=json_extract(o.facts_json,'$.package.name')`,
+      [],
+    ),
+  );
+  const items = rows.map((row) => {
+    const facts = parseJson<JsonRecord>(row.facts_json, {});
+    const sources = parseJson<SourceSummary[]>(row.sources_json, []);
+    const curation =
+      row.has_curation === 1
+        ? {
+            ...(row.source_readme_hash ? { sourceReadmeHash: row.source_readme_hash } : {}),
+          }
+        : row.ready_locale_count >= 2
+          ? {}
+          : null;
+    return {
+      state: row.visibility === "hidden" ? "hidden" : row.state,
+      visibility: row.visibility,
+      needs: needsFor(
+        facts,
+        sources,
+        curation,
+        row.identity_conflict === 1 ? ["identity-conflict"] : [],
+      ),
+      sources,
+    };
+  });
   const submissions = await binding.get<{ count: number }>(
     parameterizedSql("select count(*) count from plugin_submissions where status='queued'", []),
   );
