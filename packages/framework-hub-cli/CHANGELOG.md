@@ -1,5 +1,11 @@
 # @becomeopc/dshx-hub-cli
 
+## 0.1.2-preview.0
+
+### Patch Changes
+
+- 4c2a7f5: Replace the Preview catalog workflow commands with stateless Hub operations, public GitHub and npm source inspection, observation upserts, revisioned curation, explicit visibility, submissions, media, audit, stable envelopes, and partial-failure exit codes.
+
 ## 0.1.1
 
 ### Patch Changes
