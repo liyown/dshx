@@ -1127,7 +1127,7 @@ async function main() {
       const secondConversation = await browser.waitForConversation(2, 'conversation-v1')
       verifyConversationNodes(secondConversation, [firstCommand.commandId, secondCommand.commandId])
       const settingsRevision = await verifySettingsLifecycle(fullDev.webUrl())
-      const hmr = fullDev.waitForOutput('client rebuilt')
+      const hmr = fullDev.waitForOutput('Client rebuilt')
       const clientFile = join(projects.fullA, 'src/client.tsx')
       const clientSource = await readFile(clientFile, 'utf8')
       if (!clientSource.includes('dshx:bg-slate-950')) throw new Error('Tailwind HMR fixture class is missing')
@@ -1158,7 +1158,7 @@ async function main() {
       await verifySettingsAfterRestart(fullDev.webUrl(), settingsRevision)
       const afterHostRestartStyle = await browser.assertOwnedStyle()
       if (afterHostRestartStyle.ownedStyles !== 1) throw new Error(`Host restart left stale owned styles: ${JSON.stringify(afterHostRestartStyle)}`)
-      const uiRebuilt = fullDev.waitForOutput('client rebuilt')
+      const uiRebuilt = fullDev.waitForOutput('Client rebuilt')
       void uiRebuilt.catch(() => undefined)
       const uiScaffold = await expectSuccess(
         'pnpm',
