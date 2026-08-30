@@ -1,6 +1,6 @@
 {
   "name": "@becomeopc/dshx-hub-cli",
-  "version": "0.1.2-preview.0",
+  "version": "0.1.2-preview.1",
   "description": "Stateless atomic operations and public source inspection for DSHX Hub.",
   "keywords": [
     "deepseek",

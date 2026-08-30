@@ -1,5 +1,11 @@
 # @becomeopc/dshx-hub-cli
 
+## 0.1.2-preview.1
+
+### Patch Changes
+
+- a148391: Reject removed workflow command groups before parsing their legacy options so saved commands receive the stable `deprecated_command` repair response without making a Hub request.
+
 ## 0.1.2-preview.0
 
 ### Patch Changes
