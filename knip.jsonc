@@ -9,7 +9,7 @@
     "catalog",
     "catalogReferences",
   ],
-  "ignoreBinaries": ["dshx"],
+  "ignoreBinaries": ["dsh", "dshx", "wrangler"],
   "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
   "workspaces": {
     "packages/dshx": {
