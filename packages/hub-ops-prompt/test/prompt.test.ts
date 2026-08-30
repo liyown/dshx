@@ -15,7 +15,7 @@ import {
 describe("daily operations v1 contract", () => {
   it("exports a deterministic versioned prompt", () => {
     const first = loadDailyOperationsPrompt();
-    expect(dailyOperationsPromptVersion).toBe(4);
+    expect(dailyOperationsPromptVersion).toBe(5);
     expect(first).toBe(loadDailyOperationsPrompt());
     expect(first).toContain("daily operations Agent for DSHX Hub");
     expect(first).toContain("exact original README");
@@ -34,6 +34,8 @@ describe("daily operations v1 contract", () => {
     expect(
       dailyOperationsCommandContract.map(({ command }) => command),
     ).toEqual([
+      "auth status",
+      "status",
       "source discover",
       "source inspect",
       "plugin list",
@@ -52,6 +54,32 @@ describe("daily operations v1 contract", () => {
     for (const contract of dailyOperationsCommandContract) {
       expect(prompt).toContain(contract.usage);
     }
+  });
+
+  it("rejects removed workflow groups even when preserved runner state names them", () => {
+    const prompt = loadDailyOperationsPrompt();
+    for (const group of [
+      "contract",
+      "catalog",
+      "maintenance",
+      "sync",
+      "targets",
+      "metrics",
+      "approvals",
+      "moderation",
+      "users",
+    ]) {
+      expect(prompt).toContain(group);
+      expect(dailyOperationsCommandContract).not.toContainEqual(
+        expect.objectContaining({
+          command: expect.stringMatching(`^${group}`),
+        }),
+      );
+    }
+    expect(prompt).toContain("has no open Sync run to resume or replace");
+    expect(prompt).not.toContain("contract show --kind catalog");
+    expect(prompt).not.toContain("maintenance audit --scope daily");
+    expect(prompt).not.toContain("sync resume");
   });
 
   it("keeps the bounded-run and failure policy explicit", () => {

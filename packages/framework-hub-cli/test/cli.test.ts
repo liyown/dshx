@@ -69,15 +69,30 @@ describe("CLI dispatcher and help", () => {
     );
   });
 
-  it("returns a deprecated-only error for removed workflows", async () => {
-    const io = streams();
-    expect(await runCli(["sync", "start"], io.streams)).toBe(1);
-    expect(io.stdout).toEqual([]);
-    expect(JSON.parse(io.stderr.join(""))).toMatchObject({
-      ok: false,
-      error: { code: "deprecated_command", retryable: false },
-      meta: { requestId: expect.any(String) },
-    });
+  it("rejects every removed workflow before making a Hub request", async () => {
+    const request = vi.fn();
+    globalThis.fetch = request;
+    for (const argv of [
+      ["sync", "start"],
+      ["catalog", "inventory"],
+      ["targets", "submit"],
+      ["metrics", "submit"],
+      ["maintenance", "audit"],
+      ["approvals", "list"],
+      ["moderation", "queue"],
+      ["users", "list"],
+      ["contract", "show"],
+    ]) {
+      const io = streams();
+      expect(await runCli(argv, io.streams)).toBe(1);
+      expect(io.stdout).toEqual([]);
+      expect(JSON.parse(io.stderr.join(""))).toMatchObject({
+        ok: false,
+        error: { code: "deprecated_command", retryable: false },
+        meta: { requestId: expect.any(String) },
+      });
+    }
+    expect(request).not.toHaveBeenCalled();
   });
 
   it("accepts stdin batches and exits 2 when only some items are rejected", async () => {

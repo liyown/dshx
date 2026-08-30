@@ -16,7 +16,7 @@ import {
 } from "@becomeopc/dshx-hub-ops-prompt";
 ```
 
-- `loadDailyOperationsPrompt()` returns the deterministic v4 prompt used for a complete daily run.
+- `loadDailyOperationsPrompt()` returns the deterministic v5 prompt used for a complete daily run.
 - `dailyOperationsPolicy` records limits, lifecycle and admission rules, provenance constraints, and failure behavior.
 - `dailyDiscoveryQueries` contains the versioned GitHub and npm query matrix.
 - `dailyReportTemplate` defines the immutable bilingual plain-text report shape and fixed sections.
@@ -28,12 +28,15 @@ The package also exports `dailyOperationsPromptVersion`, `dailyOperationsCommand
 
 The prompt executes the following bounded sequence:
 
-1. Process queued submissions, storing the original README and public publisher profile before completing sourced bilingual curation.
-2. Repair existing plugins that still need an original README, public publisher/avatar, exact installation target, or sourced bilingual content.
-3. Refresh stale existing plugin observations when no completeness backlog remains.
-4. Discover public GitHub and npm sources from the previous report boundary with a 72-hour overlap only when higher-priority work leaves batch capacity.
-5. Read catalog, storage, and community audit findings.
-6. Publish one immutable English/Chinese report.
+1. Validate the stored authentication, read aggregate Hub status, and load the latest immutable report.
+2. Process queued submissions, storing the original README and public publisher profile before completing sourced bilingual curation.
+3. Repair existing plugins that still need an original README, public publisher/avatar, exact installation target, or sourced bilingual content.
+4. Refresh stale existing plugin observations when no completeness backlog remains.
+5. Discover public GitHub and npm sources from the previous report boundary with a 72-hour overlap only when higher-priority work leaves batch capacity.
+6. Read catalog, storage, and community audit findings.
+7. Publish one immutable English/Chinese report.
+
+The exported atomic command contract is authoritative. External runners and Skills must not prepend legacy `contract`, `catalog`, `maintenance`, `sync`, `targets`, `metrics`, `approvals`, `moderation`, or `users` workflows. The atomic protocol has no open Sync run to recover.
 
 A run processes 5 to 10 canonical items when enough eligible work exists and stops starting new work after 90 minutes or 10 items. It begins with 5 items and expands toward 10 only when completed quality gates and remaining time allow another item to finish fully. One item may be retried once. Independent source failures are skipped and produce a `partial` report while the Hub remains available; Hub authentication failure or unavailability stops the run.
 

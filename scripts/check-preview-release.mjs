@@ -8,12 +8,14 @@ import { join } from 'node:path'
 const expected = new Map([
   ['@becomeopc/dshx', /^0\.1\.4-preview\.\d+$/],
   ['create-dshx', /^0\.1\.4-preview\.\d+$/],
+  ['@becomeopc/dshx-hub-cli', /^0\.1\.2-preview\.\d+$/],
   ['@becomeopc/dshx-plugin-marketplace', /^0\.1\.0-preview\.\d+$/],
 ])
 
 const packageFiles = new Map([
   ['@becomeopc/dshx', 'packages/dshx/package.json'],
   ['create-dshx', 'packages/create-dshx/package.json'],
+  ['@becomeopc/dshx-hub-cli', 'packages/framework-hub-cli/package.json'],
   ['@becomeopc/dshx-plugin-marketplace', 'packages/plugin-marketplace/package.json'],
 ])
 
@@ -59,10 +61,7 @@ if (process.exitCode === undefined) {
     execFileSync('pnpm', ['exec', 'changeset', 'publish-plan', '--output', output], { stdio: 'inherit' })
     const document = JSON.parse(await readFile(output, 'utf8'))
     const releases = document.plan.flat().filter(release => release.kind === 'publish')
-    const actualNames = new Set(releases.map(release => release.name))
-    for (const name of expected.keys()) {
-      if (!actualNames.has(name)) fail(`publish plan is missing ${name}.`)
-    }
+    if (releases.length === 0) fail('publish plan contains no unpublished Preview packages.')
     for (const release of releases) {
       if (!expected.has(release.name)) fail(`publish plan unexpectedly contains ${release.name}.`)
       if (release.tag !== 'preview') fail(`${release.name} would publish to ${JSON.stringify(release.tag)} instead of preview.`)

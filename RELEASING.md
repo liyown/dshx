@@ -1,6 +1,6 @@
 # Releasing
 
-The first usable DSHX line is published as a Changesets prerelease through the npm `preview` tag. Planned first versions are `@becomeopc/dshx` and `create-dshx` `0.1.4-preview.0`, plus `@becomeopc/dshx-plugin-marketplace` `0.1.0-preview.0`. The existing npm `latest` channel remains unchanged.
+The first usable DSHX line is published as a Changesets prerelease through the npm `preview` tag. Planned first versions are `@becomeopc/dshx` and `create-dshx` `0.1.4-preview.0`, `@becomeopc/dshx-hub-cli` `0.1.2-preview.0`, and `@becomeopc/dshx-plugin-marketplace` `0.1.0-preview.0`. The existing npm `latest` channel remains unchanged.
 
 Do not version or publish directly from this summary. Follow the complete [Preview release runbook](docs/releasing.md): finalize changesets, enter Changesets pre mode, run the full package/Hub/real-DSH gates, inspect `publish-plan`, publish locally with npm 2FA, promote the exact marketplace catalog target, and then run the required published-Hub smoke.
 

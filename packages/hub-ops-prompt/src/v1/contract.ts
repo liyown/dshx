@@ -1,8 +1,18 @@
 import type { OperationsCommandContract } from "../contracts.js";
 
-export const dailyOperationsPromptVersion = 4 as const;
+export const dailyOperationsPromptVersion = 5 as const;
 
 export const dailyOperationsCommandContract = [
+  {
+    command: "auth status",
+    usage: "dshx-hub auth status",
+    access: "hub-read",
+  },
+  {
+    command: "status",
+    usage: "dshx-hub status",
+    access: "hub-read",
+  },
   {
     command: "source discover",
     usage:
