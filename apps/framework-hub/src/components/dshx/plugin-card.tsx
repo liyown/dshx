@@ -5,6 +5,7 @@ import { Chip } from "./primitives";
 import { cn } from "@/lib/utils";
 import { localizedPath } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
+import { PluginNavigationLink, pluginTransitionStyle } from "./plugin-navigation";
 
 function formatMetric(value: number | null): string {
   return value === null ? "—" : String(value);
@@ -27,6 +28,7 @@ export function PluginGlyph({
 }) {
   return (
     <Avatar
+      data-plugin-transition-part="glyph"
       className="relative shrink-0 rounded-[9px] border border-border bg-surface-2 font-mono font-medium text-foreground"
       style={{ width: size, height: size, fontSize: size * 0.4 }}
     >
@@ -88,22 +90,28 @@ export function PublisherIdentity({
 }
 
 export function PluginCard({ plugin }: { plugin: Plugin }) {
-  const { locale } = useI18n();
   return (
     <article
       data-scroll-surface
+      data-plugin-card
+      style={pluginTransitionStyle(plugin.slug)}
       className="group relative flex flex-col gap-3.5 rounded-xl border border-border bg-surface p-4 transition-colors duration-150 hover:border-border-strong hover:bg-surface-2/60 focus-within:border-border-strong"
     >
-      <Link
-        to={localizedPath(locale, "/plugins/" + plugin.slug)}
-        aria-label={plugin.name}
+      <PluginNavigationLink
+        slug={plugin.slug}
+        name={plugin.name}
         className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       />
       <div className="pointer-events-none relative z-10 flex items-start gap-3">
         <PluginGlyph plugin={plugin} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[14.5px] font-medium">{plugin.name}</span>
+            <span
+              data-plugin-transition-part="title"
+              className="truncate text-[14.5px] font-medium"
+            >
+              {plugin.name}
+            </span>
             <BadgeTag badge={plugin.badge} />
           </div>
           <div className="truncate font-mono text-[11.5px] text-muted-foreground">
@@ -135,15 +143,16 @@ export function PluginCard({ plugin }: { plugin: Plugin }) {
 }
 
 export function PluginRow({ plugin }: { plugin: Plugin }) {
-  const { locale } = useI18n();
   return (
     <article
       data-scroll-surface
+      data-plugin-card
+      style={pluginTransitionStyle(plugin.slug)}
       className="group relative flex items-center gap-4 border-b border-border px-3 py-3.5 transition-colors last:border-b-0 hover:bg-surface-2/60 focus-within:bg-surface-2/60"
     >
-      <Link
-        to={localizedPath(locale, "/plugins/" + plugin.slug)}
-        aria-label={plugin.name}
+      <PluginNavigationLink
+        slug={plugin.slug}
+        name={plugin.name}
         className="absolute inset-0 z-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       />
       <div className="pointer-events-none relative z-10">
@@ -151,7 +160,9 @@ export function PluginRow({ plugin }: { plugin: Plugin }) {
       </div>
       <div className="pointer-events-none relative z-10 min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-[13.5px] font-medium">{plugin.name}</span>
+          <span data-plugin-transition-part="title" className="text-[13.5px] font-medium">
+            {plugin.name}
+          </span>
           <span className="font-mono text-[11px] text-muted-foreground">{plugin.scope}</span>
           <BadgeTag badge={plugin.badge} />
         </div>

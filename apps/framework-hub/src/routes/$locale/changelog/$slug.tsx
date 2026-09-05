@@ -40,7 +40,7 @@ function ChangelogNotFound() {
   const { locale } = useI18n();
   const copy = changelogCopy[locale];
   return (
-    <main className="bg-background/95">
+    <main>
       <Container className="py-24 md:py-32">
         <p className="font-mono text-sm text-accent">404</p>
         <h1 className="mt-4 text-3xl font-medium tracking-tight">{copy.notFound}</h1>
@@ -67,7 +67,7 @@ function ChangelogArticlePage() {
   const article = entry.copy[locale];
 
   return (
-    <main className="bg-background/95">
+    <main>
       <Container className="py-10 md:py-16">
         <nav aria-label={copy.title}>
           <Link

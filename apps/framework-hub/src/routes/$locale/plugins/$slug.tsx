@@ -6,6 +6,7 @@ import { Container, Chip, ButtonLink, SectionLabel } from "@/components/dshx/pri
 import { PluginCommunityActions } from "@/components/community/plugin-actions";
 import { ReplyDialog, ReportDialog } from "@/components/community/community-dialogs";
 import { PluginGlyph, PublisherIdentity } from "@/components/dshx/plugin-card";
+import { PluginNavigationLink, pluginTransitionStyle } from "@/components/dshx/plugin-navigation";
 import { loadCatalogDetail } from "@/lib/catalog/functions";
 import { buildPluginInstallCommand, selectInstallTarget } from "@/lib/catalog/install-target";
 import { cn } from "@/lib/utils";
@@ -178,12 +179,19 @@ function PluginDetail() {
           {t("plugin.back")}
         </Link>
 
-        <div className="mt-8 flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-          <div className="flex gap-5">
+        <div
+          data-plugin-detail
+          style={pluginTransitionStyle(plugin.slug)}
+          className="mt-8 flex flex-col gap-6 md:flex-row md:items-start md:justify-between"
+        >
+          <div className="flex min-w-0 gap-5">
             <PluginGlyph plugin={plugin} size={64} priority />
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-[28px] leading-tight font-medium tracking-[-0.03em]">
+                <h1
+                  data-plugin-transition-part="title"
+                  className="break-words text-[28px] leading-tight font-medium tracking-[-0.03em]"
+                >
                   {plugin.name}
                 </h1>
                 <Chip tone={plugin.badge === "official" ? "accent" : "neutral"}>
@@ -304,14 +312,28 @@ function PluginDetail() {
           <SectionLabel index="→">{t("plugin.related")}</SectionLabel>
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             {related.map((p) => (
-              <Link
+              <div
                 key={p.slug}
-                to={localizedPath(locale, "/plugins/" + p.slug)}
-                className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-border-strong"
+                data-plugin-card
+                style={pluginTransitionStyle(p.slug)}
+                className="relative rounded-xl border border-border bg-surface transition-colors hover:border-border-strong"
               >
-                <div className="text-[14px] font-medium">{p.name}</div>
-                <div className="mt-1 font-mono text-[11.5px] text-muted-foreground">{p.scope}</div>
-              </Link>
+                <PluginNavigationLink
+                  slug={p.slug}
+                  name={p.name}
+                  className="block rounded-xl p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <div
+                    data-plugin-transition-part="title"
+                    className="w-fit text-[14px] font-medium"
+                  >
+                    {p.name}
+                  </div>
+                  <div className="mt-1 font-mono text-[11.5px] text-muted-foreground">
+                    {p.scope}
+                  </div>
+                </PluginNavigationLink>
+              </div>
             ))}
           </div>
         </div>

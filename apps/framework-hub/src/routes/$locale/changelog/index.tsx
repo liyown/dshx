@@ -21,7 +21,7 @@ function ChangelogPage() {
   const changelogEntries = Route.useLoaderData();
 
   return (
-    <main className="bg-background/95">
+    <main>
       <Container className="py-16 md:py-24">
         <PublicPageHeader
           eyebrow={copy.eyebrow}

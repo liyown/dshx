@@ -28,6 +28,105 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* The clicked card and the server-rendered detail header share snapshots.
+   Unselected cards stay unnamed, even when the same plugin appears twice. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-plugin-transition-source],
+  [data-plugin-detail] {
+    view-transition-name: var(--plugin-transition-surface);
+    view-transition-class: plugin-surface;
+  }
+
+  :is([data-plugin-transition-source], [data-plugin-detail]) [data-plugin-transition-part="glyph"] {
+    view-transition-name: var(--plugin-transition-glyph);
+    view-transition-class: plugin-identity;
+  }
+
+  :is([data-plugin-transition-source], [data-plugin-detail]) [data-plugin-transition-part="title"] {
+    view-transition-name: var(--plugin-transition-title);
+    view-transition-class: plugin-identity;
+  }
+
+  ::view-transition-group(.plugin-surface),
+  ::view-transition-group(.plugin-identity) {
+    animation-duration: 420ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  html:active-view-transition-type(plugin-open)::view-transition-old(root) {
+    animation: plugin-view-out 160ms ease-out both;
+  }
+
+  html:active-view-transition-type(plugin-open)::view-transition-new(root) {
+    animation: plugin-view-in 240ms 80ms ease-out both;
+  }
+
+  ::view-transition-group(.plugin-surface) {
+    overflow: clip;
+    border-radius: 12px;
+  }
+
+  ::view-transition-old(.plugin-surface) {
+    animation: plugin-view-out 140ms ease-out both;
+  }
+
+  ::view-transition-new(.plugin-surface) {
+    animation: plugin-view-in 280ms 60ms ease-out both;
+  }
+
+  ::view-transition-group(.plugin-identity) {
+    z-index: 1;
+  }
+}
+
+@keyframes plugin-view-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes plugin-view-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.plugin-navigation-link[aria-busy="true"] {
+  z-index: 20;
+  cursor: progress;
+}
+
+.plugin-navigation-status {
+  position: absolute;
+  z-index: 20;
+  bottom: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 11px;
+  line-height: 16px;
+  pointer-events: none;
+  animation: plugin-view-in 120ms 120ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:active-view-transition-type(plugin-open)::view-transition-group(*),
+  html:active-view-transition-type(plugin-open)::view-transition-old(*),
+  html:active-view-transition-type(plugin-open)::view-transition-new(*) {
+    animation: none !important;
+  }
+
+  .plugin-navigation-status {
+    animation: none;
+  }
+}
+
 /*
  * DSHX design system.
  * Light editorial base, dark technical surfaces, indigo/violet accent.
