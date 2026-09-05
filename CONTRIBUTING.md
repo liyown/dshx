@@ -8,16 +8,16 @@ Use Node `^22.19.0` or `>=24` and pnpm `10.34.5`.
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm lint
-pnpm format:check
-pnpm deps:check
-pnpm audit:prod
-pnpm check:all
+pnpm check:ci
 ```
+
+Pushes and pull requests run one Ubuntu / Node 24 job with formatting, lint, dependency checks, type checks, and package tests. Core is built once to supply the workspace declarations needed by Marketplace checks.
+
+Run `pnpm check:all` locally before a release. The **Full CI** workflow is available through GitHub's manual **Run workflow** action for package archives, real DSH and browser scenarios, both Node versions, and native modules across operating systems.
 
 Use maintained ecosystem packages for generic infrastructure when they meet the repository's Node.js, ESM, security, and testability constraints. Keep custom code for DSH-specific product contracts rather than recreating the runtime. Read the [dependency policy](docs/dependency-policy.md) before adding a new helper or package.
 
-Hub-only work can use `pnpm hub:check`. The Cloudflare preview uses a development-only database outside `.output`:
+Hub-only work can use `pnpm --filter @becomeopc/dshx build && pnpm hub:check`. The Cloudflare preview uses a development-only database outside `.output`:
 
 ```bash
 pnpm --filter @becomeopc/dshx-framework-hub cf:preview

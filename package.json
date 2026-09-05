@@ -15,6 +15,7 @@
     "audit:prod": "pnpm audit --prod --audit-level high",
     "version:check": "node scripts/check-version-policy.mjs",
     "check": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm --filter create-dshx typecheck && pnpm --filter create-dshx test && pnpm --filter create-dshx build && pnpm --filter @becomeopc/dshx-plugin-marketplace typecheck && pnpm --filter @becomeopc/dshx-plugin-marketplace test && pnpm --filter @becomeopc/dshx-plugin-marketplace check",
+    "check:ci": "pnpm run version:check && pnpm run lint && pnpm run format:check && pnpm run deps:check && pnpm run audit:prod && pnpm --filter @becomeopc/dshx-hub-ops-prompt lint && pnpm --filter @becomeopc/dshx build && pnpm -r --filter './packages/**' --filter './apps/**' typecheck && pnpm -r --filter './packages/**' --filter './apps/**' test",
     "check:all": "pnpm run version:check && pnpm run lint && pnpm run format:check && pnpm run deps:check && pnpm run audit:prod && pnpm run check && pnpm run hub:check && pnpm run smoke:packages && pnpm run smoke:dsh && pnpm run smoke:marketplace",
     "changeset": "changeset",
     "version-packages": "changeset version",
