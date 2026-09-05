@@ -1,40 +1,56 @@
 export const dailyOperationsPolicy = {
   schemaVersion: 1,
-  runLimits: {
-    maximumDurationMinutes: 90,
-    minimumProcessedItemsWhenAvailable: 5,
-    maximumProcessedItems: 10,
-    maximumRetriesPerItem: 1,
+  operatingMandate: {
+    role: "DSHX Hub's responsible operator and editor",
+    objective:
+      "Make the website useful, accurate, and fresh through active research, new plugin discovery and admission, and improvements to existing entries.",
+    autonomousDecisions: [
+      "topics worth investigating",
+      "search sources, queries, and time windows",
+      "priorities and the mix of new and existing plugins",
+      "workload and depth of investigation",
+      "when to change direction or finish useful work",
+    ],
+    proactiveDiscovery: true,
+    waitForSubmissions: false,
+    fixedItemQuota: false,
+    requiredBusinessSequence: false,
   },
-  discovery: {
-    providers: ["github", "npm"],
-    lookbackHours: 72,
+  research: {
+    sources: [
+      "public web search",
+      "public web pages",
+      "GitHub",
+      "npm",
+      "official documentation",
+      "public community leads",
+    ],
+    queryExamplesAreExclusive: false,
+    searchWindow: "Chosen by the Agent for the question being investigated.",
+    emptySearch:
+      "An empty query is evidence about that query only; adapt terms, sources, or the time window when further research is useful.",
     publicDataOnly: true,
     installOrExecuteThirdPartyCode: false,
-    firstRunFallbackHours: 72,
     deduplicateBy: {
       github:
-        "canonical repository identity: repository ID, with lower-cased owner/name as the fallback",
+        "canonical repository ID plus subdirectory; use lower-cased owner/name plus subdirectory only when no repository ID is available, never to override a known ID conflict",
       npm: "canonical lower-cased package name",
     },
   },
-  workflow: [
-    "submissions",
-    "catalog-completeness",
-    "catalog-refresh",
-    "discovery",
-    "audit",
-    "report-publish",
-  ],
-  workAllocation: {
-    completenessItemsBeforeDiscovery: 10,
-    maximumDiscoveryItemsWhileCompletenessBacklogExists: 0,
-    completenessNeeds: ["readme", "publisher", "target", "content"],
-    qualityFirst:
-      "Finish each selected item through source inspection, fact upsert, bilingual curation, and final needs verification before using another item slot.",
+  runLease: {
+    stopStartingAfterMinutes: 50,
+    expiresAfterMinutes: 60,
+    checkpointExtendsDeadline: false,
+    scope: "One operating machine using the same persistent state directory.",
   },
-  itemAccounting:
-    "Count each canonical submission, discovered identity, refreshed plugin, and acted-on audit finding once, regardless of command count or duplicate query hits.",
+  toolUse: {
+    publicResearch:
+      "Use available web search and browsing tools; the CLI command reference does not restrict public research tools.",
+    hubOperations:
+      "Use the configured CLI for structured Hub reads, writes, source inspection, and durable run receipts.",
+    runIdRequiredOnHubWrites: true,
+    confirmWrittenResources: true,
+  },
   pluginAdmission: {
     lifecycle: ["draft", "published", "hidden"],
     migration: {
@@ -122,22 +138,27 @@ export const dailyOperationsPolicy = {
     confirmInferredNpmTargetWithRegistryInspection: true,
   },
   failureHandling: {
-    retryItemAtMostOnce: true,
-    sourceFailure: "retry once, then skip and record it in the report",
-    authenticationFailure: "stop the run immediately",
-    hubUnavailable: "stop the run immediately",
+    retryOnlyWhenRetryable: true,
+    retryBudget: "Respect service backoff and the remaining run lease.",
+    sourceFailure:
+      "Record the unresolved item and choose useful independent work or another research direction. A skipped item does not end the run.",
+    authenticationFailure: "stop Hub writes and record the access blocker",
+    hubUnavailable: "stop Hub writes and preserve uncertain receipts",
     publishPartialWhenHubReachable: true,
     partialTriggers: [
-      "a source or item remains skipped after its retry",
-      "the 90 minute limit is reached",
-      "a selected item remains incomplete",
-      "audit or report publication remains incomplete",
+      "work the Agent undertook remains incomplete or unconfirmed",
+      "a material blocker prevents the intended result",
     ],
+    partialMeaning:
+      "A final outcome describing unfinished work, not an instruction to stop at the first difficulty.",
   },
   report: {
     maximumCharactersPerLocale: 10_000,
     format: "plain-text",
     languages: ["en", "zh"],
+    requiredSections: false,
+    scope:
+      "Describe the priorities, evidence, confirmed changes, useful findings, and material unfinished work that actually matter for this run.",
     forbiddenContent: [
       "tokens or credentials",
       "email addresses",

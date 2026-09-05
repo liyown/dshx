@@ -7,6 +7,67 @@ type HelpEntry = {
 };
 
 const commands: Record<string, HelpEntry> = {
+  capabilities: {
+    summary:
+      "Read machine-readable commands and input JSON Schemas from this CLI.",
+    usage: "dshx-hub capabilities [--output FILE]",
+    reads: "The executing package and its runtime input schemas.",
+    writes: "Nothing except an explicitly requested output file.",
+    recovery:
+      "Use this JSON directly; do not parse help text or TypeScript source.",
+  },
+  "ops prompt": {
+    summary: "Read the operations prompt shipped with this CLI.",
+    usage: "dshx-hub ops prompt [--output FILE]",
+    reads: "The bundled, version-matched operations prompt and policy.",
+    writes: "Nothing except an explicitly requested output file.",
+    recovery:
+      "Repair the package if its prompt is missing; do not search other checkouts.",
+  },
+  "ops preflight": {
+    summary: "Verify this package and catalog access with one bounded read.",
+    usage: "dshx-hub ops preflight [--expect-cli-version VERSION] [--hub URL]",
+    reads: "Executing package metadata and the Hub credential endpoint.",
+    writes: "Nothing. Credential values and token prefixes are omitted.",
+    recovery:
+      "Use the error code to distinguish missing credentials, edge challenges, access denial, and timeout.",
+  },
+  "ops begin": {
+    summary: "Claim one local operations run and verify Hub access.",
+    usage: "dshx-hub ops begin [--expect-cli-version VERSION] [--hub URL]",
+    reads:
+      "The bundled prompt, local run state, package metadata, and Hub credential endpoint.",
+    writes:
+      "Private local run state only, in DSHX_HUB_OPS_STATE_DIR. No Hub writes.",
+    recovery:
+      "An active run blocks overlap. Expired runs return preserved checkpoints for reconciliation; failed preflight is recorded locally.",
+  },
+  "ops status": {
+    summary: "Read local active and prior runs without contacting the Hub.",
+    usage: "dshx-hub ops status [--hub URL]",
+    reads: "Private state under DSHX_HUB_OPS_STATE_DIR.",
+    writes: "Nothing.",
+    recovery:
+      "Use checkpoints as receipts; verify current Hub resources before recovering uncertain writes.",
+  },
+  "ops checkpoint": {
+    summary: "Persist the confirmed stage and identifiers for one item.",
+    usage: "dshx-hub ops checkpoint --run-id RUN_ID --input FILE|- [--hub URL]",
+    reads: "A checkpoint matching the JSON Schema in capabilities.",
+    writes: "Private local state owned by the matching active run.",
+    recovery:
+      "An expired or superseded run cannot checkpoint. Never store credentials or raw source payloads.",
+  },
+  "ops finish": {
+    summary: "Record the local run outcome and release its claim.",
+    usage:
+      "dshx-hub ops finish --run-id RUN_ID --outcome completed|partial|blocked [--hub URL]",
+    reads: "The matching active local run.",
+    writes:
+      "Local outcome and retained checkpoints only; no Hub report is published.",
+    recovery:
+      "Confirm the Hub report before using completed or partial; use blocked when protected access or report confirmation is unavailable.",
+  },
   "auth login": {
     summary:
       "Authorize this machine and store the revocable Hub token in the system keyring.",
@@ -187,10 +248,11 @@ const groups: Record<string, string[]> = {
   plugin: ["list", "get", "upsert", "curate", "hide", "restore"],
   submission: ["list", "get", "resolve"],
   media: ["upload"],
+  ops: ["prompt", "preflight", "begin", "status", "checkpoint", "finish"],
 };
 
 function commandHelp(entry: HelpEntry) {
-  return `${entry.summary}\n\nUsage:\n  ${entry.usage}\n\nReads:\n  ${entry.reads}\n\nWrites:\n  ${entry.writes}\n\nRecovery:\n  ${entry.recovery}\n`;
+  return `${entry.summary}\n\nUsage:\n  ${entry.usage}\n\nReads:\n  ${entry.reads}\n\nWrites:\n  ${entry.writes}\n\nRecovery:\n  ${entry.recovery}\n\nUse capabilities for machine-readable options and input schemas. Scheduled Hub writes accept --run-id RUN_ID to validate the local run before sending.\n`;
 }
 
 export function helpText(path: string[] = []) {
@@ -202,5 +264,5 @@ export function helpText(path: string[] = []) {
       (name) => `  ${name}`,
     ).join("\n")}\n\nUse dshx-hub ${group} <command> --help for details.\n`;
   }
-  return `dshx-hub — stateless atomic operations for DSHX Hub\n\nStart with status, query resources, inspect public sources, then compose only the writes you decide are needed. Every operation emits stable JSON and is independently retryable.\n\nCommands:\n  auth login|status|logout\n  status\n  source discover|inspect\n  plugin list|get|upsert|curate|hide|restore\n  submission list|get|resolve\n  report latest|publish\n  media upload\n  audit\n\nUse dshx-hub <group> <command> --help for details.\n`;
+  return `dshx-hub — atomic operations for DSHX Hub\n\nRead capabilities for input schemas. Scheduled operations use ops begin and the bundled ops prompt. Domain commands remain independently callable.\n\nCommands:\n  capabilities\n  ops prompt|preflight|begin|status|checkpoint|finish\n  auth login|status|logout\n  status\n  source discover|inspect\n  plugin list|get|upsert|curate|hide|restore\n  submission list|get|resolve\n  report latest|publish\n  media upload\n  audit\n\nUse dshx-hub <group> <command> --help for details.\n`;
 }

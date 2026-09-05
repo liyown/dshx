@@ -2,7 +2,7 @@
   "name": "@becomeopc/dshx-hub-ops-prompt",
   "version": "0.1.0",
   "private": true,
-  "description": "Versioned daily operations policy, discovery queries, report template, and Agent prompt for DSHX Hub.",
+  "description": "Versioned editorial mandate, research ideas, and tool contracts for the autonomous DSHX Hub operator.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -196,7 +196,7 @@ const metricFactsSchema = z
   })
   .strict();
 
-const pluginObservationBaseSchema = z
+export const pluginObservationBaseSchema = z
   .object({
     schemaVersion: z.literal(1),
     observationId: sha256Schema.optional(),

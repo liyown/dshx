@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { login, logout, status as authStatus } from "./auth.js";
+import { capabilities } from "./capabilities.js";
+import { commandShapes } from "./command-registry.js";
 import { CliError, normalizedError } from "./errors.js";
 import { helpText } from "./help.js";
 import { uploadMedia } from "./media.js";
@@ -27,6 +29,17 @@ import {
   type SuccessEnvelope,
 } from "./protocol.js";
 import { discoverSources, inspectSource } from "./source.js";
+import { preflight } from "./preflight.js";
+import { readOperationsPrompt } from "./ops-prompt.js";
+import { withOperationGuard } from "./operation-context.js";
+import {
+  assertOpsRun,
+  beginOpsRun,
+  checkpointOpsRun,
+  finishOpsRun,
+  opsCheckpointSchema,
+  readOpsState,
+} from "./ops-state.js";
 
 const options = {
   hub: { type: "string" },
@@ -52,6 +65,9 @@ const options = {
   provider: { type: "string" },
   query: { type: "string" },
   since: { type: "string" },
+  "expect-cli-version": { type: "string" },
+  "run-id": { type: "string" },
+  outcome: { type: "string" },
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "V" },
 } as const;
@@ -234,7 +250,17 @@ function normalizedHub(values: Record<string, unknown>): string {
         "Use HTTPS in production or HTTP for a trusted local preview.",
       path: "--hub",
     });
-  return url.toString().replace(/\/$/, "");
+  if (url.username || url.password || url.search || url.hash)
+    throw new CliError({
+      code: "invalid_hub_url",
+      message:
+        "Hub URLs must not include credentials, query parameters, or fragments.",
+      retryable: false,
+      repairHint:
+        "Use the plain Hub base URL and the credential store for authentication.",
+      path: "--hub",
+    });
+  return url.origin;
 }
 
 const deprecatedCommandGroups = new Set([
@@ -247,6 +273,16 @@ const deprecatedCommandGroups = new Set([
   "moderation",
   "users",
   "contract",
+]);
+
+const guardedWrites = new Set([
+  "plugin upsert",
+  "plugin curate",
+  "plugin hide",
+  "plugin restore",
+  "submission resolve",
+  "report publish",
+  "media upload",
 ]);
 
 function deprecatedCommand(group: string): never {
@@ -276,58 +312,6 @@ function deprecatedCommand(group: string): never {
   });
 }
 
-const commandShapes: Record<string, { arity: number; options: string[] }> = {
-  "auth login": { arity: 2, options: ["hub", "output", "scopes"] },
-  "auth status": { arity: 2, options: ["hub", "output"] },
-  "auth logout": { arity: 2, options: ["hub", "output"] },
-  status: { arity: 1, options: ["hub", "output"] },
-  "source inspect": { arity: 3, options: ["output"] },
-  "source discover": {
-    arity: 2,
-    options: ["provider", "query", "since", "cursor", "limit", "output"],
-  },
-  "report latest": { arity: 2, options: ["hub", "output"] },
-  "report publish": { arity: 2, options: ["hub", "input", "output"] },
-  "plugin list": {
-    arity: 2,
-    options: [
-      "hub",
-      "output",
-      "state",
-      "needs",
-      "source",
-      "risk",
-      "observed-before",
-      "updated-before",
-      "limit",
-      "cursor",
-      "all",
-    ],
-  },
-  "plugin get": { arity: 3, options: ["hub", "output"] },
-  "plugin upsert": {
-    arity: 2,
-    options: ["hub", "input", "output", "dry-run"],
-  },
-  "plugin curate": {
-    arity: 3,
-    options: ["hub", "input", "output", "if-revision"],
-  },
-  "plugin hide": { arity: 3, options: ["hub", "output", "reason"] },
-  "plugin restore": { arity: 3, options: ["hub", "output", "reason"] },
-  "submission list": {
-    arity: 2,
-    options: ["hub", "output", "status", "limit", "cursor", "all"],
-  },
-  "submission get": { arity: 3, options: ["hub", "output"] },
-  "submission resolve": {
-    arity: 3,
-    options: ["hub", "output", "result", "plugin", "reason"],
-  },
-  "media upload": { arity: 3, options: ["hub", "input", "output"] },
-  audit: { arity: 1, options: ["hub", "output", "scope"] },
-};
-
 function validateCommandShape(
   positionals: string[],
   values: Record<string, unknown>,
@@ -335,7 +319,7 @@ function validateCommandShape(
   const group = positionals[0];
   if (!group) return;
   const key =
-    group === "status" || group === "audit"
+    group === "status" || group === "audit" || group === "capabilities"
       ? group
       : `${group} ${positionals[1] ?? ""}`;
   const shape = commandShapes[key];
@@ -372,7 +356,103 @@ async function execute(
   const hub = () => (cachedHub ??= normalizedHub(values));
   let envelope: SuccessEnvelope<unknown>;
 
-  if (group === "auth") {
+  const operation = `${group} ${command}`;
+  const runId = textOption(values, "run-id");
+  const activeRun =
+    runId && guardedWrites.has(operation)
+      ? await assertOpsRun(hub(), runId)
+      : undefined;
+
+  if (group === "capabilities")
+    envelope = successEnvelope(await capabilities());
+  else if (group === "ops") {
+    if (command === "prompt")
+      envelope = successEnvelope(await readOperationsPrompt());
+    else if (command === "preflight")
+      envelope = successEnvelope(
+        await preflight(hub(), textOption(values, "expect-cli-version")),
+      );
+    else if (command === "begin") {
+      await readOperationsPrompt();
+      const claim = await beginOpsRun(hub());
+      try {
+        const access = await preflight(
+          hub(),
+          textOption(values, "expect-cli-version"),
+        );
+        envelope = successEnvelope({ ...claim, preflight: access });
+      } catch (error) {
+        const failure = normalizedError(error);
+        let localStateError: string | undefined;
+        try {
+          await checkpointOpsRun(hub(), claim.run.runId, {
+            itemId: "preflight",
+            stage: "skipped",
+            errorCode: failure.error.code,
+            requestId: failure.requestId,
+          });
+        } catch (stateError) {
+          localStateError = normalizedError(stateError).error.code;
+        }
+        try {
+          await finishOpsRun(hub(), claim.run.runId, "blocked");
+        } catch (stateError) {
+          localStateError ??= normalizedError(stateError).error.code;
+        }
+        throw new CliError(
+          {
+            ...failure.error,
+            details: {
+              ...(!Array.isArray(failure.error.details)
+                ? failure.error.details
+                : { issues: failure.error.details }),
+              runId: claim.run.runId,
+              ...(localStateError ? { localStateError } : {}),
+            },
+          },
+          failure.requestId,
+        );
+      }
+    } else if (command === "status")
+      envelope = successEnvelope(await readOpsState(hub()));
+    else if (command === "checkpoint")
+      envelope = successEnvelope(
+        await checkpointOpsRun(
+          hub(),
+          requireTextOption(values, "run-id"),
+          opsCheckpointSchema.parse(
+            await readJsonInput(
+              requireTextOption(values, "input"),
+              streams.stdin,
+            ),
+          ),
+        ),
+      );
+    else if (command === "finish") {
+      const outcome = requireTextOption(values, "outcome");
+      if (
+        outcome !== "completed" &&
+        outcome !== "partial" &&
+        outcome !== "blocked"
+      )
+        throw new CliError({
+          code: "invalid_outcome",
+          message: "Outcome must be completed, partial, or blocked.",
+          retryable: false,
+          repairHint: "Use the actual run outcome.",
+          path: "--outcome",
+        });
+      envelope = successEnvelope(
+        await finishOpsRun(hub(), requireTextOption(values, "run-id"), outcome),
+      );
+    } else
+      throw new CliError({
+        code: "unknown_command",
+        message: `Unknown ops command: ${command ?? ""}.`,
+        retryable: false,
+        repairHint: "Inspect dshx-hub ops --help.",
+      });
+  } else if (group === "auth") {
     if (command === "login")
       envelope = successEnvelope(
         await login(
@@ -398,12 +478,31 @@ async function execute(
   } else if (group === "status") envelope = await hubStatus(hub());
   else if (group === "report") {
     if (command === "latest") envelope = await latestReport(hub());
-    else if (command === "publish")
-      envelope = await publishReport(
-        hub(),
-        await readJsonInput(requireTextOption(values, "input"), streams.stdin),
+    else if (command === "publish") {
+      const input = await readJsonInput(
+        requireTextOption(values, "input"),
+        streams.stdin,
       );
-    else
+      if (
+        runId &&
+        (!input ||
+          typeof input !== "object" ||
+          !("runId" in input) ||
+          input.runId !== runId ||
+          !("startedAt" in input) ||
+          input.startedAt !== activeRun?.startedAt)
+      )
+        throw new CliError({
+          code: "ops_report_run_mismatch",
+          message:
+            "The report must use the active operations run ID and start time.",
+          retryable: false,
+          repairHint:
+            "Use the runId and startedAt returned by ops begin in the report and the same --run-id.",
+          path: "runId",
+        });
+      envelope = await publishReport(hub(), input);
+    } else
       throw new CliError({
         code: "unknown_command",
         message: `Unknown report command: ${command ?? ""}.`,
@@ -612,7 +711,13 @@ export async function runCli(
       return 0;
     }
     validateCommandShape(positionals, values);
-    const result = await execute(positionals, values, streams);
+    const runId = textOption(values, "run-id");
+    const guarded =
+      runId && guardedWrites.has(`${positionals[0]} ${positionals[1]}`);
+    const result = await withOperationGuard(
+      guarded ? () => assertOpsRun(normalizedHub(values), runId) : undefined,
+      () => execute(positionals, values, streams),
+    );
     await writeJson(
       result.envelope,
       textOption(values, "output"),

@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { normalizedError } from "../src/errors.js";
+import { parsePluginObservation } from "../src/contracts.js";
+import { CliError, normalizedError } from "../src/errors.js";
+import * as keychain from "../src/keychain.js";
 import { setKeyringEntryFactoryForTests } from "../src/keychain.js";
+import { withOperationGuard } from "../src/operation-context.js";
 import {
   curatePlugin,
   exitCodeForSuccess,
-  hubStatus,
   latestReport,
   listPlugins,
   publishReport,
@@ -74,26 +76,6 @@ afterEach(() => {
 });
 
 describe("atomic Hub operations", () => {
-  it("bounds Hub requests and normalizes timeouts", async () => {
-    globalThis.fetch = vi.fn(async (_input, init) => {
-      expect(init?.signal).toBeInstanceOf(AbortSignal);
-      const error = new Error("The operation was aborted due to timeout");
-      error.name = "TimeoutError";
-      throw error;
-    });
-
-    const error = await hubStatus("https://hub.test").catch(
-      (caught: unknown) => caught,
-    );
-
-    expect(normalizedError(error)).toMatchObject({
-      error: {
-        code: "hub_request_timeout",
-        retryable: true,
-      },
-    });
-  });
-
   it("automatically makes repeated single upserts idempotent", async () => {
     const requests: Array<{ url: string; init?: RequestInit }> = [];
     globalThis.fetch = vi.fn(async (input, init) => {
@@ -218,6 +200,269 @@ describe("atomic Hub operations", () => {
       requestId: "request-1",
       requestIds: ["request-1", "request-2"],
     });
+  });
+
+  it("preserves completed chunks and separates uncertain writes from unattempted observations", async () => {
+    const observations = Array.from({ length: 201 }, (_, index) =>
+      parsePluginObservation(observation(`plugin-${index}`)),
+    );
+    const completed = observations.slice(0, 100).map((item, index) => ({
+      identity: `npm:plugin-${index}`,
+      observationId: item.observationId,
+      status: "created",
+    }));
+    let requests = 0;
+    globalThis.fetch = vi.fn(async () => {
+      requests += 1;
+      if (requests === 1)
+        return response(
+          { results: completed },
+          { requestId: "completed-chunk" },
+        );
+      // Headers arrived, but the response body failed. The request may have
+      // committed its writes before the connection was lost.
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(new Error("secret-transport-detail"));
+          },
+        }),
+        { headers: { "x-request-id": "uncertain-chunk" } },
+      );
+    });
+
+    const error = await upsertPlugins(
+      "https://hub.test",
+      observations,
+      false,
+    ).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(CliError);
+    expect(normalizedError(error)).toMatchObject({
+      requestId: "uncertain-chunk",
+      error: {
+        code: "hub_unreachable",
+        repairHint: expect.stringContaining("does not prove a write failed"),
+        details: {
+          batchProgress: {
+            completedResults: completed,
+            completedRequestIds: ["completed-chunk"],
+            uncertainObservationIds: observations
+              .slice(100, 200)
+              .map(({ observationId }) => observationId),
+            notAttemptedObservationIds: [observations[200]!.observationId],
+          },
+        },
+      },
+    });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(normalizedError(error))).not.toContain("secret");
+  });
+
+  it("marks a chunk as unattempted when local credentials fail before fetch", async () => {
+    const observations = Array.from({ length: 101 }, (_, index) =>
+      parsePluginObservation(observation(`plugin-${index}`)),
+    );
+    globalThis.fetch = vi.fn(async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as {
+        observations: Array<{ observationId: string }>;
+      };
+      setKeyringEntryFactoryForTests(() => ({
+        getPassword: () => null,
+        setPassword: () => undefined,
+        deletePassword: () => true,
+      }));
+      return response(
+        {
+          results: body.observations.map(({ observationId }) => ({
+            observationId,
+            status: "created",
+          })),
+        },
+        { requestId: "completed-chunk" },
+      );
+    });
+
+    const error = await upsertPlugins(
+      "https://hub.test",
+      observations,
+      false,
+    ).catch((caught: unknown) => caught);
+
+    expect(normalizedError(error)).toMatchObject({
+      error: {
+        code: "authentication_required",
+        retryable: false,
+        details: {
+          batchProgress: {
+            completedResults: expect.any(Array),
+            completedRequestIds: ["completed-chunk"],
+            uncertainObservationIds: [],
+            notAttemptedObservationIds: [observations[100]!.observationId],
+          },
+        },
+      },
+    });
+    expect(globalThis.fetch).toHaveBeenCalledOnce();
+  });
+
+  it("marks pending chunks as unattempted when the credential fallback cannot be read", async () => {
+    const observations = Array.from({ length: 201 }, (_, index) =>
+      parsePluginObservation(observation(`plugin-${index}`)),
+    );
+    const completed = observations.slice(0, 100).map(({ observationId }) => ({
+      observationId,
+      status: "created",
+    }));
+    vi.spyOn(keychain, "readToken")
+      .mockReturnValueOnce("fake-token")
+      .mockImplementationOnce(() => {
+        throw new CliError(
+          {
+            code: "credential_store_unavailable",
+            message: "The operations credential fallback cannot be read.",
+            retryable: true,
+            details: { operation: "reading the Hub token" },
+          },
+          "credential-read-request",
+        );
+      });
+    globalThis.fetch = vi.fn(async () =>
+      response({ results: completed }, { requestId: "completed-chunk" }),
+    );
+
+    const error = await upsertPlugins(
+      "https://hub.test",
+      observations,
+      false,
+    ).catch((caught: unknown) => caught);
+
+    expect(normalizedError(error)).toMatchObject({
+      requestId: "credential-read-request",
+      error: {
+        code: "credential_store_unavailable",
+        retryable: true,
+        details: {
+          operation: "reading the Hub token",
+          batchProgress: {
+            completedResults: completed,
+            completedRequestIds: ["completed-chunk"],
+            uncertainObservationIds: [],
+            notAttemptedObservationIds: observations
+              .slice(100)
+              .map(({ observationId }) => observationId),
+          },
+        },
+      },
+    });
+    expect(keychain.readToken).toHaveBeenCalledTimes(2);
+    expect(globalThis.fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each(["ops_run_expired", "ops_run_not_owner", "ops_state_invalid"])(
+    "does not send a later chunk when the operation guard rejects it with %s",
+    async (code) => {
+      const observations = Array.from({ length: 201 }, (_, index) =>
+        parsePluginObservation(observation(`plugin-${index}`)),
+      );
+      const completed = observations.slice(0, 100).map(({ observationId }) => ({
+        observationId,
+        status: "created",
+      }));
+      globalThis.fetch = vi.fn(async () =>
+        response({ results: completed }, { requestId: "completed-chunk" }),
+      );
+      let checks = 0;
+      const guard = vi.fn(async () => {
+        checks += 1;
+        if (checks === 2)
+          throw new CliError(
+            {
+              code,
+              message: "The operation run no longer permits writes.",
+              retryable: false,
+            },
+            "guard-request",
+          );
+      });
+
+      const error = await withOperationGuard(guard, () =>
+        upsertPlugins("https://hub.test", observations, false),
+      ).catch((caught: unknown) => caught);
+
+      expect(normalizedError(error)).toMatchObject({
+        requestId: "guard-request",
+        error: {
+          code,
+          retryable: false,
+          details: {
+            batchProgress: {
+              completedResults: completed,
+              completedRequestIds: ["completed-chunk"],
+              uncertainObservationIds: [],
+              notAttemptedObservationIds: observations
+                .slice(100)
+                .map(({ observationId }) => observationId),
+            },
+          },
+        },
+      });
+      expect(globalThis.fetch).toHaveBeenCalledOnce();
+      expect(guard).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("keeps prior progress when a later chunk returns an incomplete result list", async () => {
+    const observations = Array.from({ length: 101 }, (_, index) =>
+      parsePluginObservation(observation(`plugin-${index}`)),
+    );
+    let requests = 0;
+    globalThis.fetch = vi.fn(async (_input, init) => {
+      requests += 1;
+      const body = JSON.parse(String(init?.body)) as {
+        observations: Array<{ observationId: string }>;
+      };
+      return response(
+        {
+          results:
+            requests === 1
+              ? body.observations.map(({ observationId }) => ({
+                  observationId,
+                  status: "created",
+                }))
+              : [],
+        },
+        { requestId: `chunk-${requests}` },
+      );
+    });
+
+    const error = await upsertPlugins(
+      "https://hub.test",
+      observations,
+      false,
+    ).catch((caught: unknown) => caught);
+
+    expect(normalizedError(error)).toMatchObject({
+      requestId: "chunk-2",
+      error: {
+        code: "invalid_hub_response",
+        details: {
+          offset: 100,
+          submitted: 1,
+          received: 0,
+          batchProgress: {
+            completedRequestIds: ["chunk-1"],
+            uncertainObservationIds: [observations[100]!.observationId],
+            notAttemptedObservationIds: [],
+          },
+        },
+      },
+    });
+    const progress = (error as CliError).issue.details as {
+      batchProgress: { completedResults: unknown[] };
+    };
+    expect(progress.batchProgress.completedResults).toHaveLength(100);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 
   it("combines repeated filters and follows --all cursors only in the current call", async () => {

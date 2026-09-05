@@ -15,7 +15,8 @@ export type DailyDiscoveryQuery = {
 export type OperationsCommandContract = {
   readonly command: string;
   readonly usage: string;
-  readonly access: "public-read" | "hub-read" | "hub-write";
+  readonly access:
+    "public-read" | "hub-read" | "hub-write" | "local-read" | "local-write";
 };
 
 export type ReportSection = {
@@ -37,6 +38,7 @@ export type DailyOperationsScenario = {
   readonly id: string;
   readonly title: string;
   readonly given: readonly string[];
+  /** Relevant CLI operations for the example, not a required execution order. */
   readonly expectedCommands: readonly string[];
   readonly expectedOutcomes: readonly string[];
   readonly expectedReportStatus: "completed" | "partial" | "not-published";

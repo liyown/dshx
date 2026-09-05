@@ -1,4 +1,4 @@
-import { api } from "./api.js";
+import { api, ApiError } from "./api.js";
 import {
   curationContentSchema,
   operationReportInputSchema,
@@ -237,36 +237,92 @@ async function submitObservationBatch(
     offset += maximumObservationBatch
   ) {
     const chunk = observations.slice(offset, offset + maximumObservationBatch);
-    const envelope = await api<unknown>(hub, "/api/ops/v1/observations:batch", {
-      method: "POST",
-      body: JSON.stringify({ observations: chunk, dryRun }),
-    });
-    if (!offset && envelope.data && typeof envelope.data === "object")
-      firstData = envelope.data as Record<string, unknown>;
-    const chunkResults =
-      envelope.data &&
-      typeof envelope.data === "object" &&
-      Array.isArray((envelope.data as Record<string, unknown>)["results"])
-        ? ((envelope.data as Record<string, unknown>)["results"] as unknown[])
-        : [];
-    if (chunkResults.length !== chunk.length)
-      throw new CliError({
-        code: "invalid_hub_response",
-        message:
-          "The Hub batch result count did not match the submitted observations.",
-        retryable: true,
-        repairHint:
-          "Retry the batch; report the Hub response if the mismatch persists.",
-        details: {
-          offset,
-          submitted: chunk.length,
-          received: chunkResults.length,
-          requestId: envelope.meta.requestId,
+    try {
+      const envelope = await api<unknown>(
+        hub,
+        "/api/ops/v1/observations:batch",
+        {
+          method: "POST",
+          body: JSON.stringify({ observations: chunk, dryRun }),
         },
-      });
-    results.push(...chunkResults);
-    warnings.push(...envelope.warnings);
-    requestIds.push(...(envelope.meta.requestIds ?? [envelope.meta.requestId]));
+      );
+      if (!offset && envelope.data && typeof envelope.data === "object")
+        firstData = envelope.data as Record<string, unknown>;
+      const chunkResults =
+        envelope.data &&
+        typeof envelope.data === "object" &&
+        Array.isArray((envelope.data as Record<string, unknown>)["results"])
+          ? ((envelope.data as Record<string, unknown>)["results"] as unknown[])
+          : [];
+      if (chunkResults.length !== chunk.length)
+        throw new CliError(
+          {
+            code: "invalid_hub_response",
+            message:
+              "The Hub batch result count did not match the submitted observations.",
+            retryable: true,
+            repairHint:
+              "Inspect the submitted observation IDs and report the Hub response mismatch.",
+            details: {
+              offset,
+              submitted: chunk.length,
+              received: chunkResults.length,
+              requestId: envelope.meta.requestId,
+            },
+          },
+          envelope.meta.requestId,
+        );
+      results.push(...chunkResults);
+      warnings.push(...envelope.warnings);
+      requestIds.push(
+        ...(envelope.meta.requestIds ?? [envelope.meta.requestId]),
+      );
+    } catch (caught) {
+      const { error, requestId } = normalizedError(caught);
+      const notSent =
+        (caught instanceof ApiError &&
+          caught.status === 401 &&
+          caught.body === null &&
+          error.code === "authentication_required") ||
+        (caught instanceof CliError &&
+          (error.code === "keyring_unavailable" ||
+            error.code === "credential_store_unavailable" ||
+            error.code === "ops_run_expired" ||
+            error.code === "ops_run_not_owner" ||
+            error.code.startsWith("ops_state_")));
+      throw new CliError(
+        {
+          ...error,
+          repairHint: [
+            error.repairHint,
+            "Use batchProgress to resume without repeating completed chunks.",
+            ...(notSent
+              ? []
+              : [
+                  "An uncertain observation may already have been applied; a missing result does not prove a write failed. Verify its state or reuse the same observation ID before resubmitting.",
+                ]),
+          ]
+            .filter(Boolean)
+            .join(" "),
+          details: {
+            ...(Array.isArray(error.details)
+              ? { responseDetails: error.details }
+              : error.details),
+            batchProgress: {
+              completedResults: results,
+              completedRequestIds: [...new Set(requestIds)],
+              uncertainObservationIds: notSent
+                ? []
+                : chunk.map(({ observationId }) => observationId),
+              notAttemptedObservationIds: observations
+                .slice(notSent ? offset : offset + chunk.length)
+                .map(({ observationId }) => observationId),
+            },
+          },
+        },
+        requestId,
+      );
+    }
   }
   const uniqueRequestIds = [...new Set(requestIds)];
   return {

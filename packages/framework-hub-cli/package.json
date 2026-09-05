@@ -1,7 +1,7 @@
 {
   "name": "@becomeopc/dshx-hub-cli",
-  "version": "0.1.2-preview.4",
-  "description": "Stateless atomic operations and public source inspection for DSHX Hub.",
+  "version": "0.1.2-preview.5",
+  "description": "Atomic Hub operations, public source inspection, and durable local operations runs.",
   "keywords": [
     "deepseek",
     "deepseek-harness",
@@ -38,9 +38,10 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "pnpm --dir ../hub-ops-prompt build && tsc -p tsconfig.build.json && node scripts/bundle-ops-prompt.mjs",
     "prepack": "pnpm build",
     "lint": "prettier --check src test",
+    "smoke:package": "node scripts/smoke-ops-package.mjs",
     "test:keyring-load": "node test/keyring-load.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"

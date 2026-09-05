@@ -1,5 +1,6 @@
 import type { DailyDiscoveryQuery } from "../contracts.js";
 
+/** Optional starting points; the Agent chooses queries, sources, and windows. */
 export const dailyDiscoveryQueries = [
   {
     id: "github-dsh-bundle-patch",

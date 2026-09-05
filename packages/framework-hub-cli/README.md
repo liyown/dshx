@@ -1,6 +1,6 @@
 # @becomeopc/dshx-hub-cli
 
-Stateless, JSON-first operations client for the [DSHX Framework Hub](https://dshx.io). It gives Agents small domain operations they can inspect, combine, and retry independently while the Hub owns validation, merging, concurrency, visibility, and audit history.
+JSON-first operations client for the [DSHX Framework Hub](https://dshx.io). It gives Agents small domain operations they can inspect, combine, and retry independently. The Hub owns resource validation, merging, revisions, visibility, and audit history; the CLI provides fixed preflight checks and local run checkpoints for scheduled operations.
 
 ## Install
 
@@ -9,12 +9,20 @@ pnpm add -g @becomeopc/dshx-hub-cli
 dshx-hub --help
 ```
 
-Authentication tokens are the only local operational state. The CLI prefers the operating-system credential store and verifies every write before reporting a successful login. In explicitly configured headless operations sessions, when the system credential store cannot persist a write, `DSHX_HUB_OPS_STATE_DIR` enables an atomic file fallback under its private `credentials/` directory; the directory is forced to mode `0700` and token files to `0600`. Resource revisions, plugin data, source observations, and audit records live in the Hub. `--all` may follow pagination cursors while the current process is active, but the CLI does not save progress or require a fixed command order.
+Configure and verify an executable path and package version once during installation. Scheduled runs reuse that executable. Authentication prefers the operating-system credential store and verifies that a saved token can be read back. When that store is unavailable or does not persist the token, an explicitly configured `DSHX_HUB_OPS_STATE_DIR` permits a private credential file compatible with the existing preview CLI; its directory uses mode `0700` and the file uses `0600`. Preserve that directory when updating the CLI, and never copy credentials between operating machines. The same explicit directory holds local run ownership, outcomes, and item checkpoints; the CLI does not derive it from `CODEX_HOME`. Resource revisions, plugin data, source observations, and audit records remain in the Hub. Pagination cursors followed by `--all` remain in the current process.
 
 ## Command surface
 
 ```text
 dshx-hub
+├── capabilities
+├── ops
+│   ├── prompt
+│   ├── preflight
+│   ├── begin
+│   ├── status
+│   ├── checkpoint
+│   └── finish
 ├── auth
 │   ├── login
 │   ├── status
@@ -75,6 +83,67 @@ Failures return one stable error:
 
 Exit codes are `0` for success, warnings, and unchanged data; `1` when the command as a whole fails; and `2` when a batch contains both accepted and rejected items. Agents should branch on `code`, `retryable`, and `repairHint`, not parse prose.
 
+Hub requests have a 30-second deadline covering both headers and the response body. `hub_edge_challenge` identifies a Cloudflare challenge response; it requires an API access or edge-rule fix, not another browser login. An unclassified `hub_http_403` means access was denied, with the rejecting layer still unknown. Preserve the error code, request ID, and available request diagnostics for investigation. A timeout on the optional aggregate `status` route alone does not prove all Hub operations are unavailable. Authentication and access failures always stop the run before further Hub writes.
+
+## Scheduled operations
+
+The installed package supplies its own v7 prompt, policy, command contract, and input schemas:
+
+```bash
+export DSHX_HUB_OPS_STATE_DIR='/absolute/private/operations-state'
+dshx-hub capabilities --output capabilities.json
+dshx-hub ops prompt --output prompt.json
+dshx-hub ops begin --expect-cli-version INSTALLED_VERSION --output begin.json
+```
+
+`capabilities` reads the executing package version and enumerates the same command registry used by argument validation. Its JSON Schemas are generated from the runtime Zod validators, including the exact bilingual `plugin curate` input. Commands still enforce cross-field refinements, canonical observation IDs, and local media validation. `ops prompt` reads the version-matched bundled prompt; neither command needs a source checkout or a Hub request.
+
+`ops begin` verifies the bundled prompt, claims one local run, validates the executing CLI version, and checks catalog access with one authenticated read. It performs no Hub writes. If preflight fails after the claim, it records the blocked result locally. Its successful `data.run` contains `runId`, `startedAt`, `stopStartingAt`, and `leaseExpiresAt`. `ops preflight` provides the same package/access check without claiming or writing a run. Successful preflight output omits token values, token prefixes, and user details.
+
+Follow the bundled prompt with the returned run identity. The Agent owns catalog operations: proactively search public sources, judge which plugins are valuable, add them to the Hub, and improve existing information. Choose priorities, search queries, workload, and action order from current evidence; the CLI imposes no discovery quota or fixed business pipeline. Stop starting new work at the returned 50-minute cutoff and finish before the fixed 60-minute lease expires. Checkpoints do not extend that technical deadline.
+
+Pass `--run-id RUN_ID` on every scheduled Hub write: `plugin upsert/curate/hide/restore`, `submission resolve`, `report publish`, and `media upload`. The CLI checks local ownership and expiry before issuing the operation. Standalone atomic commands remain available without a run ID; scheduled Agents must use the guard. Save a checkpoint after each confirmed stage:
+
+```json
+{
+  "itemId": "github:owner/repository",
+  "stage": "curated",
+  "pluginId": "PLUGIN_ID",
+  "requestId": "CONFIRMED_REQUEST_ID"
+}
+```
+
+```bash
+dshx-hub plugin curate PLUGIN_ID --if-revision 5 --input content.json --run-id RUN_ID
+dshx-hub ops checkpoint --run-id RUN_ID --input checkpoint.json
+dshx-hub ops status
+dshx-hub report publish --input report.json --run-id RUN_ID
+dshx-hub report latest
+dshx-hub ops finish --run-id RUN_ID --outcome completed
+```
+
+Checkpoint stages are `inspected`, `upserted`, `curated`, `verified`, and `skipped`. Store identifiers and outcomes only. `ops status` reads local state without contacting the Hub. An active claim rejects another begin with `ops_run_active`; an expired claim is preserved as interrupted and the next begin returns prior checkpoints for recovery. Re-read the named Hub resources before resuming an uncertain write. Missing receipts do not prove that no write happened.
+
+The claim coordinates processes using the same state directory on one machine. It is not a remote transaction or a cross-machine lock. Hub observation idempotency, immutable report IDs, and current resource revisions remain necessary. `ops finish` records a local outcome and releases the claim; it does not publish or verify a Hub report. Confirm the matching report before finishing as `completed` or `partial`. Use `blocked` if protected access is unavailable or report publication remains unconfirmed, and preserve the report input for reconciliation.
+
+### Scheduler prompt template
+
+Replace the three placeholders during installation, using the configured executable, persistent state directory, and verified package version:
+
+```text
+Own DSHX Hub operations: proactively search the public web, add valuable plugins, and improve missing information. Decide priorities and actions from current evidence.
+Use {{CLI_PATH}} for Hub operations.
+Set DSHX_HUB_OPS_STATE_DIR={{STATE_DIR}} for every command.
+Run {{CLI_PATH}} ops begin --expect-cli-version {{CLI_VERSION}} once.
+On failure, stop and retain the exact JSON error; ops_run_active/ops_state_busy must not start a second run.
+On success, read {{CLI_PATH}} ops prompt and {{CLI_PATH}} capabilities, then follow the bundled prompt using the existing begin result.
+Use its runId on every Hub write and checkpoint each confirmed item stage.
+Respect stopStartingAt and leaseExpiresAt. Verify the Hub report before ops finish; finish blocked if access or report confirmation is unavailable.
+Do not reinstall the CLI, inspect Git checkouts, parse help, scan processes, or reconstruct the environment during a run.
+```
+
+The external scheduler is still responsible for starting and keeping the Agent task alive. A scheduler-level `interrupted` result before any CLI invocation leaves no CLI execution to recover and needs investigation in the runner. These commands do not repair that execution failure.
+
 ## Discover and inspect public sources
 
 `source discover` searches only GitHub or npm public metadata and returns normalized leads with pagination. It neither downloads nor executes packages:
@@ -108,6 +177,8 @@ dshx-hub source inspect npm:foo \
 ```
 
 `plugin upsert` accepts an inspect envelope, one observation, an observation array, or a batch document. The CLI derives the observation ID; callers do not provide a separate write key. Repeating the same observation returns `unchanged`. Use `--dry-run` to receive a field-level diff without changing Hub data.
+
+Large batches use bounded requests. If a later request fails, the failure preserves the original error and `details.batchProgress`: `completedResults` and `completedRequestIds` are confirmed receipts, `uncertainObservationIds` need reconciliation, and `notAttemptedObservationIds` were not sent. Inspect each result status; an overall exit code of `1` does not imply zero writes. Re-read uncertain observations or reuse their existing observation IDs before retrying, and do not resend confirmed chunks unnecessarily.
 
 ## Query and curate plugins
 
@@ -179,6 +250,14 @@ dshx-hub audit --scope community
 
 `status`, `plugin list`, and `audit` report current facts and anomalies without prescribing the next command. The examples above are possible compositions, not a required state machine.
 
-Use `dshx-hub <command> --help` for the exact input, output, write, and retry contract of a command.
+Use `capabilities` for machine-readable inputs and `dshx-hub <command> --help` for human-readable usage.
+
+## Build from source
+
+```bash
+pnpm --dir packages/framework-hub-cli build
+```
+
+Source builds require the sibling private `packages/hub-ops-prompt` workspace package. The build compiles that package and embeds its matching prompt, policy, and command contract into `dist/ops-prompt.json`, checking the prompt version and registered commands. Published CLI packages include this JSON in the tarball; operating machines do not need the private package, a Git checkout, or a prompt build at runtime.
 
 MIT © DSHX contributors.

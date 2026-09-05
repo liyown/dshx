@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { readToken } from "./keychain.js";
+import { verifyOperationGuard } from "./operation-context.js";
 import {
   isFailureEnvelope,
   isSuccessEnvelope,
@@ -11,7 +12,7 @@ import {
 
 export type AuthenticationMode = "required" | "optional" | "none";
 
-const hubRequestTimeoutMs = 30_000;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export class ApiError extends Error {
   constructor(
@@ -39,7 +40,42 @@ function requestIdFrom(response: Response, body: unknown): string {
   return response.headers.get("x-request-id") ?? randomUUID();
 }
 
-function issueFrom(status: number, body: unknown): OperationError {
+function requestDetails(
+  url: URL,
+  response?: Response,
+): Record<string, unknown> {
+  return {
+    requestPath: url.pathname,
+    httpStatus: response?.status ?? 0,
+    ...(response?.headers.get("cf-ray")
+      ? { cfRay: response.headers.get("cf-ray") }
+      : {}),
+  };
+}
+
+function retryAfterDetails(response: Response): Record<string, unknown> {
+  const value = response.headers.get("retry-after")?.trim();
+  if (response.status !== 429 || !value) return {};
+  const seconds = /^\d+$/.test(value)
+    ? Number(value)
+    : /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(
+          value,
+        )
+      ? Math.max(0, Math.ceil((Date.parse(value) - Date.now()) / 1_000))
+      : NaN;
+  // Keep usable backoff advice; never let an untrusted header request an
+  // unbounded delay or carry arbitrary response text into diagnostics.
+  if (!Number.isSafeInteger(seconds) || seconds < 0 || seconds > 86_400)
+    return {};
+  return { retryAfter: value, retryAfterSeconds: seconds };
+}
+
+function issueFrom(
+  response: Response,
+  body: unknown,
+  url: URL,
+): OperationError {
+  const status = response.status;
   const raw =
     body && typeof body === "object" && "error" in body
       ? (body as { error?: unknown }).error
@@ -55,33 +91,71 @@ function issueFrom(status: number, body: unknown): OperationError {
   const message =
     typeof error["message"] === "string"
       ? error["message"]
-      : `Hub returned HTTP ${status}.`;
+      : status === 403
+        ? "The request was denied with HTTP 403; the rejecting layer is unknown."
+        : `Hub returned HTTP ${status}.`;
   const repairHint =
     typeof error["repairHint"] === "string"
       ? error["repairHint"]
       : status === 401
         ? "Run dshx-hub auth login and retry."
-        : status === 409
-          ? "Read the latest resource, merge the change, and retry when appropriate."
-          : retryable
-            ? "Retry after the remote service recovers."
-            : "Correct the request before retrying.";
+        : status === 403
+          ? "Check edge access rules and Hub permissions using the request diagnostics. Do not assume token expiry or repeat login."
+          : status === 409
+            ? "Read the latest resource, merge the change, and retry when appropriate."
+            : retryable
+              ? status === 429
+                ? "Wait for Retry-After when provided before retrying."
+                : "Retry after the remote service recovers."
+              : "Correct the request before retrying.";
+  const includeDiagnostics =
+    typeof error["code"] !== "string" || status === 403 || status === 429;
+  const details = Array.isArray(error["details"])
+    ? error["details"]
+    : typeof error["details"] === "object" && error["details"] !== null
+      ? (error["details"] as Record<string, unknown>)
+      : error["details"] === undefined
+        ? undefined
+        : { value: error["details"] };
+  const diagnostics = includeDiagnostics
+    ? { ...requestDetails(url, response), ...retryAfterDetails(response) }
+    : undefined;
   return {
     code,
     message,
     retryable,
     repairHint,
     ...(typeof error["path"] === "string" ? { path: error["path"] } : {}),
-    ...(error["details"] === undefined
-      ? {}
-      : {
-          details: Array.isArray(error["details"])
-            ? error["details"]
-            : typeof error["details"] === "object" && error["details"] !== null
-              ? (error["details"] as Record<string, unknown>)
-              : { value: error["details"] },
-        }),
+    ...(diagnostics
+      ? {
+          details: {
+            ...(Array.isArray(details)
+              ? { responseDetails: details }
+              : details),
+            ...diagnostics,
+          },
+        }
+      : details === undefined
+        ? {}
+        : { details }),
   };
+}
+
+async function withAbort<T>(
+  operation: () => Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  signal.throwIfAborted();
+  let abort = () => {};
+  const aborted = new Promise<never>((_resolve, reject) => {
+    abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+  });
+  try {
+    return await Promise.race([operation(), aborted]);
+  } finally {
+    signal.removeEventListener("abort", abort);
+  }
 }
 
 export async function api<T>(
@@ -110,46 +184,96 @@ export async function api<T>(
     if (token) headers.set("authorization", `Bearer ${token}`);
   }
 
-  let response: Response;
+  const url = new URL(path, hub);
+  await verifyOperationGuard(init.method);
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
+  timeout.unref();
+  const cancel = () => controller.abort(init.signal?.reason);
+  if (init.signal?.aborted) cancel();
+  else init.signal?.addEventListener("abort", cancel, { once: true });
+
+  let response: Response | undefined;
+  let body: unknown;
   try {
-    const timeoutSignal = AbortSignal.timeout(hubRequestTimeoutMs);
-    response = await fetch(new URL(path, hub), {
-      ...init,
-      headers,
-      signal: init.signal
-        ? AbortSignal.any([init.signal, timeoutSignal])
-        : timeoutSignal,
-    });
+    body = await withAbort(async () => {
+      response = await fetch(url, {
+        ...init,
+        headers,
+        signal: controller.signal,
+      });
+      if (
+        response.headers.get("cf-mitigated")?.trim().toLowerCase() ===
+        "challenge"
+      ) {
+        void response.body?.cancel().catch(() => undefined);
+        throw new ApiError(
+          response.status,
+          {
+            code: "hub_edge_challenge",
+            message: "Cloudflare challenged the Hub API request.",
+            retryable: false,
+            repairHint:
+              "Check Cloudflare security events and configure API access for this operating machine. A browser challenge cannot be completed by the CLI; do not repeat auth login.",
+            details: requestDetails(url, response),
+          },
+          requestIdFrom(response, null),
+          null,
+        );
+      }
+      if (response.status === 204) return null;
+      const text = await response.text();
+      try {
+        return JSON.parse(text) as unknown;
+      } catch {
+        return null;
+      }
+    }, controller.signal);
   } catch (error) {
-    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    const aborted = controller.signal.aborted;
+    if (!aborted && error instanceof ApiError) throw error;
     throw new ApiError(
-      0,
+      response?.status ?? 0,
       {
-        code: timedOut ? "hub_request_timeout" : "hub_unreachable",
+        code: timedOut
+          ? "hub_request_timeout"
+          : aborted
+            ? "hub_request_aborted"
+            : "hub_unreachable",
         message: timedOut
-          ? `Hub request exceeded ${hubRequestTimeoutMs / 1_000} seconds.`
-          : error instanceof Error
-            ? error.message
-            : "Unable to reach the Hub.",
-        retryable: true,
-        repairHint: timedOut
-          ? "Retry once after the Hub recovers; report the slow route if it persists."
-          : "Check the Hub URL and network, then retry.",
+          ? "The Hub request did not complete within 30 seconds."
+          : aborted
+            ? "The Hub request was cancelled."
+            : "Unable to complete the Hub request.",
+        retryable: timedOut || !aborted,
+        repairHint:
+          aborted && !timedOut
+            ? "Resume only when the caller requests another operation."
+            : "Check Hub connectivity. Before resubmitting a write, verify its result or reuse the same idempotency key.",
+        details: {
+          ...requestDetails(url, response),
+          ...(timedOut ? { timeoutMs: REQUEST_TIMEOUT_MS } : {}),
+        },
       },
-      randomUUID(),
+      response ? requestIdFrom(response, null) : randomUUID(),
       null,
     );
+  } finally {
+    clearTimeout(timeout);
+    init.signal?.removeEventListener("abort", cancel);
   }
 
-  const body =
-    response.status === 204
-      ? null
-      : ((await response.json().catch(() => null)) as unknown);
+  // The operation above only resolves after fetch has assigned the response.
+  if (!response) throw new Error("Hub response was not received.");
   const requestId = requestIdFrom(response, body);
   if (!response.ok || isFailureEnvelope(body))
     throw new ApiError(
       response.status,
-      issueFrom(response.status, body),
+      issueFrom(response, body, url),
       requestId,
       body,
     );
@@ -170,6 +294,7 @@ export async function api<T>(
         retryable: true,
         repairHint:
           "Retry after the Hub recovers; report a contract mismatch if it persists.",
+        details: requestDetails(url, response),
       },
       requestId,
       body,

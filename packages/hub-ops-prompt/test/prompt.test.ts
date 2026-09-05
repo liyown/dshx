@@ -12,141 +12,178 @@ import {
   loadDailyOperationsPrompt,
 } from "../src/index.js";
 
-describe("daily operations v1 contract", () => {
-  it("exports a deterministic versioned prompt", () => {
-    const first = loadDailyOperationsPrompt();
-    expect(dailyOperationsPromptVersion).toBe(5);
-    expect(first).toBe(loadDailyOperationsPrompt());
-    expect(first).toContain("daily operations Agent for DSHX Hub");
-    expect(first).toContain("exact original README");
-    expect(first).toContain("sourceReadmeHash");
-    expect(first).toContain(
-      "public GitHub publisher identity and avatar facts",
-    );
-    expect(first).toContain(
-      "A generic sentence saying only that the package is cataloged is incomplete",
-    );
-    expect(first).not.toContain("${");
-  });
-
-  it("binds every supported atomic command to the prompt", () => {
+describe("autonomous operations mandate", () => {
+  it("ships a deterministic v7 mandate centered on website value", () => {
     const prompt = loadDailyOperationsPrompt();
-    expect(
-      dailyOperationsCommandContract.map(({ command }) => command),
-    ).toEqual([
-      "auth status",
-      "status",
-      "source discover",
-      "source inspect",
-      "plugin list",
-      "plugin get",
-      "plugin upsert",
-      "plugin curate",
-      "plugin hide",
-      "plugin restore",
-      "submission list",
-      "submission get",
-      "submission resolve",
-      "report latest",
-      "report publish",
-      "audit",
-    ]);
-    for (const contract of dailyOperationsCommandContract) {
-      expect(prompt).toContain(contract.usage);
-    }
+    expect(dailyOperationsPromptVersion).toBe(7);
+    expect(prompt).toBe(loadDailyOperationsPrompt());
+    expect(prompt).toContain("responsible operator and editor");
+    expect(prompt).toContain("useful, accurate, and fresh");
+    expect(prompt).toContain("discover and admit worthwhile new plugins");
+    expect(prompt).toContain("improve or update existing entries");
+    expect(prompt).not.toContain("${");
   });
 
-  it("rejects removed workflow groups even when preserved runner state names them", () => {
-    const prompt = loadDailyOperationsPrompt();
-    for (const group of [
-      "contract",
-      "catalog",
-      "maintenance",
-      "sync",
-      "targets",
-      "metrics",
-      "approvals",
-      "moderation",
-      "users",
-    ]) {
-      expect(prompt).toContain(group);
-      expect(dailyOperationsCommandContract).not.toContainEqual(
-        expect.objectContaining({
-          command: expect.stringMatching(`^${group}`),
-        }),
-      );
-    }
-    expect(prompt).toContain("has no open Sync run to resume or replace");
-    expect(prompt).not.toContain("contract show --kind catalog");
-    expect(prompt).not.toContain("maintenance audit --scope daily");
-    expect(prompt).not.toContain("sync resume");
-  });
-
-  it("keeps the bounded-run and failure policy explicit", () => {
-    expect(dailyOperationsPolicy.runLimits).toEqual({
-      maximumDurationMinutes: 90,
-      minimumProcessedItemsWhenAvailable: 5,
-      maximumProcessedItems: 10,
-      maximumRetriesPerItem: 1,
+  it("leaves business priorities and workload to the Agent", () => {
+    expect(dailyOperationsPolicy.operatingMandate).toMatchObject({
+      proactiveDiscovery: true,
+      waitForSubmissions: false,
+      fixedItemQuota: false,
+      requiredBusinessSequence: false,
     });
-    expect(dailyOperationsPolicy.discovery).toMatchObject({
-      lookbackHours: 72,
+    expect(dailyOperationsPolicy.operatingMandate.autonomousDecisions).toEqual(
+      expect.arrayContaining([
+        "topics worth investigating",
+        "search sources, queries, and time windows",
+        "priorities and the mix of new and existing plugins",
+        "workload and depth of investigation",
+      ]),
+    );
+    for (const obsolete of [
+      "runLimits",
+      "workflow",
+      "workAllocation",
+      "itemAccounting",
+    ])
+      expect(dailyOperationsPolicy).not.toHaveProperty(obsolete);
+    const prompt = loadDailyOperationsPrompt();
+    expect(prompt).toContain("There is no fixed item quota");
+    expect(prompt).toContain("Do not wait for submissions");
+    expect(prompt).toContain(
+      "choose more useful work instead of repeating it every run",
+    );
+    expect(prompt).not.toMatch(
+      /initial (?:five|batch)|reserved.*slots|5 to 10|three maintenance|72.hour overlap/iu,
+    );
+  });
+
+  it("permits broader public research and treats query examples as inspiration", () => {
+    expect(dailyOperationsPolicy.research).toMatchObject({
       publicDataOnly: true,
+      queryExamplesAreExclusive: false,
       installOrExecuteThirdPartyCode: false,
     });
-    expect(
-      dailyOperationsPolicy.failureHandling.publishPartialWhenHubReachable,
-    ).toBe(true);
-    expect(loadDailyOperationsPrompt()).toContain(
-      "Stop the entire run immediately on Hub authentication failure",
+    expect(dailyOperationsPolicy.research.sources).toEqual(
+      expect.arrayContaining([
+        "public web search",
+        "public web pages",
+        "GitHub",
+        "npm",
+        "official documentation",
+        "public community leads",
+      ]),
     );
-    expect(dailyOperationsPolicy.workflow.slice(0, 3)).toEqual([
-      "submissions",
-      "catalog-completeness",
-      "catalog-refresh",
-    ]);
-    expect(dailyOperationsPolicy.workAllocation).toEqual({
-      completenessItemsBeforeDiscovery: 10,
-      maximumDiscoveryItemsWhileCompletenessBacklogExists: 0,
-      completenessNeeds: ["readme", "publisher", "target", "content"],
-      qualityFirst:
-        "Finish each selected item through source inspection, fact upsert, bilingual curation, and final needs verification before using another item slot.",
-    });
-    expect(loadDailyOperationsPrompt()).toContain(
-      "select an initial batch of 5",
+    const prompt = loadDailyOperationsPrompt();
+    expect(prompt).toContain(
+      "Use available public web search and browsing tools",
     );
-    expect(loadDailyOperationsPrompt()).toContain(
-      "Reaching the 10-item quality cap",
-    );
-    expect(loadDailyOperationsPrompt()).toContain(
-      "If needs still contains readme, publisher, target, or content",
+    expect(prompt).toContain("optional starting points, not an exclusive list");
+    expect(prompt).toContain("does not restrict public web research tools");
+    expect(prompt).toContain("adapt queries, sources, or time windows");
+    for (const query of dailyDiscoveryQueries)
+      expect(prompt).toContain(JSON.stringify(query.query));
+    expect(new Set(dailyDiscoveryQueries.map(({ id }) => id)).size).toBe(
+      dailyDiscoveryQueries.length,
     );
   });
 
-  it("does not reintroduce a verification gate", () => {
-    const admission = dailyOperationsPolicy.pluginAdmission;
-    expect(admission.lifecycle).toEqual(["draft", "published", "hidden"]);
-    expect(admission.migration).toEqual({
-      keepPublishedPluginsPublished: true,
-      historicalCandidatesBecome: "draft",
-    });
-    expect(admission.legacyObservationStatusesAcceptedButIgnored).toEqual([
-      "confirmed",
-      "candidate",
+  it("preserves publication evidence and quality without prescribing every operation", () => {
+    const prompt = loadDailyOperationsPrompt();
+    expect(prompt).toContain("choose only operations needed for the change");
+    for (const requirement of [
+      "exact original README",
+      "sourceReadmeHash",
+      "derivedFrom",
+      "public GitHub publisher identity and avatar facts",
+      "one unambiguous structurally safe installation target",
+      "Confirm the resulting plugin with plugin get",
+      "never install, build, import, or execute third-party plugin code",
+    ])
+      expect(prompt).toContain(requirement);
+    expect(dailyOperationsPolicy.provenance.inventedFactsAllowed).toBe(false);
+    expect(dailyOperationsPolicy.pluginAdmission.lifecycle).toEqual([
+      "draft",
+      "published",
+      "hidden",
     ]);
-    expect(admission.nonBlockingInformation).toContain("known incompatibility");
-    expect(admission.automaticHideReasons).toEqual([
+    expect(
+      dailyOperationsPolicy.pluginAdmission.nonBlockingInformation,
+    ).toContain("known incompatibility");
+    expect(dailyOperationsPolicy.pluginAdmission.automaticHideReasons).toEqual([
       "explicitly malicious",
       "impersonation",
       "definitely not a plugin",
       "documented compliance takedown",
     ]);
-    expect(loadDailyOperationsPrompt()).toContain(
-      "Do not send or rely on confirmed/candidate as a product state",
+  });
+});
+
+describe("tool and recovery contracts", () => {
+  it("includes the actual CLI command surface and guards every Hub write", () => {
+    const prompt = loadDailyOperationsPrompt();
+    const names = dailyOperationsCommandContract.map(({ command }) => command);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "capabilities",
+        "ops prompt",
+        "ops begin",
+        "ops checkpoint",
+        "ops finish",
+        "source discover",
+        "source inspect",
+        "plugin list",
+        "plugin get",
+        "plugin upsert",
+        "plugin curate",
+        "submission resolve",
+        "media upload",
+        "report publish",
+        "report latest",
+      ]),
+    );
+    for (const entry of dailyOperationsCommandContract) {
+      expect(prompt).toContain(entry.usage);
+      if (entry.access === "hub-write")
+        expect(entry.usage).toContain("--run-id RUN_ID");
+      expect(entry.command).not.toMatch(
+        /^(?:contract|catalog|maintenance|sync|targets|metrics|approvals|moderation|users)\b/u,
+      );
+    }
+    expect(dailyOperationsPolicy.toolUse.runIdRequiredOnHubWrites).toBe(true);
+    expect(prompt).toContain(
+      "do not reconstruct the environment from checkouts",
     );
   });
 
-  it("exports the fixed install warning and confirmation policy", () => {
+  it("retains the technical lease and uncertainty rules without an editorial quota", () => {
+    expect(dailyOperationsPolicy.runLease).toMatchObject({
+      stopStartingAfterMinutes: 50,
+      expiresAfterMinutes: 60,
+      checkpointExtendsDeadline: false,
+    });
+    const prompt = loadDailyOperationsPrompt();
+    for (const text of [
+      "Run ops begin once",
+      "DSHX_HUB_OPS_STATE_DIR",
+      "technical boundaries, not output targets",
+      "all recoveryRuns",
+      "missing receipts do not prove writes failed",
+      "uncertainObservationIds",
+      "notAttemptedObservationIds",
+      "hub_edge_challenge",
+    ])
+      expect(prompt).toContain(text);
+    expect(dailyOperationsPolicy.failureHandling.retryOnlyWhenRetryable).toBe(
+      true,
+    );
+    expect(dailyOperationsPolicy.failureHandling).not.toHaveProperty(
+      "retryItemAtMostOnce",
+    );
+    expect(prompt).toContain("A skipped lead does not end independent work");
+  });
+
+  it("preserves the existing end-user installation product rules", () => {
     expect(dailyOperationsPolicy.installation).toEqual({
       appliesToAllHubDrivenDownloadsAndInstalls: true,
       requiresSecondConfirmation: true,
@@ -156,47 +193,22 @@ describe("daily operations v1 contract", () => {
       },
       hardBlocks: dailyOperationsPolicy.pluginAdmission.structuralBlocks,
     });
-    expect(loadDailyOperationsPrompt()).toContain(
-      dailyOperationsPolicy.installation.fixedRiskStatement.en,
-    );
-    expect(loadDailyOperationsPrompt()).toContain(
-      dailyOperationsPolicy.installation.fixedRiskStatement.zh,
-    );
   });
 });
 
-describe("daily discovery queries", () => {
-  it("covers every required signal on GitHub and npm", () => {
-    expect(new Set(dailyDiscoveryQueries.map(({ id }) => id)).size).toBe(
-      dailyDiscoveryQueries.length,
-    );
-    for (const provider of ["github", "npm"] as const) {
-      const signals = dailyDiscoveryQueries
-        .filter((query) => query.provider === provider)
-        .map(({ signal }) => signal);
-      expect(signals).toEqual([
-        "dsh.bundle.patch",
-        "cordis.patch.yml",
-        "dsh-plugin-keywords",
-        "deepseek-harness-plugin-keywords",
-      ]);
-    }
-  });
-
-  it("places every query verbatim in the loaded prompt", () => {
-    const prompt = loadDailyOperationsPrompt();
-    for (const query of dailyDiscoveryQueries) {
-      expect(prompt).toContain(query.id);
-      expect(prompt).toContain(JSON.stringify(query.query));
-    }
-  });
-});
-
-describe("daily report contract", () => {
-  it("requires the immutable bilingual input and public endpoints", () => {
+describe("flexible reporting with a stable API", () => {
+  it("retains the immutable bilingual plain-text API fields", () => {
     expect(dailyOperationsApiContract).toMatchObject({
       protectedReportsEndpoint: "/api/ops/v1/reports",
       publicReportsEndpoint: "/api/operations/reports",
+      reportInputFields: [
+        "runId",
+        "startedAt",
+        "completedAt",
+        "outcome",
+        "body.en",
+        "body.zh",
+      ],
       reportStatuses: ["completed", "partial"],
       maximumBodyCharactersPerLocale: 10_000,
       maximumStoredReports: 1_000,
@@ -204,17 +216,6 @@ describe("daily report contract", () => {
       idempotencyKey: "runId",
       immutableAfterPublish: true,
     });
-    expect(dailyOperationsApiContract.reportInputFields).toEqual([
-      "runId",
-      "startedAt",
-      "completedAt",
-      "outcome",
-      "body.en",
-      "body.zh",
-    ]);
-  });
-
-  it("keeps all fixed sections in both plain-text templates", () => {
     expect(dailyReportTemplate.rendering).toEqual({
       mediaType: "text/plain",
       parseMarkdown: false,
@@ -222,50 +223,66 @@ describe("daily report contract", () => {
     });
     expect(dailyReportTemplate.body.en.length).toBeLessThanOrEqual(10_000);
     expect(dailyReportTemplate.body.zh.length).toBeLessThanOrEqual(10_000);
-    for (const section of dailyReportSections) {
-      expect(dailyReportTemplate.body.en).toContain(section.en);
-      expect(dailyReportTemplate.body.zh).toContain(section.zh);
-    }
+  });
+
+  it("makes section labels optional and separates useful results from activity", () => {
+    expect(dailyReportTemplate.requiredSections).toBe(false);
+    expect(dailyOperationsPolicy.report.requiredSections).toBe(false);
+    expect(dailyReportTemplate.sections).toEqual(dailyReportSections);
+    const prompt = loadDailyOperationsPrompt();
+    expect(prompt).toContain("there are no mandatory report sections");
+    expect(prompt).toContain(
+      "publishing a report is not itself a website improvement",
+    );
+    expect(prompt).toContain("an unexecuted query is not zero results");
+    expect(prompt).toContain(
+      "confirm its runId before ops finish completed/partial",
+    );
+    expect(prompt).not.toContain("sections in order");
+    expect(prompt).not.toContain("say None");
+    expect(dailyReportTemplate.forbiddenContent).toEqual(
+      expect.arrayContaining([
+        "tokens or credentials",
+        "private network addresses or private URLs",
+        "internal audit payloads",
+      ]),
+    );
   });
 });
 
-describe("daily operations scenarios", () => {
-  it("covers discovery, submissions, safety, partial runs, and idempotency", () => {
-    expect(dailyOperationsScenarios.map(({ id }) => id)).toEqual([
-      "complete-mock-hub-run",
-      "catalog-backlog-precedes-discovery",
-      "github-discovery-publishes-complete-plugin",
-      "npm-query-overlap-is-deduplicated",
-      "submission-is-accepted-atomically",
-      "ordinary-risk-remains-visible",
-      "structural-install-hazard-blocks-publication",
-      "malicious-plugin-is-hidden",
-      "source-failure-publishes-partial-report",
-      "run-limit-publishes-partial-report",
-      "hub-authentication-failure-stops-run",
-      "report-run-id-is-idempotent",
-      "report-content-is-sanitized",
-    ]);
+describe("editorial scenarios", () => {
+  it("covers autonomous decisions and real tool boundaries, not one workflow", () => {
+    expect(dailyOperationsScenarios.map(({ id }) => id)).toEqual(
+      expect.arrayContaining([
+        "public-research-discovers-plugin-without-submission",
+        "important-existing-entry-earns-focused-attention",
+        "empty-queries-lead-to-better-research",
+        "unchanged-blocker-does-not-monopolize-operations",
+        "technical-lease-bounds-autonomous-work",
+        "uncertain-write-recovery-preserves-evidence",
+        "report-is-flexible-factual-and-confirmed",
+      ]),
+    );
     expect(
-      dailyOperationsScenarios.some(
-        ({ expectedReportStatus }) => expectedReportStatus === "partial",
+      new Set(
+        dailyOperationsScenarios.map(
+          ({ expectedReportStatus }) => expectedReportStatus,
+        ),
       ),
-    ).toBe(true);
-    expect(
-      dailyOperationsScenarios.some(
-        ({ expectedReportStatus }) => expectedReportStatus === "not-published",
-      ),
-    ).toBe(true);
-  });
-
-  it("uses only commands from the atomic command contract", () => {
-    const commands = new Set(
+    ).toEqual(new Set(["completed", "partial", "not-published"]));
+    const relevantCommands = new Set(
       dailyOperationsCommandContract.map(({ command }) => command),
     );
-    for (const scenario of dailyOperationsScenarios) {
-      for (const command of scenario.expectedCommands) {
-        expect(commands.has(command), `${scenario.id}: ${command}`).toBe(true);
-      }
-    }
+    for (const scenario of dailyOperationsScenarios)
+      for (const command of scenario.expectedCommands)
+        expect(
+          relevantCommands.has(command),
+          `${scenario.id}: ${command}`,
+        ).toBe(true);
+    const webDiscovery = dailyOperationsScenarios.find(
+      ({ id }) => id === "public-research-discovers-plugin-without-submission",
+    );
+    expect(webDiscovery?.expectedCommands).not.toContain("source discover");
+    expect(webDiscovery?.expectedCommands).not.toContain("submission list");
   });
 });
