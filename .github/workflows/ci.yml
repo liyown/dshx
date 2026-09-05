@@ -117,12 +117,31 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: runner.os != 'Windows'
         with:
-          # This job only loads the CLI's native module. Hub route filenames
-          # include a colon and cannot be checked out on Windows.
           sparse-checkout: |
             packages/framework-hub-cli
             packages/hub-ops-prompt
+      - name: Export native-module test inputs on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Export selected paths without building an index for Hub filenames
+          # that are invalid on Windows, retaining Git's NTFS protections.
+          $snapshot = Join-Path $env:RUNNER_TEMP 'keyring-source'
+          $archive = Join-Path $env:RUNNER_TEMP 'keyring-source.tar'
+          git init --bare $snapshot
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("x-access-token:$env:GH_TOKEN"))
+          Write-Output "::add-mask::$auth"
+          git -C $snapshot -c "http.extraheader=AUTHORIZATION: basic $auth" fetch --depth=1 "https://github.com/$env:GITHUB_REPOSITORY.git" $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $snapshot archive --format=tar --output=$archive FETCH_HEAD package.json pnpm-lock.yaml pnpm-workspace.yaml packages/framework-hub-cli packages/hub-ops-prompt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          tar -xf $archive -C $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: ${{ env.PNPM_VERSION }}
