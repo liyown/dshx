@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { ChangelogContent } from "@/lib/changelog.contracts";
 import {
   check,
   index,
@@ -10,6 +11,33 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 const now = sql`(unixepoch() * 1000)`;
+
+export const changelogEntries = sqliteTable(
+  "changelog_entries",
+  {
+    id: text("id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    status: text("status", { enum: ["draft", "published"] })
+      .notNull()
+      .default("draft"),
+    version: text("version").notNull(),
+    product: text("product").notNull(),
+    channel: text("channel", { enum: ["preview", "release"] }).notNull(),
+    publishedAt: text("published_at").notNull(),
+    contentJson: text("content_json", { mode: "json" }).$type<ChangelogContent>().notNull(),
+    revision: integer("revision").notNull().default(1),
+    updatedByTokenId: text("updated_by_token_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (table) => [
+    index("changelog_publication_idx").on(table.status, table.publishedAt, table.slug),
+    check("changelog_status_check", sql`${table.status} in ('draft','published')`),
+    check("changelog_channel_check", sql`${table.channel} in ('preview','release')`),
+    check("changelog_revision_check", sql`${table.revision} > 0`),
+    check("changelog_content_check", sql`json_valid(${table.contentJson})`),
+  ],
+);
 
 export const catalogSyncRuns = sqliteTable(
   "catalog_sync_runs",

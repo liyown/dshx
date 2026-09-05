@@ -1,5 +1,6 @@
 import { z, type ZodType } from "zod";
 
+import { createChangelogSchema, updateChangelogSchema } from "./changelog.contracts";
 import { cliAuthorizationSchema, cliTokenExchangeSchema } from "./auth/cli.contracts";
 import {
   localeSchema,
@@ -38,7 +39,7 @@ export type ApiOperationDefinition = {
   };
   readonly responseSchema?: ZodType;
   readonly responses: Readonly<Record<number, string>>;
-  readonly errors?: readonly (400 | 401 | 404 | 409 | 422)[];
+  readonly errors?: readonly (400 | 401 | 403 | 404 | 409 | 422)[];
 };
 
 const genericJsonResponseSchema = z.looseObject({});
@@ -55,6 +56,52 @@ const operationMediaRequestSchema = z.object({
 });
 
 export const API_OPERATION_DEFINITIONS = [
+  {
+    operationId: "listChangelogEntries",
+    path: "/api/ops/v1/changelog",
+    method: "get",
+    tag: "Operations",
+    summary: "List changelog entries including drafts",
+    authentication: "bearer",
+    responseSchema: genericJsonResponseSchema,
+    responses: { 200: "Changelog data. Requires catalog:write." },
+    errors: [401, 403, 404, 409, 422],
+  },
+  {
+    operationId: "createChangelogEntry",
+    path: "/api/ops/v1/changelog",
+    method: "post",
+    tag: "Operations",
+    summary: "Create a bilingual changelog draft or published update",
+    authentication: "bearer",
+    request: { schema: createChangelogSchema },
+    responseSchema: genericJsonResponseSchema,
+    responses: { 201: "Changelog data. Requires catalog:write." },
+    errors: [401, 403, 404, 409, 422],
+  },
+  {
+    operationId: "getChangelogEntry",
+    path: "/api/ops/v1/changelog/{slug}",
+    method: "get",
+    tag: "Operations",
+    summary: "Read a changelog entry and its current revision",
+    authentication: "bearer",
+    responseSchema: genericJsonResponseSchema,
+    responses: { 200: "Changelog data. Requires catalog:write." },
+    errors: [401, 403, 404, 409, 422],
+  },
+  {
+    operationId: "updateChangelogEntry",
+    path: "/api/ops/v1/changelog/{slug}",
+    method: "put",
+    tag: "Operations",
+    summary: "Edit, publish, or withdraw a changelog entry using ifRevision",
+    authentication: "bearer",
+    request: { schema: updateChangelogSchema },
+    responseSchema: genericJsonResponseSchema,
+    responses: { 200: "Changelog data. Requires catalog:write." },
+    errors: [401, 403, 404, 409, 422],
+  },
   {
     operationId: "listCatalogPlugins",
     path: "/api/plugins",

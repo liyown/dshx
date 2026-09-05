@@ -12,6 +12,7 @@ const links = [
   { key: "nav.plugins", to: "/plugins" },
   { key: "nav.operations", to: "/operations" },
   { key: "nav.docs", to: "/docs" },
+  { key: "nav.changelog", to: "/changelog" },
 ] as const;
 
 export function Nav() {
@@ -44,7 +45,7 @@ export function Nav() {
           <Wordmark />
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex">
+        <nav className="hidden items-center gap-1 lg:flex">
           {links.map((link) => (
             <Link
               key={link.to}
@@ -74,7 +75,9 @@ export function Nav() {
           <button
             onClick={() => setOpen((value) => !value)}
             aria-label={t("nav.menu")}
-            className="flex size-9 items-center justify-center rounded-md border border-border md:hidden"
+            aria-expanded={open}
+            aria-controls="mobile-site-navigation"
+            className="flex size-9 items-center justify-center rounded-md border border-border lg:hidden"
           >
             <span className="flex flex-col gap-[3px]">
               <span className="block h-px w-4 bg-foreground" />
@@ -85,7 +88,7 @@ export function Nav() {
       </Container>
 
       {open && (
-        <div className="border-t border-border bg-background md:hidden">
+        <div id="mobile-site-navigation" className="border-t border-border bg-background lg:hidden">
           <Container className="flex flex-col py-2">
             {links.map((link) => (
               <Link

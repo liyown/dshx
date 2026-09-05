@@ -43,4 +43,23 @@ describe("locale redirects", () => {
   it("does not claim unrelated unlocalized paths", () => {
     expect(redirectToLocale(new Request("https://dshx.io/account"))).toBeUndefined();
   });
+
+  it.each(["/changelog", "/changelog/dshx-0-1-1"])(
+    "redirects %s to the matching language",
+    (path) => {
+      const response = redirectToLocale(
+        new Request(`https://dshx.io${path}`, {
+          headers: { "accept-language": "zh-CN" },
+        }),
+      );
+      expect(response?.status).toBe(302);
+      expect(response?.headers.get("location")).toBe(`https://dshx.io/zh${path}`);
+    },
+  );
+
+  it("normalizes a trailing slash on a changelog detail", () => {
+    const response = redirectToLocale(new Request("https://dshx.io/en/changelog/dshx-0-1-1/"));
+    expect(response?.status).toBe(308);
+    expect(response?.headers.get("location")).toBe("https://dshx.io/en/changelog/dshx-0-1-1");
+  });
 });

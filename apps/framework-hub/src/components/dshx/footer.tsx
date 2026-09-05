@@ -13,6 +13,7 @@ const groups: {
       { key: "nav.plugins", to: "/plugins" },
       { key: "nav.operations", to: "/operations" },
       { key: "nav.docs", to: "/docs" },
+      { key: "nav.changelog", to: "/changelog" },
       { key: "footer.compatibility", to: "/docs/compatibility" },
       { key: "footer.about", to: "/about" },
     ],

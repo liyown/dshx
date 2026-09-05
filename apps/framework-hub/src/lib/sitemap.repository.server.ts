@@ -63,6 +63,16 @@ function publisherRows(value?: string) {
   `;
 }
 
+function changelogRows(value?: string) {
+  return sql`
+    select 'changelog' as kind,l.locale as locale,c.slug as value,c.updated_at as updated_at
+    from changelog_entries c
+    cross join (select 'en' as locale union all select 'zh' as locale) l
+    where c.status='published' and c.published_at<=date('now')
+      ${value ? sql`and c.slug=${value}` : sql``}
+  `;
+}
+
 export function listSitemapDatabaseRows(db: Database): Promise<SitemapDatabaseRow[]> {
   return db.all<SitemapDatabaseRow>(sql`
     ${pluginRows()}
@@ -70,6 +80,8 @@ export function listSitemapDatabaseRows(db: Database): Promise<SitemapDatabaseRo
     ${categoryRows()}
     union all
     ${publisherRows()}
+    union all
+    ${changelogRows()}
     order by kind,locale,value
   `);
 }
@@ -80,11 +92,13 @@ export async function listIndexableSitemapLocales(
   value: string,
 ): Promise<Array<"en" | "zh">> {
   const query =
-    kind === "plugin"
-      ? pluginRows(value)
-      : kind === "category"
-        ? categoryRows(value)
-        : publisherRows(value);
+    kind === "changelog"
+      ? changelogRows(value)
+      : kind === "plugin"
+        ? pluginRows(value)
+        : kind === "category"
+          ? categoryRows(value)
+          : publisherRows(value);
   const rows = await db.all<Pick<SitemapDatabaseRow, "locale">>(query);
   return rows.map((row) => row.locale);
 }

@@ -40,6 +40,7 @@ const TAG_DESCRIPTIONS: Readonly<Record<ApiOperationTag, string>> = {
 const ERROR_RESPONSE_NAMES = {
   400: "BadRequest",
   401: "Unauthorized",
+  403: "Forbidden",
   404: "NotFound",
   409: "Conflict",
   422: "Unprocessable",
@@ -48,6 +49,7 @@ const ERROR_RESPONSE_NAMES = {
 const ERROR_RESPONSE_DESCRIPTIONS = {
   BadRequest: "The request did not satisfy the endpoint contract.",
   Unauthorized: "A valid bearer token and required scope are missing.",
+  Forbidden: "The bearer token does not grant the required scope.",
   NotFound: "The requested resource does not exist.",
   Conflict: "The request conflicts with the current resource revision.",
   Unprocessable: "The JSON is valid but fails a domain contract.",

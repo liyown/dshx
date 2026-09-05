@@ -35,6 +35,8 @@ import { Route as LocaleAccountSettingsRouteImport } from './routes/$locale/acco
 import { Route as LocaleAccountSubmissionsRouteImport } from './routes/$locale/account/submissions'
 import { Route as LocaleAuthCliRouteImport } from './routes/$locale/auth/cli'
 import { Route as LocaleCategoriesSlugRouteImport } from './routes/$locale/categories/$slug'
+import { Route as LocaleChangelogIndexRouteImport } from './routes/$locale/changelog/index'
+import { Route as LocaleChangelogSlugRouteImport } from './routes/$locale/changelog/$slug'
 import { Route as LocaleCollectionsIdRouteImport } from './routes/$locale/collections/$id'
 import { Route as LocaleDocsIndexRouteImport } from './routes/$locale/docs/index'
 import { Route as LocaleDocsSlugRouteImport } from './routes/$locale/docs/$slug'
@@ -95,6 +97,8 @@ import { Route as ApiMePluginsPluginIdFollowRouteImport } from './routes/api/me/
 import { Route as ApiMePublishersPublisherIdFollowRouteImport } from './routes/api/me/publishers/$publisherId/follow'
 import { Route as ApiOpsApprovalsIdRevisionsRouteImport } from './routes/api/ops/approvals/$id/revisions'
 import { Route as ApiOpsUsersIdRoleRouteImport } from './routes/api/ops/users/$id/role'
+import { Route as ApiOpsV1ChangelogIndexRouteImport } from './routes/api/ops/v1/changelog/index'
+import { Route as ApiOpsV1ChangelogSlugRouteImport } from './routes/api/ops/v1/changelog/$slug'
 import { Route as ApiOpsV1ObservationsObservationIdRouteImport } from './routes/api/ops/v1/observations/$observationId'
 import { Route as ApiOpsV1PluginsIndexRouteImport } from './routes/api/ops/v1/plugins/index'
 import { Route as ApiOpsV1PluginsIdRouteImport } from './routes/api/ops/v1/plugins/$id'
@@ -244,6 +248,16 @@ const LocaleAuthCliRoute = LocaleAuthCliRouteImport.update({
 const LocaleCategoriesSlugRoute = LocaleCategoriesSlugRouteImport.update({
   id: '/categories/$slug',
   path: '/categories/$slug',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleChangelogIndexRoute = LocaleChangelogIndexRouteImport.update({
+  id: '/changelog/',
+  path: '/changelog/',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleChangelogSlugRoute = LocaleChangelogSlugRouteImport.update({
+  id: '/changelog/$slug',
+  path: '/changelog/$slug',
   getParentRoute: () => LocaleRoute,
 } as any)
 const LocaleCollectionsIdRoute = LocaleCollectionsIdRouteImport.update({
@@ -560,6 +574,16 @@ const ApiOpsUsersIdRoleRoute = ApiOpsUsersIdRoleRouteImport.update({
   path: '/api/ops/users/$id/role',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpsV1ChangelogIndexRoute = ApiOpsV1ChangelogIndexRouteImport.update({
+  id: '/api/ops/v1/changelog/',
+  path: '/api/ops/v1/changelog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsV1ChangelogSlugRoute = ApiOpsV1ChangelogSlugRouteImport.update({
+  id: '/api/ops/v1/changelog/$slug',
+  path: '/api/ops/v1/changelog/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOpsV1ObservationsObservationIdRoute =
   ApiOpsV1ObservationsObservationIdRouteImport.update({
     id: '/api/ops/v1/observations/$observationId',
@@ -672,6 +696,7 @@ export interface FileRoutesByFullPath {
   '/$locale/account/submissions': typeof LocaleAccountSubmissionsRoute
   '/$locale/auth/cli': typeof LocaleAuthCliRoute
   '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
+  '/$locale/changelog/$slug': typeof LocaleChangelogSlugRoute
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
   '/$locale/docs/$slug': typeof LocaleDocsSlugRoute
   '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
@@ -693,6 +718,7 @@ export interface FileRoutesByFullPath {
   '/api/replies/$id': typeof ApiRepliesIdRoute
   '/api/users/$login': typeof ApiUsersLoginRoute
   '/$locale/account/': typeof LocaleAccountIndexRoute
+  '/$locale/changelog/': typeof LocaleChangelogIndexRoute
   '/$locale/docs/': typeof LocaleDocsIndexRoute
   '/$locale/operations/': typeof LocaleOperationsIndexRoute
   '/$locale/plugins/': typeof LocalePluginsIndexRoute
@@ -733,10 +759,12 @@ export interface FileRoutesByFullPath {
   '/api/me/publishers/$publisherId/follow': typeof ApiMePublishersPublisherIdFollowRoute
   '/api/ops/approvals/$id/revisions': typeof ApiOpsApprovalsIdRevisionsRoute
   '/api/ops/users/$id/role': typeof ApiOpsUsersIdRoleRoute
+  '/api/ops/v1/changelog/$slug': typeof ApiOpsV1ChangelogSlugRoute
   '/api/ops/v1/observations/$observationId': typeof ApiOpsV1ObservationsObservationIdRoute
   '/api/ops/v1/plugins/$id': typeof ApiOpsV1PluginsIdRouteWithChildren
   '/api/ops/v1/submissions/$id': typeof ApiOpsV1SubmissionsIdRouteWithChildren
   '/og/plugins/$locale/$slug/card.png': typeof OgPluginsLocaleSlugCardDotpngRoute
+  '/api/ops/v1/changelog/': typeof ApiOpsV1ChangelogIndexRoute
   '/api/ops/v1/plugins/': typeof ApiOpsV1PluginsIndexRoute
   '/api/ops/v1/reports/': typeof ApiOpsV1ReportsIndexRoute
   '/api/ops/v1/submissions/': typeof ApiOpsV1SubmissionsIndexRoute
@@ -774,6 +802,7 @@ export interface FileRoutesByTo {
   '/$locale/account/submissions': typeof LocaleAccountSubmissionsRoute
   '/$locale/auth/cli': typeof LocaleAuthCliRoute
   '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
+  '/$locale/changelog/$slug': typeof LocaleChangelogSlugRoute
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
   '/$locale/docs/$slug': typeof LocaleDocsSlugRoute
   '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
@@ -795,6 +824,7 @@ export interface FileRoutesByTo {
   '/api/replies/$id': typeof ApiRepliesIdRoute
   '/api/users/$login': typeof ApiUsersLoginRoute
   '/$locale/account': typeof LocaleAccountIndexRoute
+  '/$locale/changelog': typeof LocaleChangelogIndexRoute
   '/$locale/docs': typeof LocaleDocsIndexRoute
   '/$locale/operations': typeof LocaleOperationsIndexRoute
   '/$locale/plugins': typeof LocalePluginsIndexRoute
@@ -835,10 +865,12 @@ export interface FileRoutesByTo {
   '/api/me/publishers/$publisherId/follow': typeof ApiMePublishersPublisherIdFollowRoute
   '/api/ops/approvals/$id/revisions': typeof ApiOpsApprovalsIdRevisionsRoute
   '/api/ops/users/$id/role': typeof ApiOpsUsersIdRoleRoute
+  '/api/ops/v1/changelog/$slug': typeof ApiOpsV1ChangelogSlugRoute
   '/api/ops/v1/observations/$observationId': typeof ApiOpsV1ObservationsObservationIdRoute
   '/api/ops/v1/plugins/$id': typeof ApiOpsV1PluginsIdRouteWithChildren
   '/api/ops/v1/submissions/$id': typeof ApiOpsV1SubmissionsIdRouteWithChildren
   '/og/plugins/$locale/$slug/card.png': typeof OgPluginsLocaleSlugCardDotpngRoute
+  '/api/ops/v1/changelog': typeof ApiOpsV1ChangelogIndexRoute
   '/api/ops/v1/plugins': typeof ApiOpsV1PluginsIndexRoute
   '/api/ops/v1/reports': typeof ApiOpsV1ReportsIndexRoute
   '/api/ops/v1/submissions': typeof ApiOpsV1SubmissionsIndexRoute
@@ -878,6 +910,7 @@ export interface FileRoutesById {
   '/$locale/account/submissions': typeof LocaleAccountSubmissionsRoute
   '/$locale/auth/cli': typeof LocaleAuthCliRoute
   '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
+  '/$locale/changelog/$slug': typeof LocaleChangelogSlugRoute
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
   '/$locale/docs/$slug': typeof LocaleDocsSlugRoute
   '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
@@ -899,6 +932,7 @@ export interface FileRoutesById {
   '/api/replies/$id': typeof ApiRepliesIdRoute
   '/api/users/$login': typeof ApiUsersLoginRoute
   '/$locale/account/': typeof LocaleAccountIndexRoute
+  '/$locale/changelog/': typeof LocaleChangelogIndexRoute
   '/$locale/docs/': typeof LocaleDocsIndexRoute
   '/$locale/operations/': typeof LocaleOperationsIndexRoute
   '/$locale/plugins/': typeof LocalePluginsIndexRoute
@@ -939,10 +973,12 @@ export interface FileRoutesById {
   '/api/me/publishers/$publisherId/follow': typeof ApiMePublishersPublisherIdFollowRoute
   '/api/ops/approvals/$id/revisions': typeof ApiOpsApprovalsIdRevisionsRoute
   '/api/ops/users/$id/role': typeof ApiOpsUsersIdRoleRoute
+  '/api/ops/v1/changelog/$slug': typeof ApiOpsV1ChangelogSlugRoute
   '/api/ops/v1/observations/$observationId': typeof ApiOpsV1ObservationsObservationIdRoute
   '/api/ops/v1/plugins/$id': typeof ApiOpsV1PluginsIdRouteWithChildren
   '/api/ops/v1/submissions/$id': typeof ApiOpsV1SubmissionsIdRouteWithChildren
   '/og/plugins/$locale/$slug/card.png': typeof OgPluginsLocaleSlugCardDotpngRoute
+  '/api/ops/v1/changelog/': typeof ApiOpsV1ChangelogIndexRoute
   '/api/ops/v1/plugins/': typeof ApiOpsV1PluginsIndexRoute
   '/api/ops/v1/reports/': typeof ApiOpsV1ReportsIndexRoute
   '/api/ops/v1/submissions/': typeof ApiOpsV1SubmissionsIndexRoute
@@ -983,6 +1019,7 @@ export interface FileRouteTypes {
     | '/$locale/account/submissions'
     | '/$locale/auth/cli'
     | '/$locale/categories/$slug'
+    | '/$locale/changelog/$slug'
     | '/$locale/collections/$id'
     | '/$locale/docs/$slug'
     | '/$locale/legal/$document'
@@ -1004,6 +1041,7 @@ export interface FileRouteTypes {
     | '/api/replies/$id'
     | '/api/users/$login'
     | '/$locale/account/'
+    | '/$locale/changelog/'
     | '/$locale/docs/'
     | '/$locale/operations/'
     | '/$locale/plugins/'
@@ -1044,10 +1082,12 @@ export interface FileRouteTypes {
     | '/api/me/publishers/$publisherId/follow'
     | '/api/ops/approvals/$id/revisions'
     | '/api/ops/users/$id/role'
+    | '/api/ops/v1/changelog/$slug'
     | '/api/ops/v1/observations/$observationId'
     | '/api/ops/v1/plugins/$id'
     | '/api/ops/v1/submissions/$id'
     | '/og/plugins/$locale/$slug/card.png'
+    | '/api/ops/v1/changelog/'
     | '/api/ops/v1/plugins/'
     | '/api/ops/v1/reports/'
     | '/api/ops/v1/submissions/'
@@ -1085,6 +1125,7 @@ export interface FileRouteTypes {
     | '/$locale/account/submissions'
     | '/$locale/auth/cli'
     | '/$locale/categories/$slug'
+    | '/$locale/changelog/$slug'
     | '/$locale/collections/$id'
     | '/$locale/docs/$slug'
     | '/$locale/legal/$document'
@@ -1106,6 +1147,7 @@ export interface FileRouteTypes {
     | '/api/replies/$id'
     | '/api/users/$login'
     | '/$locale/account'
+    | '/$locale/changelog'
     | '/$locale/docs'
     | '/$locale/operations'
     | '/$locale/plugins'
@@ -1146,10 +1188,12 @@ export interface FileRouteTypes {
     | '/api/me/publishers/$publisherId/follow'
     | '/api/ops/approvals/$id/revisions'
     | '/api/ops/users/$id/role'
+    | '/api/ops/v1/changelog/$slug'
     | '/api/ops/v1/observations/$observationId'
     | '/api/ops/v1/plugins/$id'
     | '/api/ops/v1/submissions/$id'
     | '/og/plugins/$locale/$slug/card.png'
+    | '/api/ops/v1/changelog'
     | '/api/ops/v1/plugins'
     | '/api/ops/v1/reports'
     | '/api/ops/v1/submissions'
@@ -1188,6 +1232,7 @@ export interface FileRouteTypes {
     | '/$locale/account/submissions'
     | '/$locale/auth/cli'
     | '/$locale/categories/$slug'
+    | '/$locale/changelog/$slug'
     | '/$locale/collections/$id'
     | '/$locale/docs/$slug'
     | '/$locale/legal/$document'
@@ -1209,6 +1254,7 @@ export interface FileRouteTypes {
     | '/api/replies/$id'
     | '/api/users/$login'
     | '/$locale/account/'
+    | '/$locale/changelog/'
     | '/$locale/docs/'
     | '/$locale/operations/'
     | '/$locale/plugins/'
@@ -1249,10 +1295,12 @@ export interface FileRouteTypes {
     | '/api/me/publishers/$publisherId/follow'
     | '/api/ops/approvals/$id/revisions'
     | '/api/ops/users/$id/role'
+    | '/api/ops/v1/changelog/$slug'
     | '/api/ops/v1/observations/$observationId'
     | '/api/ops/v1/plugins/$id'
     | '/api/ops/v1/submissions/$id'
     | '/og/plugins/$locale/$slug/card.png'
+    | '/api/ops/v1/changelog/'
     | '/api/ops/v1/plugins/'
     | '/api/ops/v1/reports/'
     | '/api/ops/v1/submissions/'
@@ -1328,10 +1376,12 @@ export interface RootRouteChildren {
   ApiMePluginsPluginIdFollowRoute: typeof ApiMePluginsPluginIdFollowRoute
   ApiMePublishersPublisherIdFollowRoute: typeof ApiMePublishersPublisherIdFollowRoute
   ApiOpsUsersIdRoleRoute: typeof ApiOpsUsersIdRoleRoute
+  ApiOpsV1ChangelogSlugRoute: typeof ApiOpsV1ChangelogSlugRoute
   ApiOpsV1ObservationsObservationIdRoute: typeof ApiOpsV1ObservationsObservationIdRoute
   ApiOpsV1PluginsIdRoute: typeof ApiOpsV1PluginsIdRouteWithChildren
   ApiOpsV1SubmissionsIdRoute: typeof ApiOpsV1SubmissionsIdRouteWithChildren
   OgPluginsLocaleSlugCardDotpngRoute: typeof OgPluginsLocaleSlugCardDotpngRoute
+  ApiOpsV1ChangelogIndexRoute: typeof ApiOpsV1ChangelogIndexRoute
   ApiOpsV1PluginsIndexRoute: typeof ApiOpsV1PluginsIndexRoute
   ApiOpsV1ReportsIndexRoute: typeof ApiOpsV1ReportsIndexRoute
   ApiOpsV1SubmissionsIndexRoute: typeof ApiOpsV1SubmissionsIndexRoute
@@ -1519,6 +1569,20 @@ declare module '@tanstack/react-router' {
       path: '/categories/$slug'
       fullPath: '/$locale/categories/$slug'
       preLoaderRoute: typeof LocaleCategoriesSlugRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/changelog/': {
+      id: '/$locale/changelog/'
+      path: '/changelog'
+      fullPath: '/$locale/changelog/'
+      preLoaderRoute: typeof LocaleChangelogIndexRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/changelog/$slug': {
+      id: '/$locale/changelog/$slug'
+      path: '/changelog/$slug'
+      fullPath: '/$locale/changelog/$slug'
+      preLoaderRoute: typeof LocaleChangelogSlugRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/collections/$id': {
@@ -1941,6 +2005,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpsUsersIdRoleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ops/v1/changelog/': {
+      id: '/api/ops/v1/changelog/'
+      path: '/api/ops/v1/changelog'
+      fullPath: '/api/ops/v1/changelog/'
+      preLoaderRoute: typeof ApiOpsV1ChangelogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/v1/changelog/$slug': {
+      id: '/api/ops/v1/changelog/$slug'
+      path: '/api/ops/v1/changelog/$slug'
+      fullPath: '/api/ops/v1/changelog/$slug'
+      preLoaderRoute: typeof ApiOpsV1ChangelogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/ops/v1/observations/$observationId': {
       id: '/api/ops/v1/observations/$observationId'
       path: '/api/ops/v1/observations/$observationId'
@@ -2060,6 +2138,7 @@ interface LocaleRouteChildren {
   LocaleAccountSubmissionsRoute: typeof LocaleAccountSubmissionsRoute
   LocaleAuthCliRoute: typeof LocaleAuthCliRoute
   LocaleCategoriesSlugRoute: typeof LocaleCategoriesSlugRoute
+  LocaleChangelogSlugRoute: typeof LocaleChangelogSlugRoute
   LocaleCollectionsIdRoute: typeof LocaleCollectionsIdRoute
   LocaleDocsSlugRoute: typeof LocaleDocsSlugRoute
   LocaleLegalDocumentRoute: typeof LocaleLegalDocumentRoute
@@ -2067,6 +2146,7 @@ interface LocaleRouteChildren {
   LocalePublishersLoginRoute: typeof LocalePublishersLoginRoute
   LocaleUsersLoginRoute: typeof LocaleUsersLoginRoute
   LocaleAccountIndexRoute: typeof LocaleAccountIndexRoute
+  LocaleChangelogIndexRoute: typeof LocaleChangelogIndexRoute
   LocaleDocsIndexRoute: typeof LocaleDocsIndexRoute
   LocaleOperationsIndexRoute: typeof LocaleOperationsIndexRoute
   LocalePluginsIndexRoute: typeof LocalePluginsIndexRoute
@@ -2083,6 +2163,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleAccountSubmissionsRoute: LocaleAccountSubmissionsRoute,
   LocaleAuthCliRoute: LocaleAuthCliRoute,
   LocaleCategoriesSlugRoute: LocaleCategoriesSlugRoute,
+  LocaleChangelogSlugRoute: LocaleChangelogSlugRoute,
   LocaleCollectionsIdRoute: LocaleCollectionsIdRoute,
   LocaleDocsSlugRoute: LocaleDocsSlugRoute,
   LocaleLegalDocumentRoute: LocaleLegalDocumentRoute,
@@ -2090,6 +2171,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocalePublishersLoginRoute: LocalePublishersLoginRoute,
   LocaleUsersLoginRoute: LocaleUsersLoginRoute,
   LocaleAccountIndexRoute: LocaleAccountIndexRoute,
+  LocaleChangelogIndexRoute: LocaleChangelogIndexRoute,
   LocaleDocsIndexRoute: LocaleDocsIndexRoute,
   LocaleOperationsIndexRoute: LocaleOperationsIndexRoute,
   LocalePluginsIndexRoute: LocalePluginsIndexRoute,
@@ -2246,11 +2328,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMePluginsPluginIdFollowRoute: ApiMePluginsPluginIdFollowRoute,
   ApiMePublishersPublisherIdFollowRoute: ApiMePublishersPublisherIdFollowRoute,
   ApiOpsUsersIdRoleRoute: ApiOpsUsersIdRoleRoute,
+  ApiOpsV1ChangelogSlugRoute: ApiOpsV1ChangelogSlugRoute,
   ApiOpsV1ObservationsObservationIdRoute:
     ApiOpsV1ObservationsObservationIdRoute,
   ApiOpsV1PluginsIdRoute: ApiOpsV1PluginsIdRouteWithChildren,
   ApiOpsV1SubmissionsIdRoute: ApiOpsV1SubmissionsIdRouteWithChildren,
   OgPluginsLocaleSlugCardDotpngRoute: OgPluginsLocaleSlugCardDotpngRoute,
+  ApiOpsV1ChangelogIndexRoute: ApiOpsV1ChangelogIndexRoute,
   ApiOpsV1PluginsIndexRoute: ApiOpsV1PluginsIndexRoute,
   ApiOpsV1ReportsIndexRoute: ApiOpsV1ReportsIndexRoute,
   ApiOpsV1SubmissionsIndexRoute: ApiOpsV1SubmissionsIndexRoute,

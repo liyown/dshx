@@ -4,6 +4,7 @@ export type Locale = (typeof locales)[number];
 
 const en = {
   "nav.docs": "Docs",
+  "nav.changelog": "Changelog",
   "nav.plugins": "Plugins",
   "nav.operations": "Operations",
   "nav.examples": "Examples",
@@ -254,6 +255,7 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
   en,
   zh: {
     "nav.docs": "文档",
+    "nav.changelog": "更新日志",
     "nav.plugins": "插件",
     "nav.operations": "运营日报",
     "nav.examples": "示例",

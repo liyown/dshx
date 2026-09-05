@@ -34,6 +34,28 @@ describe("single dynamic sitemap", () => {
     expect(conditional.status).toBe(304);
   });
 
+  it("includes changelog records supplied by D1 with their stored lastmod", () => {
+    const modified = 1_700_000_000_000;
+    const entries = createSitemapEntries("https://dshx.io", [
+      { kind: "changelog", locale: "en", value: "database-release", updated_at: modified },
+      { kind: "changelog", locale: "zh", value: "database-release", updated_at: modified },
+    ]);
+    for (const locale of ["en", "zh"]) {
+      expect(entries.some((entry) => entry.loc === `https://dshx.io/${locale}/changelog`)).toBe(
+        true,
+      );
+      expect(entries).toContainEqual({
+        loc: `https://dshx.io/${locale}/changelog/database-release`,
+        kind: "changelog",
+        locale,
+        lastmod: new Date(modified).toISOString(),
+      });
+    }
+    expect(
+      createSitemapEntries("https://dshx.io", []).filter((entry) => entry.kind === "changelog"),
+    ).toEqual([]);
+  });
+
   it("omits invalid and future lastmod values", () => {
     const entries = createSitemapEntries("https://dshx.io", [
       {

@@ -142,7 +142,7 @@ export function buildSeoHead(document: SeoDocument) {
               children: JSON.stringify({
                 "@context": "https://schema.org",
                 "@graph": document.structuredData,
-              }),
+              }).replaceAll("<", "\\u003c"),
             },
           ]
         : [],

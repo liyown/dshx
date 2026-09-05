@@ -8,6 +8,7 @@ const llmsText = `# DSHX
 
 - [DSHX home](https://dshx.io/en)
 - [About DSHX](https://dshx.io/en/about)
+- [Changelog and release notes](https://dshx.io/en/changelog)
 - [Getting started](https://dshx.io/en/docs/getting-started)
 - [Architecture and runtime boundary](https://dshx.io/en/docs/architecture)
 - [Compatibility](https://dshx.io/en/docs/compatibility)

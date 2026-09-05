@@ -78,6 +78,13 @@
       "when": 1787817964710,
       "tag": "0010_gigantic_trish_tilby",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1788589736469,
+      "tag": "0011_hub_changelog",
+      "breakpoints": true
     }
   ]
 }
