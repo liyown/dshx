@@ -1,12 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { z } from "zod";
 import { Container, Chip, ButtonLink, SectionLabel } from "@/components/dshx/primitives";
 import { PluginCommunityActions } from "@/components/community/plugin-actions";
 import { ReplyDialog, ReportDialog } from "@/components/community/community-dialogs";
 import { PluginGlyph, PublisherIdentity } from "@/components/dshx/plugin-card";
 import { PluginNavigationLink, pluginTransitionStyle } from "@/components/dshx/plugin-navigation";
+import { useContentMotion } from "@/components/dshx/use-content-motion";
+import { useSpringIndicator } from "@/components/dshx/use-spring-indicator";
 import { loadCatalogDetail } from "@/lib/catalog/functions";
 import { buildPluginInstallCommand, selectInstallTarget } from "@/lib/catalog/install-target";
 import { cn } from "@/lib/utils";
@@ -146,6 +148,8 @@ function PluginDetail() {
   const { locale, t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [active, setActive] = useState<DetailSection>("overview");
+  const panelRef = useContentMotion<HTMLDivElement>(active);
+  const indicatorRef = useSpringIndicator(active);
   const primaryTarget = selectInstallTarget(
     detail.installTargets,
     plugin.scope,
@@ -168,6 +172,34 @@ function PluginDetail() {
   ] as const;
 
   const related = detail.related;
+
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, section: DetailSection) {
+    const index = sections.indexOf(section);
+    let nextIndex: number;
+    switch (event.key) {
+      case "ArrowRight":
+        nextIndex = (index + 1) % sections.length;
+        break;
+      case "ArrowLeft":
+        nextIndex = (index - 1 + sections.length) % sections.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = sections.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    const next = sections[nextIndex];
+    if (!next) return;
+    setActive(next);
+    event.currentTarget.parentElement
+      ?.querySelector<HTMLButtonElement>(`#plugin-tab-${next}`)
+      ?.focus();
+  }
 
   return (
     <main>
@@ -252,7 +284,9 @@ function PluginDetail() {
                   role="tab"
                   aria-selected={active === s}
                   aria-controls={`plugin-panel-${s}`}
+                  tabIndex={active === s ? 0 : -1}
                   onClick={() => setActive(s)}
+                  onKeyDown={(event) => handleTabKeyDown(event, s)}
                   className={cn(
                     "relative pb-3 text-[13.5px] transition-colors",
                     active === s
@@ -262,19 +296,24 @@ function PluginDetail() {
                 >
                   {sectionLabel(s, locale)}
                   {active === s && (
-                    <span className="absolute -bottom-px left-0 h-px w-full bg-accent" />
+                    <span
+                      ref={indicatorRef}
+                      data-spring-indicator
+                      className="absolute -bottom-px left-0 h-px w-full bg-accent"
+                    />
                   )}
                 </button>
               ))}
             </div>
 
-            <div className="mt-8 space-y-6">
+            <div ref={panelRef} className="mt-8 space-y-6">
               {sections.map((section) => (
                 <div
                   key={section}
                   id={`plugin-panel-${section}`}
                   role="tabpanel"
                   aria-labelledby={`plugin-tab-${section}`}
+                  tabIndex={0}
                   hidden={active !== section}
                 >
                   {section === "overview" ? (

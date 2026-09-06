@@ -111,9 +111,13 @@ export function AdminHeader({ back }: { back?: boolean }) {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <a href="/en" className="text-sm text-muted-foreground hover:text-foreground">
+          <Link
+            to="/$locale"
+            params={{ locale: "en" }}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
             Back to marketplace
-          </a>
+          </Link>
         </div>
       </div>
     </header>

@@ -28,21 +28,198 @@
 
 @custom-variant dark (&:is(.dark *));
 
+:root {
+  --motion-spring: cubic-bezier(0.22, 1.25, 0.36, 1);
+}
+
+/* Unit-mass spring: stiffness 380, damping 22; sampled over 620ms.
+   It crosses the target once, rebounds gently, then settles. */
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --motion-spring: linear(
+      0,
+      0.0406,
+      0.1431,
+      0.2817,
+      0.4355,
+      0.5882,
+      0.7283,
+      0.8489,
+      0.9462,
+      1.0195,
+      1.0701,
+      1.1007,
+      1.1148,
+      1.116,
+      1.1079,
+      1.0939,
+      1.0767,
+      1.0586,
+      1.0412,
+      1.0257,
+      1.0127,
+      1.0025,
+      0.995,
+      0.9901,
+      0.9874,
+      0.9864,
+      0.9867,
+      0.988,
+      0.9898,
+      0.9919,
+      0.994,
+      0.996,
+      0.9977,
+      0.999,
+      1.0001,
+      1.0008,
+      1.0013,
+      1.0015,
+      1.0016,
+      1.0015,
+      1
+    );
+  }
+}
+
+.route-motion-content {
+  overflow-x: clip;
+}
+
+/* A spring can keep settling while the user starts the next action. */
+::view-transition {
+  pointer-events: none;
+}
+
+/* Navigation changes the reading surface; the shell and ambient background stay put.
+   These names only affect browser snapshots, never the server-rendered content. */
+@media (prefers-reduced-motion: no-preference) {
+  html:active-view-transition-type(page-navigate),
+  html:active-view-transition-type(content-update) {
+    view-transition-name: none;
+  }
+
+  html:active-view-transition-type(navigate-back) {
+    --motion-navigation-direction: -1;
+  }
+
+  .route-motion-content {
+    view-transition-name: page-content;
+  }
+
+  html:active-view-transition-type(plugin-open) .route-motion-content,
+  html:active-view-transition-type(content-update) .route-motion-content:has([data-route-results]) {
+    view-transition-name: none;
+  }
+
+  html:active-view-transition-type(content-update) [data-route-results] {
+    view-transition-name: content-results;
+  }
+
+  html:not(:active-view-transition-type(plugin-open))::view-transition-old(root) {
+    animation: none;
+    opacity: 0;
+  }
+
+  html:not(:active-view-transition-type(plugin-open))::view-transition-new(root) {
+    animation: none;
+  }
+
+  ::view-transition-group(page-content),
+  ::view-transition-group(content-results) {
+    animation-duration: 280ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  ::view-transition-old(page-content),
+  ::view-transition-old(content-results) {
+    animation: motion-content-out 100ms ease-out both;
+    transform-origin: 50% 0;
+  }
+
+  ::view-transition-new(page-content) {
+    transform-origin: 50% 0;
+    animation:
+      plugin-view-in 100ms ease-out both,
+      motion-page-spring 620ms var(--motion-spring) both;
+  }
+
+  ::view-transition-new(content-results) {
+    transform-origin: 50% 0;
+    animation:
+      plugin-view-in 100ms ease-out both,
+      motion-content-spring 620ms var(--motion-spring) both;
+  }
+
+  .motion-content-enter {
+    transform-origin: 50% 0;
+    animation: motion-content-spring 620ms var(--motion-spring);
+  }
+}
+
+@keyframes motion-content-out {
+  to {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+}
+
+@keyframes motion-page-spring {
+  from {
+    transform: translateX(calc(36px * var(--motion-navigation-direction, 1))) scale(0.99);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes motion-content-spring {
+  from {
+    transform: translateX(calc(20px * var(--motion-navigation-direction, 1))) scale(0.995);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.navigation-progress {
+  position: fixed;
+  z-index: 80;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  pointer-events: none;
+  animation: plugin-view-in 120ms 160ms both;
+}
+
 /* The clicked card and the server-rendered detail header share snapshots.
    Unselected cards stay unnamed, even when the same plugin appears twice. */
 @media (prefers-reduced-motion: no-preference) {
-  [data-plugin-transition-source],
-  [data-plugin-detail] {
+  html:active-view-transition-type(plugin-open)
+    :is([data-plugin-transition-source], [data-plugin-detail]) {
     view-transition-name: var(--plugin-transition-surface);
     view-transition-class: plugin-surface;
   }
 
-  :is([data-plugin-transition-source], [data-plugin-detail]) [data-plugin-transition-part="glyph"] {
+  html:active-view-transition-type(plugin-open)
+    :is([data-plugin-transition-source], [data-plugin-detail])
+    [data-plugin-transition-part="glyph"] {
     view-transition-name: var(--plugin-transition-glyph);
     view-transition-class: plugin-identity;
   }
 
-  :is([data-plugin-transition-source], [data-plugin-detail]) [data-plugin-transition-part="title"] {
+  html:active-view-transition-type(plugin-open)
+    :is([data-plugin-transition-source], [data-plugin-detail])
+    [data-plugin-transition-part="title"] {
     view-transition-name: var(--plugin-transition-title);
     view-transition-class: plugin-identity;
   }
@@ -116,13 +293,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html:active-view-transition-type(plugin-open)::view-transition-group(*),
-  html:active-view-transition-type(plugin-open)::view-transition-old(*),
-  html:active-view-transition-type(plugin-open)::view-transition-new(*) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
     animation: none !important;
   }
 
-  .plugin-navigation-status {
+  .plugin-navigation-status,
+  .navigation-progress {
     animation: none;
   }
 }

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
 
 import { Chip, Container } from "@/components/dshx/primitives";
@@ -61,6 +61,7 @@ function ChangelogNotFound() {
 }
 
 function ChangelogArticlePage() {
+  const router = useRouter();
   const locale = parseLocale(Route.useParams().locale);
   const { entry, content, newer, older } = Route.useLoaderData();
   const copy = changelogCopy[locale];
@@ -148,17 +149,36 @@ function ChangelogArticlePage() {
                   {copy.sources}
                 </h2>
                 <ul className="space-y-3">
-                  {content.links.map((link) => (
-                    <li key={link.href}>
-                      <a
-                        href={link.href}
-                        className="inline-flex min-h-10 items-center gap-2 rounded-sm text-[13px] text-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
-                      >
+                  {content.links.map((link) => {
+                    const url = new URL(link.href, "https://dshx.io");
+                    const destination = url.origin === "https://dshx.io" ? url : null;
+                    const className =
+                      "inline-flex min-h-10 items-center gap-2 rounded-sm text-[13px] text-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring";
+                    const label = (
+                      <>
                         {link.label}
                         <ArrowUpRight className="size-3.5 shrink-0" aria-hidden="true" />
-                      </a>
-                    </li>
-                  ))}
+                      </>
+                    );
+                    return (
+                      <li key={link.href}>
+                        {destination ? (
+                          <Link
+                            to={destination.pathname}
+                            search={router.options.parseSearch(destination.search)}
+                            hash={destination.hash.slice(1)}
+                            className={className}
+                          >
+                            {label}
+                          </Link>
+                        ) : (
+                          <a href={link.href} className={className}>
+                            {label}
+                          </a>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
             </div>

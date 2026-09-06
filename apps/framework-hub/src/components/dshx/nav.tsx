@@ -29,8 +29,7 @@ export function Nav() {
   }, []);
 
   const alternateLocale = locale === "en" ? "zh" : "en";
-  const alternateHref =
-    localizedPath(alternateLocale, location.pathname) + location.searchStr + location.hash;
+  const alternatePath = localizedPath(alternateLocale, location.pathname);
 
   return (
     <header
@@ -65,13 +64,15 @@ export function Nav() {
             {t("nav.getStarted")}
           </ButtonLink>
           <ThemeToggle />
-          <a
-            href={alternateHref}
+          <Link
+            to={alternatePath}
+            search={true}
+            hash={location.hash}
             aria-label={t("nav.language")}
             className="hidden rounded-md border border-border px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground sm:block"
           >
             {locale === "en" ? t("nav.switchToChinese") : t("nav.switchToEnglish")}
-          </a>
+          </Link>
           <button
             onClick={() => setOpen((value) => !value)}
             aria-label={t("nav.menu")}
@@ -88,7 +89,10 @@ export function Nav() {
       </Container>
 
       {open && (
-        <div id="mobile-site-navigation" className="border-t border-border bg-background lg:hidden">
+        <div
+          id="mobile-site-navigation"
+          className="motion-content-enter border-t border-border bg-background lg:hidden"
+        >
           <Container className="flex flex-col py-2">
             {links.map((link) => (
               <Link
@@ -103,13 +107,15 @@ export function Nav() {
             <div className="py-2.5">
               <GitHubStarLink compact />
             </div>
-            <a
-              href={alternateHref}
+            <Link
+              to={alternatePath}
+              search={true}
+              hash={location.hash}
               onClick={() => setOpen(false)}
               className="py-2.5 text-[14px] text-muted-foreground"
             >
               {locale === "en" ? t("nav.switchToChinese") : t("nav.switchToEnglish")}
-            </a>
+            </Link>
             <div className="py-2.5">
               <MobileSessionLink locale={locale} />
             </div>

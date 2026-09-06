@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z, type ZodType } from "zod";
 
@@ -319,12 +320,13 @@ export function CollectionsPage() {
                   className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <a
-                      href={`/${locale}/collections/${String(item["id"])}`}
+                    <Link
+                      to="/$locale/collections/$id"
+                      params={{ locale, id: String(item["id"]) }}
                       className="text-sm font-medium hover:text-accent"
                     >
                       {String(item["name"])}
-                    </a>
+                    </Link>
                     <div className="mt-1 font-mono text-xs text-muted-foreground">
                       {String(item["visibility"])} · {String(item["plugin_count"] ?? 0)} plugins
                     </div>

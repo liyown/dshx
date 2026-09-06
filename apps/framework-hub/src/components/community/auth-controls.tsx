@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { LogIn } from "lucide-react";
 import { z } from "zod";
 
@@ -55,12 +56,13 @@ export function SessionLink() {
       </div>
     );
   return (
-    <a
-      href="/en/account"
+    <Link
+      to="/$locale/account"
+      params={{ locale: "en" }}
       className="hidden rounded-md px-2.5 py-1.5 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground lg:block"
     >
       {session.data.user.name}
-    </a>
+    </Link>
   );
 }
 
@@ -70,8 +72,12 @@ export function MobileSessionLink({ locale }: { locale: "en" | "zh" }) {
   if (!hydrated || session.isPending) return null;
   if (!session.data) return <SignInButton callbackURL={`/${locale}/account`} />;
   return (
-    <a href={`/${locale}/account`} className="py-2.5 text-sm text-muted-foreground">
+    <Link
+      to="/$locale/account"
+      params={{ locale }}
+      className="py-2.5 text-sm text-muted-foreground"
+    >
       {session.data.user.name}
-    </a>
+    </Link>
   );
 }

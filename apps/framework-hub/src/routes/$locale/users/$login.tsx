@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 
 import {
   PublicPageHeader,
@@ -81,16 +81,17 @@ function PublicUserPage() {
           </SectionLabel>
           <div className="mt-5 divide-y divide-border border-y border-border">
             {user.collections.map((collection) => (
-              <a
+              <Link
                 key={collection.id}
-                href={`/${locale}/collections/${collection.id}`}
+                to="/$locale/collections/$id"
+                params={{ locale, id: collection.id }}
                 className="flex items-center justify-between py-4"
               >
                 <span className="font-medium">{collection.name}</span>
                 <span className="font-mono text-xs text-muted-foreground">
                   {collection.plugin_count} plugins
                 </span>
-              </a>
+              </Link>
             ))}
           </div>
         </section>

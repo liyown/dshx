@@ -16,6 +16,7 @@ import { Nav } from "../components/dshx/nav";
 import { Footer } from "../components/dshx/footer";
 import { DevelopmentBanner } from "../components/dshx/development-banner";
 import { SiteMotionLayer } from "../components/dshx/site-motion-layer";
+import { NavigationProgress, RouteMotion } from "../components/dshx/route-motion";
 import { createTranslator, localeFromPathname, localizedPath } from "../lib/i18n";
 import { I18nProvider } from "../lib/i18n/provider";
 import { themeInitializationScript } from "../lib/theme";
@@ -142,15 +143,20 @@ function RootComponent() {
     <LazyMotion features={loadMotionFeatures} strict>
       <QueryClientProvider client={queryClient}>
         <I18nProvider locale={locale}>
+          <NavigationProgress />
           {isAdmin ? (
-            <Outlet />
+            <RouteMotion>
+              <Outlet />
+            </RouteMotion>
           ) : (
             <div className="site-motion-shell">
               <div className="site-motion-content">
                 {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
                 <DevelopmentBanner />
                 <Nav />
-                <Outlet />
+                <RouteMotion>
+                  <Outlet />
+                </RouteMotion>
                 <Footer />
               </div>
               <SiteMotionLayer />

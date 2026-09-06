@@ -1,9 +1,11 @@
 import { createFileRoute, Link, stripSearchParams, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, LayoutGrid, List, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { PluginCard, PluginRow } from "@/components/dshx/plugin-card";
 import { Chip, Container, SectionLabel } from "@/components/dshx/primitives";
+import { useContentMotion } from "@/components/dshx/use-content-motion";
+import { useSpringIndicator } from "@/components/dshx/use-spring-indicator";
 import { PluginSubmissionDialog } from "@/components/community/plugin-submission-dialog";
 import { catalogSortValues, type PluginListQuery } from "@/lib/catalog/contracts";
 import { loadCatalog } from "@/lib/catalog/functions";
@@ -102,19 +104,36 @@ function PluginsPage() {
   const { t } = useI18n();
   const [query, setQuery] = useState(search.q);
   const [view, setView] = useState<"grid" | "list">("grid");
+  const resultsRef = useContentMotion<HTMLDivElement>(view);
+  const previousPage = useRef(catalog.page);
+
+  useLayoutEffect(() => {
+    if (previousPage.current === catalog.page) return;
+    previousPage.current = catalog.page;
+    // A shorter next page must not leave the reader stranded beside the footer.
+    resultsRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+  }, [catalog.page, resultsRef]);
+  const indicatorRef = useSpringIndicator(search.sort);
 
   useEffect(() => setQuery(search.q), [search.q]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (query.trim() === search.q) return;
-      void navigate({ search: (old) => ({ ...old, q: query.trim(), cursor: "" }), replace: true });
+      void navigate({
+        search: (old) => ({ ...old, q: query.trim(), cursor: "" }),
+        replace: true,
+        resetScroll: false,
+      });
     }, 300);
     return () => window.clearTimeout(timer);
   }, [navigate, query, search.q]);
 
   function updateSearch(next: Partial<typeof search>) {
-    void navigate({ search: (old) => ({ ...old, ...next, cursor: "" }) });
+    void navigate({
+      search: (old) => ({ ...old, ...next, cursor: "" }),
+      resetScroll: false,
+    });
   }
 
   return (
@@ -213,7 +232,11 @@ function PluginsPage() {
               >
                 {t(sortLabels[sort])}
                 {search.sort === sort ? (
-                  <span className="absolute -bottom-px left-0 h-px w-full bg-accent" />
+                  <span
+                    ref={indicatorRef}
+                    data-spring-indicator
+                    className="absolute -bottom-px left-0 h-px w-full bg-accent"
+                  />
                 ) : null}
               </button>
             ))}
@@ -225,6 +248,7 @@ function PluginsPage() {
                 key={value}
                 onClick={() => setView(value)}
                 aria-label={`${value} view`}
+                aria-pressed={view === value}
                 className={cn(
                   "rounded-md p-2 transition-colors",
                   view === value ? "bg-surface-2 text-foreground" : "text-muted-foreground",
@@ -236,25 +260,27 @@ function PluginsPage() {
           </div>
         </div>
 
-        {view === "grid" ? (
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {catalog.items.map((plugin) => (
-              <PluginCard key={plugin.slug} plugin={plugin} />
-            ))}
-          </div>
-        ) : (
-          <div className="mt-8 overflow-hidden rounded-xl border border-border bg-surface">
-            {catalog.items.map((plugin) => (
-              <PluginRow key={plugin.slug} plugin={plugin} />
-            ))}
-          </div>
-        )}
+        <div ref={resultsRef} data-route-results className="scroll-mt-28">
+          {view === "grid" ? (
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {catalog.items.map((plugin) => (
+                <PluginCard key={plugin.slug} plugin={plugin} />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-8 overflow-hidden rounded-xl border border-border bg-surface">
+              {catalog.items.map((plugin) => (
+                <PluginRow key={plugin.slug} plugin={plugin} />
+              ))}
+            </div>
+          )}
 
-        {catalog.items.length === 0 ? (
-          <p className="mt-10 font-mono text-[12.5px] text-muted-foreground">
-            {t("plugins.noMatches")}
-          </p>
-        ) : null}
+          {catalog.items.length === 0 ? (
+            <p className="mt-10 font-mono text-[12.5px] text-muted-foreground">
+              {t("plugins.noMatches")}
+            </p>
+          ) : null}
+        </div>
 
         {catalog.totalPages > 0 ? (
           <nav
@@ -275,6 +301,7 @@ function PluginsPage() {
                 to="/$locale/plugins"
                 params={{ locale: params.locale }}
                 search={{ ...search, cursor: catalog.nextCursor }}
+                resetScroll={false}
                 className="inline-flex h-10 items-center gap-2 rounded-md border border-border-strong bg-surface px-4 text-sm transition-colors hover:bg-surface-2"
               >
                 {t("plugins.nextPage")} <ArrowRight className="size-4" data-icon="inline-end" />
