@@ -5,6 +5,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+const marketplaceName = '@becomeopc/dshx-plugin-marketplace'
+const strict = process.argv.includes('--strict')
+
 const expected = new Map([
   ['@becomeopc/dshx', /^0\.2\.0-preview\.\d+$/],
   ['create-dshx', /^0\.2\.0-preview\.\d+$/],
@@ -62,20 +65,31 @@ if (process.exitCode === undefined) {
     const document = JSON.parse(await readFile(output, 'utf8'))
     const releases = document.plan.flat().filter(release => release.kind === 'publish')
     if (releases.length === 0) fail('publish plan contains no unpublished Preview packages.')
+    let marketplaceDeferred = false
     for (const release of releases) {
       if (!expected.has(release.name)) fail(`publish plan unexpectedly contains ${release.name}.`)
-      if (release.tag !== 'preview') {
+      const deferredMarketplace = !strict && release.name === marketplaceName && release.tag === 'latest'
+      if (release.tag !== 'preview' && !deferredMarketplace) {
         const remedy =
           release.tag === 'latest'
-            ? ` Changesets promotes a package whose published versions are all Preview prereleases to latest. Remove the stale latest dist-tag with "npm dist-tag rm ${release.name} latest" and rerun this check.`
+            ? ` Changesets promotes a package whose published versions are all Preview prereleases to latest. npm does not allow removing the latest dist-tag; run "pnpm release:preview:marketplace" to publish ${release.name} with an explicit preview tag, then rerun this check with --strict.`
             : ''
         fail(`${release.name} would publish to ${JSON.stringify(release.tag)} instead of preview.${remedy}`)
       }
       if (release.version !== versions.get(release.name)) fail(`${release.name} publish-plan version does not match package.json.`)
+      if (deferredMarketplace) marketplaceDeferred = true
+    }
+    if (process.exitCode === undefined && marketplaceDeferred) {
+      process.stdout.write(
+        `preview release: ${marketplaceName} is planned for latest because every published version is a Preview prerelease; ` +
+          'the release command publishes it separately with --tag preview before Changesets.\n',
+      )
     }
   } finally {
     await rm(directory, { recursive: true })
   }
 }
 
-if (process.exitCode === undefined) process.stdout.write('preview release: versions, prerelease state, git state, and npm publish plan are safe\n')
+if (process.exitCode === undefined) {
+  process.stdout.write(`preview release: versions, prerelease state, git state, and npm publish plan are safe${strict ? ' (strict)' : ''}\n`)
+}
