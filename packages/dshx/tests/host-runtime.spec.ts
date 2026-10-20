@@ -284,92 +284,42 @@ describe('Host runtime adapter', () => {
     expect(setup).toHaveBeenCalledOnce()
   })
 
-  it('registers direct and advanced Settings after Prompts and before top-level setup', () => {
+  it('exports the Config schema while DSH owns the Settings form', () => {
     const calls: string[] = []
-    const direct = defineSettings({ namespace: 'direct', schema: Schema.object({ enabled: Schema.boolean().default(true) }) })
-    const advanced = defineSettings({ namespace: 'advanced', schema: Schema.object({ count: Schema.number().default(0) }), applies: 'restart' })
-    const scope = { get: vi.fn(), watch: vi.fn(), update: vi.fn(), replace: vi.fn() }
-    const setupDispose = vi.fn()
-    const validate = vi.fn()
+    const schema = Schema.object({ count: Schema.number().default(0) })
+    const config = defineSettings({ schema })
     const plugin = createHostPlugin(
       {
-        inject: ['settings', 'settings'],
         tools: [tool('status')],
         commands: [defineCommand({ name: 'status', description: 'Status.', handler: () => ({ kind: 'success' }) })],
         prompts: [definePromptSection({ name: 'plugin:guidance', order: 150, text: 'Use status.' })],
-        settings: [
-          direct,
-          advanced.host({
-            base: { count: 2 },
-            validate,
-            setup(received, receivedCtx) {
-              expect(received).toBe(scope)
-              expect(receivedCtx).toBe(ctx)
-              calls.push('settings:setup')
-              return setupDispose
-            },
-          }),
-        ],
+        config,
         setup() {
           calls.push('setup')
         },
       },
       { packageId: '@test/plugin' },
     )
-    const effects: Array<() => () => void> = []
     const ctx = {
-      tools: {
-        register: (value: ToolDefinition) => {
-          calls.push(`tool:${value.name}`)
-        },
-      },
-      commands: {
-        register: (value: CommandDefinition) => {
-          calls.push(`command:${value.name}`)
-        },
-      },
-      systemPrompt: {
-        section: (value: PromptSection) => {
-          calls.push(`prompt:${value.name}`)
-        },
-      },
-      settings: {
-        register(namespace: string, schema: unknown, options: Record<string, unknown>) {
-          calls.push(`settings:${namespace}`)
-          expect(schema).toBe(namespace === 'direct' ? direct.schema : advanced.schema)
-          if (namespace === 'direct') expect(options).toEqual({ applies: 'live' })
-          else expect(options).toEqual({ applies: 'restart', base: { count: 2 }, validate })
-          return scope
-        },
-      },
-      effect(execute: () => () => void) {
-        effects.push(execute)
-      },
+      tools: { register: (value: ToolDefinition) => calls.push(`tool:${value.name}`) },
+      commands: { register: (value: CommandDefinition) => calls.push(`command:${value.name}`) },
+      systemPrompt: { section: (value: PromptSection) => calls.push(`prompt:${value.name}`) },
     } as unknown as Context
 
-    expect(plugin.inject).toEqual(['settings', 'tools', 'commands', 'systemPrompt'])
+    expect(plugin.Config).toBe(config.schema)
+    expect(plugin.inject).toEqual(['tools', 'commands', 'systemPrompt'])
     plugin.apply(ctx)
-    expect(calls).toEqual(['tool:status', 'command:status', 'prompt:plugin:guidance', 'settings:direct', 'settings:advanced', 'settings:setup', 'setup'])
-    expect(effects).toHaveLength(1)
-    expect(effects[0]?.()).toBe(setupDispose)
-    expect(setupDispose).not.toHaveBeenCalled()
+    expect(calls).toEqual(['tool:status', 'command:status', 'prompt:plugin:guidance', 'setup'])
   })
 
-  it('does not inject Settings for an empty list and delegates duplicates to the official registry', () => {
-    const empty = createHostPlugin({ settings: [] }, { packageId: '@test/plugin' })
-    expect(empty.inject).toEqual([])
-    empty.apply({} as Context)
-
-    const contract = defineSettings({ namespace: 'duplicate', schema: Schema.object({ enabled: Schema.boolean() }) })
-    const register = vi
-      .fn()
-      .mockReturnValueOnce({})
-      .mockImplementationOnce(() => {
-        throw new Error('official duplicate settings error')
-      })
-    const duplicate = createHostPlugin({ settings: [contract, contract] }, { packageId: '@test/plugin' })
-    expect(() => duplicate.apply({ settings: { register } } as unknown as Context)).toThrow('official duplicate settings error')
-    expect(register).toHaveBeenCalledTimes(2)
+  it('rejects the removed Settings contribution list', () => {
+    const contract = defineSettings({ schema: Schema.object({ enabled: Schema.boolean() }) })
+    expect(() => createHostPlugin({ settings: [contract] }, { packageId: '@test/plugin' })).toThrow(
+      expect.objectContaining({ code: 'DSHX2002' }),
+    )
+    expect(() => createHostPlugin({ settings: [] }, { packageId: '@test/plugin' })).toThrow(
+      expect.objectContaining({ code: 'DSHX2002' }),
+    )
   })
 
   it('preserves native Host name, inject, Config, apply and config argument', () => {

@@ -24,6 +24,7 @@ import { Route as LocaleExamplesRouteImport } from './routes/$locale/examples'
 import { Route as DotwellKnownApiCatalogRouteImport } from './routes/[.]well-known/api-catalog'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
+import { Route as AdminAgentPromptRouteImport } from './routes/admin/agent-prompt'
 import { Route as ApiConfigRouteImport } from './routes/api/config'
 import { Route as ApiGithubStarsRouteImport } from './routes/api/github-stars'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -64,6 +65,8 @@ import { Route as ApiRepliesIdRouteImport } from './routes/api/replies/$id'
 import { Route as ApiReportsIndexRouteImport } from './routes/api/reports/index'
 import { Route as ApiSubmissionsIndexRouteImport } from './routes/api/submissions/index'
 import { Route as ApiUsersLoginRouteImport } from './routes/api/users/$login'
+import { Route as ApiAdminAgentPromptIndexRouteImport } from './routes/api/admin/agent-prompt/index'
+import { Route as ApiAdminAgentPromptResourcesRouteImport } from './routes/api/admin/agent-prompt/resources'
 import { Route as ApiAdminApprovalsIndexRouteImport } from './routes/api/admin/approvals/index'
 import { Route as ApiAdminApprovalsIdRouteImport } from './routes/api/admin/approvals/$id'
 import { Route as ApiClaimsIdVerifyRouteImport } from './routes/api/claims/$id/verify'
@@ -81,6 +84,7 @@ import { Route as ApiOpsApprovalsIndexRouteImport } from './routes/api/ops/appro
 import { Route as ApiOpsApprovalsIdRouteImport } from './routes/api/ops/approvals/$id'
 import { Route as ApiOpsModerationActionsRouteImport } from './routes/api/ops/moderation/actions'
 import { Route as ApiOpsModerationQueueRouteImport } from './routes/api/ops/moderation/queue'
+import { Route as ApiOpsV1AgentBundleRouteImport } from './routes/api/ops/v1/agent-bundle'
 import { Route as ApiOpsV1AuditRouteImport } from './routes/api/ops/v1/audit'
 import { Route as ApiOpsV1ObservationsChar58batchRouteImport } from './routes/api/ops/v1/observations:batch'
 import { Route as ApiOpsV1StatusRouteImport } from './routes/api/ops/v1/status'
@@ -192,6 +196,11 @@ const DotwellKnownOauthProtectedResourceRoute =
     path: '/.well-known/oauth-protected-resource',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AdminAgentPromptRoute = AdminAgentPromptRouteImport.update({
+  id: '/admin/agent-prompt',
+  path: '/admin/agent-prompt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiConfigRoute = ApiConfigRouteImport.update({
   id: '/api/config',
   path: '/api/config',
@@ -397,6 +406,18 @@ const ApiUsersLoginRoute = ApiUsersLoginRouteImport.update({
   path: '/api/users/$login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminAgentPromptIndexRoute =
+  ApiAdminAgentPromptIndexRouteImport.update({
+    id: '/api/admin/agent-prompt/',
+    path: '/api/admin/agent-prompt/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminAgentPromptResourcesRoute =
+  ApiAdminAgentPromptResourcesRouteImport.update({
+    id: '/api/admin/agent-prompt/resources',
+    path: '/api/admin/agent-prompt/resources',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminApprovalsIndexRoute = ApiAdminApprovalsIndexRouteImport.update({
   id: '/api/admin/approvals/',
   path: '/api/admin/approvals/',
@@ -484,6 +505,11 @@ const ApiOpsModerationActionsRoute = ApiOpsModerationActionsRouteImport.update({
 const ApiOpsModerationQueueRoute = ApiOpsModerationQueueRouteImport.update({
   id: '/api/ops/moderation/queue',
   path: '/api/ops/moderation/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsV1AgentBundleRoute = ApiOpsV1AgentBundleRouteImport.update({
+  id: '/api/ops/v1/agent-bundle',
+  path: '/api/ops/v1/agent-bundle',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOpsV1AuditRoute = ApiOpsV1AuditRouteImport.update({
@@ -685,6 +711,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/api-catalog': typeof DotwellKnownApiCatalogRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
+  '/admin/agent-prompt': typeof AdminAgentPromptRoute
   '/api/config': typeof ApiConfigRoute
   '/api/github-stars': typeof ApiGithubStarsRoute
   '/api/health': typeof ApiHealthRoute
@@ -726,6 +753,7 @@ export interface FileRoutesByFullPath {
   '/api/plugins/': typeof ApiPluginsIndexRoute
   '/api/reports/': typeof ApiReportsIndexRoute
   '/api/submissions/': typeof ApiSubmissionsIndexRoute
+  '/api/admin/agent-prompt/resources': typeof ApiAdminAgentPromptResourcesRoute
   '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
   '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
   '/api/marketplace/plugins/$slug': typeof ApiMarketplacePluginsSlugRoute
@@ -734,6 +762,7 @@ export interface FileRoutesByFullPath {
   '/api/ops/approvals/$id': typeof ApiOpsApprovalsIdRouteWithChildren
   '/api/ops/moderation/actions': typeof ApiOpsModerationActionsRoute
   '/api/ops/moderation/queue': typeof ApiOpsModerationQueueRoute
+  '/api/ops/v1/agent-bundle': typeof ApiOpsV1AgentBundleRoute
   '/api/ops/v1/audit': typeof ApiOpsV1AuditRoute
   '/api/ops/v1/observations:batch': typeof ApiOpsV1ObservationsChar58batchRoute
   '/api/ops/v1/status': typeof ApiOpsV1StatusRoute
@@ -742,6 +771,7 @@ export interface FileRoutesByFullPath {
   '/api/plugins/$slug/reviews': typeof ApiPluginsSlugReviewsRoute
   '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
   '/og/home/$locale/card.png': typeof OgHomeLocaleCardDotpngRoute
+  '/api/admin/agent-prompt/': typeof ApiAdminAgentPromptIndexRoute
   '/api/admin/approvals/': typeof ApiAdminApprovalsIndexRoute
   '/api/cli/authorizations/': typeof ApiCliAuthorizationsIndexRoute
   '/api/marketplace/plugins/': typeof ApiMarketplacePluginsIndexRoute
@@ -791,6 +821,7 @@ export interface FileRoutesByTo {
   '/.well-known/api-catalog': typeof DotwellKnownApiCatalogRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
+  '/admin/agent-prompt': typeof AdminAgentPromptRoute
   '/api/config': typeof ApiConfigRoute
   '/api/github-stars': typeof ApiGithubStarsRoute
   '/api/health': typeof ApiHealthRoute
@@ -832,6 +863,7 @@ export interface FileRoutesByTo {
   '/api/plugins': typeof ApiPluginsIndexRoute
   '/api/reports': typeof ApiReportsIndexRoute
   '/api/submissions': typeof ApiSubmissionsIndexRoute
+  '/api/admin/agent-prompt/resources': typeof ApiAdminAgentPromptResourcesRoute
   '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
   '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
   '/api/marketplace/plugins/$slug': typeof ApiMarketplacePluginsSlugRoute
@@ -840,6 +872,7 @@ export interface FileRoutesByTo {
   '/api/ops/approvals/$id': typeof ApiOpsApprovalsIdRouteWithChildren
   '/api/ops/moderation/actions': typeof ApiOpsModerationActionsRoute
   '/api/ops/moderation/queue': typeof ApiOpsModerationQueueRoute
+  '/api/ops/v1/agent-bundle': typeof ApiOpsV1AgentBundleRoute
   '/api/ops/v1/audit': typeof ApiOpsV1AuditRoute
   '/api/ops/v1/observations:batch': typeof ApiOpsV1ObservationsChar58batchRoute
   '/api/ops/v1/status': typeof ApiOpsV1StatusRoute
@@ -848,6 +881,7 @@ export interface FileRoutesByTo {
   '/api/plugins/$slug/reviews': typeof ApiPluginsSlugReviewsRoute
   '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
   '/og/home/$locale/card.png': typeof OgHomeLocaleCardDotpngRoute
+  '/api/admin/agent-prompt': typeof ApiAdminAgentPromptIndexRoute
   '/api/admin/approvals': typeof ApiAdminApprovalsIndexRoute
   '/api/cli/authorizations': typeof ApiCliAuthorizationsIndexRoute
   '/api/marketplace/plugins': typeof ApiMarketplacePluginsIndexRoute
@@ -899,6 +933,7 @@ export interface FileRoutesById {
   '/.well-known/api-catalog': typeof DotwellKnownApiCatalogRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
+  '/admin/agent-prompt': typeof AdminAgentPromptRoute
   '/api/config': typeof ApiConfigRoute
   '/api/github-stars': typeof ApiGithubStarsRoute
   '/api/health': typeof ApiHealthRoute
@@ -940,6 +975,7 @@ export interface FileRoutesById {
   '/api/plugins/': typeof ApiPluginsIndexRoute
   '/api/reports/': typeof ApiReportsIndexRoute
   '/api/submissions/': typeof ApiSubmissionsIndexRoute
+  '/api/admin/agent-prompt/resources': typeof ApiAdminAgentPromptResourcesRoute
   '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
   '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
   '/api/marketplace/plugins/$slug': typeof ApiMarketplacePluginsSlugRoute
@@ -948,6 +984,7 @@ export interface FileRoutesById {
   '/api/ops/approvals/$id': typeof ApiOpsApprovalsIdRouteWithChildren
   '/api/ops/moderation/actions': typeof ApiOpsModerationActionsRoute
   '/api/ops/moderation/queue': typeof ApiOpsModerationQueueRoute
+  '/api/ops/v1/agent-bundle': typeof ApiOpsV1AgentBundleRoute
   '/api/ops/v1/audit': typeof ApiOpsV1AuditRoute
   '/api/ops/v1/observations:batch': typeof ApiOpsV1ObservationsChar58batchRoute
   '/api/ops/v1/status': typeof ApiOpsV1StatusRoute
@@ -956,6 +993,7 @@ export interface FileRoutesById {
   '/api/plugins/$slug/reviews': typeof ApiPluginsSlugReviewsRoute
   '/api/reviews/$id/replies': typeof ApiReviewsIdRepliesRoute
   '/og/home/$locale/card.png': typeof OgHomeLocaleCardDotpngRoute
+  '/api/admin/agent-prompt/': typeof ApiAdminAgentPromptIndexRoute
   '/api/admin/approvals/': typeof ApiAdminApprovalsIndexRoute
   '/api/cli/authorizations/': typeof ApiCliAuthorizationsIndexRoute
   '/api/marketplace/plugins/': typeof ApiMarketplacePluginsIndexRoute
@@ -1008,6 +1046,7 @@ export interface FileRouteTypes {
     | '/.well-known/api-catalog'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/agent-prompt'
     | '/api/config'
     | '/api/github-stars'
     | '/api/health'
@@ -1049,6 +1088,7 @@ export interface FileRouteTypes {
     | '/api/plugins/'
     | '/api/reports/'
     | '/api/submissions/'
+    | '/api/admin/agent-prompt/resources'
     | '/api/admin/approvals/$id'
     | '/api/claims/$id/verify'
     | '/api/marketplace/plugins/$slug'
@@ -1057,6 +1097,7 @@ export interface FileRouteTypes {
     | '/api/ops/approvals/$id'
     | '/api/ops/moderation/actions'
     | '/api/ops/moderation/queue'
+    | '/api/ops/v1/agent-bundle'
     | '/api/ops/v1/audit'
     | '/api/ops/v1/observations:batch'
     | '/api/ops/v1/status'
@@ -1065,6 +1106,7 @@ export interface FileRouteTypes {
     | '/api/plugins/$slug/reviews'
     | '/api/reviews/$id/replies'
     | '/og/home/$locale/card.png'
+    | '/api/admin/agent-prompt/'
     | '/api/admin/approvals/'
     | '/api/cli/authorizations/'
     | '/api/marketplace/plugins/'
@@ -1114,6 +1156,7 @@ export interface FileRouteTypes {
     | '/.well-known/api-catalog'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/agent-prompt'
     | '/api/config'
     | '/api/github-stars'
     | '/api/health'
@@ -1155,6 +1198,7 @@ export interface FileRouteTypes {
     | '/api/plugins'
     | '/api/reports'
     | '/api/submissions'
+    | '/api/admin/agent-prompt/resources'
     | '/api/admin/approvals/$id'
     | '/api/claims/$id/verify'
     | '/api/marketplace/plugins/$slug'
@@ -1163,6 +1207,7 @@ export interface FileRouteTypes {
     | '/api/ops/approvals/$id'
     | '/api/ops/moderation/actions'
     | '/api/ops/moderation/queue'
+    | '/api/ops/v1/agent-bundle'
     | '/api/ops/v1/audit'
     | '/api/ops/v1/observations:batch'
     | '/api/ops/v1/status'
@@ -1171,6 +1216,7 @@ export interface FileRouteTypes {
     | '/api/plugins/$slug/reviews'
     | '/api/reviews/$id/replies'
     | '/og/home/$locale/card.png'
+    | '/api/admin/agent-prompt'
     | '/api/admin/approvals'
     | '/api/cli/authorizations'
     | '/api/marketplace/plugins'
@@ -1221,6 +1267,7 @@ export interface FileRouteTypes {
     | '/.well-known/api-catalog'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/agent-prompt'
     | '/api/config'
     | '/api/github-stars'
     | '/api/health'
@@ -1262,6 +1309,7 @@ export interface FileRouteTypes {
     | '/api/plugins/'
     | '/api/reports/'
     | '/api/submissions/'
+    | '/api/admin/agent-prompt/resources'
     | '/api/admin/approvals/$id'
     | '/api/claims/$id/verify'
     | '/api/marketplace/plugins/$slug'
@@ -1270,6 +1318,7 @@ export interface FileRouteTypes {
     | '/api/ops/approvals/$id'
     | '/api/ops/moderation/actions'
     | '/api/ops/moderation/queue'
+    | '/api/ops/v1/agent-bundle'
     | '/api/ops/v1/audit'
     | '/api/ops/v1/observations:batch'
     | '/api/ops/v1/status'
@@ -1278,6 +1327,7 @@ export interface FileRouteTypes {
     | '/api/plugins/$slug/reviews'
     | '/api/reviews/$id/replies'
     | '/og/home/$locale/card.png'
+    | '/api/admin/agent-prompt/'
     | '/api/admin/approvals/'
     | '/api/cli/authorizations/'
     | '/api/marketplace/plugins/'
@@ -1327,6 +1377,7 @@ export interface RootRouteChildren {
   DotwellKnownApiCatalogRoute: typeof DotwellKnownApiCatalogRoute
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
   DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
+  AdminAgentPromptRoute: typeof AdminAgentPromptRoute
   ApiConfigRoute: typeof ApiConfigRoute
   ApiGithubStarsRoute: typeof ApiGithubStarsRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -1348,6 +1399,7 @@ export interface RootRouteChildren {
   ApiPluginsIndexRoute: typeof ApiPluginsIndexRoute
   ApiReportsIndexRoute: typeof ApiReportsIndexRoute
   ApiSubmissionsIndexRoute: typeof ApiSubmissionsIndexRoute
+  ApiAdminAgentPromptResourcesRoute: typeof ApiAdminAgentPromptResourcesRoute
   ApiAdminApprovalsIdRoute: typeof ApiAdminApprovalsIdRouteWithChildren
   ApiClaimsIdVerifyRoute: typeof ApiClaimsIdVerifyRoute
   ApiMarketplacePluginsSlugRoute: typeof ApiMarketplacePluginsSlugRoute
@@ -1356,11 +1408,13 @@ export interface RootRouteChildren {
   ApiOpsApprovalsIdRoute: typeof ApiOpsApprovalsIdRouteWithChildren
   ApiOpsModerationActionsRoute: typeof ApiOpsModerationActionsRoute
   ApiOpsModerationQueueRoute: typeof ApiOpsModerationQueueRoute
+  ApiOpsV1AgentBundleRoute: typeof ApiOpsV1AgentBundleRoute
   ApiOpsV1AuditRoute: typeof ApiOpsV1AuditRoute
   ApiOpsV1ObservationsChar58batchRoute: typeof ApiOpsV1ObservationsChar58batchRoute
   ApiOpsV1StatusRoute: typeof ApiOpsV1StatusRoute
   ApiReviewsIdRepliesRoute: typeof ApiReviewsIdRepliesRoute
   OgHomeLocaleCardDotpngRoute: typeof OgHomeLocaleCardDotpngRoute
+  ApiAdminAgentPromptIndexRoute: typeof ApiAdminAgentPromptIndexRoute
   ApiAdminApprovalsIndexRoute: typeof ApiAdminApprovalsIndexRoute
   ApiCliAuthorizationsIndexRoute: typeof ApiCliAuthorizationsIndexRoute
   ApiMarketplacePluginsIndexRoute: typeof ApiMarketplacePluginsIndexRoute
@@ -1492,6 +1546,13 @@ declare module '@tanstack/react-router' {
       path: '/.well-known/oauth-protected-resource'
       fullPath: '/.well-known/oauth-protected-resource'
       preLoaderRoute: typeof DotwellKnownOauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/agent-prompt': {
+      id: '/admin/agent-prompt'
+      path: '/admin/agent-prompt'
+      fullPath: '/admin/agent-prompt'
+      preLoaderRoute: typeof AdminAgentPromptRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/config': {
@@ -1774,6 +1835,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiUsersLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/agent-prompt/': {
+      id: '/api/admin/agent-prompt/'
+      path: '/api/admin/agent-prompt'
+      fullPath: '/api/admin/agent-prompt/'
+      preLoaderRoute: typeof ApiAdminAgentPromptIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/agent-prompt/resources': {
+      id: '/api/admin/agent-prompt/resources'
+      path: '/api/admin/agent-prompt/resources'
+      fullPath: '/api/admin/agent-prompt/resources'
+      preLoaderRoute: typeof ApiAdminAgentPromptResourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/approvals/': {
       id: '/api/admin/approvals/'
       path: '/api/admin/approvals'
@@ -1891,6 +1966,13 @@ declare module '@tanstack/react-router' {
       path: '/api/ops/moderation/queue'
       fullPath: '/api/ops/moderation/queue'
       preLoaderRoute: typeof ApiOpsModerationQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/v1/agent-bundle': {
+      id: '/api/ops/v1/agent-bundle'
+      path: '/api/ops/v1/agent-bundle'
+      fullPath: '/api/ops/v1/agent-bundle'
+      preLoaderRoute: typeof ApiOpsV1AgentBundleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ops/v1/audit': {
@@ -2279,6 +2361,7 @@ const rootRouteChildren: RootRouteChildren = {
     DotwellKnownOauthAuthorizationServerRoute,
   DotwellKnownOauthProtectedResourceRoute:
     DotwellKnownOauthProtectedResourceRoute,
+  AdminAgentPromptRoute: AdminAgentPromptRoute,
   ApiConfigRoute: ApiConfigRoute,
   ApiGithubStarsRoute: ApiGithubStarsRoute,
   ApiHealthRoute: ApiHealthRoute,
@@ -2300,6 +2383,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPluginsIndexRoute: ApiPluginsIndexRoute,
   ApiReportsIndexRoute: ApiReportsIndexRoute,
   ApiSubmissionsIndexRoute: ApiSubmissionsIndexRoute,
+  ApiAdminAgentPromptResourcesRoute: ApiAdminAgentPromptResourcesRoute,
   ApiAdminApprovalsIdRoute: ApiAdminApprovalsIdRouteWithChildren,
   ApiClaimsIdVerifyRoute: ApiClaimsIdVerifyRoute,
   ApiMarketplacePluginsSlugRoute: ApiMarketplacePluginsSlugRoute,
@@ -2308,11 +2392,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpsApprovalsIdRoute: ApiOpsApprovalsIdRouteWithChildren,
   ApiOpsModerationActionsRoute: ApiOpsModerationActionsRoute,
   ApiOpsModerationQueueRoute: ApiOpsModerationQueueRoute,
+  ApiOpsV1AgentBundleRoute: ApiOpsV1AgentBundleRoute,
   ApiOpsV1AuditRoute: ApiOpsV1AuditRoute,
   ApiOpsV1ObservationsChar58batchRoute: ApiOpsV1ObservationsChar58batchRoute,
   ApiOpsV1StatusRoute: ApiOpsV1StatusRoute,
   ApiReviewsIdRepliesRoute: ApiReviewsIdRepliesRoute,
   OgHomeLocaleCardDotpngRoute: OgHomeLocaleCardDotpngRoute,
+  ApiAdminAgentPromptIndexRoute: ApiAdminAgentPromptIndexRoute,
   ApiAdminApprovalsIndexRoute: ApiAdminApprovalsIndexRoute,
   ApiCliAuthorizationsIndexRoute: ApiCliAuthorizationsIndexRoute,
   ApiMarketplacePluginsIndexRoute: ApiMarketplacePluginsIndexRoute,

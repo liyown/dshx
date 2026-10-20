@@ -1,7 +1,7 @@
 import { defineCommand, parseArgs as parseCittyArgs } from 'citty'
 
 export type CliCommand = 'build' | 'check' | 'dev' | 'inspect' | 'add'
-export type CliInspectTarget = 'slots' | 'tools' | 'services' | 'events'
+export type CliInspectTarget = 'slots' | 'tools' | 'services' | 'events' | 'configs'
 export type CliAddTarget = 'ui' | 'tool' | 'command' | 'hook'
 
 export interface CliArgs {
@@ -147,7 +147,7 @@ export const dshxCommand = defineCommand({
     inspect: defineCommand({
       meta: {
         name: 'inspect',
-        description: 'Inspect Slots, Tools, Services, or Events.',
+        description: 'Inspect Tools, Services, Events, or Configs.',
       },
       args: sharedArgs,
     }),
@@ -189,7 +189,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
       command = token
       continue
     }
-    if (token === 'slots' || token === 'tools' || token === 'services' || token === 'events') {
+    if (token === 'slots' || token === 'tools' || token === 'services' || token === 'events' || token === 'configs') {
       if (inspectTarget !== undefined) throw new CliUsageError('Only one inspect target may be specified.')
       inspectTarget = token
       continue
@@ -249,7 +249,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   if (command !== 'inspect' && inspectTarget !== undefined) throw new CliUsageError('Inspect targets are only valid with the inspect command.')
   if (command !== 'add' && addTarget !== undefined) throw new CliUsageError('Add targets are only valid with the add command.')
   if (command === 'inspect' && inspectTarget === undefined && !help && !version)
-    throw new CliUsageError('Inspect requires a target: slots, tools, services, or events.')
+    throw new CliUsageError('Inspect requires a target: tools, services, events, or configs.')
   if (command === 'add' && addTarget === undefined && !help && !version) throw new CliUsageError('Add requires a target: ui, tool, command, or hook.')
   if (command === 'add' && addTarget !== 'ui' && addTarget !== 'tool' && addTarget !== 'command' && addTarget !== 'hook')
     throw new CliUsageError('Only add ui, add tool, add command, and add hook are supported.')

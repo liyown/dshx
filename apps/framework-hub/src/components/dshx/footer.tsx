@@ -50,7 +50,7 @@ export function Footer() {
             {t("footer.tagline")}
           </p>
           <p className="mt-auto font-mono text-[11px] text-muted-foreground">
-            MIT · DSHX 0.1 · protocol-1
+            MIT · DSHX 0.2 · protocol-2
           </p>
         </div>
 

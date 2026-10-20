@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0
+
+- Move the public line to DSH 0.2.x with a new `protocol-2` adapter verified against a source build of `dsh-v0.2.1-rc.2`. The npm `0.2.1-rc.2` artifact remains experimental until upstream republishes it.
+- Replace the 0.1 Settings contract with a plugin `Config` schema projected by DSH `SettingsForms`; `useSettings` now reads `ctx.configForms` by Host profile entry id, marks the root schema volatile, reports redacted secrets, and returns booleans from writes.
+- Replace `conversationEvents` with `ctx.uiConversation.events.register`, update renderer types to `@deepseek-ai/dsh-client-ui-conversation/client`, and remove `@deepseek-ai/dsh-client-runtime`.
+- Move API RPC to peer-based `connection.rpc.handle`, remove the `authority` option, and update Client capability inference to `connection:peer-admission`.
+- Update Host/Client manifest checks for `engines.dsh`, `manifestVersion: 1`, array-valued `bundle.patch`, Session format 4, and the removed `/invariant` entry.
+- Report `DSHX3204` for `inspect slots` because DSH 0.2 exposes no runtime Slot catalog; `add ui` accepts explicit `--slot`/`--provider` values and emits a `DSHX6112` verification warning.
+- Add source-mode real-runtime smoke (`--dsh-source`/`DSH_SOURCE_ROOT`), authenticated `/connect` API sessions, Config/SettingsForms lifecycle coverage, and Conversation `uiConversation` coverage.
+- Update `create-dshx`, fixtures, the Marketplace reference plugin, version policy, and the 0.1→0.2 migration guide.
+
 ## Unreleased
 
 - Prepare the first npm `preview` channel with guarded Changesets pre mode, package-content smoke, and a release runbook that preserves `latest`.

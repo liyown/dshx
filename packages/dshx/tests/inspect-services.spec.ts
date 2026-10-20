@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { inspectProjectComposition, normalizeEvents, normalizeServices } from '../src/inspect/index.js'
 import type { ResolvedDshxConfig } from '../src/config/types.js'
-import { DSH_0_1_COMPATIBILITY } from '../src/compat/index.js'
+import { PROTOCOL_2_COMPATIBILITY } from '../src/compat/index.js'
 
 function project(): ResolvedDshxConfig {
   return {
@@ -10,6 +10,7 @@ function project(): ResolvedDshxConfig {
     configDependencies: [],
     packageId: 'demo-plugin',
     name: 'demo-plugin',
+    settingsNamespace: 'demo',
     hostEntry: '/project/plugin/src/host.ts',
     outDir: '/project/plugin/dist',
     profile: 'web',
@@ -22,13 +23,13 @@ function project(): ResolvedDshxConfig {
 
 function installation() {
   return {
-    version: '0.1.0-rc.8',
+    version: '0.2.1-rc.2',
     executable: 'local' as const,
     support: 'verified' as const,
-    adapterId: DSH_0_1_COMPATIBILITY.id,
-    protocolGeneration: DSH_0_1_COMPATIBILITY.protocolGeneration,
-    supportedRange: DSH_0_1_COMPATIBILITY.dshRange,
-    compatibility: DSH_0_1_COMPATIBILITY,
+    adapterId: PROTOCOL_2_COMPATIBILITY.id,
+    protocolGeneration: PROTOCOL_2_COMPATIBILITY.protocolGeneration,
+    supportedRange: PROTOCOL_2_COMPATIBILITY.dshRange,
+    compatibility: PROTOCOL_2_COMPATIBILITY,
     diagnostics: [],
   }
 }
@@ -65,7 +66,7 @@ describe('services and events inspect normalization', () => {
       listEvents: vi.fn(async () => [{ name: 'agent.ready' }]),
     }
     const inspectProfile = vi.fn(async () => linked(value))
-    const compatibility = { ...DSH_0_1_COMPATIBILITY, inspect: { targets: ['services', 'events'] as const, provider: 'runtime' as const } }
+    const compatibility = { ...PROTOCOL_2_COMPATIBILITY, inspect: { targets: ['services', 'events'] as const, provider: 'runtime' as const } }
     const resolveDsh = async () => ({ ...installation(), compatibility })
     const services = await inspectProjectComposition(value, 'services', { provider, resolveDsh, inspectProfile })
     const events = await inspectProjectComposition(value, 'events', { provider, resolveDsh, inspectProfile })
@@ -76,7 +77,7 @@ describe('services and events inspect normalization', () => {
 
   it('reports missing optional provider methods as unsupported', async () => {
     const value = project()
-    const compatibility = { ...DSH_0_1_COMPATIBILITY, inspect: { targets: ['services'] as const, provider: 'runtime' as const } }
+    const compatibility = { ...PROTOCOL_2_COMPATIBILITY, inspect: { targets: ['services'] as const, provider: 'runtime' as const } }
     const result = await inspectProjectComposition(value, 'services', {
       provider: { listSlots: async () => [], listTools: async () => [] },
       resolveDsh: async () => ({ ...installation(), compatibility }),

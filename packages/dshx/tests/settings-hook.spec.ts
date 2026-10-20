@@ -1,10 +1,10 @@
 import Schema from '@deepseek-ai/schemastery'
 import React from 'react'
-import type { SettingsContract } from '../src/settings/index.js'
 import type { SettingsClientRuntime } from '../src/settings/client.js'
 import { createSettingsClientRuntime, useSettings } from '../src/settings/client.js'
 import { defineSettings } from '../src/settings/index.js'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SettingsContract, SettingsFormValue, SettingsState } from '../src/settings/types.js'
+import { afterAll, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 type Setter<T> = T | ((previous: T) => T)
 
@@ -51,33 +51,93 @@ function resetRender(): void {
   refCursor = 0
 }
 
-function render<Contract extends SettingsContract>(contract: Contract): ReturnType<typeof useSettings<Contract['schema'], never>> {
-  resetRender()
-  return useSettings(contract) as ReturnType<typeof useSettings<Contract['schema'], never>>
+const ENTRY_ID = 'feature-entry'
+
+type FormSnapshot = {
+  status: 'loading' | 'ready' | 'unavailable'
+  value: Record<string, unknown> | undefined
+  base: unknown
+  user: unknown
+  revision: number | undefined
+  writable: boolean
 }
 
-function clientWith(options: {
-  readonly scope: {
-    getSnapshot(): Record<string, unknown>
-    subscribe(listener: () => void): () => void
-    set(field: string, value: unknown): Promise<void>
-    unset(field: string): Promise<void>
-  }
-  readonly mirror: Record<string, unknown>
-}): SettingsClientRuntime {
+function formSnapshot(overrides: Partial<FormSnapshot> = {}): FormSnapshot {
   return {
-    binding: () => ({
-      scope: options.scope,
-      describe: {
-        getSnapshot: () => options.mirror,
-        subscribe: () => () => undefined,
-        ensure: () => Promise.resolve(),
-      },
-    }),
-  } as unknown as SettingsClientRuntime
+    status: 'ready',
+    value: { enabled: true },
+    base: { enabled: true },
+    user: undefined,
+    revision: 2,
+    writable: true,
+    ...overrides,
+  }
+}
+
+function mirrorSnapshot(overrides: {
+  status?: 'idle' | 'loading' | 'ready'
+  namespaces?: readonly Record<string, unknown>[]
+  writable?: boolean
+  error?: string | null
+} = {}): Record<string, unknown> {
+  return {
+    status: overrides.status ?? 'ready',
+    view: {
+      namespaces: overrides.namespaces ?? [{ ns: ENTRY_ID, applies: 'live', secrets: [], revision: 2 }],
+      writable: overrides.writable ?? true,
+      hasDocument: true,
+    },
+    error: overrides.error ?? null,
+  }
+}
+
+function formWith(overrides: Partial<FormSnapshot> = {}) {
+  const snapshots = [formSnapshot(overrides)]
+  return {
+    getSnapshot: () => snapshots[0]!,
+    subscribe: () => () => undefined,
+    set: vi.fn(() => Promise.resolve(true)),
+    unset: vi.fn(() => Promise.resolve(true)),
+    mutate: vi.fn(() => Promise.resolve(true)),
+  }
+}
+
+function installClient(options: {
+  readonly form?: ReturnType<typeof formWith>
+  readonly mirror?: Record<string, unknown>
+  readonly entryId?: string | null
+  readonly provider?: boolean
+}): SettingsClientRuntime {
+  const settingsNamespace = options.entryId === null ? undefined : (options.entryId ?? ENTRY_ID)
+  const form = options.form ?? formWith()
+  const mirror = options.mirror ?? mirrorSnapshot()
+  const ctx = {
+    get: (name: string) =>
+      options.provider === false || name !== 'configForms'
+        ? undefined
+        : {
+            get: () => form,
+            describe: () => ({
+              getSnapshot: () => mirror,
+              subscribe: () => () => undefined,
+              ensure: () => Promise.resolve(),
+            }),
+          },
+  }
+  currentClient = createSettingsClientRuntime(ctx, settingsNamespace)
+  return currentClient
+}
+
+function render<Schema extends Parameters<typeof useSettings>[0]['schema']>(
+  contract: SettingsContract<Schema>,
+): SettingsState<SettingsFormValue<Schema>> {
+  resetRender()
+  return useSettings(contract)
 }
 
 beforeEach(() => {
+  hookState.length = 0
+  hookRefs.length = 0
   reactInternals.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = fakeReact
 })
 
@@ -86,101 +146,80 @@ afterAll(() => {
 })
 
 describe('useSettings', () => {
-  it('reads external snapshots and keeps only pending state local without optimistic values', async () => {
-    hookState.length = 0
-    hookRefs.length = 0
-    const contract = defineSettings({ namespace: 'runtime-hook', schema: Schema.object({ enabled: Schema.boolean().default(true) }) })
-    let resolveWrite: (() => void) | undefined
-    const set = vi.fn(
+  it('reads the shared Config form and tracks pending writes without optimistic values', async () => {
+    const contract = defineSettings({ schema: Schema.object({ enabled: Schema.boolean().default(true) }) })
+    let resolveWrite: ((accepted: boolean) => void) | undefined
+    const form = formWith()
+    form.set.mockImplementation(
       () =>
-        new Promise<void>(resolve => {
+        new Promise<boolean>(resolve => {
           resolveWrite = resolve
         }),
     )
-    const scope = {
-      getSnapshot: () => ({ status: 'ready', value: { enabled: true }, base: { enabled: true }, user: {}, revision: 2, writable: true, mode: 'host' }),
-      subscribe: () => () => undefined,
-      set,
-      unset: vi.fn(() => Promise.resolve()),
-    }
-    currentClient = clientWith({
-      scope,
-      mirror: {
-        status: 'ready',
-        view: { namespaces: [{ ns: 'runtime-hook', applies: 'live', secrets: [], revision: 2 }], writable: true },
-        error: null,
-      },
-    })
+    installClient({ form })
 
     const initial = render(contract)
     expect(initial.value).toEqual({ enabled: true })
     expect(initial.error).toBeNull()
+    expect(initial.status).toBe('ready')
+
     const write = initial.set('enabled', false)
     expect(render(contract).mutation.pending).toBe(true)
     expect(render(contract).value).toEqual({ enabled: true })
-    resolveWrite?.()
-    await write
+    resolveWrite?.(true)
+    await expect(write).resolves.toBe(true)
     expect(render(contract).mutation).toEqual({ pending: false })
+    expect(form.set).toHaveBeenCalledWith('enabled', false)
 
-    const failure = new Error('write failed')
-    set.mockRejectedValueOnce(failure)
-    await expect(render(contract).set('enabled', false)).rejects.toBe(failure)
+    form.set.mockRejectedValueOnce(new Error('write failed'))
+    await expect(render(contract).set('enabled', true)).rejects.toThrow('write failed')
     expect(render(contract).mutation).toEqual({ pending: false })
   })
 
-  it('distinguishes unregistered namespaces and refuses their writes', async () => {
-    hookState.length = 0
-    hookRefs.length = 0
-    const contract = defineSettings({ namespace: 'missing-hook', schema: Schema.object({ enabled: Schema.boolean() }) })
-    const set = vi.fn(() => Promise.resolve())
-    currentClient = clientWith({
-      scope: {
-        getSnapshot: () => ({ status: 'loading', value: undefined, base: undefined, user: undefined, revision: undefined, writable: false, mode: 'host' }),
-        subscribe: () => () => undefined,
-        set,
-        unset: vi.fn(() => Promise.resolve()),
-      },
-      mirror: { status: 'ready', view: { namespaces: [], writable: true }, error: null },
-    })
+  it('does not write while the form is unwritable or the namespace is absent', async () => {
+    const contract = defineSettings({ schema: Schema.object({ enabled: Schema.boolean() }) })
+    const form = formWith({ status: 'unavailable', writable: false })
+    installClient({ form, mirror: mirrorSnapshot({ namespaces: [] }) })
+
     const state = render(contract)
     expect(state.status).toBe('unavailable')
     expect(state.writable).toBe(false)
-    expect(state.error?.kind).toBe('namespace-unregistered')
-    await expect(state.set('enabled', true)).rejects.toThrow('not registered')
-    expect(set).not.toHaveBeenCalled()
+    expect(state.error?.kind).toBe('entry-unresolved')
+    await expect(state.set('enabled', true)).rejects.toThrow('Config form')
+    await expect(state.unset('enabled')).rejects.toThrow('Config form')
+    expect(form.set).not.toHaveBeenCalled()
+    expect(form.unset).not.toHaveBeenCalled()
   })
 
-  it('distinguishes missing providers, decode failures, and mirror sync failures', () => {
-    const contract = defineSettings({ namespace: 'error-hook', schema: Schema.object({ enabled: Schema.boolean() }) })
-    hookState.length = 0
-    hookRefs.length = 0
-    currentClient = createSettingsClientRuntime({ get: () => undefined })
+  it('distinguishes missing providers, unresolved entries, decode failures, and mirror errors', () => {
+    const contract = defineSettings({ schema: Schema.object({ enabled: Schema.boolean() }) })
+
+    installClient({ provider: false })
     expect(render(contract)).toMatchObject({ status: 'unavailable', writable: false, error: { kind: 'provider-unavailable' } })
 
-    currentClient = clientWith({
-      scope: {
-        getSnapshot: () => ({ status: 'loading', value: undefined, base: undefined, user: undefined, revision: 4, writable: true, mode: 'host' }),
-        subscribe: () => () => undefined,
-        set: vi.fn(() => Promise.resolve()),
-        unset: vi.fn(() => Promise.resolve()),
-      },
-      mirror: {
-        status: 'ready',
-        view: { namespaces: [{ ns: 'error-hook', applies: 'live', secrets: [], revision: 4 }], writable: true },
-        error: null,
-      },
-    })
+    installClient({ entryId: null })
+    expect(render(contract)).toMatchObject({ status: 'unavailable', error: { kind: 'entry-unresolved' } })
+
+    installClient({ form: formWith({ status: 'loading', value: undefined }) })
     expect(render(contract)).toMatchObject({ status: 'unavailable', error: { kind: 'decode-failed' } })
 
-    currentClient = clientWith({
-      scope: {
-        getSnapshot: () => ({ status: 'ready', value: { enabled: true }, base: {}, user: {}, revision: 4, writable: true, mode: 'host' }),
-        subscribe: () => () => undefined,
-        set: vi.fn(() => Promise.resolve()),
-        unset: vi.fn(() => Promise.resolve()),
-      },
-      mirror: { status: 'ready', view: { namespaces: [], writable: true }, error: 'refresh failed' },
+    installClient({ mirror: mirrorSnapshot({ error: 'refresh failed' }) })
+    expect(render(contract).error).toMatchObject({ kind: 'sync-failed', message: 'refresh failed' })
+  })
+
+  it('exposes the redacted secret positions and the revision fence', () => {
+    const schema = Schema.object({ token: Schema.string().role('secret') })
+    const contract = defineSettings({ schema })
+    installClient({
+      form: formWith({ value: {}, revision: 7 }),
+      mirror: mirrorSnapshot({
+        namespaces: [{ ns: ENTRY_ID, applies: 'live', secrets: [{ path: ['token'], set: true }], revision: 7 }],
+      }),
     })
-    expect(render(contract).error?.kind).toBe('sync-failed')
+
+    const state = render(contract)
+    expect(state.revision).toBe(7)
+    expect(state.secrets).toEqual([{ path: ['token'], set: true }])
+    expectTypeOf(state.value).toEqualTypeOf<{ readonly token: string } | undefined>()
   })
 })

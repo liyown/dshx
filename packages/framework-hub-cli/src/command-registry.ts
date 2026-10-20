@@ -4,7 +4,7 @@ export const commandShapes: Record<
   { arity: number; options: string[] }
 > = {
   capabilities: { arity: 1, options: ["output"] },
-  "ops prompt": { arity: 2, options: ["output"] },
+  "ops bundle": { arity: 2, options: ["hub", "output"] },
   "ops preflight": {
     arity: 2,
     options: ["hub", "output", "expect-cli-version"],

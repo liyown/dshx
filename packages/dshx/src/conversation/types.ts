@@ -1,6 +1,5 @@
 import type { ComponentType } from 'react'
 import type {
-  ChatConversationViewNode,
   ConversationContextReader,
   ConversationLocation,
   ConversationMatch,
@@ -8,9 +7,9 @@ import type {
   ConversationNodeDefinition,
   ConversationPreviousContext,
   ConversationPublication,
-} from '@deepseek-ai/dsh-client-runtime/client'
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionEvent, SessionEventMap, SessionEventType } from '@deepseek-ai/dsh-session/types'
-import type { ChatNodeOwnerProps, UseChatNodeTurnData } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ChatNodeOwnerProps, UseChatNodeTurnData } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { GlobalStandardProps, PropsLocale, SessionStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 
 declare const conversationContributionBrand: unique symbol
@@ -34,8 +33,15 @@ export type ConversationStartEvent<Events extends ConversationEventDescriptors> 
 export type ConversationUpdateEvent<Events extends ConversationEventDescriptors> = SessionEvent<ConversationEventTypeForRole<Events, 'update'>>
 export type ConversationTypedMatch<Event extends SessionEvent = SessionEvent> = Omit<ConversationMatch, 'event'> & { readonly event: Event }
 
-export type ConversationRendererNode<Kind extends string, Data> = Omit<ChatConversationViewNode, 'kind' | 'data'> & {
+/** Renderer node carrying this lifecycle's kind and reduced payload. */
+export type ConversationRendererNode<Kind extends string, Data> = {
+  readonly key: string
   readonly kind: Kind
+  readonly id: string
+  readonly target: 'chat'
+  readonly anchorSeq: number
+  readonly location: ConversationLocation
+  readonly visibility: 'visible' | 'hidden'
   readonly data: Data
 }
 

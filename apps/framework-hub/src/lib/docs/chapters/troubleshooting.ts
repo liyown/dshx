@@ -40,7 +40,7 @@ export const troubleshooting = defineDocsChapter({
             },
             {
               kind: "note",
-              text: "Verified for @becomeopc/dshx 0.1.4-preview.0 and protocol-1 DSH boundaries 0.1.0-rc.8 and 0.1.1-rc.2. Plain check is read-only and offline. Use --runtime only after package-level checks pass and a supported DSH Composition is running.",
+              text: "Verified for @becomeopc/dshx 0.2.0-preview.0 on the protocol-2 DSH boundary 0.2.1-rc.2 (source tag dsh-v0.2.1-rc.2). Plain check is read-only and offline. Use --runtime only after package-level checks pass and a supported DSH Composition is running.",
             },
           ],
         },
@@ -78,7 +78,7 @@ export const troubleshooting = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "Compare the declared peer range with the verified protocol-1 boundaries. Prerelease ranges follow npm semver rules, so an rc version may need an explicit range arm instead of relying on a broad stable range.",
+              text: "Compare the declared peer range with the verified protocol-2 boundary. Prerelease ranges follow npm semver rules, so an rc version may need an explicit range arm instead of relying on a broad stable range.",
             },
           ],
         },
@@ -109,7 +109,7 @@ export const troubleshooting = defineDocsChapter({
             },
             {
               kind: "note",
-              text: "本文已按 @becomeopc/dshx 0.1.4-preview.0，以及 protocol-1 的 DSH 0.1.0-rc.8 与 0.1.1-rc.2 边界验证。普通 check 只读且离线；包级检查通过并启动受支持的 DSH Composition 后，再使用 --runtime。",
+              text: "本文已按 @becomeopc/dshx 0.2.0-preview.0，以及 protocol-2 的 DSH 0.2.1-rc.2（源码 tag dsh-v0.2.1-rc.2）边界验证。普通 check 只读且离线；包级检查通过并启动受支持的 DSH Composition 后，再使用 --runtime。",
             },
           ],
         },
@@ -147,7 +147,7 @@ export const troubleshooting = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "将声明的 Peer Range 与已验证的 protocol-1 边界比较。Prerelease 范围遵循 npm semver 规则，rc 版本可能需要显式范围分支，不能只依赖宽泛稳定版范围。",
+              text: "将声明的 Peer Range 与已验证的 protocol-2 边界比较。Prerelease 范围遵循 npm semver 规则，rc 版本可能需要显式范围分支，不能只依赖宽泛稳定版范围。",
             },
           ],
         },

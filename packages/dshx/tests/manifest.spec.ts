@@ -160,13 +160,13 @@ describe('checkProjectManifest', () => {
     expect(diagnostics.filter(item => item.severity === 'warning')).toHaveLength(2)
   })
 
-  it('validates Client arrays, booleans, self requests, and the rc.8 baseline', async () => {
+  it('validates Client arrays, booleans, self requests, and the protocol-2 baseline', async () => {
     const root = await temporaryProject()
     const manifest = fullManifest()
     ;(manifest.dsh as { client: Record<string, unknown> }).client = {
       platform: 'web',
       inject: ['ok', 'ok', '', 1],
-      external: ['@test/plugin/internal', 'react', '@deepseek-ai/dsh-client-runtime/client', '@example/extra', '@example/extra'],
+      external: ['@test/plugin/internal', 'react', '@deepseek-ai/dsh-client-ui-slots', '@example/extra', '@example/extra'],
       immediately: 'false',
     }
     await writeManifest(root, manifest)
@@ -327,12 +327,12 @@ describe('checkProjectManifest', () => {
       expect.objectContaining({
         code: 'DSHX4217',
         severity: 'error',
-        hint: expect.stringContaining('@deepseek-ai/dsh-client-runtime'),
+        hint: expect.stringContaining('@deepseek-ai/dsh-client-ui-conversation'),
       }),
     )
 
     const manifest = fullManifest()
-    ;(manifest.dsh as { client: { inject: string[] } }).client.inject.push('@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation')
+    ;(manifest.dsh as { client: { inject: string[] } }).client.inject.push('@deepseek-ai/dsh-client-ui-conversation')
     await writeManifest(root, manifest)
     const complete = await checkProjectManifest(await resolveDshxConfig({ cwd: root }))
     expect(complete).not.toContainEqual(expect.objectContaining({ code: 'DSHX4217' }))

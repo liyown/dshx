@@ -205,8 +205,8 @@ export const projectModel = defineDocsChapter({
                 },
                 {
                   name: "useSettings",
-                  type: "settingsScope inject",
-                  body: "A retained Hook adds settingsScope and validates the dsh-client-ui-settings package edge.",
+                  type: "configForms inject",
+                  body: "A retained Hook adds configForms and validates the dsh-client-ui-settings package edge; forms are keyed by the Host entry id.",
                 },
                 {
                   name: "tree-shaken Hook",
@@ -363,8 +363,8 @@ export const projectModel = defineDocsChapter({
                 },
                 {
                   name: "useSettings",
-                  type: "settingsScope inject",
-                  body: "保留的 Hook 会追加 settingsScope，并验证 dsh-client-ui-settings package edge。",
+                  type: "configForms inject",
+                  body: "保留的 Hook 会追加 configForms，并验证 dsh-client-ui-settings package edge；表单以 Host entry id 为键。",
                 },
                 {
                   name: "tree-shaken Hook",

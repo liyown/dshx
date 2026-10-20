@@ -1,25 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { existsSync, statSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  dailyOperationsCommandContract,
-  dailyOperationsPromptVersion,
-} from "../../hub-ops-prompt/src/index.js";
+import { dailyOperationsCommandContract } from "../../hub-ops-prompt/src/index.js";
+import { capabilities } from "../src/capabilities.js";
 import { runCli, type CliStreams } from "../src/cli.js";
 import { setKeyringEntryFactoryForTests } from "../src/keychain.js";
 import { readOpsState } from "../src/ops-state.js";
-
-vi.mock("../src/ops-prompt.js", () => ({
-  readOperationsPrompt: async () => ({
-    promptVersion: 7,
-    prompt: "test bundled prompt",
-  }),
-}));
 
 const hub = "https://ops.test";
 let stateDirectory: string;
@@ -39,6 +31,22 @@ async function invoke(
   return {
     code,
     json: JSON.parse((out.length ? out : err).join("")),
+    raw: [...out, ...err].join(""),
+  };
+}
+
+async function invokeRaw(args: string[]) {
+  const out: string[] = [];
+  const err: string[] = [];
+  const code = await runCli(args, {
+    stdin: Readable.from([""]),
+    stdout: { write: (value) => out.push(value) },
+    stderr: { write: (value) => err.push(value) },
+  });
+  return {
+    code,
+    stdout: out.join(""),
+    stderr: err.join(""),
     raw: [...out, ...err].join(""),
   };
 }
@@ -86,9 +94,6 @@ describe("scheduled operations CLI", () => {
   it("ships a command contract compatible with the prompt without parsing help", async () => {
     const result = await invoke(["capabilities"]);
     expect(result.code).toBe(0);
-    expect(result.json.data.dailyPromptVersion).toBe(
-      dailyOperationsPromptVersion,
-    );
     for (const contract of dailyOperationsCommandContract) {
       expect(result.json.data.commands).toContainEqual(
         expect.objectContaining({ command: contract.command }),
@@ -100,6 +105,99 @@ describe("scheduled operations CLI", () => {
     expect(curate.options).toContain("run-id");
     expect(curate.input.schema.required).toContain("overviewMarkdown");
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("writes the authenticated bundle to a private file without printing resources", async () => {
+    const surface = await capabilities();
+    globalThis.fetch = vi.fn(async (input) => {
+      const path = new URL(String(input)).pathname;
+      if (path !== "/api/ops/v1/agent-bundle")
+        throw new Error(`Unexpected request: ${path}`);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            bootstrap: "bootstrap instructions",
+            prompt: "full operations prompt",
+            resources: { GITHUB_TOKEN: "secret-token" },
+            meta: {
+              promptVersion: 8,
+              cliVersion: surface.package.version,
+              capabilitiesHash: surface.capabilitiesHash,
+            },
+          },
+          warnings: [],
+          meta: { requestId: "bundle-request" },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+            "x-request-id": "bundle-request",
+          },
+        },
+      );
+    });
+    const output = join(stateDirectory, "agent-bundle.json");
+    const result = await invokeRaw(["ops", "bundle", "--output", output]);
+    expect(result.code).toBe(0);
+    expect(result.raw).not.toContain("secret-token");
+    const envelope = JSON.parse(result.stdout) as {
+      data: { resources: string[] };
+    };
+    expect(envelope.data.resources).toEqual(["GITHUB_TOKEN"]);
+    const bundle = JSON.parse(await readFile(output, "utf8")) as {
+      bootstrap: string;
+      prompt: string;
+      resources: Record<string, string>;
+    };
+    expect(bundle.bootstrap).toBe("bootstrap instructions");
+    expect(bundle.prompt).toBe("full operations prompt");
+    expect(bundle.resources).toEqual({ GITHUB_TOKEN: "secret-token" });
+    expect(statSync(output).mode & 0o777).toBe(0o600);
+  });
+
+  it("reports the expected CLI version when the bundle contract differs", async () => {
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              bootstrap: "bootstrap instructions",
+              prompt: "full operations prompt",
+              resources: {},
+              meta: {
+                promptVersion: 8,
+                cliVersion: "9.9.9",
+                capabilitiesHash: "0".repeat(64),
+              },
+            },
+            warnings: [],
+            meta: { requestId: "bundle-mismatch" },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+              "x-request-id": "bundle-mismatch",
+            },
+          },
+        ),
+    );
+    const output = join(stateDirectory, "mismatch-bundle.json");
+    const result = await invoke(["ops", "bundle", "--output", output]);
+    expect(result.code).toBe(1);
+    expect(result.json.error.code).toBe("agent_bundle_mismatch");
+    expect(result.json.error.details.expectedCliVersion).toBe("9.9.9");
+    expect(result.json.error.details.executingCliVersion).toBe(
+      (await capabilities()).package.version,
+    );
+    expect(existsSync(output)).toBe(false);
+  });
+
+  it("requires an output file for the authenticated bundle", async () => {
+    const result = await invoke(["ops", "bundle"]);
+    expect(result.code).toBe(1);
+    expect(result.json.error.code).toBe("missing_option");
   });
 
   it("runs begin, checkpoint, finish, and a second run without losing receipts", async () => {

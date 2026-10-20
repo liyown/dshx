@@ -7,17 +7,16 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { runInNewContext } from 'node:vm'
 import type {
-  ChatConversationViewNode,
-  ConversationEventInput,
   ConversationNodeDefinition,
   ConversationViewDefinition,
-} from '@deepseek-ai/dsh-client-runtime/client'
+  ConversationViewNode,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionEvent, SessionEventMap, SessionEventType } from '@deepseek-ai/dsh-session/types'
 import { describe, expect, it } from 'vitest'
 import { defineConversation } from '../src/conversation/index.js'
 import { getConversationContributionParts } from '../src/conversation/define.js'
 
-type PublicClientRuntime = typeof import('@deepseek-ai/dsh-client-runtime/client')
+type PublicClientRuntime = typeof import('@deepseek-ai/dsh-client-ui-conversation/client')
 type TestAssembler = InstanceType<PublicClientRuntime['ConversationNodeAssembler']>
 
 interface ClientModuleRegistration {
@@ -26,7 +25,7 @@ interface ClientModuleRegistration {
 
 function loadPublicClientRuntime(): PublicClientRuntime {
   const require = createRequire(import.meta.url)
-  const entry = require.resolve('@deepseek-ai/dsh-client-runtime/client')
+  const entry = require.resolve('@deepseek-ai/dsh-client-ui-conversation/client')
   let registration: ClientModuleRegistration | undefined
   runInNewContext(readFileSync(entry, 'utf8'), {
     window: {
@@ -38,12 +37,22 @@ function loadPublicClientRuntime(): PublicClientRuntime {
     },
   })
   if (registration === undefined) {
-    throw new Error('public dsh-client-runtime bundle did not register its module factory')
+    throw new Error('public dsh-client-ui-conversation bundle did not register its module factory')
   }
-  return registration.factory(id => require(id)) as PublicClientRuntime
+  const requireFromBundle = createRequire(entry)
+  // The UI bundle imports primitives for its React shell. This suite exercises
+  // the pure assembler only, so stub that presentation module instead of
+  // evaluating its CSS imports through Node's loader.
+  const primitives = new Proxy({}, { get: () => () => undefined }) as unknown
+  return registration.factory(id => (id === '@deepseek-ai/dsh-client-ui-primitives' ? primitives : requireFromBundle(id))) as PublicClientRuntime
 }
 
-const { ConversationNodeAssembler, conversationContextKey } = loadPublicClientRuntime()
+const { ConversationNodeAssembler } = loadPublicClientRuntime()
+
+/** Same engine-owned key shape `conversationContextKey()` produces; not re-exported from the Client entry. */
+function conversationContextKey(kind: string, id: string): string {
+  return `${kind.length}:${kind}${id}`
+}
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
@@ -68,7 +77,7 @@ interface ReviewState {
   readonly summary?: string
 }
 
-type TestSnapshot = readonly ChatConversationViewNode[]
+type TestSnapshot = readonly ConversationViewNode[]
 
 class TestEventDefinitions {
   constructor(private readonly definitions: readonly ConversationNodeDefinition[]) {}
@@ -90,12 +99,12 @@ class TestViewDefinitions {
   }
 }
 
-function testChatView(): ConversationViewDefinition<ChatConversationViewNode, TestSnapshot> {
+function testChatView(): ConversationViewDefinition<ConversationViewNode, TestSnapshot> {
   return {
     target: 'chat',
     create() {
-      const nodes = new Map<string, ChatConversationViewNode>()
-      const snapshot = (): TestSnapshot => [...nodes.values()].sort((left, right) => left.anchorSeq - right.anchorSeq)
+      const nodes = new Map<string, ConversationViewNode>()
+      const snapshot = (): TestSnapshot => [...nodes.values()]
       return {
         empty: [],
         replace(input) {
@@ -116,8 +125,8 @@ function sessionEvent<Type extends SessionEventType>(type: Type, seq: number, da
   return { type, seq, time: 1_700_000_000_000 + seq, data } as SessionEvent<Type>
 }
 
-function input<Type extends SessionEventType>(type: Type, seq: number, data: SessionEventMap[Type]): ConversationEventInput {
-  return { event: sessionEvent(type, seq, data), view: undefined }
+function input<Type extends SessionEventType>(type: Type, seq: number, data: SessionEventMap[Type]) {
+  return { type: 'event' as const, event: sessionEvent(type, seq, data) }
 }
 
 const start = input('dshx-test/assembly-start', 10, {
@@ -166,7 +175,9 @@ const reviewComponent = reviewConversation.render(() => null)
 const reviewParts = getConversationContributionParts(reviewComponent)
 
 function assembler(): TestAssembler {
-  return new ConversationNodeAssembler(new TestEventDefinitions([reviewParts.definition]), new TestViewDefinitions([testChatView()]))
+  const value = new ConversationNodeAssembler(new TestEventDefinitions([reviewParts.definition]), new TestViewDefinitions([testChatView()]))
+  value.activateTarget('chat')
+  return value
 }
 
 function snapshotOf(value: TestAssembler): TestSnapshot {
@@ -230,7 +241,7 @@ describe('Conversation component official assembler integration', () => {
     const before = snapshotOf(value)
 
     expect(value.rebuildRegistry()).toBe('immediate')
-    expect(snapshotOf(value)).toEqual([])
+    expect(value.snapshot('chat')).toBeUndefined()
     expect(value.flush()).toBe(true)
     expect(snapshotOf(value)).toEqual(before)
   })

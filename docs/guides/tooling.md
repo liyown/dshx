@@ -6,7 +6,7 @@
 
 **Environment: Node.js only**
 
-Do not import this entry from Host, Client, API contract, or Settings contract source. Tooling types may change during `0.1.x` as DSH protocols and Vite evolve.
+Do not import this entry from Host, Client, API contract, or Config source. Tooling types may change during `0.2.x` as DSH protocols and Vite evolve.
 
 ## Programmatic builds
 

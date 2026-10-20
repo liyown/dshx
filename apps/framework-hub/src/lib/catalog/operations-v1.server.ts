@@ -22,7 +22,7 @@ import {
 } from "./operations-v1.http";
 
 const SOURCE_STALE_MS = 30 * 86_400_000;
-const CURRENT_DSH_VERSION = "0.1.0-rc.8";
+const CURRENT_DSH_VERSION = "0.2.1-rc.2";
 
 type JsonRecord = Record<string, unknown>;
 

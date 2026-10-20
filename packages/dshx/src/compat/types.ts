@@ -8,7 +8,12 @@ export type DshCompatibilityLifecycle = 'active' | 'maintenance' | 'end-of-life'
 export interface DshVerifiedVersions {
   readonly minimum: string
   readonly latest: string
+  /** Source tag used when a published npm artifact is not the verification basis. */
+  readonly sourceTag?: string
 }
+
+/** Where the verified runtime bytes came from. */
+export type DshVerificationSource = 'npm' | 'source'
 
 export interface DshxRuntimePluginSpec {
   readonly id: string
@@ -21,28 +26,36 @@ export interface DshxRuntimePluginSpec {
 export interface DshProfileCompatibility {
   readonly listCommand: 'plugin-list-json'
   readonly addCommand: 'plugin-add'
+  /** 0.2.x profiles expose ordered patch paths and launcher readiness. */
+  readonly orderedPatchPaths?: boolean
+  readonly launcherReady?: boolean
 }
 
 export interface DshInspectCompatibility {
-  readonly targets: readonly ('slots' | 'tools' | 'services' | 'events')[]
+  readonly targets: readonly ('slots' | 'tools' | 'services' | 'events' | 'configs')[]
   /** Legacy aggregate capability retained for adapters authored before target-specific providers. */
   readonly provider?: 'runtime' | 'unavailable'
-  readonly providerByTarget?: Partial<Record<'slots' | 'tools' | 'services' | 'events', 'runtime' | 'unavailable'>>
+  readonly providerByTarget?: Partial<Record<'slots' | 'tools' | 'services' | 'events' | 'configs', 'runtime' | 'unavailable'>>
   readonly bridge?: {
-    readonly protocolVersion: 1
+    readonly protocolVersion: 2
     readonly serviceProvider: string
     readonly eventProvider: string
+    readonly toolProvider?: string
+    readonly configProvider?: string
+    readonly compositionScope?: boolean
   }
 }
 
 export interface DshConnectionCompatibility {
   readonly packageName: '@deepseek-ai/dsh-client-connection'
   readonly clientModule: '@deepseek-ai/dsh-client-connection/client'
-  readonly protocolVersion: 1
+  readonly protocolVersion: 2
   readonly hostRpc: boolean
   readonly clientRpc: boolean
   readonly hookDrivenCapabilityInference?: boolean
-  readonly defaultAuthority: 'loopback'
+  /** RPC is peer-admitted; clients use generated ctx.remote namespaces. */
+  readonly peerAdmission?: boolean
+  readonly remoteNamespace?: 'remote'
 }
 
 /** Official Host contribution seams verified for one protocol generation. */
@@ -51,20 +64,25 @@ export interface DshHostContributionCompatibility {
   readonly promptSections: boolean
   readonly promptContexts: boolean
   readonly settings: boolean
+  /** DSH projects plugin Config schemas into Settings. */
+  readonly settingsMode?: 'config'
 }
 
 export interface DshClientSettingsCompatibility {
   readonly packageName: '@deepseek-ai/dsh-client-ui-settings'
-  readonly service: 'settingsScope'
+  readonly service: 'configForms'
   readonly hookDrivenCapabilityInference: boolean
+  /** ConfigForm identity is the Host profile entry id. */
+  readonly formIdentity?: 'entry-id'
 }
 
 /** Official Client conversation seams declared for one protocol generation. */
 export interface DshClientConversationCompatibility {
-  readonly runtimePackageName: '@deepseek-ai/dsh-client-runtime'
   readonly rendererPackageName: '@deepseek-ai/dsh-client-ui-conversation'
-  readonly eventService: 'conversationEvents'
+  readonly eventService: 'uiConversation'
   readonly slotService: 'slots'
+  /** Contributions register through ctx.uiConversation.events.register(). */
+  readonly registrationMethod?: 'uiConversation.events.register'
   readonly componentContributions: boolean
   readonly verification: 'experimental' | 'verified'
 }
@@ -73,6 +91,8 @@ export interface DshClientConversationCompatibility {
 export interface DshSessionCompatibility {
   /** Whether out-of-tree required durable event types can be registered before persistence restore. */
   readonly customDurableEventVocabulary: boolean
+  /** Published session format consumed by this generation. */
+  readonly formatVersion?: number
 }
 
 /** Build/runtime protocol values owned by one DSH compatibility generation. */
@@ -86,6 +106,8 @@ export interface DshCompatibility {
   readonly verified: DshVerifiedVersions
   /** Exact DSH versions that have completed the real-runtime scenario. */
   readonly verifiedVersions: readonly string[]
+  /** Distinguishes npm-published verification from a source-tag build. */
+  readonly verificationSource?: DshVerificationSource
   readonly nodeRange: string
   readonly profile: DshProfileCompatibility
   readonly runtimePlugins?: readonly DshxRuntimePluginSpec[]
@@ -102,6 +124,8 @@ export interface DshCompatibility {
       readonly platform: 'web'
       readonly moduleRequestsField: 'external'
       readonly packageEdgesField: 'inject'
+      readonly manifestVersion?: 1
+      readonly bundlePatch?: 'single' | 'array'
     }
   }
 }

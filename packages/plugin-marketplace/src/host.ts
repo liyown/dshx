@@ -1,7 +1,7 @@
 import { defineHost } from '@becomeopc/dshx/host'
 import { pluginMarketplaceApi } from './api.js'
 import { MarketplaceHostService } from './host-service.js'
-import { marketplaceSettingsHost } from './settings.js'
+import { applyMarketplaceSettings, marketplaceSettings } from './settings.js'
 
 const service = new MarketplaceHostService()
 
@@ -16,6 +16,10 @@ const marketplaceHostApi = pluginMarketplaceApi.host({
 
 export default defineHost({
   name: '@becomeopc/dshx-plugin-marketplace',
-  settings: [marketplaceSettingsHost],
+  config: marketplaceSettings,
+  setup(ctx, config) {
+    const dispose = applyMarketplaceSettings(config)
+    ctx.effect(() => dispose)
+  },
   apis: [marketplaceHostApi],
 })

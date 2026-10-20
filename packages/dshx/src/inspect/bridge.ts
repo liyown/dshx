@@ -6,9 +6,9 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { DshxError } from '../diagnostics.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 import type { ResolvedDshxConfig } from '../config/types.js'
-import type { InspectProvider, InspectSlotOptions, ServiceSummary, EventSummary, SlotSummary, ToolSummary } from './types.js'
+import type { ConfigSummary, EventSummary, InspectProvider, InspectSlotOptions, ServiceSummary, SlotSummary, ToolSummary } from './types.js'
 
-const PROTOCOL_VERSION = 1
+const PROTOCOL_VERSION = 2
 const MAX_MESSAGE_BYTES = 64 * 1024
 const DEFAULT_TIMEOUT_MS = 10_000
 
@@ -268,7 +268,7 @@ async function readMetadata(
 
 async function request(
   project: ResolvedDshxConfig,
-  target: 'services' | 'events' | 'slots',
+  target: 'tools' | 'services' | 'events' | 'configs',
   options: DshInspectBridgeProviderOptions,
   input?: Record<string, unknown>,
 ): Promise<readonly Record<string, unknown>[]> {
@@ -357,22 +357,16 @@ export class DshInspectBridgeProvider implements InspectProvider {
     private readonly options: DshInspectBridgeProviderOptions = {},
   ) {}
 
-  async listSlots(options: InspectSlotOptions = {}): Promise<readonly SlotSummary[]> {
-    if (options.root !== undefined && (typeof options.root !== 'string' || options.root.trim() === '')) {
-      throw fail('DSHX3203', 'Slot Inspect root must be a non-empty string.', 'Pass a valid Slot name or omit --root.')
-    }
-    return (await request(
-      this.project,
-      'slots',
-      this.options,
-      options.root === undefined ? undefined : { root: options.root },
-    )) as unknown as readonly SlotSummary[]
+  async listSlots(_options: InspectSlotOptions = {}): Promise<readonly SlotSummary[]> {
+    throw fail(
+      'DSHX3204',
+      'DSH 0.2 no longer exposes a first-party Slots Inspect provider.',
+      'Inspect tools, services, events, or configs instead; Slots are compile-time contracts rather than runtime catalog entries.',
+    )
   }
 
-  listTools(): Promise<readonly ToolSummary[]> {
-    return Promise.reject(
-      fail('DSHX3204', 'The Host Inspect bridge does not expose Tool data.', 'Use the official Tool Inspect provider when it is available.'),
-    )
+  async listTools(): Promise<readonly ToolSummary[]> {
+    return (await request(this.project, 'tools', this.options)) as unknown as readonly ToolSummary[]
   }
 
   async listServices(): Promise<readonly ServiceSummary[]> {
@@ -381,5 +375,9 @@ export class DshInspectBridgeProvider implements InspectProvider {
 
   async listEvents(): Promise<readonly EventSummary[]> {
     return (await request(this.project, 'events', this.options)) as unknown as readonly EventSummary[]
+  }
+
+  async listConfigs(): Promise<readonly ConfigSummary[]> {
+    return (await request(this.project, 'configs', this.options)) as unknown as readonly ConfigSummary[]
   }
 }

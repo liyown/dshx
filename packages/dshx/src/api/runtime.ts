@@ -34,14 +34,30 @@ export function isApiError(value: unknown): value is ApiError {
 
 type RpcResult = { readonly ok: true; readonly value: unknown } | { readonly ok: false; readonly error?: { readonly code?: string; readonly message?: string } }
 
+const CORDIS_ORIGINAL = Symbol.for('cordis.original')
+
+/**
+ * Read the Connection RPC registry under the calling fiber.
+ *
+ * Cordis publishes services through a traceable proxy. A plain
+ * `connection.rpc` read runs the accessor with a shadow context that points at
+ * the Connection plugin's own fiber, so `rpc.handle()` would scope the channel
+ * to a fiber that does not inject `webServer` and registration fails with
+ * "cannot get property webServer without inject". Cordis exposes the raw
+ * service under `Symbol.for('cordis.original')`; reading the accessor from it
+ * with the traceable proxy as receiver keeps `this.ctx` on the caller scope.
+ * Non-Cordis Connection values (test doubles) are read normally.
+ */
+function rpcRegistry(connection: ConnectionLike): NonNullable<ConnectionLike['rpc']> | undefined {
+  const original = (connection as { [CORDIS_ORIGINAL]?: object })[CORDIS_ORIGINAL]
+  if (original === undefined) return connection.rpc
+  return Reflect.get(original, 'rpc', connection) as NonNullable<ConnectionLike['rpc']> | undefined
+}
+
 interface ConnectionLike {
   readonly rpc?: {
     call(channel: string, endpoint: string, payload: unknown, signal?: AbortSignal): Promise<RpcResult>
-    handle?(
-      channel: string,
-      handler: (endpoint: string, payload: unknown, signal: AbortSignal) => Promise<RpcResult>,
-      options: { authority: 'loopback' | 'trusted-host' },
-    ): () => Promise<void>
+    handle?(channel: string, handler: (endpoint: string, payload: unknown, signal: AbortSignal, peer: PeerLike) => Promise<RpcResult>): () => Promise<void>
   }
 }
 
@@ -49,13 +65,19 @@ interface ContextLike {
   get(name: string): unknown
 }
 
-interface HostDescriptionSourceLike {
+interface PeerLike {
+  readonly id: string
+  readonly principal: { readonly kind: string }
+  readonly signal: AbortSignal
+}
+
+interface ConnectionGenerationSourceLike {
   getSnapshot?: () => unknown
   subscribe?: (listener: () => void) => () => void
 }
 
 interface ConnectionLifecycleLike {
-  readonly hostDescription?: HostDescriptionSourceLike
+  readonly generation?: ConnectionGenerationSourceLike
 }
 
 const clientConnections = new WeakMap<object, ConnectionLifecycleLike | undefined>()
@@ -128,7 +150,8 @@ export async function registerApi(ctx: Context, packageId: string, registration:
   const registrationParts = apiHostRegistrationParts(registration)
   const contract = registrationParts.contract
   const connection = ctx.get('connection') as ConnectionLike | undefined
-  if (connection?.rpc?.handle === undefined) {
+  const rpc = connection === undefined ? undefined : rpcRegistry(connection)
+  if (rpc?.handle === undefined) {
     console.warn(`API ${contract.id} is unavailable because the DSH Connection provider is not loaded.`)
     return
   }
@@ -139,36 +162,37 @@ export async function registerApi(ctx: Context, packageId: string, registration:
   if (previous !== undefined && previous !== owner) {
     throw new Error(`API channel collision at ${channel}: ${previous} and ${owner}.`)
   }
-  const remove = connection.rpc.handle(
-    channel,
-    async (endpoint, payload, signal) => {
-      const methodDefinition = contract.methods[endpoint]
-      const handler = registrationParts.handlers[endpoint]
-      if (methodDefinition === undefined || typeof handler !== 'function') {
-        return { ok: false, error: { code: 'bad-request', message: `Unknown API method ${endpoint}.` } }
+  const remove = rpc.handle(channel, async (endpoint, payload, signal, peer) => {
+    const methodDefinition = contract.methods[endpoint]
+    const handler = registrationParts.handlers[endpoint]
+    if (methodDefinition === undefined || typeof handler !== 'function') {
+      return { ok: false, error: { code: 'bad-request', message: `Unknown API method ${endpoint}.` } }
+    }
+    try {
+      throwIfAborted(signal, contract.id, endpoint)
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload))
+        throw error('contract', 'Invalid API request envelope.', contract.id, endpoint, false)
+      const envelope = payload as { version?: unknown; input?: unknown }
+      if (envelope.version !== contract.version)
+        throw error('contract', `API version mismatch for ${contract.id}.`, contract.id, endpoint, false, undefined, 'DSHX6401')
+      jsonBytes(envelope.input)
+      const input = await validate(methodDefinition.input, envelope.input)
+      throwIfAborted(signal, contract.id, endpoint)
+      const apiPeer = {
+        id: peer.id,
+        principal: peer.principal,
+        signal: peer.signal,
       }
-      try {
-        throwIfAborted(signal, contract.id, endpoint)
-        if (typeof payload !== 'object' || payload === null || Array.isArray(payload))
-          throw error('contract', 'Invalid API request envelope.', contract.id, endpoint, false)
-        const envelope = payload as { version?: unknown; input?: unknown }
-        if (envelope.version !== contract.version)
-          throw error('contract', `API version mismatch for ${contract.id}.`, contract.id, endpoint, false, undefined, 'DSHX6401')
-        jsonBytes(envelope.input)
-        const input = await validate(methodDefinition.input, envelope.input)
-        throwIfAborted(signal, contract.id, endpoint)
-        const output = await validate(methodDefinition.output, await handler({ input, ctx, signal } as never))
-        throwIfAborted(signal, contract.id, endpoint)
-        jsonBytes(output)
-        return { ok: true, value: { version: contract.version, output } }
-      } catch (cause) {
-        if (isApiError(cause)) return { ok: false, error: { code: cause.remoteCode ?? 'internal', message: cause.message } }
-        if (cause instanceof ContractViolation) return { ok: false, error: { code: 'contract', message: cause.message } }
-        return { ok: false, error: { code: 'internal', message: cause instanceof Error ? cause.message : String(cause) } }
-      }
-    },
-    { authority: registrationParts.authority },
-  )
+      const output = await validate(methodDefinition.output, await handler({ input, ctx, signal, peer: apiPeer } as never))
+      throwIfAborted(signal, contract.id, endpoint)
+      jsonBytes(output)
+      return { ok: true, value: { version: contract.version, output } }
+    } catch (cause) {
+      if (isApiError(cause)) return { ok: false, error: { code: cause.remoteCode ?? 'internal', message: cause.message } }
+      if (cause instanceof ContractViolation) return { ok: false, error: { code: 'contract', message: cause.message } }
+      return { ok: false, error: { code: 'internal', message: cause instanceof Error ? cause.message : String(cause) } }
+    }
+  })
   owners.set(channel, owner)
   channelOwners.set(ctx, owners)
   const dispose = async (): Promise<void> => {
@@ -232,12 +256,12 @@ export function createApiClient<const Methods extends Record<string, AnyApiMetho
 
 /** Internal lifecycle seam used by the React query adapter. */
 export function subscribeApiConnection(client: object, listener: () => void): () => void {
-  const source = clientConnections.get(client)?.hostDescription
+  const source = clientConnections.get(client)?.generation
   return typeof source?.subscribe === 'function' ? source.subscribe(listener) : () => undefined
 }
 
 /** Internal snapshot helper; unavailable while the Host generation is down. */
 export function apiConnectionAvailable(client: object): boolean {
-  const source = clientConnections.get(client)?.hostDescription
+  const source = clientConnections.get(client)?.generation
   return typeof source?.getSnapshot !== 'function' || source.getSnapshot() !== undefined
 }

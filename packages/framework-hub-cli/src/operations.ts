@@ -101,6 +101,17 @@ export function hubStatus(hub: string) {
   return api(hub, "/api/ops/v1/status", {}, "optional");
 }
 
+export type AgentBundle = {
+  readonly bootstrap: string;
+  readonly prompt: string;
+  readonly resources: Readonly<Record<string, string>>;
+  readonly meta: Readonly<Record<string, unknown>>;
+};
+
+export function getAgentBundle(hub: string) {
+  return api<AgentBundle>(hub, "/api/ops/v1/agent-bundle");
+}
+
 export function latestReport(hub: string) {
   return api(hub, "/api/ops/v1/reports");
 }

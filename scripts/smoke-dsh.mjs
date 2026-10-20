@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, appendFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
@@ -16,11 +16,17 @@ const playwrightCli = join(workspace, 'node_modules/.bin', `playwright-cli${proc
 
 function parseDshVersion(argv, env) {
   let cliVersion
+  let sourceRoot
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (argument === '--') continue
     if (argument === '--help' || argument === '-h') {
-      console.log('Usage: pnpm smoke:dsh -- --version <dsh-version>\n\nDSH_VERSION may be used instead. Without either, the latest verified boundary is used.')
+      console.log(
+        'Usage: pnpm smoke:dsh -- [--version <dsh-version>] [--dsh-source <harness-clone>]\n\n' +
+          'DSH_VERSION and DSH_SOURCE_ROOT may be used instead. --dsh-source runs the smoke against the\n' +
+          'source-built CLI at <harness-clone>/apps/cli/lib/bin.js and uses the verified source tag for\n' +
+          'compatibility metadata. Without either, the latest verified boundary is used.',
+      )
       return undefined
     }
     if (argument === '--version') {
@@ -34,14 +40,27 @@ function parseDshVersion(argv, env) {
       cliVersion = argument.slice('--version='.length)
       continue
     }
+    if (argument === '--dsh-source') {
+      const value = argv[index + 1]
+      if (value === undefined || value.startsWith('-')) throw new Error('--dsh-source requires a harness clone path')
+      sourceRoot = value
+      index += 1
+      continue
+    }
+    if (argument.startsWith('--dsh-source=')) {
+      sourceRoot = argument.slice('--dsh-source='.length)
+      continue
+    }
     throw new Error(`Unknown smoke argument ${JSON.stringify(argument)}`)
   }
-  const version = cliVersion ?? env.DSH_VERSION ?? DEFAULT_COMPATIBILITY.verified.latest
+  sourceRoot = sourceRoot ?? env.DSH_SOURCE_ROOT
+  const compatibility = DEFAULT_COMPATIBILITY
+  const version = cliVersion ?? env.DSH_VERSION ?? (sourceRoot === undefined ? compatibility.verified.latest : compatibility.verified.minimum)
   const resolution = classifyCompatibility(version)
   if (resolution === undefined) {
     throw new Error(`DSH ${version} has no compatibility-generation adapter in this DSHX build`)
   }
-  return { version, resolution }
+  return { version, resolution, sourceRoot: sourceRoot === undefined ? undefined : resolve(sourceRoot) }
 }
 
 function commandLabel(command, args) {
@@ -106,26 +125,6 @@ async function expectFailure(command, args, code, options = {}) {
   return result
 }
 
-async function inspectMaybeAvailable(root, env, args) {
-  const result = await run('pnpm', ['exec', 'dshx', ...args, '--json'], {
-    cwd: root,
-    env,
-  })
-  let value
-  try {
-    value = JSON.parse(result.stdout)
-  } catch (error) {
-    error.cause = { stdout: result.stdout, stderr: result.stderr }
-    throw error
-  }
-  const diagnostics = Array.isArray(value.diagnostics) ? value.diagnostics : []
-  const allowedUnavailable = diagnostics.some(item => item && (item.code === 'DSHX3201' || item.code === 'DSHX3202'))
-  if (result.code !== 0 && !allowedUnavailable) {
-    throw new Error(`Inspect ${args.join(' ')} failed unexpectedly\n${result.stderr}\n${result.stdout}`)
-  }
-  return value
-}
-
 async function packageJson(root) {
   return JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 }
@@ -139,7 +138,94 @@ function setDependency(manifest, name, version) {
   manifest.devDependencies[name] = version
 }
 
-async function configureDsh(root, dshxTarball, dshVersion) {
+/**
+ * DSH peers the generated project needs for the smoke scenarios. The list is
+ * derived from the DSHX manifest so a new official seam cannot silently miss
+ * its project-local package.
+ */
+async function dshPeerPackages() {
+  const manifest = JSON.parse(await readFile(join(workspace, 'packages/dshx/package.json'), 'utf8'))
+  return Object.keys(manifest.peerDependencies).filter(name => name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-'))
+}
+
+/**
+ * Point the project-local `dsh` executable at a source-built harness CLI.
+ * `dshx` and the profile commands prefer the project-local binary, so replacing
+ * that shim is what makes the source build the single runtime under test.
+ */
+async function linkSourceDsh(root, sourceRoot) {
+  const launcher = join(sourceRoot, 'apps/cli/lib/bin.js')
+  try {
+    await access(launcher)
+  } catch {
+    throw new Error(`--dsh-source requires a built CLI at ${launcher}; build the harness clone first`)
+  }
+  if (process.platform === 'win32') throw new Error('--dsh-source smoke is supported on POSIX hosts only')
+  const bin = join(root, 'node_modules/.bin/dsh')
+  await rm(bin, { force: true })
+  await writeFile(bin, `#!/bin/sh\nexec node ${JSON.stringify(launcher)} "$@"\n`, { mode: 0o755 })
+}
+
+async function newestMtime(root) {
+  let newest = 0
+  let entries
+  try {
+    entries = await readdir(root, { withFileTypes: true })
+  } catch {
+    return newest
+  }
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '.git') continue
+    const path = join(root, entry.name)
+    if (entry.isDirectory()) {
+      newest = Math.max(newest, await newestMtime(path))
+    } else if (entry.isFile()) {
+      newest = Math.max(newest, (await stat(path)).mtimeMs)
+    }
+  }
+  return newest
+}
+
+/**
+ * Source mode exercises the real browser and the native system addon, not just
+ * the CLI entry. A checkout that only built the Host/Client libraries fails
+ * later with a module-table error inside the Web frontend, so fail fast with
+ * the exact rebuild command instead.
+ */
+async function assertSourceDshBuilt(sourceRoot) {
+  await access(join(sourceRoot, 'apps/cli/lib/bin.js')).catch(() => {
+    throw new Error(`--dsh-source requires a built CLI at ${join(sourceRoot, 'apps/cli/lib/bin.js')}; run \`pnpm run build\` in ${sourceRoot}`)
+  })
+  const webDist = join(sourceRoot, 'apps/web/dist')
+  const indexFile = join(webDist, 'index.html')
+  let indexHtml
+  try {
+    indexHtml = await readFile(indexFile, 'utf8')
+  } catch {
+    throw new Error(`--dsh-source requires a built Web frontend at ${indexFile}; run \`pnpm run build:web\` in ${sourceRoot}`)
+  }
+  const assets = [...indexHtml.matchAll(/(?:src|href)="\.?\/?assets\/([^"]+)"/g)].map(match => match[1])
+  if (assets.length === 0) throw new Error(`${indexFile} references no built assets; run \`pnpm run build:web\` in ${sourceRoot}`)
+  for (const asset of assets) {
+    await access(join(webDist, 'assets', asset)).catch(() => {
+      throw new Error(`${indexFile} references missing asset ${asset}; run \`pnpm run build:web\` in ${sourceRoot}`)
+    })
+  }
+  const frontendSources = await Promise.all([newestMtime(join(sourceRoot, 'apps/web/src')), newestMtime(join(sourceRoot, 'packages/client'))])
+  const builtAt = (await stat(indexFile)).mtimeMs
+  if (Math.max(...frontendSources) > builtAt + 1_000) {
+    throw new Error(
+      `the Web frontend build at ${webDist} is older than apps/web/src or packages/client source; run \`pnpm run build:web\` in ${sourceRoot} before smoking`,
+    )
+  }
+  const platform = `${process.platform}-${process.arch}`
+  const nativeAddon = join(sourceRoot, 'native/system/packages', platform, 'bin/system.node')
+  await access(nativeAddon).catch(() => {
+    throw new Error(`--dsh-source requires the native system addon at ${nativeAddon}; run \`pnpm run build:native-system\` in ${sourceRoot}`)
+  })
+}
+
+async function configureDsh(root, dshxTarball, dshVersion, sourceRoot) {
   const compatibility = classifyCompatibility(dshVersion)?.compatibility
   if (compatibility === undefined) throw new Error(`No adapter can configure DSH ${dshVersion}`)
   const manifest = await packageJson(root)
@@ -147,24 +233,9 @@ async function configureDsh(root, dshxTarball, dshVersion) {
   for (const name of Object.keys(manifest.devDependencies ?? {})) {
     if (name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-')) setDependency(manifest, name, dshVersion)
   }
-  for (const name of [
-    '@deepseek-ai/dsh',
-    '@deepseek-ai/dsh-agent',
-    '@deepseek-ai/dsh-client-connection',
-    '@deepseek-ai/dsh-commands',
-    '@deepseek-ai/dsh-cordis-host-runner',
-    '@deepseek-ai/dsh-system-prompt',
-    '@deepseek-ai/dsh-settings',
-    '@deepseek-ai/dsh-tool-cordis',
-    '@deepseek-ai/dsh-tools',
-    '@deepseek-ai/dsh-client-ui-slots',
-    '@deepseek-ai/dsh-client-ui-sidebar',
-    '@deepseek-ai/dsh-client-ui-settings',
-    '@deepseek-ai/dsh-client-runtime',
-    '@deepseek-ai/dsh-client-ui-conversation',
-    '@deepseek-ai/dsh-llm',
-  ])
-    setDependency(manifest, name, dshVersion)
+  for (const name of await dshPeerPackages()) setDependency(manifest, name, dshVersion)
+  // Scenario-only imports beyond the plugin's runtime peers.
+  for (const name of ['@deepseek-ai/dsh-agent', '@deepseek-ai/dsh-llm']) setDependency(manifest, name, dshVersion)
   manifest.peerDependencies ??= {}
   manifest.peerDependencies['@deepseek-ai/dsh'] = compatibility.dshRange
   manifest.peerDependencies['@deepseek-ai/dsh-tools'] = dshVersion
@@ -172,13 +243,14 @@ async function configureDsh(root, dshxTarball, dshVersion) {
   // Reuse the local store when available, but allow a clean CI runner to resolve the
   // selected generation boundary from npm instead of assuming pre-populated metadata.
   await expectSuccess('pnpm', ['install', '--prefer-offline', '--no-frozen-lockfile'], { cwd: root })
+  if (sourceRoot !== undefined) await linkSourceDsh(root, sourceRoot)
   const version = await expectSuccess('pnpm', ['exec', 'dsh', '--version'], {
     cwd: root,
   })
   if (version.stdout.trim() !== dshVersion) throw new Error(`Expected DSH ${dshVersion}, got ${version.stdout.trim()}`)
 }
 
-async function createProject(parent, name, dshxTarball, dshVersion, options = {}) {
+async function createProject(parent, name, dshxTarball, dshVersion, sourceRoot, options = {}) {
   await expectSuccess('node', [
     join(workspace, 'packages/create-dshx/dist/cli.js'),
     name,
@@ -192,7 +264,7 @@ async function createProject(parent, name, dshxTarball, dshVersion, options = {}
     options.style ?? 'css-modules',
   ])
   const root = join(parent, name)
-  await configureDsh(root, dshxTarball, dshVersion)
+  await configureDsh(root, dshxTarball, dshVersion, sourceRoot)
   return root
 }
 
@@ -237,9 +309,8 @@ async function installConversationProbe(root, dshVersion) {
   const manifest = await packageJson(root)
   const client = manifest.dsh?.client
   if (client === undefined || !Array.isArray(client.inject)) throw new Error('Conversation smoke requires a generated Client manifest')
-  client.inject = [...new Set([...client.inject, '@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation'])]
+  client.inject = [...new Set([...client.inject, '@deepseek-ai/dsh-client-ui-conversation'])]
   manifest.peerDependencies ??= {}
-  manifest.peerDependencies['@deepseek-ai/dsh-client-runtime'] = dshVersion
   manifest.peerDependencies['@deepseek-ai/dsh-client-ui-conversation'] = dshVersion
   manifest.peerDependencies['@deepseek-ai/dsh-llm'] = dshVersion
   await writePackageJson(root, manifest)
@@ -372,7 +443,10 @@ async function startTailwindBrowser(webUrl, packageId) {
           return true
         }
         const welcomed = await dismiss(['继续', 'Continue'], 3000)
-        await dismiss(['稍后配置', 'Configure later'], welcomed ? 10000 : 3000)
+        const configured = await dismiss(['稍后配置', 'Configure later'], welcomed ? 10000 : 3000)
+        // DSH 0.2 shows a sign-in/API-key dialog with only a close action; the
+        // browser smoke does not need credentials, so dismiss it explicitly.
+        await dismiss(['关闭', 'Close'], configured ? 300 : 3000)
       }`,
     ])
   await dismissOptionalOnboarding()
@@ -502,60 +576,53 @@ async function startTailwindBrowser(webUrl, packageId) {
   }
 }
 
-async function callDshxApi(webUrl, packageId, method, version, input) {
-  const rpcId = randomUUID()
-  const response = await fetch(new URL(`${apiChannel(packageId, 'status')}/${method}`, webUrl), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      type: 'client-request',
-      rpcId,
-      method,
-      payload: { version, input },
-    }),
-  })
-  if (!response.ok) throw new Error(`DSHX API ${method} returned HTTP ${response.status}`)
-  const body = await response.json()
-  if (body.rpcId !== rpcId) throw new Error(`DSHX API ${method} returned mismatched rpcId ${String(body.rpcId)}`)
-  return body.result
+/**
+ * Exchange the launcher token for a signed browser cookie, then speak the
+ * Connection wire protocol from Node. DSH 0.2 authenticates every /api call,
+ * so reading runtime state from the smoke requires the same admission a
+ * browser gets.
+ * @param webUrl - URL printed by `dshx dev`, including its launch token.
+ */
+async function openApiSession(webUrl) {
+  const parsed = new URL(webUrl)
+  const token = parsed.searchParams.get('token')
+  if (token === null) throw new Error(`dshx dev URL carries no launch token: ${webUrl}`)
+  const connect = await fetch(new URL('/connect?token=' + encodeURIComponent(token), parsed.origin), { redirect: 'manual' })
+  const setCookie = connect.headers.get('set-cookie')
+  if (connect.status !== 302 || setCookie === null) {
+    throw new Error(`Could not exchange the DSH launch token (HTTP ${String(connect.status)})`)
+  }
+  const cookie = setCookie.split(';', 1)[0]
+  const post = async (path, method, payload, label) => {
+    const rpcId = randomUUID()
+    const response = await fetch(new URL(path, parsed.origin), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ type: 'client-request', rpcId, method, payload }),
+    })
+    if (!response.ok) throw new Error(`${label} ${method} returned HTTP ${response.status}`)
+    const body = await response.json()
+    if (body.rpcId !== rpcId) throw new Error(`${label} ${method} returned mismatched rpcId ${String(body.rpcId)}`)
+    return body.result
+  }
+  return {
+    origin: parsed.origin,
+    /** Call one official Remote namespace method; `endpoint` is `namespace/method`. */
+    call: (endpoint, args) => post(`/api/${endpoint}`, endpoint, { args }, 'Official API'),
+    /** Call one DSHX API channel; the handler owns the payload shape. */
+    dshx: (channel, method, payload) => post(`${channel}/${method}`, method, payload, 'DSHX API'),
+  }
 }
 
-async function callOfficialApi(webUrl, method, payload) {
-  const rpcId = randomUUID()
-  const response = await fetch(new URL(`/api/${method}`, webUrl), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ type: 'client-request', rpcId, method, payload }),
-  })
-  if (!response.ok) throw new Error(`Official API ${method} returned HTTP ${response.status}`)
-  const body = await response.json()
-  if (body.rpcId !== rpcId) throw new Error(`Official API ${method} returned mismatched rpcId ${String(body.rpcId)}`)
-  return body.result
+function callDshxApi(api, packageId, method, version, input) {
+  return api.dshx(apiChannel(packageId, 'status'), method, { version, input })
 }
 
-async function callConnectionRpc(webUrl, endpoint, payload) {
-  const rpcId = randomUUID()
-  const response = await fetch(new URL(`/api/${endpoint}`, webUrl), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      type: 'client-request',
-      rpcId,
-      method: endpoint,
-      payload,
-    }),
-  })
-  if (!response.ok) throw new Error(`Connection RPC ${endpoint} returned HTTP ${response.status}`)
-  const body = await response.json()
-  if (body.rpcId !== rpcId) throw new Error(`Connection RPC ${endpoint} returned mismatched rpcId ${String(body.rpcId)}`)
-  return body.result
-}
-
-async function waitForVisibleSession(webUrl, sessionId, timeoutMs = 30_000) {
+async function waitForVisibleSession(api, sessionId, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs
   let latest
   while (Date.now() < deadline) {
-    latest = await callOfficialApi(webUrl, 'session.list', {})
+    latest = await api.call('session/list', { _request: {} })
     const session = latest.ok ? latest.value?.items?.find?.(item => item?.sessionId === sessionId) : undefined
     if (session !== undefined && session.blank === false) return session
     await new Promise(resolveResult => setTimeout(resolveResult, 100))
@@ -563,18 +630,18 @@ async function waitForVisibleSession(webUrl, sessionId, timeoutMs = 30_000) {
   throw new Error(`Conversation smoke session did not become visible: ${JSON.stringify(latest)}`)
 }
 
-async function verifyGeneratedCommand(webUrl, projectRoot, existingSessionId) {
-  const created = existingSessionId === undefined ? await callOfficialApi(webUrl, 'session.create', { cwd: projectRoot }) : undefined
+async function verifyGeneratedCommand(api, projectRoot, existingSessionId) {
+  const created = existingSessionId === undefined ? await api.call('session/create', { request: { cwd: projectRoot } }) : undefined
   const sessionId = existingSessionId ?? (created?.ok ? created.value?.sessionId : undefined)
   if (typeof sessionId !== 'string') throw new Error(`Could not create Command smoke session: ${JSON.stringify(created)}`)
-  const listed = await callConnectionRpc(webUrl, 'commands/list', {
-    args: { agentId: sessionId },
-  })
+  const listed = await api.call('commands/list', { agentId: sessionId })
   if (!listed.ok || !listed.value?.some?.(item => item?.name === 'dshx-status')) {
     throw new Error(`Generated Command was not visible through the official registry: ${JSON.stringify(listed)}`)
   }
-  const executed = await callConnectionRpc(webUrl, 'commands/execute', {
-    args: { agentId: sessionId, line: '/dshx-status', images: [] },
+  const executed = await api.call('commands/execute', {
+    agentId: sessionId,
+    line: '/dshx-status',
+    submittedAttachments: [],
   })
   if (!executed.ok || executed.value?.result?.kind !== 'success') {
     throw new Error(`Generated Command did not execute through the official parser: ${JSON.stringify(executed)}`)
@@ -636,7 +703,7 @@ export const dshx_statusCommand = defineCommand({
   name: 'dshx-status',
   description: 'Verify DSHX Prompt contributions.',
   async handler(invocation) {
-    if (!invocation.agent.session.events.some((event: { readonly type: string }) => event.type === 'turn/start')) {
+    if (!invocation.agent.session.snapshotEvents().some((event: { readonly type: string }) => event.type === 'turn/start')) {
       invocation.agent.session.append('turn/start', { turn: 1 })
       invocation.agent.session.append('user/message', {
         id: MessageId('dshx-conversation-' + Date.now() + '-' + Math.random()),
@@ -692,34 +759,17 @@ async function installSettingsProbe(root) {
 import { defineSettings } from '@becomeopc/dshx/settings'
 
 export const runtimeSettings = defineSettings({
-  namespace: 'plugin-full-a',
   schema: Schema.object({
     showActivity: Schema.boolean().default(true),
-    threshold: Schema.number().default(1),
+    threshold: Schema.number().default(3).min(0).max(10),
     token: Schema.string().role('secret'),
   }),
-  applies: 'live',
-  client: {
-    decode(value) {
-      if (typeof value !== 'object' || value === null) throw new TypeError('invalid redacted settings')
-      const candidate = value as { readonly showActivity?: unknown; readonly threshold?: unknown }
-      if (typeof candidate.showActivity !== 'boolean' || typeof candidate.threshold !== 'number') throw new TypeError('invalid redacted settings')
-      return { showActivity: candidate.showActivity, threshold: candidate.threshold }
-    },
-  },
 })
 `,
   )
   const hostFile = join(root, 'src/host.ts')
   const host = await readFile(hostFile, 'utf8')
-  const ownership = `settings: [runtimeSettings.host({
-    base: { showActivity: true, threshold: 3 },
-    validate(value) {
-      if (value.threshold > 10) throw new Error('threshold must be at most 10')
-    },
-  })],`
-  if (!host.includes('settings: [runtimeSettings],')) throw new Error('Generated Host did not contain one-line Settings ownership')
-  await writeFile(hostFile, host.replace('settings: [runtimeSettings],', ownership))
+  if (!host.includes('config: runtimeSettings,')) throw new Error('Generated Host did not own the shared Config contract')
 }
 
 function verifyPromptProbe(probe, packageId, minimumExclusive) {
@@ -761,9 +811,9 @@ function settingsNamespace(result, namespace) {
   return view
 }
 
-async function verifySettingsLifecycle(webUrl) {
+async function verifySettingsLifecycle(api) {
   const namespace = 'plugin-full-a'
-  const initialResult = await callOfficialApi(webUrl, 'settings.describe', {})
+  const initialResult = await api.call('settings/describe', {})
   const initial = settingsNamespace(initialResult, namespace)
   if (initial.value?.showActivity !== true || initial.value?.threshold !== 3 || initial.applies !== 'live') {
     throw new Error(`Settings defaults/base layering mismatch: ${JSON.stringify(initial)}`)
@@ -771,7 +821,7 @@ async function verifySettingsLifecycle(webUrl) {
   if ('token' in initial.value || initial.secrets?.find(item => item.path?.join('.') === 'token')?.set !== false) {
     throw new Error(`Settings initial secret redaction mismatch: ${JSON.stringify(initial)}`)
   }
-  const updatedResult = await callOfficialApi(webUrl, 'settings.update', {
+  const updatedResult = await api.call('settings/update', {
     ns: namespace,
     patch: { showActivity: false, threshold: 4, token: 'smoke-secret' },
     expectedRevision: initial.revision,
@@ -783,24 +833,24 @@ async function verifySettingsLifecycle(webUrl) {
   if (updated.secrets?.find(item => item.path?.join('.') === 'token')?.set !== true) {
     throw new Error(`Settings secret configured state is missing: ${JSON.stringify(updated)}`)
   }
-  const stale = await callOfficialApi(webUrl, 'settings.update', {
+  const stale = await api.call('settings/update', {
     ns: namespace,
     patch: { showActivity: true },
     expectedRevision: initial.revision,
   })
   if (stale?.ok !== false) throw new Error(`Settings accepted a stale revision fence: ${JSON.stringify(stale)}`)
-  const rejected = await callOfficialApi(webUrl, 'settings.update', {
+  const rejected = await api.call('settings/update', {
     ns: namespace,
     patch: { threshold: 99 },
     expectedRevision: updated.revision,
   })
   if (rejected?.ok !== false) throw new Error(`Settings accepted Host validation rejection: ${JSON.stringify(rejected)}`)
-  const recovered = settingsNamespace(await callOfficialApi(webUrl, 'settings.describe', {}), namespace)
+  const recovered = settingsNamespace(await api.call('settings/describe', {}), namespace)
   if (recovered.value?.showActivity !== false || recovered.value?.threshold !== 4 || recovered.revision !== updated.revision) {
     throw new Error(`Settings failed to recover after rejected writes: ${JSON.stringify(recovered)}`)
   }
   const unset = settingsNamespace(
-    await callOfficialApi(webUrl, 'settings.mutate', {
+    await api.call('settings/mutate', {
       ns: namespace,
       ops: [{ op: 'unset', path: ['showActivity'] }],
       expectedRevision: recovered.revision,
@@ -811,7 +861,7 @@ async function verifySettingsLifecycle(webUrl) {
     throw new Error(`Settings unset did not restore the composition base: ${JSON.stringify(unset)}`)
   }
   const persisted = settingsNamespace(
-    await callOfficialApi(webUrl, 'settings.update', {
+    await api.call('settings/update', {
       ns: namespace,
       patch: { showActivity: false },
       expectedRevision: unset.revision,
@@ -821,8 +871,8 @@ async function verifySettingsLifecycle(webUrl) {
   return persisted.revision
 }
 
-async function verifySettingsAfterRestart(webUrl, previousRevision) {
-  const described = await callOfficialApi(webUrl, 'settings.describe', {})
+async function verifySettingsAfterRestart(api, previousRevision) {
+  const described = await api.call('settings/describe', {})
   const matches = described?.value?.namespaces?.filter?.(item => item?.ns === 'plugin-full-a') ?? []
   if (matches.length !== 1) throw new Error(`Settings Host restart produced duplicate/stale registrations: ${JSON.stringify(described)}`)
   const current = matches[0]
@@ -973,7 +1023,8 @@ async function packDshx(destination) {
 async function main() {
   const selected = parseDshVersion(process.argv.slice(2), process.env)
   if (selected === undefined) return
-  const { version: dshVersion, resolution } = selected
+  const { version: dshVersion, resolution, sourceRoot } = selected
+  if (sourceRoot !== undefined) await assertSourceDshBuilt(sourceRoot)
   await access(join(workspace, 'packages/dshx/dist/cli/bin.js'))
   await access(join(workspace, 'packages/create-dshx/dist/cli.js'))
   const root = await mkdtemp(join(tmpdir(), `dshx-dsh-${dshVersion.replaceAll(/[^0-9A-Za-z.-]/g, '-')}-`))
@@ -983,18 +1034,18 @@ async function main() {
   const dshxTarball = await packDshx(tarballDir)
   const projects = {}
   try {
-    projects.fullA = await createProject(root, 'plugin-full-a', dshxTarball, dshVersion, { template: 'showcase', style: 'tailwind' })
+    projects.fullA = await createProject(root, 'plugin-full-a', dshxTarball, dshVersion, sourceRoot, { template: 'showcase', style: 'tailwind' })
     await useAutomaticHostRestart(projects.fullA)
     await installConversationProbe(projects.fullA, dshVersion)
     await expectSuccess('pnpm', ['exec', 'dshx', 'add', 'command', '--name', 'dshx-status', '--description', 'Return DSHX status.'], { cwd: projects.fullA })
     await installPromptProbe(projects.fullA, 'plugin-full-a')
     await installSettingsProbe(projects.fullA)
-    projects.fullB = await createProject(root, 'plugin-full-b', dshxTarball, dshVersion, { template: 'showcase', style: 'css-modules' })
-    projects.hostOnly = await createProject(root, 'plugin-host-only', dshxTarball, dshVersion)
+    projects.fullB = await createProject(root, 'plugin-full-b', dshxTarball, dshVersion, sourceRoot, { template: 'showcase', style: 'css-modules' })
+    projects.hostOnly = await createProject(root, 'plugin-host-only', dshxTarball, dshVersion, sourceRoot)
     await removeClient(projects.hostOnly)
-    projects.clientOnly = await createProject(root, 'plugin-client-only', dshxTarball, dshVersion)
+    projects.clientOnly = await createProject(root, 'plugin-client-only', dshxTarball, dshVersion, sourceRoot)
     await removeHost(projects.clientOnly)
-    projects.native = await createProject(root, 'plugin-native', dshxTarball, dshVersion, { style: 'none' })
+    projects.native = await createProject(root, 'plugin-native', dshxTarball, dshVersion, sourceRoot, { style: 'none' })
     await makeNativeHost(projects.native)
 
     for (const [name, project] of Object.entries(projects)) {
@@ -1019,8 +1070,11 @@ async function main() {
       throw new Error('Generated Client artifact retained Host-only Settings behavior or a private DSHX Settings import')
     }
     const settingsHostArtifact = await readFile(join(projects.fullA, 'dist/index.js'), 'utf8')
-    if (settingsHostArtifact.includes('@becomeopc/dshx/settings') || !settingsHostArtifact.includes('@deepseek-ai/dsh-settings')) {
-      throw new Error('Generated Host artifact did not inline DSHX Settings helpers over the official runtime service')
+    if (settingsHostArtifact.includes('@becomeopc/dshx/settings') || !settingsHostArtifact.includes('Config')) {
+      throw new Error('Generated Host artifact did not export the shared Config schema DSH projects into Settings')
+    }
+    if (settingsHostArtifact.includes('@deepseek-ai/dsh-settings')) {
+      throw new Error('Generated Host artifact retained the removed Settings provider seam')
     }
 
     await expectFailure('pnpm', ['exec', 'dshx', 'add', 'tool', '--name', 'native.status'], 'DSHX6204', {
@@ -1043,7 +1097,20 @@ async function main() {
       if (hostServices.source !== 'runtime' || hostEvents.source !== 'runtime') throw new Error('Host-only Inspect did not return runtime data')
       const uiDryRun = await run(
         'pnpm',
-        ['exec', 'dshx', 'add', 'ui', '--slot', 'sidebar.footer.action', '--provider', '@deepseek-ai/dsh-client-ui-sidebar', '--dry-run', '--json'],
+        [
+          'exec',
+          'dshx',
+          'add',
+          'ui',
+          '--slot',
+          'sidebar.footer.action',
+          '--provider',
+          '@deepseek-ai/dsh-client-ui-sidebar',
+          '--id',
+          'dshx-host-only',
+          '--dry-run',
+          '--json',
+        ],
         {
           cwd: projects.hostOnly,
           env: { DSH_HOME: join(dshHome, 'host-only') },
@@ -1096,37 +1163,38 @@ async function main() {
     })
     let browser
     try {
+      const api = await openApiSession(fullDev.webUrl())
       browser = await startTailwindBrowser(fullDev.webUrl(), 'plugin-full-a')
-      const initialApi = await callDshxApi(fullDev.webUrl(), 'plugin-full-a', 'get', 1)
+      const initialApi = await callDshxApi(api, 'plugin-full-a', 'get', 1)
       if (!initialApi.ok || initialApi.value?.version !== 1 || initialApi.value?.output?.project !== 'plugin-full-a') {
         throw new Error(`Full plugin API did not return its Host status: ${JSON.stringify(initialApi)}`)
       }
-      const refreshedApi = await callDshxApi(fullDev.webUrl(), 'plugin-full-a', 'refresh', 1, { force: true })
+      const refreshedApi = await callDshxApi(api, 'plugin-full-a', 'refresh', 1, { force: true })
       if (!refreshedApi.ok || refreshedApi.value?.output?.project !== 'plugin-full-a (refreshed)') {
         throw new Error(`Full plugin API refresh failed: ${JSON.stringify(refreshedApi)}`)
       }
-      const incompatibleApi = await callDshxApi(fullDev.webUrl(), 'plugin-full-a', 'get', 2)
+      const incompatibleApi = await callDshxApi(api, 'plugin-full-a', 'get', 2)
       if (incompatibleApi.ok || incompatibleApi.error?.code !== 'DSHX6401') {
         throw new Error(`Full plugin API accepted a mismatched version: ${JSON.stringify(incompatibleApi)}`)
       }
-      const firstCommand = await verifyGeneratedCommand(fullDev.webUrl(), projects.fullA)
+      const firstCommand = await verifyGeneratedCommand(api, projects.fullA)
       const firstPromptCount = verifyPromptProbe(firstCommand.prompt, 'plugin-full-a')
       const conversationTitle = `DSHX Conversation ${randomUUID()}`
-      const renamed = await callOfficialApi(fullDev.webUrl(), 'session.rename', { sessionId: firstCommand.sessionId, title: conversationTitle })
+      const renamed = await api.call('session/rename', { request: { sessionId: firstCommand.sessionId, title: conversationTitle } })
       if (!renamed.ok) throw new Error(`Could not rename Conversation smoke session: ${JSON.stringify(renamed)}`)
-      await waitForVisibleSession(fullDev.webUrl(), firstCommand.sessionId)
+      await waitForVisibleSession(api, firstCommand.sessionId)
       await browser.openConversation(conversationTitle)
       const firstConversation = await browser.waitForConversation(1, 'conversation-v1')
       verifyConversationNodes(firstConversation, [firstCommand.commandId])
-      const nextPromptStatus = await callDshxApi(fullDev.webUrl(), 'plugin-full-a', 'get', 1)
+      const nextPromptStatus = await callDshxApi(api, 'plugin-full-a', 'get', 1)
       if (!nextPromptStatus.ok || !Number.isInteger(nextPromptStatus.value?.output?.requestCount)) {
         throw new Error(`Prompt request count did not advance: ${JSON.stringify(nextPromptStatus)}`)
       }
-      const secondCommand = await verifyGeneratedCommand(fullDev.webUrl(), projects.fullA, firstCommand.sessionId)
+      const secondCommand = await verifyGeneratedCommand(api, projects.fullA, firstCommand.sessionId)
       verifyPromptProbe(secondCommand.prompt, 'plugin-full-a', firstPromptCount)
       const secondConversation = await browser.waitForConversation(2, 'conversation-v1')
       verifyConversationNodes(secondConversation, [firstCommand.commandId, secondCommand.commandId])
-      const settingsRevision = await verifySettingsLifecycle(fullDev.webUrl())
+      const settingsRevision = await verifySettingsLifecycle(api)
       const hmr = fullDev.waitForOutput('Client rebuilt')
       const clientFile = join(projects.fullA, 'src/client.tsx')
       const clientSource = await readFile(clientFile, 'utf8')
@@ -1146,23 +1214,38 @@ async function main() {
       await appendFile(join(projects.fullA, 'src/host.ts'), `\n// Host lifecycle smoke ${Date.now()}\n`)
       await restarted
       await new Promise(resolveResult => setTimeout(resolveResult, 750))
-      const afterRestart = await callDshxApi(fullDev.webUrl(), 'plugin-full-a', 'get', 1)
+      const restartedApi = await openApiSession(fullDev.webUrl())
+      const afterRestart = await callDshxApi(restartedApi, 'plugin-full-a', 'get', 1)
       const afterRestartCount = afterRestart.value?.output?.requestCount
       if (!afterRestart.ok || !Number.isInteger(afterRestartCount) || afterRestartCount < 1) {
         throw new Error(`Full plugin API did not recover after Host restart: ${JSON.stringify(afterRestart)}`)
       }
-      const thirdCommand = await verifyGeneratedCommand(fullDev.webUrl(), projects.fullA, firstCommand.sessionId)
+      const thirdCommand = await verifyGeneratedCommand(restartedApi, projects.fullA, firstCommand.sessionId)
       verifyPromptProbe(thirdCommand.prompt, 'plugin-full-a')
       const restartedConversation = await browser.waitForConversation(3, 'conversation-v2')
       verifyConversationNodes(restartedConversation, [firstCommand.commandId, secondCommand.commandId, thirdCommand.commandId], 'conversation-v2')
-      await verifySettingsAfterRestart(fullDev.webUrl(), settingsRevision)
+      await verifySettingsAfterRestart(restartedApi, settingsRevision)
       const afterHostRestartStyle = await browser.assertOwnedStyle()
       if (afterHostRestartStyle.ownedStyles !== 1) throw new Error(`Host restart left stale owned styles: ${JSON.stringify(afterHostRestartStyle)}`)
       const uiRebuilt = fullDev.waitForOutput('Client rebuilt')
       void uiRebuilt.catch(() => undefined)
       const uiScaffold = await expectSuccess(
         'pnpm',
-        ['exec', 'dshx', 'add', 'ui', '--slot', 'settings.general.item', '--provider', '@deepseek-ai/dsh-client-ui-settings', '--json'],
+        [
+          'exec',
+          'dshx',
+          'add',
+          'ui',
+          '--slot',
+          'settings.general.item',
+          '--provider',
+          '@deepseek-ai/dsh-client-ui-settings',
+          '--id',
+          'dshx-smoke',
+          '--order',
+          '100',
+          '--json',
+        ],
         {
           cwd: projects.fullA,
           env: { DSH_HOME: join(dshHome, 'multi') },
@@ -1182,11 +1265,18 @@ async function main() {
       const check = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['check', '--runtime'])
       if (check.diagnostics.some(item => item.severity === 'error')) throw new Error('Full plugin check failed after dev link')
       const inspectEnv = { DSH_HOME: join(dshHome, 'multi') }
-      const slots = await inspectMaybeAvailable(projects.fullA, inspectEnv, ['inspect', 'slots'])
-      const exact = await inspectMaybeAvailable(projects.fullA, inspectEnv, ['inspect', 'slots', '--root', 'sidebar.footer.action'])
-      const generatedUiExact = await inspectMaybeAvailable(projects.fullA, inspectEnv, ['inspect', 'slots', '--root', 'settings.general.item'])
+      // DSH 0.2 has no first-party runtime Slots catalog; DSHX reports that
+      // explicitly and scaffolds Slots from the caller's explicit contract.
+      const slotCatalog = await expectFailure('pnpm', ['exec', 'dshx', 'inspect', 'slots', '--json'], 'DSHX3204', {
+        cwd: projects.fullA,
+        env: inspectEnv,
+      })
       const services = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['inspect', 'services'])
       const events = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['inspect', 'events'])
+      const configs = await jsonCommand(projects.fullA, { DSH_HOME: join(dshHome, 'multi') }, ['inspect', 'configs'])
+      if (configs.source !== 'runtime' || !Array.isArray(configs.items) || configs.items.length === 0) {
+        throw new Error(`Inspect configs did not return runtime entries: ${JSON.stringify(configs)}`)
+      }
       console.log(
         JSON.stringify(
           {
@@ -1197,10 +1287,11 @@ async function main() {
               support: resolution.support,
             },
             projects: Object.fromEntries(Object.entries(projects).map(([name, project]) => [name, project])),
-            inspect: [slots, exact, generatedUiExact, services, events].map(summarizeInspect),
+            inspect: [JSON.parse(slotCatalog.stdout), services, events, configs].map(summarizeInspect),
             scaffold: {
               ui: 'verified',
               slot: 'settings.general.item',
+              slotInspect: 'unavailable',
               clientHmr: 'verified',
             },
             api: {

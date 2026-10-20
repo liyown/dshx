@@ -6,9 +6,9 @@ The first usable DSHX release is published through the npm `preview` dist-tag. I
 
 | Package                              | Planned first Preview | Purpose                                       |
 | ------------------------------------ | --------------------- | --------------------------------------------- |
-| `@becomeopc/dshx`                    | `0.1.4-preview.0`     | Authoring APIs, checks, build, dev, and tools |
-| `create-dshx`                        | `0.1.4-preview.0`     | Starter and showcase project generation       |
-| `@becomeopc/dshx-plugin-marketplace` | `0.1.0-preview.0`     | Self-hosted reference plugin and installer UI |
+| `@becomeopc/dshx`                    | `0.2.0-preview.0`     | Authoring APIs, checks, build, dev, and tools |
+| `create-dshx`                        | `0.2.0-preview.0`     | Starter and showcase project generation       |
+| `@becomeopc/dshx-plugin-marketplace` | `0.2.0-preview.0`     | Self-hosted reference plugin and installer UI |
 
 Use the tag, not a floating untagged version:
 
@@ -22,7 +22,7 @@ The existing `latest` releases remain unchanged until an explicit stable-promoti
 
 ## Verified runtime boundary
 
-The current `protocol-1` adapter publishes the npm-safe peer range `@deepseek-ai/dsh >=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2`. Real-runtime smoke evidence covers the minimum `0.1.0-rc.8` and latest verified `0.1.1-rc.2` boundaries. The explicit rc.2 arm prevents package-manager prerelease exclusion; a version that merely falls inside the protocol range can still be compatible or experimental rather than verified.
+The current `protocol-2` adapter publishes the peer range `@deepseek-ai/dsh >=0.2.1-rc.2 <0.3.0-0`. Real-runtime smoke evidence is a source build of tag `dsh-v0.2.1-rc.2`; the npm `0.2.1-rc.2` artifact currently contains stale profile-boot code and is not treated as verified. A version that merely falls inside the protocol range can still be compatible or experimental rather than verified.
 
 Run the offline and runtime checks separately:
 
@@ -36,7 +36,7 @@ The development command launches a real DSH Profile. Client changes flow through
 
 ## Preview limits
 
-- The authoring surface is an API Candidate, not a 1.0 stability guarantee. Preview changes include a Changeset and migration guidance when they break an earlier `0.1.x` shape.
+- The authoring surface is an API Candidate, not a 1.0 stability guarantee. Preview changes include a Changeset and migration guidance when they break an earlier `0.2.x` shape.
 - Conversation Components and programmatic Tooling remain Experimental.
 - Compatibility evidence is limited to the declared protocol adapter and its recorded DSH boundaries. Direct native DSH calls remain the plugin author's responsibility.
 - Framework Hub publication is curated. Publishing an npm package does not automatically create or activate a Hub catalog entry.

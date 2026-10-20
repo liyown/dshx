@@ -6,12 +6,14 @@ import { ApiError } from "./api.js";
 import type { OperationError } from "./protocol.js";
 
 export class CliError extends Error {
-  constructor(
-    readonly issue: OperationError,
-    readonly requestId: string = randomUUID(),
-  ) {
+  readonly issue: OperationError;
+  readonly requestId: string;
+
+  constructor(issue: OperationError, requestId: string = randomUUID()) {
     super(issue.message);
     this.name = "CliError";
+    this.issue = issue;
+    this.requestId = requestId;
   }
 }
 

@@ -19,10 +19,10 @@ const NAME_RE = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9_-])?$/
 const require = createRequire(import.meta.url)
 
 /** Concrete real-smoke boundary used by newly generated repositories. */
-export const DEFAULT_DSH_VERSION = '0.1.1-rc.2'
+export const DEFAULT_DSH_VERSION = '0.2.1-rc.2'
 
 /** Public DSH range owned by the current protocol generation. */
-export const DEFAULT_DSH_RANGE = '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2'
+export const DEFAULT_DSH_RANGE = '>=0.2.1-rc.2 <0.3.0-0'
 export const DEFAULT_TEMPLATE = 'starter' as const
 export const DEFAULT_STYLE = 'css-modules' as const
 
@@ -33,7 +33,7 @@ export function packageVersion(): string {
   } catch {
     /* package metadata may be unavailable in source-only environments */
   }
-  return '0.1.1'
+  return '0.2.0'
 }
 
 function diagnostic(code: `DSHX${number}`, message: string, file: string, hint: string, cause?: unknown): CreateDiagnostic {

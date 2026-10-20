@@ -107,6 +107,17 @@ interface SlotScaffoldContract {
   readonly registration: readonly string[]
 }
 
+/**
+ * DSH 0.2 removed the first-party runtime Slots catalog, so an explicit
+ * `--slot`/`--provider` pair is the only way to scaffold a Slot there. The
+ * registration fields come from the caller instead of the provider catalog;
+ * TypeScript checks the result against the provider's SlotRegistry.
+ */
+function explicitScaffoldContract(options: AddUiOptions): SlotScaffoldContract {
+  const registration = [...(options.id === undefined ? [] : ['id']), ...(options.order === undefined ? [] : ['order'])]
+  return { kind: registration.length === 0 ? 'single' : 'list', registration }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -382,10 +393,41 @@ export async function createUiScaffold(options: AddUiOptions, dependencies: AddU
     )
     return result(project, { name: options.slot ?? '' }, options.provider ?? '', [item], [], false)
   }
+  let explicitContract: SlotScaffoldContract | undefined
   if (inspect.diagnostics.some(item => item.severity === 'error')) {
-    const mapped = inspect.diagnostics.map(item => (item.code === 'DSHX3201' ? diagnostic('DSHX6102', item.message, item.file, item.hint) : item))
-    return result(project, { name: options.slot ?? '' }, options.provider ?? '', mapped, [], false)
+    const errors = inspect.diagnostics.filter(item => item.severity === 'error')
+    const explicitSlot = options.slot?.trim()
+    const explicitProvider = options.provider?.trim()
+    if (
+      errors.every(item => item.code === 'DSHX3204') &&
+      explicitSlot !== undefined &&
+      explicitSlot !== '' &&
+      explicitProvider !== undefined &&
+      explicitProvider !== ''
+    ) {
+      explicitContract = explicitScaffoldContract(options)
+      inspect = {
+        ...inspect,
+        diagnostics: [],
+        items: [{ name: explicitSlot, provider: explicitProvider, kind: explicitContract.kind }],
+      }
+    } else {
+      const mapped = inspect.diagnostics.map(item => (item.code === 'DSHX3201' ? diagnostic('DSHX6102', item.message, item.file, item.hint) : item))
+      return result(project, { name: options.slot ?? '' }, options.provider ?? '', mapped, [], false)
+    }
   }
+  const warnings =
+    explicitContract === undefined
+      ? []
+      : [
+          diagnostic(
+            'DSHX6112',
+            'DSH 0.2 exposes no runtime Slot catalog; the generated registration was not checked against the provider contract.',
+            packageFile,
+            'Verify the generated Slot against the provider types with dshx check; adjust --id/--order if the provider declares a different registration.',
+            'warning',
+          ),
+        ]
   const slots = inspect.items as readonly SlotSummary[]
   let slotName = options.slot
   if (slotName === undefined) slotName = await dependencies.selectSlot?.(slots)
@@ -408,31 +450,33 @@ export async function createUiScaffold(options: AddUiOptions, dependencies: AddU
     )
     return result(project, { name: slotName }, options.provider ?? '', [item], [], false)
   }
-  let exact: InspectResult
-  try {
-    exact = await (dependencies.inspectComposition ?? inspectProjectComposition)(project, 'slots', {
-      ...(options.inspect ?? {}),
-      slotRoot: treeSlot.name,
-    })
-  } catch {
-    const item = diagnostic(
-      'DSHX6102',
-      'Unable to inspect the exact Slot contract from the running DSH composition.',
-      packageFile,
-      'Start a supported Client Slot Inspect Provider and retry.',
-      'error',
-    )
-    return result(project, treeSlot, options.provider ?? treeSlot.provider ?? '', [item], [], false)
-  }
-  if (exact.diagnostics.some(item => item.severity === 'error')) {
-    const mapped = exact.diagnostics.map(item =>
-      item.code === 'DSHX3201' || item.code === 'DSHX3202' || item.code === 'DSHX3205'
-        ? diagnostic('DSHX6102', item.message, item.file, item.hint)
-        : item.code === 'DSHX3203'
-          ? diagnostic('DSHX6111', item.message, item.file, item.hint)
-          : item,
-    )
-    return result(project, treeSlot, options.provider ?? treeSlot.provider ?? '', mapped, [], false)
+  let exact: InspectResult = inspect
+  if (explicitContract === undefined) {
+    try {
+      exact = await (dependencies.inspectComposition ?? inspectProjectComposition)(project, 'slots', {
+        ...(options.inspect ?? {}),
+        slotRoot: treeSlot.name,
+      })
+    } catch {
+      const item = diagnostic(
+        'DSHX6102',
+        'Unable to inspect the exact Slot contract from the running DSH composition.',
+        packageFile,
+        'Start a supported Client Slot Inspect Provider and retry.',
+        'error',
+      )
+      return result(project, treeSlot, options.provider ?? treeSlot.provider ?? '', [item], [], false)
+    }
+    if (exact.diagnostics.some(item => item.severity === 'error')) {
+      const mapped = exact.diagnostics.map(item =>
+        item.code === 'DSHX3201' || item.code === 'DSHX3202' || item.code === 'DSHX3205'
+          ? diagnostic('DSHX6102', item.message, item.file, item.hint)
+          : item.code === 'DSHX3203'
+            ? diagnostic('DSHX6111', item.message, item.file, item.hint)
+            : item,
+      )
+      return result(project, treeSlot, options.provider ?? treeSlot.provider ?? '', mapped, [], false)
+    }
   }
   const exactSlot = (exact.items as readonly SlotSummary[]).find(item => item.name === treeSlot.name)
   if (exactSlot === undefined) {
@@ -444,7 +488,7 @@ export async function createUiScaffold(options: AddUiOptions, dependencies: AddU
     )
     return result(project, treeSlot, options.provider ?? treeSlot.provider ?? '', [item], [], false)
   }
-  const exactContract = scaffoldContract(exactSlot, packageFile, options)
+  const exactContract = explicitContract === undefined ? scaffoldContract(exactSlot, packageFile, options) : { contract: explicitContract }
   if (exactContract.diagnostic !== undefined)
     return result(project, exactSlot, options.provider ?? exactSlot.provider ?? treeSlot.provider ?? '', [exactContract.diagnostic], [], false)
   const contract = exactContract.contract!
@@ -599,7 +643,7 @@ export async function createUiScaffold(options: AddUiOptions, dependencies: AddU
     ...(clientBefore === undefined ? [{ file: clientFile, after: clientAfter }] : [{ file: clientFile, before: clientBefore, after: clientAfter }]),
     ...(manifestAfter === undefined ? [] : [{ file: packageFile, before: packageBefore, after: manifestAfter }]),
   ]
-  if (options.dryRun) return result(project, slot, provider, [], plan, manifestChanged, renderFileDiff(plan))
+  if (options.dryRun) return result(project, slot, provider, warnings, plan, manifestChanged, renderFileDiff(plan))
   try {
     await applyFilePlanWithFileSystem(plan, fs)
   } catch (cause) {
@@ -640,5 +684,5 @@ export async function createUiScaffold(options: AddUiOptions, dependencies: AddU
     )
     return result(project, slot, provider, [item, ...postDiagnostics], [], manifestChanged)
   }
-  return result(project, slot, provider, postDiagnostics, plan, manifestChanged)
+  return result(project, slot, provider, [...warnings, ...postDiagnostics], plan, manifestChanged)
 }

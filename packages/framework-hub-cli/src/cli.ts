@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { chmod, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -12,6 +12,7 @@ import {
   auditHub,
   curatePlugin,
   exitCodeForSuccess,
+  getAgentBundle,
   getPlugin,
   getSubmission,
   hubStatus,
@@ -30,7 +31,6 @@ import {
 } from "./protocol.js";
 import { discoverSources, inspectSource } from "./source.js";
 import { preflight } from "./preflight.js";
-import { readOperationsPrompt } from "./ops-prompt.js";
 import { withOperationGuard } from "./operation-context.js";
 import {
   assertOpsRun,
@@ -366,14 +366,82 @@ async function execute(
   if (group === "capabilities")
     envelope = successEnvelope(await capabilities());
   else if (group === "ops") {
-    if (command === "prompt")
-      envelope = successEnvelope(await readOperationsPrompt());
-    else if (command === "preflight")
+    if (command === "bundle") {
+      const output = requireTextOption(values, "output");
+      if (output === "-")
+        throw new CliError({
+          code: "invalid_output",
+          message: "The agent bundle must be written to a private file.",
+          retryable: false,
+          repairHint:
+            "Pass --output with an absolute path; do not print resource values to stdout.",
+          path: "--output",
+        });
+      const bundle = (await getAgentBundle(hub())).data;
+      if (
+        typeof bundle.bootstrap !== "string" ||
+        bundle.bootstrap === "" ||
+        typeof bundle.prompt !== "string" ||
+        bundle.prompt === "" ||
+        typeof bundle.resources !== "object" ||
+        bundle.resources === null ||
+        Array.isArray(bundle.resources) ||
+        Object.values(bundle.resources).some(
+          (value) => typeof value !== "string",
+        ) ||
+        typeof bundle.meta !== "object" ||
+        bundle.meta === null ||
+        Array.isArray(bundle.meta)
+      )
+        throw new CliError({
+          code: "invalid_hub_response",
+          message: "The agent bundle response is malformed.",
+          retryable: true,
+          repairHint:
+            "Retry after the Hub recovers; report a contract mismatch if it persists.",
+        });
+      const surface = await capabilities();
+      if (bundle.meta["capabilitiesHash"] !== surface.capabilitiesHash)
+        throw new CliError({
+          code: "agent_bundle_mismatch",
+          message: "The agent bundle does not match this CLI contract.",
+          retryable: false,
+          repairHint:
+            "Re-run with the bundle's expected CLI version; if that still fails, ask an administrator to regenerate the bundle. Do not use a stale bundle.",
+          details: {
+            expectedCliVersion: bundle.meta["cliVersion"] ?? null,
+            expectedCapabilitiesHash: bundle.meta["capabilitiesHash"] ?? null,
+            executingCliVersion: surface.package.version,
+            executingCapabilitiesHash: surface.capabilitiesHash,
+          },
+        });
+      const path = resolve(output);
+      try {
+        await writeFile(path, `${JSON.stringify(bundle, null, 2)}\n`, {
+          mode: 0o600,
+        });
+        await chmod(path, 0o600);
+      } catch {
+        throw new CliError({
+          code: "bundle_write_failed",
+          message: "The agent bundle could not be written.",
+          retryable: false,
+          repairHint:
+            "Choose a writable private path and retry. Do not print the bundle to stdout.",
+          path: "--output",
+        });
+      }
+      envelope = successEnvelope({
+        output: path,
+        promptVersion: bundle.meta["promptVersion"] ?? null,
+        cliVersion: bundle.meta["cliVersion"] ?? null,
+        resources: Object.keys(bundle.resources),
+      });
+    } else if (command === "preflight")
       envelope = successEnvelope(
         await preflight(hub(), textOption(values, "expect-cli-version")),
       );
     else if (command === "begin") {
-      await readOperationsPrompt();
       const claim = await beginOpsRun(hub());
       try {
         const access = await preflight(
@@ -718,11 +786,13 @@ export async function runCli(
       guarded ? () => assertOpsRun(normalizedHub(values), runId) : undefined,
       () => execute(positionals, values, streams),
     );
-    await writeJson(
-      result.envelope,
-      textOption(values, "output"),
-      streams.stdout,
-    );
+    // `ops bundle` reserves --output for the private bundle file. Its success
+    // envelope goes to stdout and contains resource names only, never values.
+    const envelopeOutput =
+      positionals[0] === "ops" && positionals[1] === "bundle"
+        ? undefined
+        : textOption(values, "output");
+    await writeJson(result.envelope, envelopeOutput, streams.stdout);
     return result.exitCode;
   } catch (error) {
     const normalized = normalizedError(error);

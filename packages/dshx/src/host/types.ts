@@ -3,7 +3,7 @@ import type { CommandDefinition } from '@deepseek-ai/dsh-commands'
 import type { PromptContext, PromptSection } from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { AnyApiMethodDefinition, ApiHostRegistration } from '../api/types.js'
-import type { SettingsContribution } from '../settings/types.js'
+import type { SettingsContract } from '../settings/types.js'
 
 /** A system-prompt section wrapped only to preserve its registration kind. */
 declare const promptContributionBrand: unique symbol
@@ -21,13 +21,15 @@ export interface PromptContextContribution<Prompt extends PromptContext = Prompt
 export type PromptContribution = PromptSectionContribution | PromptContextContribution
 
 /** Author-facing Host definition backed by the official Cordis context and Tool model. */
-export interface HostDefinition {
+export interface HostDefinition<Config extends object = Record<string, unknown>> {
   readonly name?: string
   readonly inject?: readonly string[]
   readonly tools?: readonly ToolDefinition[]
   readonly commands?: readonly CommandDefinition[]
   readonly prompts?: readonly PromptContribution[]
-  readonly settings?: readonly SettingsContribution[]
+  /** The plugin Config schema DSH projects into a Settings form. */
+  readonly config?: SettingsContract<any>
   readonly apis?: readonly ApiHostRegistration<Record<string, AnyApiMethodDefinition>, any>[]
-  readonly setup?: (ctx: Context) => void | Promise<void>
+  /** Runs with the Config value DSH resolved for this plugin entry. */
+  readonly setup?: (ctx: Context, config: Config | undefined) => void | Promise<void>
 }

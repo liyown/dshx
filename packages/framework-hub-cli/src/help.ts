@@ -16,13 +16,16 @@ const commands: Record<string, HelpEntry> = {
     recovery:
       "Use this JSON directly; do not parse help text or TypeScript source.",
   },
-  "ops prompt": {
-    summary: "Read the operations prompt shipped with this CLI.",
-    usage: "dshx-hub ops prompt [--output FILE]",
-    reads: "The bundled, version-matched operations prompt and policy.",
-    writes: "Nothing except an explicitly requested output file.",
+  "ops bundle": {
+    summary:
+      "Fetch the authenticated administrator bundle containing the prompt and configured resources.",
+    usage: "dshx-hub ops bundle --output FILE [--hub URL]",
+    reads:
+      "The admin-only agent bundle endpoint with the current prompt and decrypted allowlisted resources.",
+    writes:
+      "One private JSON file with mode 0600. Resource values are never written to stdout or logs.",
     recovery:
-      "Repair the package if its prompt is missing; do not search other checkouts.",
+      "Requires an administrator CLI credential. On authentication or role errors, ask an administrator to authenticate the CLI; never print or copy resource values into reports.",
   },
   "ops preflight": {
     summary: "Verify this package and catalog access with one bounded read.",
@@ -264,5 +267,5 @@ export function helpText(path: string[] = []) {
       (name) => `  ${name}`,
     ).join("\n")}\n\nUse dshx-hub ${group} <command> --help for details.\n`;
   }
-  return `dshx-hub — atomic operations for DSHX Hub\n\nRead capabilities for input schemas. Scheduled operations use ops begin and the bundled ops prompt. Domain commands remain independently callable.\n\nCommands:\n  capabilities\n  ops prompt|preflight|begin|status|checkpoint|finish\n  auth login|status|logout\n  status\n  source discover|inspect\n  plugin list|get|upsert|curate|hide|restore\n  submission list|get|resolve\n  report latest|publish\n  media upload\n  audit\n\nUse dshx-hub <group> <command> --help for details.\n`;
+  return `dshx-hub — atomic operations for DSHX Hub\n\nRead capabilities for input schemas. Scheduled operations fetch the administrator bundle with ops bundle, then use ops begin. Domain commands remain independently callable.\n\nCommands:\n  capabilities\n  ops bundle|preflight|begin|status|checkpoint|finish\n  auth login|status|logout\n  status\n  source discover|inspect\n  plugin list|get|upsert|curate|hide|restore\n  submission list|get|resolve\n  report latest|publish\n  media upload\n  audit\n\nUse dshx-hub <group> <command> --help for details.\n`;
 }

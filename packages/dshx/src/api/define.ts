@@ -13,7 +13,6 @@ import type {
 export interface ApiHostRegistrationParts {
   readonly contract: ApiContract
   readonly handlers: ApiHandlers<Record<string, AnyApiMethodDefinition>>
-  readonly authority: 'loopback' | 'trusted-host'
 }
 
 const apiHostRegistrations = new WeakMap<object, ApiHostRegistrationParts>()
@@ -78,11 +77,16 @@ export function defineApi<const Methods extends Record<string, AnyApiMethodDefin
         ].join('; ')
         throw new Error(`API ${JSON.stringify(definition.id)} handlers do not exactly match its methods: ${details}.`)
       }
+      const unknownOptions = Object.keys(options as Record<string, unknown>)
+      if (unknownOptions.length > 0) {
+        throw new Error(
+          `API ${JSON.stringify(definition.id)} options contain ${unknownOptions.map(value => JSON.stringify(value)).join(', ')}; DSH 0.2 removed the authority option and Connection now enforces Peer access.`,
+        )
+      }
       const registration = {} as ApiHostRegistration<Methods, Handlers>
       apiHostRegistrations.set(registration, {
         contract,
         handlers: handlers as ApiHandlers<Record<string, AnyApiMethodDefinition>>,
-        authority: options.authority ?? 'loopback',
       })
       return registration
     },

@@ -233,25 +233,27 @@ describe('Client runtime adapter', () => {
     })
     const plugin = createClientPlugin(
       {
-        inject: ['conversationEvents', 'conversationEvents'],
+        inject: ['uiConversation', 'uiConversation'],
         conversations: [first, second],
         setup,
       },
       { packageId: '@test/plugin' },
     )
-    expect(plugin.inject).toEqual(['conversationEvents', 'slots'])
+    expect(plugin.inject).toEqual(['uiConversation', 'slots'])
 
     const definitions: unknown[] = []
     const renderers: unknown[] = []
     const disposers: Array<ReturnType<typeof vi.fn>> = []
     plugin.apply({
-      conversationEvents: {
-        register(definition: { kind: string }) {
-          calls.push(`definition:${definition.kind}`)
-          definitions.push(definition)
-          const dispose = vi.fn()
-          disposers.push(dispose)
-          return dispose
+      uiConversation: {
+        events: {
+          register(definition: { kind: string }) {
+            calls.push(`definition:${definition.kind}`)
+            definitions.push(definition)
+            const dispose = vi.fn()
+            disposers.push(dispose)
+            return dispose
+          },
         },
       },
       slots: {
@@ -302,12 +304,14 @@ describe('Client runtime adapter', () => {
     const renderers: unknown[] = []
     const get = vi.fn(() => undefined)
     const plugin = createClientPlugin({ conversations: [conversation] }, { packageId: '@test/plugin', settingsCapability: true, apiCapability: true })
-    expect(plugin.inject).toEqual(['conversationEvents', 'slots', 'connection', 'settingsScope'])
+    expect(plugin.inject).toEqual(['uiConversation', 'slots', 'connection', 'configForms'])
     await plugin.apply({
       get,
-      conversationEvents: {
-        register: (definition: unknown) => {
-          definitions.push(definition)
+      uiConversation: {
+        events: {
+          register: (definition: unknown) => {
+            definitions.push(definition)
+          },
         },
       },
       slots: {
@@ -320,17 +324,35 @@ describe('Client runtime adapter', () => {
     expect(definitions).toEqual([parts.definition])
     expect(renderers).toHaveLength(1)
     expect(renderers[0]).not.toBe(parts.renderer.component)
-    expect(get).toHaveBeenCalledWith('settingsScope')
+    expect(get).toHaveBeenCalledWith('configForms')
     // Connection remains lazy until the renderer actually calls useApi().
     expect(get).not.toHaveBeenCalledWith('connection')
   })
 
-  it('adds settingsScope from compiler metadata without a Client settings declaration', () => {
+  it('adds configForms from compiler metadata without a Client settings declaration', () => {
     const slot = defineSlot('test.slot', { id: 'settings', component: () => null })
-    const get = vi.fn(() => ({ bind: vi.fn(), describe: vi.fn() }))
+    const form = {
+      getSnapshot: () => ({ status: 'ready', value: {}, base: {}, user: undefined, revision: 1, writable: true }),
+      subscribe: () => () => undefined,
+      set: vi.fn(),
+      unset: vi.fn(),
+      mutate: vi.fn(),
+    }
+    const forms = {
+      get: vi.fn(() => form),
+      describe: () => ({
+        getSnapshot: () => ({ status: 'ready', view: { namespaces: [], writable: true }, error: null }),
+        subscribe: () => () => undefined,
+        ensure: vi.fn(),
+      }),
+    }
+    const get = vi.fn((name: string) => (name === 'configForms' ? forms : undefined))
     const registered: unknown[] = []
-    const plugin = createClientPlugin({ slots: [slot] }, { packageId: '@test/plugin', settingsCapability: true })
-    expect(plugin.inject).toEqual(['slots', 'settingsScope'])
+    const plugin = createClientPlugin(
+      { slots: [slot] },
+      { packageId: '@test/plugin', settingsNamespace: 'settings-entry', settingsCapability: true },
+    )
+    expect(plugin.inject).toEqual(['slots', 'configForms'])
     plugin.apply({
       get,
       slots: {
@@ -340,7 +362,8 @@ describe('Client runtime adapter', () => {
         },
       },
     } as unknown as Context)
-    expect(get).toHaveBeenCalledWith('settingsScope')
+    expect(get).toHaveBeenCalledWith('configForms')
+    expect(forms.get).toHaveBeenCalledWith('settings-entry')
     expect(registered).toHaveLength(1)
     expect(registered[0]).not.toBe(slotContributionParts(slot).component)
   })
@@ -366,22 +389,30 @@ describe('Client runtime adapter', () => {
     expect(get).not.toHaveBeenCalled()
   })
 
-  it('reuses one official bound scope per contract identity', () => {
-    const snapshot = { status: 'ready', value: { enabled: true }, base: {}, user: {}, revision: 1, writable: true, mode: 'host' }
-    const scope = { getSnapshot: () => snapshot, subscribe: () => () => undefined, set: vi.fn(), unset: vi.fn() }
+  it('reuses one official Config form per entry and one binding per contract identity', () => {
+    const snapshot = { status: 'ready', value: { enabled: true }, base: {}, user: undefined, revision: 1, writable: true }
+    const form = {
+      getSnapshot: () => snapshot,
+      subscribe: () => () => undefined,
+      set: vi.fn(),
+      unset: vi.fn(),
+      mutate: vi.fn(),
+    }
     const describe = {
       getSnapshot: () => ({ status: 'ready', view: { namespaces: [], writable: true }, error: null }),
       subscribe: () => () => undefined,
       ensure: vi.fn(),
     }
-    const bind = vi.fn(() => scope)
-    const runtime = createSettingsClientRuntime({ get: () => ({ bind, describe: () => describe }) })
-    const first = defineSettings({ namespace: 'first', schema: Schema.object({ enabled: Schema.boolean() }) })
-    const sameShape = defineSettings({ namespace: 'first', schema: first.schema })
+    const get = vi.fn(() => form)
+    const runtime = createSettingsClientRuntime({ get: () => ({ get, describe: () => describe }) }, 'entry-first')
+    const first = defineSettings({ schema: Schema.object({ enabled: Schema.boolean() }) })
+    const sameShape = defineSettings({ schema: first.schema })
+    expect(runtime.available).toBe(true)
+    expect(runtime.entryId).toBe('entry-first')
     expect(runtime.binding(first)).toBe(runtime.binding(first))
     expect(runtime.binding(sameShape)).not.toBe(runtime.binding(first))
-    expect(bind).toHaveBeenCalledTimes(2)
-    expect(bind).toHaveBeenNthCalledWith(1, { namespace: 'first' })
+    expect(get).toHaveBeenCalledTimes(1)
+    expect(get).toHaveBeenCalledWith('entry-first')
   })
 
   it('falls back from logical name to package id', () => {

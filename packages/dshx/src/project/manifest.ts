@@ -252,7 +252,7 @@ async function checkSettingsCapability(diagnostics: DshxDiagnostic[], config: Re
       'error',
       'useSettings() requires @deepseek-ai/dsh-client-ui-settings in dsh.client.inject.',
       config.packageFile,
-      'Add "@deepseek-ai/dsh-client-ui-settings" to dsh.client.inject so DSH loads the official settingsScope provider first.',
+      'Add "@deepseek-ai/dsh-client-ui-settings" to dsh.client.inject so DSH loads the official configForms provider first.',
     ),
   )
 }
@@ -279,14 +279,14 @@ async function checkConversationCapability(diagnostics: DshxDiagnostic[], config
   const dsh = isObject(manifest.dsh) ? manifest.dsh : undefined
   const client = isObject(dsh?.client) ? dsh.client : undefined
   const inject = Array.isArray(client?.inject) ? client.inject : []
-  const required = ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation'] as const
+  const required = ['@deepseek-ai/dsh-client-ui-conversation'] as const
   const missing = required.filter(packageName => !inject.includes(packageName))
   if (missing.length === 0) return
   diagnostics.push(
     issue(
       'DSHX4217',
       'error',
-      'Conversation components require the official Client Runtime and Conversation UI package edges.',
+      'Conversation components require the official Conversation UI package edge.',
       config.packageFile,
       `Add ${missing.map(packageName => JSON.stringify(packageName)).join(' and ')} to dsh.client.inject before building the Client.`,
     ),

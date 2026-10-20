@@ -39,6 +39,21 @@ export const changelogEntries = sqliteTable(
   ],
 );
 
+export const agentResources = sqliteTable(
+  "agent_resources",
+  {
+    key: text("key").primaryKey(),
+    iv: text("iv").notNull(),
+    ciphertext: text("ciphertext").notNull(),
+    updatedByUserId: text("updated_by_user_id"),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (table) => [
+    check("agent_resources_key_check", sql`length(${table.key}) between 1 and 64`),
+    check("agent_resources_value_check", sql`length(${table.ciphertext}) > 0`),
+  ],
+);
+
 export const catalogSyncRuns = sqliteTable(
   "catalog_sync_runs",
   {

@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module'
 import { DshxError } from '../diagnostics.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
-import { PROTOCOL_1_COMPATIBILITY } from './protocol-1.js'
+import { PROTOCOL_2_COMPATIBILITY } from './protocol-2.js'
 import { gt, intersects, prerelease, satisfies, subset, valid, validRange } from 'semver'
 import type {
   DshCompatibility,
@@ -11,7 +11,7 @@ import type {
   DshProjectCompatibilityAssessment,
 } from './types.js'
 
-export { DSH_0_1_COMPATIBILITY, PROTOCOL_1_COMPATIBILITY, RC8_COMPATIBILITY } from './protocol-1.js'
+export { PROTOCOL_2_COMPATIBILITY } from './protocol-2.js'
 export type {
   DshCompatibility,
   DshCompatibilityLifecycle,
@@ -31,7 +31,7 @@ export type {
   DshxRuntimePluginSpec,
 } from './types.js'
 
-const ADAPTERS = [PROTOCOL_1_COMPATIBILITY] as const
+const ADAPTERS = [PROTOCOL_2_COMPATIBILITY] as const
 for (const compatibility of ADAPTERS) {
   const { minimum, latest } = compatibility.verified
   if (valid(minimum) === null || valid(latest) === null || gt(minimum, latest)) {
@@ -58,7 +58,7 @@ for (let index = 0; index < ADAPTERS.length; index += 1) {
 }
 
 export const COMPATIBILITY_ADAPTERS = ADAPTERS
-export const DEFAULT_COMPATIBILITY = PROTOCOL_1_COMPATIBILITY
+export const DEFAULT_COMPATIBILITY = PROTOCOL_2_COMPATIBILITY
 
 /** Representative boundaries used by the generic real-runtime CI scenario. */
 export function getCompatibilitySmokeMatrix(): readonly DshCompatibilityMatrixEntry[] {
@@ -103,6 +103,11 @@ function dependencySpecifier(manifest: Readonly<Record<string, unknown>>, field:
 
 /** Public DSH support declared by the plugin package. */
 export function declaredDshRange(manifest: Readonly<Record<string, unknown>>): string | undefined {
+  const engines = manifest['engines']
+  if (typeof engines === 'object' && engines !== null && !Array.isArray(engines)) {
+    const dsh = (engines as Record<string, unknown>)['dsh']
+    if (typeof dsh === 'string' && dsh.trim() !== '') return dsh.trim()
+  }
   return dependencySpecifier(manifest, 'peerDependencies')
 }
 
@@ -141,10 +146,10 @@ export function getCompatibilityCapabilities(compatibility: DshCompatibility): r
   if (compatibility.hostContributions?.commands === true) capabilities.push('host:commands')
   if (compatibility.hostContributions?.promptSections === true) capabilities.push('host:prompt-sections')
   if (compatibility.hostContributions?.promptContexts === true) capabilities.push('host:prompt-contexts')
-  if (compatibility.hostContributions?.settings === true) capabilities.push('host:settings')
-  if (compatibility.client.settings?.service === 'settingsScope') capabilities.push('client:settings-scope')
+  if (compatibility.hostContributions?.settings === true) capabilities.push('host:settings:config')
+  if (compatibility.client.settings?.service === 'configForms') capabilities.push('client:config-forms')
   if (compatibility.client.settings?.hookDrivenCapabilityInference === true) capabilities.push('client:settings-hook-inference')
-  if (compatibility.client.conversation?.eventService === 'conversationEvents') capabilities.push('client:conversation-event-registry')
+  if (compatibility.client.conversation?.eventService === 'uiConversation') capabilities.push('client:ui-conversation')
   if (compatibility.client.conversation?.slotService === 'slots') capabilities.push('client:conversation-chat-slots')
   if (compatibility.client.conversation?.componentContributions === true) {
     capabilities.push(`client:conversation-components:${compatibility.client.conversation.verification}`)
@@ -154,12 +159,16 @@ export function getCompatibilityCapabilities(compatibility: DshCompatibility): r
   } else if (compatibility.session?.customDurableEventVocabulary === false) {
     capabilities.push('session:custom-durable-event-vocabulary:unavailable')
   }
+  if (compatibility.session?.formatVersion !== undefined) {
+    capabilities.push(`session:format-${compatibility.session.formatVersion}`)
+  }
   for (const target of compatibility.inspect?.targets ?? []) {
     const provider = compatibility.inspect?.providerByTarget?.[target] ?? compatibility.inspect?.provider ?? 'unavailable'
     capabilities.push(`inspect:${target}:${provider}`)
   }
   if (compatibility.connection?.hostRpc) capabilities.push('connection:host-rpc')
   if (compatibility.connection?.clientRpc) capabilities.push('connection:client-rpc')
+  if (compatibility.connection?.peerAdmission === true) capabilities.push('connection:peer-admission')
   if (compatibility.connection?.hookDrivenCapabilityInference === true) capabilities.push('client:api-hook-inference')
   for (const plugin of compatibility.runtimePlugins ?? []) {
     for (const provided of plugin.provides) capabilities.push(`runtime:${provided}`)

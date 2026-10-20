@@ -6,7 +6,7 @@ Plain `check` is offline. It validates:
 
 - `dshx.config.ts` and enabled face entries;
 - package exports, types/bin paths, DSH manifest fields, provider edges, and protocol range;
-- `0.1.1` migration patterns in TypeScript source;
+- `0.1` migration patterns in TypeScript source, including removed 0.1.1/0.1.2 entries;
 - TypeScript with `noEmit`;
 - installed/development DSH compatibility when package metadata is locally available.
 
@@ -53,24 +53,28 @@ Successful Host rebuilds restart the Host automatically by default. Set `dev.hos
 ## `dshx inspect`
 
 ```bash
-dshx inspect slots [--root <slot>] [--json]
 dshx inspect tools [--json]
 dshx inspect services [--json]
 dshx inspect events [--json]
+dshx inspect configs [--json]
 ```
 
 Inspect is read-only and runtime-only. It queries only adapter-supported official providers in the active Composition. An unsupported or unavailable provider returns a diagnostic rather than an offline/fabricated catalog.
 
+DSH 0.2 exposes no first-party runtime Slots catalog. `dshx inspect slots` is accepted by the parser only to return `DSHX3204` with a migration hint; Slots are compile-time contracts verified by TypeScript and the provider package, not runtime catalog entries.
+
 ## `dshx add`
 
 ```bash
-dshx add ui --slot <slot> [--provider <package>] [--id <id>] [--order <n>]
+dshx add ui --slot <slot> --provider <package> [--id <id>] [--order <n>]
 dshx add tool --name <name> [--description <text>]
 dshx add command --name <name> [--description <text>]
 dshx add hook --event <event>
 ```
 
 All add commands accept `--file`, `--dry-run`, and `--json`. They generate source transactionally and roll back on validation failure. They do not install packages, change Profiles, or start DSH. There are no `add api`, `add settings`, `add prompt`, or `add conversation` commands.
+
+Under DSH 0.2, `add ui` cannot read a runtime Slot catalog, so `--slot` and `--provider` are both required and the result carries a `DSHX6112` warning. For list Slots, pass `--id` (and optionally `--order`); the generated registration is then checked against the provider's TypeScript contract by `dshx check`/`build`.
 
 ## Shared options
 
@@ -104,22 +108,28 @@ pnpm create dshx@preview <name> \
 
 The Hub CLI is a stateless, JSON-first client for Agent-operated catalog maintenance. The Agent chooses what to inspect and how to combine operations; the Hub owns validation, field precedence, revisions, concurrency, visibility, and audit records. Credentials stay in the operating-system keyring, and `--all` pagination state exists only for the lifetime of the current process.
 
-| Command                    | Purpose                                                               | Hub write |
-| -------------------------- | --------------------------------------------------------------------- | --------- |
-| `auth login/status/logout` | Manage the local Hub credential                                       | Auth only |
-| `status`                   | Read reachability, authentication, plugin counts, and submission load | No        |
-| `source discover`          | Search public GitHub/npm metadata with time windows and cursors       | No        |
-| `source inspect`           | Normalize public GitHub/npm facts into `PluginObservationV1`          | No        |
-| `plugin list/get`          | Query summary or complete operational plugin views                    | No        |
-| `plugin upsert`            | Merge one or more source observations                                 | Yes       |
-| `plugin curate`            | Change only curated names, copy, categories, tags, and derivation     | Yes       |
-| `plugin hide/restore`      | Change public visibility with an audited reason                       | Yes       |
-| `submission list/get`      | Read user submissions                                                 | No        |
-| `submission resolve`       | Mark a submission accepted, duplicate, or ignored                     | Yes       |
-| `report latest`            | Read the previous immutable daily operations report                   | No        |
-| `report publish`           | Publish one bilingual completed or partial run report                 | Yes       |
-| `media upload`             | Store validated plugin media and metadata                             | Yes       |
-| `audit`                    | Read catalog, storage, or community consistency findings              | No        |
+| Command                              | Purpose                                                               | Hub write  |
+| ------------------------------------ | --------------------------------------------------------------------- | ---------- |
+| `capabilities`                       | Read the command registry, input JSON Schemas, and contract hash      | No         |
+| `ops bundle`                         | Fetch the admin-only prompt and resources into a private file         | No         |
+| `ops preflight`                      | Verify the CLI version and scoped Hub access without writing          | No         |
+| `ops begin/status/checkpoint/finish` | Manage the local operations run, lease, and receipts                  | Local only |
+| `auth login/status/logout`           | Manage the local Hub credential                                       | Auth only  |
+| `status`                             | Read reachability, authentication, plugin counts, and submission load | No         |
+| `source discover`                    | Search public GitHub/npm metadata with time windows and cursors       | No         |
+| `source inspect`                     | Normalize public GitHub/npm facts into `PluginObservationV1`          | No         |
+| `plugin list/get`                    | Query summary or complete operational plugin views                    | No         |
+| `plugin upsert`                      | Merge one or more source observations                                 | Yes        |
+| `plugin curate`                      | Change only curated names, copy, categories, tags, and derivation     | Yes        |
+| `plugin hide/restore`                | Change public visibility with an audited reason                       | Yes        |
+| `submission list/get`                | Read user submissions                                                 | No         |
+| `submission resolve`                 | Mark a submission accepted, duplicate, or ignored                     | Yes        |
+| `report latest`                      | Read the previous immutable daily operations report                   | No         |
+| `report publish`                     | Publish one bilingual completed or partial run report                 | Yes        |
+| `media upload`                       | Store validated plugin media and metadata                             | Yes        |
+| `audit`                              | Read catalog, storage, or community consistency findings              | No         |
+
+For scheduled operations, an administrator previews the short bootstrap prompt at [https://dshx.io/admin/agent-prompt](https://dshx.io/admin/agent-prompt). The Agent fetches the latest full prompt, version metadata, and allowlisted resources with `dshx-hub ops bundle --output FILE`; the command writes a private `0600` JSON file and never prints resource values. The bootstrap uses the stable `preview` channel for the first fetch and, on `agent_bundle_mismatch`, re-runs with `details.expectedCliVersion` (at most twice), then uses `bundle.meta.cliVersion` for subsequent commands. The Agent follows the bundle's `prompt` and sets its `resources` as environment variables for the run. The prompt text is not shipped in the public CLI package; the authenticated bundle is the only source.
 
 `source inspect` accepts `github:owner/repository`, `npm:package-name`, GitHub repository URLs, and npm package URLs. It may discover several workspace packages, but its scan is bounded and reports truncation. Each observation preserves the exact public README collection result, its content hash and source location, plus public GitHub publisher identity and avatar facts when available. It never installs a package, executes package scripts, launches DSH, or tests third-party behavior.
 

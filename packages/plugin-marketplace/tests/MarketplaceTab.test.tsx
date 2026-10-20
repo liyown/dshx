@@ -21,8 +21,8 @@ vi.mock('@becomeopc/dshx/client', () => ({
 }))
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconDownloadOutline16: () => null,
-  IconLoadingOutline16: () => null,
+  IconDownloadOutlineMedium: () => null,
+  IconLoadingOutlineMedium: () => null,
 }))
 
 import { MarketplaceTab, type MarketplaceTabProps } from '../src/MarketplaceTab.js'

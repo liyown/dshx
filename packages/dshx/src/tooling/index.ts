@@ -29,9 +29,7 @@ export {
   getCompatibilitySmokeMatrix,
   projectCompatibilityDiagnostics,
   COMPATIBILITY_ADAPTERS,
-  DSH_0_1_COMPATIBILITY,
-  PROTOCOL_1_COMPATIBILITY,
-  RC8_COMPATIBILITY,
+  PROTOCOL_2_COMPATIBILITY,
   DEFAULT_COMPATIBILITY,
 } from '../compat/index.js'
 export type {

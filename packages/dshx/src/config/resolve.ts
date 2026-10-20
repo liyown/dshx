@@ -1,6 +1,7 @@
 import { access, readFile, realpath } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { loadConfigFromFile } from 'vite'
+import { parse } from 'yaml'
 import { DshxError } from '../diagnostics.js'
 import { resolveVitePlugins } from './vite-plugins.js'
 import type { DshxConfig, ResolvedDshxConfig, ResolveDshxConfigOptions } from './types.js'
@@ -62,6 +63,62 @@ async function readManifest(packageFile: string): Promise<Record<string, unknown
     })
   }
   return value
+}
+
+/** Declared bundle patch files, in application order. */
+function bundlePatchFiles(manifest: Record<string, unknown>): readonly string[] {
+  const dsh = isObject(manifest.dsh) ? manifest.dsh : undefined
+  const bundle = dsh !== undefined && isObject(dsh.bundle) ? dsh.bundle : undefined
+  const patch = bundle?.patch
+  if (typeof patch === 'string') return [patch]
+  if (Array.isArray(patch) && patch.every(file => typeof file === 'string')) return patch
+  return []
+}
+
+/** Find the loader entry that mounts this package, wherever the patch nests it. */
+function insertedEntryId(value: unknown, packageId: string): string | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = insertedEntryId(item, packageId)
+      if (found !== undefined) return found
+    }
+    return undefined
+  }
+  if (!isObject(value)) return undefined
+  if (value.name === packageId && typeof value.id === 'string' && value.id.trim() !== '') return value.id
+  for (const child of Object.values(value)) {
+    const found = insertedEntryId(child, packageId)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+/**
+ * Resolve the profile entry id that DSH uses as this plugin's Settings
+ * namespace. DSH namespaces Config forms by Loader entry id, so the Client must
+ * know the id declared in the bundle patch instead of guessing from the
+ * browser module row (whose id is a random Loader id).
+ */
+async function resolveSettingsNamespace(root: string, manifest: Record<string, unknown>, packageId: string): Promise<string> {
+  for (const file of bundlePatchFiles(manifest)) {
+    const patchFile = resolve(root, file)
+    if (!isInside(root, patchFile)) continue
+    let source: string
+    try {
+      source = await readFile(patchFile, 'utf8')
+    } catch {
+      continue
+    }
+    let patches: unknown
+    try {
+      patches = parse(source)
+    } catch {
+      continue
+    }
+    const entryId = insertedEntryId(patches, packageId)
+    if (entryId !== undefined) return entryId
+  }
+  return packageId.replace(/[^a-zA-Z0-9_-]/g, '-')
 }
 
 function rejectUnknownKeys(value: Record<string, unknown>, allowed: ReadonlySet<string>, label: string, file: string): void {
@@ -269,6 +326,7 @@ export async function resolveDshxConfig(options: ResolveDshxConfigOptions = {}):
     configDependencies: loaded.dependencies,
     packageId,
     name: loaded.config.name ?? packageId,
+    settingsNamespace: await resolveSettingsNamespace(root, manifest, packageId),
     ...(hostEntry === undefined ? {} : { hostEntry }),
     ...(clientEntry === undefined ? {} : { clientEntry }),
     ...(hostVitePlugins.length === 0 ? {} : { hostVitePlugins }),

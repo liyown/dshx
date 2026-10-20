@@ -37,7 +37,7 @@ export const publishing = defineDocsChapter({
             },
             {
               kind: "note",
-              text: "Verified for @becomeopc/dshx 0.1.4-preview.0 and protocol-1 DSH boundaries 0.1.0-rc.8 and 0.1.1-rc.2. Re-check the compatibility page before publishing a later Preview.",
+              text: "Verified for @becomeopc/dshx 0.2.0-preview.0 on the protocol-2 DSH boundary 0.2.1-rc.2 (source tag dsh-v0.2.1-rc.2). Re-check the compatibility page before publishing a later Preview.",
             },
           ],
         },
@@ -98,7 +98,7 @@ export const publishing = defineDocsChapter({
             },
             {
               kind: "note",
-              text: "本文已按 @becomeopc/dshx 0.1.4-preview.0，以及 protocol-1 的 DSH 0.1.0-rc.8 与 0.1.1-rc.2 边界验证；发布后续 Preview 前请重新检查兼容性页面。",
+              text: "本文已按 @becomeopc/dshx 0.2.0-preview.0，以及 protocol-2 的 DSH 0.2.1-rc.2（源码 tag dsh-v0.2.1-rc.2）边界验证；发布后续 Preview 前请重新检查兼容性页面。",
             },
           ],
         },

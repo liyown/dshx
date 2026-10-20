@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { buildClient, buildHost } from '../packages/dshx/dist/index.js'
+import { buildClient, buildHost } from '../packages/dshx/dist/tooling/index.js'
 
 const root = fileURLToPath(new URL('../fixtures/phase-a', import.meta.url))
 const manifest = JSON.parse(await readFile(new URL('../fixtures/phase-a/package.json', import.meta.url), 'utf8'))

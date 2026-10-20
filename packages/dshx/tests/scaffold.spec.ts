@@ -32,6 +32,7 @@ function project(root: string, clientEntry: string | undefined, manifest: Record
     configDependencies: [],
     packageId: '@demo/plugin',
     name: '@demo/plugin',
+    settingsNamespace: '-demo-plugin',
     ...(clientEntry === undefined ? {} : { clientEntry }),
     hostEntry: resolve(root, 'src/host.ts'),
     outDir: resolve(root, 'dist'),
@@ -314,6 +315,78 @@ describe('add ui scaffold', () => {
         },
       )
       expect(keyed.diagnostics[0]?.code).toBe('DSHX6110')
+      await expect(readFile(resolve(value.root, 'src/slots/sidebar.footer.action.tsx'), 'utf8')).rejects.toThrow()
+    } finally {
+      await value.cleanup()
+    }
+  })
+
+  it('scaffolds from explicit Slot and provider values when DSH exposes no Slot catalog', async () => {
+    const value = await setup(true)
+    try {
+      const result = await createUiScaffold(
+        {
+          project: value.project,
+          slot: 'sidebar.footer.action',
+          provider: '@demo/sidebar',
+          id: 'demo-action',
+          order: 5,
+        },
+        {
+          inspectComposition: async (): Promise<InspectResult> => ({
+            profile: 'web',
+            target: 'slots',
+            source: 'runtime',
+            items: [],
+            diagnostics: [
+              {
+                code: 'DSHX3204',
+                severity: 'error',
+                message: 'DSH 0.2 no longer exposes a first-party Slots Inspect provider.',
+                file: value.project.packageFile,
+                hint: 'Inspect tools, services, events, or configs instead.',
+              },
+            ],
+          }),
+          resolveProvider: async () => true,
+          checkManifest: async () => [],
+        },
+      )
+      expect(result.diagnostics).toEqual([expect.objectContaining({ code: 'DSHX6112', severity: 'warning' })])
+      const generated = await readFile(resolve(value.root, 'src/slots/sidebar.footer.action.tsx'), 'utf8')
+      expect(generated).toContain('defineSlot("sidebar.footer.action"')
+      expect(generated).toContain('id: "demo-action"')
+      expect(generated).toContain('order: 5')
+    } finally {
+      await value.cleanup()
+    }
+  })
+
+  it('keeps the Slot catalog error when explicit values are incomplete', async () => {
+    const value = await setup(true)
+    try {
+      const result = await createUiScaffold(
+        { project: value.project, slot: 'sidebar.footer.action' },
+        {
+          inspectComposition: async (): Promise<InspectResult> => ({
+            profile: 'web',
+            target: 'slots',
+            source: 'runtime',
+            items: [],
+            diagnostics: [
+              {
+                code: 'DSHX3204',
+                severity: 'error',
+                message: 'DSH 0.2 no longer exposes a first-party Slots Inspect provider.',
+                file: value.project.packageFile,
+                hint: 'Inspect tools, services, events, or configs instead.',
+              },
+            ],
+          }),
+          resolveProvider: async () => true,
+        },
+      )
+      expect(result.diagnostics[0]?.code).toBe('DSHX3204')
       await expect(readFile(resolve(value.root, 'src/slots/sidebar.footer.action.tsx'), 'utf8')).rejects.toThrow()
     } finally {
       await value.cleanup()

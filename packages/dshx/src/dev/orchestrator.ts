@@ -96,6 +96,7 @@ function buildOptions(
           client: {
             packageId: project.packageId,
             logicalName: project.name,
+            settingsNamespace: project.settingsNamespace,
             root: project.root,
             entry: project.clientEntry,
             outDir: project.outDir,

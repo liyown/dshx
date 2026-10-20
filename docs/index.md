@@ -4,8 +4,8 @@ DSHX Preview exposes a small authoring surface and keeps compiler/runtime intern
 
 | Label             | Meaning                                                                                                     |
 | ----------------- | ----------------------------------------------------------------------------------------------------------- |
-| **API Candidate** | Intended authoring shape for the rest of the `0.1.x` line. Breaking changes still require a migration note. |
-| **Experimental**  | May change during `0.1.x`; import only from an `experimental` or Tooling entry.                             |
+| **API Candidate** | Intended authoring shape for the rest of the `0.2.x` line. Breaking changes still require a migration note. |
+| **Experimental**  | May change during `0.2.x`; import only from an `experimental` or Tooling entry.                             |
 | **Tooling**       | Node-only compiler, compatibility, diagnostic, and CLI APIs. Never import into Host or Client source.       |
 
 ## API chapters
@@ -13,7 +13,7 @@ DSHX Preview exposes a small authoring surface and keeps compiler/runtime intern
 1. [Host](./guides/host.md) — `defineHost`, Tools, Commands, registration order, injection, and lifecycle.
 2. [Client, Locale, and Slots](./guides/client.md) — `defineClient`, `defineLocale`, `defineSlot`, official Slot props, Hook-driven capabilities, and lifecycle.
 3. [Typed API](./guides/api.md) — `defineApi`, Standard Schema transforms, Host handlers, imperative calls, `useApiQuery`, and errors.
-4. [Settings](./guides/settings.md) — shared Schemastery contract, Host ownership, safe Client decoding, reads, and mutations.
+4. [Settings](./guides/settings.md) — shared Schemastery Config, DSH SettingsForms projection, reads, writes, and revision fences.
 5. [Prompt](./guides/prompt.md) — Prompt Sections, dynamic Contexts, ordering, scope, assembly, and ownership.
 6. [Conversation](./guides/conversation.md) — experimental pure event lifecycle plus React renderer.
 7. [Build](./guides/build.md) — bounded config, Vite plugin extensions, CSS/assets, declarations, and watch behavior.
@@ -27,6 +27,7 @@ Additional references:
 - [Preview scope and known limits](./preview.md)
 - [Publishing a plugin package](./guides/publishing.md)
 - [Architecture](./architecture.md)
+- [0.1 to 0.2 migration](./migrations/0.1-to-0.2.md) ([简体中文](./migrations/0.1-to-0.2.zh-CN.md))
 - [0.1.1 to 0.1.2 migration](./migrations/0.1.1-to-0.1.2.md) ([简体中文](./migrations/0.1.1-to-0.1.2.zh-CN.md))
 
 ## Public entry points
@@ -38,7 +39,7 @@ Additional references:
 | `@becomeopc/dshx/host`                      | API Candidate          | No           | Host definitions and contributions                                            |
 | `@becomeopc/dshx/client`                    | API Candidate          | Yes          | Client definitions, Locale/Slot contributions, and React Hooks                |
 | `@becomeopc/dshx/api`                       | API Candidate          | Yes          | Shared typed API contracts and error guards                                   |
-| `@becomeopc/dshx/settings`                  | API Candidate          | Yes          | Shared Settings contracts                                                     |
+| `@becomeopc/dshx/settings`                  | API Candidate          | Yes          | Shared Config schema projected by DSH SettingsForms                           |
 | `@becomeopc/dshx/experimental/conversation` | Experimental           | Yes          | Conversation lifecycle and renderer contributions                             |
 | `@becomeopc/dshx/tooling`                   | Tooling / Experimental | No           | Compiler, config resolution, compatibility, diagnostics, CLI, and repair APIs |
 

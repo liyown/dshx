@@ -10,20 +10,31 @@ const example = `import {
 } from '@becomeopc/dshx/tooling'
 
 const config = await resolveDshxConfig({ cwd: projectRoot })
-const adapter = resolveCompatibility('0.1.1-rc.2')
-const assessment = assessProjectCompatibility(config.manifest, '0.1.1-rc.2')
+const adapter = resolveCompatibility('0.2.1-rc.2')
+const assessment = assessProjectCompatibility(config.manifest, '0.2.1-rc.2')
 const diagnostics = projectCompatibilityDiagnostics(assessment, config.packageFile)
 const capabilities = getCompatibilityCapabilities(adapter)`;
 
 const migrationList = [
-  "HostDefinition.api → apis: [registration]",
-  "ClientDefinition.api/apis → remove; use Hooks inside retained Client code",
-  "useQuery → useApiQuery",
-  "Conversation Node plus Slot or .component() → defineConversation(...).render(Component)",
-  "host: 'src/host.ts' → host: { entry: 'src/host.ts' }",
-  "client: 'src/client.tsx' → client: { entry: 'src/client.tsx' }",
-  "root imports other than defineConfig/DshxConfig → /host, /client, /api, or /settings",
-  "/compiler, /compat, and /cli → /tooling",
+  "defineSettings / settingsScope → plugin Config plus SettingsForms / configForms",
+  "conversationEvents → ctx.uiConversation.events.register",
+  "connection.api and authority → rpc.handle(channel, handler) with peer and ctx.remote",
+  "prompt persona → personaPrefix / personaSuffix",
+  "command input.images → input.attachments",
+  "tool mode: 'both' → explicit native or PTC face",
+  "DSH peer range → engines.dsh with peerDependencies fallback",
+  "@deepseek-ai/dsh-client-runtime → official renderer, store, settings, and conversation packages",
+] as const;
+
+const migrationListZh = [
+  "defineSettings / settingsScope → 插件 Config 加 SettingsForms / configForms",
+  "conversationEvents → ctx.uiConversation.events.register",
+  "connection.api 与 authority → rpc.handle(channel, handler) 加 peer 和 ctx.remote",
+  "prompt persona → personaPrefix / personaSuffix",
+  "command input.images → input.attachments",
+  "tool mode: 'both' → 明确选择 native 或 PTC face",
+  "DSH peer range → 优先 engines.dsh，回退 peerDependencies",
+  "@deepseek-ai/dsh-client-runtime → 官方 renderer、store、settings 与 conversation 包",
 ] as const;
 
 export const compatibility = defineDocsChapter({
@@ -37,7 +48,7 @@ export const compatibility = defineDocsChapter({
       intro:
         "Use a single Node-only entry to resolve config, run builds, analyze compatibility, embed the CLI, produce diagnostics, and repair projects transactionally.",
       description:
-        "@becomeopc/dshx/tooling exports, protocol-1 capabilities, provider edges, offline migration diagnostics, and support boundaries.",
+        "@becomeopc/dshx/tooling exports, protocol-2 capabilities, provider edges, offline migration diagnostics, and support boundaries.",
       sections: [
         {
           id: "entry",
@@ -124,20 +135,20 @@ export const compatibility = defineDocsChapter({
         },
         {
           id: "boundaries",
-          title: "protocol-1 boundaries and provider edges",
+          title: "protocol-2 boundary and provider edges",
           blocks: [
             {
               kind: "paragraph",
-              text: "The npm Preview does not widen compatibility evidence. Verified DSH boundaries remain 0.1.0-rc.8 and 0.1.1-rc.2. protocol-1 records Host Tool, Command, Prompt Section/Context, Settings and API capabilities plus Client Locale, Settings Scope, Slot, Hook-driven API/Settings inference, and the available Experimental Conversation seams.",
+              text: "Compatibility evidence comes from the source tag dsh-v0.2.1-rc.2. The earlier npm 0.2.1-rc.2 artifact is stale and is diagnosed, not marked verified. protocol-2 records Host Tool, Command, Prompt Section/Context, Config and API capabilities plus Client Locale, Config Forms, compile-time Slots, Hook-driven API inference, and the Experimental Conversation surface.",
             },
             {
               kind: "list",
               items: [
                 "Prompt requires the official dsh-system-prompt package edge.",
-                "Host Settings requires dsh-settings and Schemastery; useSettings requires dsh-client-ui-settings.",
+                "Plugin Config and SettingsForms require Schemastery and dsh-client-ui-settings; useSettings reads configForms by Host entry id.",
                 "defineLocale requires the dsh-client-locale package edge; its declarative contribution adds the Locale service automatically.",
-                "useApi and useApiQuery require dsh-client-connection.",
-                "Slots and Conversation require the provider packages recorded by the selected Slot/Event adapter.",
+                "useApi and useApiQuery require dsh-client-connection and the generated ctx.remote namespace.",
+                "Conversation requires dsh-client-ui-conversation; Slots are compile-time provider contracts, not runtime catalog entries.",
                 "An adjacent DSH source checkout is not a published compatibility claim.",
               ],
             },
@@ -145,12 +156,12 @@ export const compatibility = defineDocsChapter({
         },
         {
           id: "migration",
-          title: "0.1.1 → 0.1.2 diagnostics",
+          title: "0.1 → 0.2 diagnostics",
           blocks: [
             { kind: "list", items: migrationList },
             {
               kind: "paragraph",
-              text: "dshx check reports these changes with source locations before a build. The development release has no runtime aliases; update source code and imports directly.",
+              text: "dshx check reports these changes with source locations before a build. The 0.2 release has no runtime aliases; update source code and imports directly.",
             },
           ],
         },
@@ -163,7 +174,7 @@ export const compatibility = defineDocsChapter({
       intro:
         "通过单一 Node-only 入口解析 config、执行 build、分析兼容性、嵌入 CLI、生成诊断并事务式修复项目。",
       description:
-        "@becomeopc/dshx/tooling export、protocol-1 能力、Provider edge、离线迁移诊断与支持边界。",
+        "@becomeopc/dshx/tooling export、protocol-2 能力、Provider edge、离线迁移诊断与支持边界。",
       sections: [
         {
           id: "entry",
@@ -250,20 +261,20 @@ export const compatibility = defineDocsChapter({
         },
         {
           id: "boundaries",
-          title: "protocol-1 边界与 Provider edge",
+          title: "protocol-2 边界与 Provider edge",
           blocks: [
             {
               kind: "paragraph",
-              text: "npm Preview 不会扩大兼容性证据。已验证 DSH 边界仍是 0.1.0-rc.8 和 0.1.1-rc.2。protocol-1 记录 Host Tool、Command、Prompt Section/Context、Settings 和 API 能力，以及 Client Locale、Settings Scope、Slot、Hook 驱动 API/Settings 推断和可用 Experimental Conversation seam。",
+              text: "兼容性证据来自源码 tag dsh-v0.2.1-rc.2。更早发布的 npm 0.2.1-rc.2 产物已陈旧，只会给出诊断，不会标记为已验证。protocol-2 记录 Host Tool、Command、Prompt Section/Context、Config 和 API 能力，以及 Client Locale、Config Forms、编译期 Slot、Hook 驱动 API 推断和 Experimental Conversation 能力。",
             },
             {
               kind: "list",
               items: [
                 "Prompt 需要官方 dsh-system-prompt package edge。",
-                "Host Settings 需要 dsh-settings 和 Schemastery；useSettings 需要 dsh-client-ui-settings。",
+                "插件 Config 与 SettingsForms 需要 Schemastery 和 dsh-client-ui-settings；useSettings 按 Host entry id 读取 configForms。",
                 "defineLocale 需要 dsh-client-locale package edge；它的声明式贡献会自动添加 Locale Service。",
-                "useApi 和 useApiQuery 需要 dsh-client-connection。",
-                "Slot 和 Conversation 需要选中 Slot/Event adapter 记录的 Provider package。",
+                "useApi 和 useApiQuery 需要 dsh-client-connection 以及生成的 ctx.remote namespace。",
+                "Conversation 需要 dsh-client-ui-conversation；Slot 是编译期 Provider 契约，不是 Runtime catalog 条目。",
                 "相邻 DSH source checkout 不构成已发布兼容性声明。",
               ],
             },
@@ -271,12 +282,12 @@ export const compatibility = defineDocsChapter({
         },
         {
           id: "migration",
-          title: "0.1.1 → 0.1.2 诊断",
+          title: "0.1 → 0.2 诊断",
           blocks: [
-            { kind: "list", items: migrationList },
+            { kind: "list", items: migrationListZh },
             {
               kind: "paragraph",
-              text: "dshx check 在 build 前以源位置报告这些改动。开发版不提供 Runtime alias；直接更新源码和 import。",
+              text: "dshx check 在 build 前以源位置报告这些改动。0.2 不提供 Runtime alias；直接更新源码和 import。",
             },
           ],
         },

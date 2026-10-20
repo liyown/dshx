@@ -4,17 +4,18 @@ import { z } from "zod";
 
 import { commandShapes } from "./command-registry.js";
 import {
+  canonicalJson,
   curationContentSchema,
   mediaInputSchema,
   operationReportInputSchema,
   pluginObservationBaseSchema,
+  sha256,
 } from "./contracts.js";
 import { CliError } from "./errors.js";
 import { opsCheckpointSchema } from "./ops-state.js";
 
 export const cliPackageName = "@becomeopc/dshx-hub-cli";
 export const apiProtocolVersion = 1 as const;
-export const DAILY_PROMPT_VERSION = 7 as const;
 
 export type CliPackage = { name: string; version: string };
 
@@ -79,32 +80,46 @@ const inputContracts = {
 
 export async function capabilities() {
   const cliPackage = await readCliPackage();
+  const commands = Object.entries(commandShapes).map(([command, shape]) => {
+    const input = inputContracts[command as keyof typeof inputContracts];
+    return {
+      command,
+      positionalCount: shape.arity,
+      options: [...shape.options],
+      ...(input
+        ? {
+            input: {
+              option: "input",
+              description: input.description,
+              schema: z.toJSONSchema(input.schema, { io: "input" }),
+            },
+          }
+        : {}),
+    };
+  });
+  const inputValidation =
+    "JSON Schemas are generated from the CLI's runtime Zod schemas. Cross-field refinements, canonical observation identifiers, and media file checks are additionally enforced by the command.";
+  // Exclude the executing package version so a contract hash remains stable
+  // across patch releases with the same command surface.
+  const capabilitiesHash = sha256(
+    canonicalJson({
+      schemaVersion: 1,
+      apiProtocolVersion,
+      apiBasePath: `/api/ops/v${apiProtocolVersion}`,
+      globalOptions: ["help", "version"],
+      commands,
+      inputValidation,
+    }),
+  );
   return {
     schemaVersion: 1 as const,
     package: cliPackage,
-    dailyPromptVersion: DAILY_PROMPT_VERSION,
+    capabilitiesHash,
     apiProtocolVersion,
     apiBasePath: `/api/ops/v${apiProtocolVersion}`,
     globalOptions: ["help", "version"],
-    commands: Object.entries(commandShapes).map(([command, shape]) => {
-      const input = inputContracts[command as keyof typeof inputContracts];
-      return {
-        command,
-        positionalCount: shape.arity,
-        options: [...shape.options],
-        ...(input
-          ? {
-              input: {
-                option: "input",
-                description: input.description,
-                schema: z.toJSONSchema(input.schema, { io: "input" }),
-              },
-            }
-          : {}),
-      };
-    }),
-    inputValidation:
-      "JSON Schemas are generated from the CLI's runtime Zod schemas. Cross-field refinements, canonical observation identifiers, and media file checks are additionally enforced by the command.",
+    commands,
+    inputValidation,
   };
 }
 

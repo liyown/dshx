@@ -14,6 +14,8 @@ const LOCALE_IDS = ['zh', 'en'] as const
 export interface ClientPluginMetadata {
   readonly packageId: string
   readonly logicalName?: string
+  /** Profile entry id that owns this plugin's Host Config form. */
+  readonly settingsNamespace?: string
   readonly sourceFile?: string
   readonly settingsCapability?: boolean
   readonly apiCapability?: boolean
@@ -41,7 +43,7 @@ interface ClientLocaleService {
 }
 
 type ClientRuntimeContext = Context & {
-  readonly conversationEvents: ClientConversationEventsService
+  readonly uiConversation: { readonly events: ClientConversationEventsService }
   readonly locale: ClientLocaleService
   readonly slots: ClientSlotsService
 }
@@ -287,7 +289,7 @@ function registerLocales(client: ClientRuntimeContext, definition: ClientDefinit
 function registerContributions(client: ClientRuntimeContext, definition: ClientDefinition, decorate: ComponentDecorator): void {
   for (const conversation of definition.conversations ?? []) {
     const { definition: conversationDefinition, renderer } = getConversationContributionParts(conversation)
-    client.conversationEvents.register(conversationDefinition)
+    client.uiConversation.events.register(conversationDefinition)
     client.slots.inject(renderer.name, () => client.slots.register({ name: renderer.name, ...renderer.options }, decorate(renderer.component)))
   }
   for (const slot of definition.slots ?? []) {
@@ -306,19 +308,22 @@ export function createClientPlugin(value: unknown, metadata: ClientPluginMetadat
     ...new Set([
       ...(definition.inject ?? []),
       ...(hasLocales ? ['locale'] : []),
-      ...(hasConversations ? ['conversationEvents'] : []),
+      ...(hasConversations ? ['uiConversation'] : []),
       ...((definition.slots?.length ?? 0) > 0 || hasConversations ? ['slots'] : []),
       ...(hasApiCapability ? ['connection'] : []),
     ]),
   ]
-  if (metadata.settingsCapability === true && !inject.includes('settingsScope')) inject.push('settingsScope')
+  if (metadata.settingsCapability === true && !inject.includes('configForms')) inject.push('configForms')
   return {
     name: definition.name ?? fallbackName(metadata),
     inject,
     apply(ctx) {
       const client = ctx as ClientRuntimeContext
       registerLocales(client, definition)
-      const settings = metadata.settingsCapability === true ? createSettingsClientRuntime(ctx) : undefined
+      const settings =
+        metadata.settingsCapability === true
+          ? createSettingsClientRuntime(ctx as Parameters<typeof createSettingsClientRuntime>[0], metadata.settingsNamespace)
+          : undefined
       if (!hasApiCapability) {
         registerContributions(client, definition, component => (settings === undefined ? component : provideSettingsContext(component as any, settings)))
         return definition.setup?.(ctx)

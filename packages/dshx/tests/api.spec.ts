@@ -9,6 +9,8 @@ function schema<Input, Output>(validate: (value: unknown) => StandardSchemaV1.Re
   return { '~standard': { version: 1, vendor: 'dshx-test', validate } }
 }
 
+const testPeer = { id: 'peer-test', principal: { kind: 'owner' as const }, signal: new AbortController().signal }
+
 const api = defineApi({
   id: 'status',
   version: 1,
@@ -31,7 +33,7 @@ describe('generic API runtime', () => {
   })
 
   it('registers handlers through the official Connection shape', async () => {
-    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal) => Promise<unknown>) | undefined
+    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal, peer: typeof testPeer) => Promise<unknown>) | undefined
     const remove = vi.fn(async () => undefined)
     const ctx = {
       get(name: string) {
@@ -51,7 +53,9 @@ describe('generic API runtime', () => {
       },
     }
     const registration = api.host({
-      async get() {
+      async get({ peer }) {
+        expect(peer.id).toBe('peer-test')
+        expect(peer.principal).toEqual({ kind: 'owner' })
         return { value: 'ready' }
       },
       async refresh({ input }) {
@@ -60,14 +64,62 @@ describe('generic API runtime', () => {
     })
     await registerApi(ctx as never, '@scope/plugin', registration)
     expect(handler).toBeDefined()
-    await expect(handler?.('get', { version: 1, input: undefined }, new AbortController().signal)).resolves.toEqual({
+    await expect(handler?.('get', { version: 1, input: undefined }, new AbortController().signal, testPeer)).resolves.toEqual({
       ok: true,
       value: { version: 1, output: { value: 'ready' } },
     })
-    await expect(handler?.('get', { version: 2, input: undefined }, new AbortController().signal)).resolves.toMatchObject({
+    await expect(handler?.('get', { version: 2, input: undefined }, new AbortController().signal, testPeer)).resolves.toMatchObject({
       ok: false,
       error: { code: 'DSHX6401' },
     })
+  })
+
+  it('registers RPC channels under the tracing caller, not the Connection fiber', async () => {
+    const caller = { fiber: { name: 'host', inject: ['connection', 'webServer'] } }
+    const connectionFiber = { name: 'connection', inject: ['credentials'] }
+    const owners: unknown[] = []
+    const remove = vi.fn(async () => undefined)
+    const rawConnection = {
+      ctx: { fiber: connectionFiber },
+      get rpc() {
+        owners.push((this as { ctx: unknown }).ctx)
+        return { handle: () => remove }
+      },
+    }
+    const traceable = new Proxy(rawConnection, {
+      get(target, prop, receiver) {
+        if (prop === Symbol.for('cordis.original')) return target
+        if (prop === 'ctx') return caller
+        if (prop === 'rpc') {
+          // Cordis reads accessors with a shadow context holding the service's
+          // own ctx. `rpc.handle` must not inherit that shadow.
+          const descriptor = Object.getOwnPropertyDescriptor(target, 'rpc')!
+          return descriptor.get!.call({ ctx: rawConnection.ctx })
+        }
+        return Reflect.get(target, prop, receiver)
+      },
+    })
+    const ctx = {
+      get(name: string) {
+        return name === 'connection' ? traceable : undefined
+      },
+      effect() {
+        return undefined
+      },
+    }
+    await registerApi(
+      ctx as never,
+      '@scope/plugin',
+      api.host({
+        async get() {
+          return { value: 'ready' }
+        },
+        async refresh() {
+          return { value: 'refreshed' }
+        },
+      }),
+    )
+    expect(owners).toEqual([caller])
   })
 
   it('releases channel ownership with the Host fiber lifecycle', async () => {
@@ -82,7 +134,9 @@ describe('generic API runtime', () => {
       },
     }
     const registration = api.host({
-      async get() {
+      async get({ peer }) {
+        expect(peer.id).toBe('peer-test')
+        expect(peer.principal).toEqual({ kind: 'owner' })
         return { value: 'ready' }
       },
       async refresh() {
@@ -181,7 +235,7 @@ describe('generic API runtime', () => {
   })
 
   it('maps Host and Client API version mismatches to contract errors', async () => {
-    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal) => Promise<any>) | undefined
+    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal, peer: typeof testPeer) => Promise<any>) | undefined
     const host = defineApi({ id: 'versioned', version: 1, methods: { get: method<void, string>() } })
     const clientContract = defineApi({ id: 'versioned', version: 2, methods: { get: method<void, string>() } })
     const context = {
@@ -194,7 +248,7 @@ describe('generic API runtime', () => {
                   return async () => undefined
                 },
                 call(_channel: string, endpoint: string, payload: unknown, signal?: AbortSignal) {
-                  return handler?.(endpoint, payload, signal ?? new AbortController().signal)
+                  return handler?.(endpoint, payload, signal ?? new AbortController().signal, testPeer)
                 },
               },
             }
@@ -218,7 +272,7 @@ describe('generic API runtime', () => {
   })
 
   it('returns Standard Schema transformed output from the Host boundary', async () => {
-    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal) => Promise<any>) | undefined
+    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal, peer: typeof testPeer) => Promise<any>) | undefined
     const validateOutput = vi.fn((value: unknown) => ({ value: String(value).toUpperCase() }))
     const transformed = defineApi({
       id: 'transformed',
@@ -253,7 +307,7 @@ describe('generic API runtime', () => {
         },
       }),
     )
-    await expect(handler?.('get', { version: 1 }, new AbortController().signal)).resolves.toMatchObject({
+    await expect(handler?.('get', { version: 1 }, new AbortController().signal, testPeer)).resolves.toMatchObject({
       ok: true,
       value: { output: 'READY' },
     })
@@ -261,7 +315,7 @@ describe('generic API runtime', () => {
   })
 
   it('checks the JSON boundary before transforming Client input into a Host-only value', async () => {
-    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal) => Promise<any>) | undefined
+    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal, peer: typeof testPeer) => Promise<any>) | undefined
     const transformed = defineApi({
       id: 'host-input-transform',
       version: 1,
@@ -289,7 +343,7 @@ describe('generic API runtime', () => {
     const implementation = vi.fn(({ input }: { input: { parsed: bigint } }) => input.parsed.toString())
     await registerApi(context as never, '@scope/plugin', transformed.host({ parse: implementation }))
 
-    await expect(handler?.('parse', { version: 1, input: { raw: '9007199254740993' } }, new AbortController().signal)).resolves.toMatchObject({
+    await expect(handler?.('parse', { version: 1, input: { raw: '9007199254740993' } }, new AbortController().signal, testPeer)).resolves.toMatchObject({
       ok: true,
       value: { output: '9007199254740993' },
     })
@@ -297,7 +351,7 @@ describe('generic API runtime', () => {
   })
 
   it('maps JSON-safe and schema failures to contract errors', async () => {
-    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal) => Promise<any>) | undefined
+    let handler: ((endpoint: string, payload: unknown, signal: AbortSignal, peer: typeof testPeer) => Promise<any>) | undefined
     const validateInput = vi.fn(() => ({ issues: [{ message: 'nope' }] }))
     const contract = defineApi({
       id: 'validated',
@@ -314,7 +368,7 @@ describe('generic API runtime', () => {
             return async () => undefined
           },
           call(_channel: string, endpoint: string, payload: unknown, signal?: AbortSignal) {
-            return handler?.(endpoint, payload, signal ?? new AbortController().signal)
+            return handler?.(endpoint, payload, signal ?? new AbortController().signal, testPeer)
           },
         },
       }),
@@ -336,7 +390,7 @@ describe('generic API runtime', () => {
         get(name: string) {
           return name === 'connection'
             ? {
-                hostDescription: {
+                generation: {
                   getSnapshot: () => (connected ? { profile: 'web' } : undefined),
                   subscribe(listener: () => void) {
                     listeners.add(listener)

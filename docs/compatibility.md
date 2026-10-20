@@ -14,32 +14,35 @@ They do not map one-to-one. A plugin declares public DSH support and pins one co
 
 ```json
 {
+  "engines": {
+    "dsh": ">=0.2.1-rc.2 <0.3.0-0"
+  },
   "peerDependencies": {
-    "@deepseek-ai/dsh": ">=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2"
+    "@deepseek-ai/dsh": ">=0.2.1-rc.2 <0.3.0-0"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh": "0.1.1-rc.2",
-    "@becomeopc/dshx": "0.1.4-preview.0"
+    "@deepseek-ai/dsh": "0.2.1-rc.2",
+    "@becomeopc/dshx": "0.2.0-preview.0"
   }
 }
 ```
 
-`peerDependencies` is the plugin's public compatibility claim. `devDependencies` selects the concrete DSH used by that repository for build, development, and local verification. The installed package/executable is the runtime source of truth; DSHX semver is independent.
+`engines.dsh` is the preferred public compatibility claim; `peerDependencies` is the fallback for tools that do not read `engines`. `devDependencies` selects the concrete DSH used by that repository for build, development, and local verification. The installed package/executable is the runtime source of truth; DSHX semver is independent.
 
-`0.1.4-preview.0` is the first planned Preview identifier; use the npm `preview` tag to receive the current Preview patch instead of copying this example indefinitely. Preview does not widen the verified DSH boundary: `protocol-1` remains verified at `0.1.0-rc.8` and `0.1.1-rc.2` and supports the declared range below.
+`0.2.0-preview.0` is the first planned Preview identifier on the new line; use the npm `preview` tag to receive the current Preview patch instead of copying this example indefinitely. Preview does not widen the verified DSH boundary: `protocol-2` remains verified for a source build of `dsh-v0.2.1-rc.2`.
 
 ## Protocol-generation source of truth
 
-`packages/dshx/src/compat/protocol-1.ts` is the current generation record. `packages/dshx/src/compat/index.ts` validates the registry, analyzes plugin ranges, selects adapters, reports capabilities, and derives the CI matrix. Each adapter keeps together:
+`packages/dshx/src/compat/protocol-2.ts` is the current generation record. `packages/dshx/src/compat/index.ts` validates the registry, analyzes plugin ranges, selects adapters, reports capabilities, and derives the CI matrix. Each adapter keeps together:
 
 - protocol generation, lifecycle, and non-overlapping DSH semver range;
 - the baseline contract version and adapter-owned runtime configuration;
 - Profile, manifest, loader, Host contribution, Client, Inspect, connection, and optional runtime-plugin capabilities;
-- minimum/latest smoke boundaries and the exact versions actually verified.
+- minimum/latest smoke boundaries, the verification source, and the exact versions actually verified.
 
-The current `protocol-1` adapter uses the npm-safe peer range `>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2`. Its minimum and latest verified boundaries are `0.1.0-rc.8` and `0.1.1-rc.2`. The explicit rc.2 arm is required because package managers exclude prereleases with a different patch tuple from an otherwise broad semver comparator set; DSHX's internal compatibility classifier still evaluates the protocol range with prereleases included. The range reflects current evidence, not an assumption that every DSH minor changes protocol. If DSH `0.2` preserves all relevant contracts, the same adapter may be extended after real smoke; if a seam breaks, a new protocol adapter is required.
+The current `protocol-2` adapter publishes `>=0.2.1-rc.2 <0.3.0-0`. Its only verified boundary is `0.2.1-rc.2`, verified from source tag `dsh-v0.2.1-rc.2` (`verificationSource: "source"`). The npm `0.2.1-rc.2` artifact currently contains stale profile-boot code, so DSHX does not claim it as verified; other in-range stable versions are `compatible`, and other prereleases are `experimental`, until a source-backed smoke covers them.
 
-One DSHX release may ship multiple adapters. The actual installed DSH version automatically selects one of them.
+One DSHX release may ship multiple adapters. This release ships only `protocol-2`; DSH `0.1.x` artifacts remain on the last DSHX `0.1.x` release.
 
 ## One artifact, one generation
 
@@ -68,11 +71,11 @@ Semver membership never implies real-runtime verification. `dshx dev` prints the
 
 ## Declarative and native compatibility
 
-DSHX may adapt the declarative surface it owns: Host Tools, Commands, Prompt Sections and Contexts, Host Settings ownership, hook-driven Client Settings scopes, Client Slots and Conversation Components, typed DSHX APIs, generated manifest fields, Profile operations, and compiler output. The adapter is carried into the compiled artifact while official runtime packages remain external.
+DSHX may adapt the declarative surface it owns: Host Tools, Commands, Prompt Sections and Contexts, plugin Config schemas projected by DSH SettingsForms, hook-driven Client Config forms, Client Slots and Conversation Components, typed DSHX APIs, generated manifest fields, Profile operations, and compiler output. The adapter is carried into the compiled artifact while official runtime packages remain external.
 
-For Conversation Components, `protocol-1` records the official `conversationEvents` and keyed chat Slot seams separately from Session event vocabulary. Machine-readable capabilities keep the component adapter `experimental`: the generic real-DSH scenario verifies a minimal official `command/run` + `command/done` replay/render/HMR path, but not the broader pagination and active reconnect matrix. The component contribution is available, but custom required durable event types are not: the verified rc boundaries expose no out-of-tree vocabulary registry that persistence can consult before history load and resume. Event keys therefore remain limited to the official `SessionEventMap`; a TypeScript-only extension is not a compatibility guarantee.
+For Conversation Components, `protocol-2` records the official `uiConversation` event registry and keyed chat Slot seams separately from Session event vocabulary. Machine-readable capabilities keep the component adapter `experimental`: the generic real-DSH scenario verifies a minimal official `command/run` + `command/done` replay/render/HMR path, but not the broader pagination and active reconnect matrix. The component contribution is available, but custom required durable event types are not: the verified source build exposes no out-of-tree vocabulary registry that persistence can consult before history load and resume. Event keys therefore remain limited to the official `SessionEventMap` (Session format 4); a TypeScript-only extension is not a compatibility guarantee.
 
-Direct `setup(ctx)` logic and native named DSH modules call official APIs without a DSHX wrapper. Their source types come from the installed official packages, and their cross-version behavior remains the plugin author's responsibility. DSHX does not copy official DSH types into parallel versioned type trees. Settings and API Hooks are narrow exceptions: static checks validate declared provider edges, while build/dev make the authoritative capability decision from final chunk module metadata after tree-shaking.
+Direct `setup(ctx)` logic and native named DSH modules call official APIs without a DSHX wrapper. Their source types come from the installed official packages, and their cross-version behavior remains the plugin author's responsibility. DSHX does not copy official DSH types into parallel versioned type trees. Config forms and API Hooks are narrow exceptions: static checks validate declared provider edges, while build/dev make the authoritative capability decision from final chunk module metadata after tree-shaking.
 
 ## Generic real-runtime scenario
 
@@ -91,14 +94,15 @@ The single `scripts/smoke-dsh.mjs` scenario creates isolated Full, Host-only, Cl
 
 Standard Schema transform-once semantics, caller abort handling, and query pause/reconnect states are covered by Core boundary tests. Conversation pagination/prepend behavior is covered by the official assembler test; pagination UI and an actively disconnected/reconnected browser have not yet entered the generic real-DSH scenario and are not part of the `verified` compatibility claim.
 
-Select a version through the CLI or environment:
+Select the runtime through the CLI or environment:
 
 ```bash
-pnpm smoke:dsh -- --version 0.1.1-rc.2
-DSH_VERSION=0.1.1-rc.2 pnpm smoke:dsh
+pnpm smoke:dsh -- --dsh-source /path/to/deepseek-harness
+DSH_SOURCE_ROOT=/path/to/deepseek-harness pnpm smoke:dsh
+pnpm smoke:dsh -- --version 0.2.1-rc.2
 ```
 
-Without either value, the registry's latest verified boundary is used. CLI input wins over `DSH_VERSION`. Set `DSHX_KEEP_SMOKE=1` only to preserve a failed temporary fixture for diagnosis.
+`--dsh-source` (or `DSH_SOURCE_ROOT`) builds nothing by itself; it links the source checkout's `apps/cli/lib/bin.js` into the fixture and is the verified 0.2 path. The source checkout must already have its Host and Client `lib` output plus `pnpm run build:native-system`. Without a source root, DSHX installs the npm version and reports any stale-artifact failure instead of treating it as verified. CLI input wins over environment variables. Set `DSHX_KEEP_SMOKE=1` only to preserve a failed temporary fixture for diagnosis.
 
 ## CI matrix policy
 

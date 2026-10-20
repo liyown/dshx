@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import { DSH_0_1_COMPATIBILITY } from '../src/compat/index.js'
+import { PROTOCOL_2_COMPATIBILITY } from '../src/compat/index.js'
 import type { BuildHostOptions } from '../src/compiler/host/build.js'
 import type { ResolvedDshxConfig } from '../src/tooling/index.js'
 import { startDevSession } from '../src/dev/index.js'
@@ -64,6 +64,7 @@ function project(faces: 'host' | 'client' | 'full' = 'full', hostRestart: 'manua
     configDependencies: [],
     packageId: '@test/plugin',
     name: '@test/plugin',
+    settingsNamespace: '-test-plugin',
     ...(faces === 'client' ? {} : { hostEntry: `${root}/src/host.ts` }),
     ...(faces === 'host' ? {} : { clientEntry: `${root}/src/client.tsx` }),
     outDir: `${root}/dist`,
@@ -83,13 +84,13 @@ function prepared(projectValue: ResolvedDshxConfig): PreparedProjectProfile {
     link: 'existing',
     diagnostics: [],
     dsh: {
-      version: '0.1.0-rc.8',
+      version: '0.2.1-rc.2',
       adapterId: 'protocol-1',
       protocolGeneration: 'protocol-1',
       supportedRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
       support: 'verified',
       diagnostics: [],
-      compatibility: DSH_0_1_COMPATIBILITY,
+      compatibility: PROTOCOL_2_COMPATIBILITY,
     },
   }
 }

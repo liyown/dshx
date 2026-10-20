@@ -3,19 +3,28 @@ import { describe, expect, it } from "vitest";
 import {
   dailyDiscoveryQueries,
   dailyOperationsApiContract,
+  dailyOperationsCliPackageName,
   dailyOperationsCommandContract,
   dailyOperationsPolicy,
   dailyOperationsPromptVersion,
+  dailyOperationsPromptUrl,
   dailyOperationsScenarios,
   dailyReportSections,
   dailyReportTemplate,
   loadDailyOperationsPrompt,
+  renderDailyOperationsBootstrap,
+  renderDailyOperationsPrompt,
 } from "../src/index.js";
 
+const promptContext = {
+  cliVersion: "1.2.3",
+  promptUrl: dailyOperationsPromptUrl,
+} as const;
+
 describe("autonomous operations mandate", () => {
-  it("ships a deterministic v7 mandate centered on website value", () => {
+  it("ships a deterministic v8 mandate centered on website value", () => {
     const prompt = loadDailyOperationsPrompt();
-    expect(dailyOperationsPromptVersion).toBe(7);
+    expect(dailyOperationsPromptVersion).toBe(8);
     expect(prompt).toBe(loadDailyOperationsPrompt());
     expect(prompt).toContain("responsible operator and editor");
     expect(prompt).toContain("useful, accurate, and fresh");
@@ -126,8 +135,9 @@ describe("tool and recovery contracts", () => {
     expect(names).toEqual(
       expect.arrayContaining([
         "capabilities",
-        "ops prompt",
+        "ops bundle",
         "ops begin",
+        "auth login",
         "ops checkpoint",
         "ops finish",
         "source discover",
@@ -284,5 +294,91 @@ describe("editorial scenarios", () => {
     );
     expect(webDiscovery?.expectedCommands).not.toContain("source discover");
     expect(webDiscovery?.expectedCommands).not.toContain("submission list");
+  });
+});
+
+describe("copyable running prompt", () => {
+  it("substitutes the pinned CLI version and administrator URL", () => {
+    const rendered = renderDailyOperationsPrompt(promptContext);
+    expect(rendered).toContain(
+      `npx --yes --package ${dailyOperationsCliPackageName}@1.2.3 dshx-hub`,
+    );
+    expect(rendered).toContain("ops bundle");
+    expect(rendered).not.toContain("{{");
+    expect(rendered).not.toContain("${");
+  });
+
+  it("renders a stable bootstrap that converges to the bundle's CLI version", () => {
+    const bootstrap = renderDailyOperationsBootstrap(promptContext);
+    expect(bootstrap).toContain(
+      `npx --yes --package ${dailyOperationsCliPackageName}@preview dshx-hub ops bundle`,
+    );
+    expect(bootstrap).toContain("agent_bundle_mismatch");
+    expect(bootstrap).toContain("expectedCliVersion");
+    expect(bootstrap).toContain("bundle.meta.cliVersion");
+    expect(bootstrap).toContain("bundle.prompt");
+    expect(bootstrap).toContain("bundle.resources");
+    expect(bootstrap).toContain(dailyOperationsPromptUrl);
+    expect(bootstrap).not.toContain("{{");
+    expect(bootstrap.length).toBeLessThan(1_800);
+  });
+
+  it("contains the start, discipline, error, and finish contracts", () => {
+    const rendered = renderDailyOperationsPrompt(promptContext);
+    for (const text of [
+      "Mandatory start checklist",
+      "capabilitiesHash",
+      "ops preflight",
+      "ops begin once",
+      "recoveryRuns",
+      "Minimum research effort before declaring zero useful work",
+      "distinct discovery queries",
+      "identical failed command",
+      "Anti-drift",
+      "Anti-stall",
+      "Checkpoint input:",
+      "Report input:",
+      "idempotency_conflict",
+      "ops_run_expired",
+      "ops_run_not_owner",
+      "hub_edge_challenge",
+      "Exit code 2 means a partial batch",
+      "Hard prohibitions",
+      "Run ops finish with the matching run ID",
+    ])
+      expect(rendered).toContain(text);
+  });
+
+  it("documents the effort floor without turning it into an output quota", () => {
+    expect(
+      dailyOperationsPolicy.discipline.minimumResearchBeforeZeroWork,
+    ).toEqual({
+      distinctQueries: 3,
+      distinctProviders: 2,
+      candidatesInspected: 3,
+      reviewQueuedSubmissions: true,
+      reviewIncompleteEntries: true,
+      recordRejectedLeads: true,
+    });
+    expect(dailyOperationsPolicy.discipline.identicalFailureRetryLimit).toBe(2);
+    expect(dailyOperationsPolicy.credentials).toMatchObject({
+      managedBy: "dshx-hub auth login",
+      tokenLifetimeDays: 180,
+      automaticRefresh: false,
+      tokenInPrompt: false,
+    });
+    const rendered = renderDailyOperationsPrompt(promptContext);
+    expect(rendered).toContain(
+      "This is an effort floor, not a publication quota",
+    );
+    expect(rendered).toContain("180 days");
+    expect(rendered).toContain("there is no automatic refresh");
+  });
+
+  it("keeps the generated prompt bounded and free of credentials", () => {
+    const rendered = renderDailyOperationsPrompt(promptContext);
+    expect(rendered.length).toBeLessThan(24_000);
+    expect(rendered).not.toMatch(/dshx_hub_[A-Za-z0-9_-]+/u);
+    expect(rendered).not.toMatch(/Bearer\s+[A-Za-z0-9._-]+/u);
   });
 });

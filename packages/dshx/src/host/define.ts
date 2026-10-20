@@ -1,13 +1,23 @@
 import type { CommandDefinition } from '@deepseek-ai/dsh-commands'
 import type { PromptContext, PromptSection } from '@deepseek-ai/dsh-system-prompt'
+import type z from '@deepseek-ai/schemastery'
 import type { HostDefinition, PromptContextContribution, PromptContribution, PromptSectionContribution } from './types.js'
+import type { SettingsContract, SettingsValue } from '../settings/types.js'
 
 export type PromptContributionParts = { readonly kind: 'section'; readonly value: PromptSection } | { readonly kind: 'context'; readonly value: PromptContext }
 
 const promptContributions = new WeakMap<object, PromptContributionParts>()
 
 /** Preserve a Host definition exactly while providing contextual types. */
-export function defineHost<const T extends HostDefinition>(definition: T & Record<Exclude<keyof T, keyof HostDefinition>, never>): T {
+export function defineHost<
+  const Schema extends z<any, object> = z<any, Record<string, unknown>>,
+  const T extends Omit<HostDefinition<SettingsValue<Schema>>, 'config'> = Omit<HostDefinition<SettingsValue<Schema>>, 'config'>,
+>(
+  definition: T &
+    Record<Exclude<keyof T, keyof HostDefinition<any>>, never> & {
+      readonly config?: SettingsContract<Schema>
+    },
+): T & { readonly config?: SettingsContract<Schema> } {
   return definition
 }
 

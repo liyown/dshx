@@ -103,7 +103,7 @@ export default defineHost({
 });
 ```
 
-Each handler receives `{ input, ctx, signal }`. `.host()` requires exactly the contract's method keys: missing and extra handlers are type errors and are also rejected at runtime. `authority` defaults to `loopback`; pass `{ authority: 'trusted-host' }` only when the official Connection policy requires it.
+Each handler receives `{ input, ctx, signal }`. `.host()` requires exactly the contract's method keys: missing and extra handlers are type errors and are also rejected at runtime. DSH 0.2 removed the loopback/trusted-host `authority` option; Connection now enforces Peer access. Passing `authority` is rejected with a migration diagnostic.
 
 ## Imperative Client calls
 

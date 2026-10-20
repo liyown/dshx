@@ -1,5 +1,10 @@
-import type { ConversationMatch, ConversationNodeContext, ConversationNodeDefinition, ConversationPublication } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SessionEvent, SessionEventType } from '@deepseek-ai/dsh-session/types'
+import type {
+  ConversationMatch,
+  ConversationNodeContext,
+  ConversationNodeDefinition,
+  ConversationPublication,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { SessionEventType } from '@deepseek-ai/dsh-session/types'
 import { createElement } from 'react'
 import type {
   ConversationContribution,
@@ -68,7 +73,7 @@ function anchorOf<State>(context: ConversationNodeContext<State>): number {
 
 function descriptorFor<Events extends ConversationEventDescriptors>(
   events: Events,
-  event: SessionEvent,
+  event: { readonly type: string },
 ): ConversationEventDescriptor<ConversationEventType<Events>> | undefined {
   return events[event.type as ConversationEventType<Events>] as ConversationEventDescriptor<ConversationEventType<Events>> | undefined
 }

@@ -24,6 +24,7 @@ async function project(
     configDependencies: [],
     packageId: '@test/migration',
     name: '@test/migration',
+    settingsNamespace: '-test-migration',
     outDir: resolve(root, 'dist'),
     profile: 'web',
     dev: { hostRestart: 'manual' },

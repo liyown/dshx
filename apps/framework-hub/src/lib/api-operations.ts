@@ -103,6 +103,19 @@ export const API_OPERATION_DEFINITIONS = [
     errors: [401, 403, 404, 409, 422],
   },
   {
+    operationId: "getAgentBundle",
+    path: "/api/ops/v1/agent-bundle",
+    method: "get",
+    tag: "Operations",
+    summary: "Read the administrator-only agent prompt and configured resources",
+    authentication: "bearer",
+    responseSchema: genericJsonResponseSchema,
+    responses: {
+      200: "Agent prompt and allowlisted resources. Requires an administrator token.",
+    },
+    errors: [401, 403],
+  },
+  {
     operationId: "listCatalogPlugins",
     path: "/api/plugins",
     method: "get",

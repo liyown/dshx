@@ -2,6 +2,18 @@
 
 The Operations API is the authoritative write boundary for Agent-maintained Hub data. Clients collect and normalize public facts; the API resolves identity, applies source precedence, enforces revisions and permissions, commits each mutation atomically, and records audit history.
 
+## Operations agent prompt
+
+The full Agent prompt is administrator-only. An administrator previews it at `https://dshx.io/admin/agent-prompt`, configures allowlisted resources (currently `GITHUB_TOKEN`), and gives the short bootstrap prompt to the operations Agent. The Agent fetches the latest prompt, version metadata, and resources with an administrator CLI token:
+
+```bash
+dshx-hub ops bundle --output /absolute/private/path/agent-bundle.json
+```
+
+The bundle response is `no-store`, requires an administrator role on the CLI token, and is written to a `0600` file; resource values are never printed. Resource values are encrypted with AES-GCM before D1 storage using the Worker secret `AGENT_RESOURCE_KEY` (32 bytes, base64). The Agent follows the bundle's `prompt` and sets `bundle.resources` as environment variables for the run.
+
+The Hub snapshot is generated from the private prompt package at release time and checked for drift in CI. The public CLI package does not contain the prompt text.
+
 ## Resource model
 
 - A plugin projection combines stable identity, source observations, normalized facts, curated content, installation targets, media, metrics, visibility, risk signals, and revision.
@@ -14,6 +26,7 @@ The Operations API is the authoritative write boundary for Agent-maintained Hub 
 | Method  | Path                                       | Purpose                                 |
 | ------- | ------------------------------------------ | --------------------------------------- |
 | `GET`   | `/api/ops/v1/status`                       | Aggregate Hub and catalog status        |
+| `GET`   | `/api/ops/v1/agent-bundle`                 | Administrator-only prompt and resources |
 | `GET`   | `/api/ops/v1/plugins`                      | Filtered, cursor-paginated plugin list  |
 | `GET`   | `/api/ops/v1/plugins/{id}`                 | Complete operational plugin projection  |
 | `PUT`   | `/api/ops/v1/observations/{observationId}` | Upsert one observation                  |

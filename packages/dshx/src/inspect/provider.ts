@@ -3,7 +3,7 @@ import { DshxError } from '../diagnostics.js'
 import type { DshxDiagnostic } from '../diagnostics.js'
 import { inspectProjectProfile, resolveDshInstallation } from '../profile/orchestrator.js'
 import type { ProfileOrchestratorOptions, ProjectProfileLink, ResolvedDshInstallation } from '../profile/types.js'
-import type { EventSummary, InspectOptions, InspectResult, InspectTarget, ServiceSummary, SlotSummary, ToolSummary } from './types.js'
+import type { ConfigSummary, EventSummary, InspectOptions, InspectResult, InspectTarget, ServiceSummary, SlotSummary, ToolSummary } from './types.js'
 import { DshInspectBridgeProvider } from './bridge.js'
 
 function diagnosticFromError(error: unknown, file: string, fallbackCode = 'DSHX3202') {
@@ -157,6 +157,26 @@ export function normalizeEvents(value: unknown): readonly EventSummary[] {
   })
 }
 
+export function normalizeConfigs(value: unknown): readonly ConfigSummary[] {
+  if (!Array.isArray(value)) throw new Error('Config Inspect output must be an array.')
+  return value.map((entry, index) => {
+    if (!isRecord(entry) || typeof entry.name !== 'string' || entry.name.trim() === '')
+      throw new Error(`Config Inspect item ${index} must contain a non-empty string name.`)
+    const known = ['name', 'provider', 'patchId', 'status', 'metadata'] as const
+    const provider = optionalString(entry, 'provider')
+    const patchId = optionalString(entry, 'patchId')
+    const status = optionalString(entry, 'status')
+    const extra = metadata(entry, known)
+    return {
+      name: entry.name,
+      ...(provider === undefined ? {} : { provider }),
+      ...(patchId === undefined ? {} : { patchId }),
+      ...(status === undefined ? {} : { status }),
+      ...(extra === undefined ? {} : { metadata: extra }),
+    }
+  })
+}
+
 function profileOptions(options: InspectOptions): ProfileOrchestratorOptions {
   return {
     ...(options.runner === undefined ? {} : { runner: options.runner }),
@@ -173,7 +193,9 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
   try {
     dsh = await (options.resolveDsh ?? resolveDshInstallation)(project, profileOptions(options))
     diagnostics.push(...dsh.diagnostics)
-    if (dsh.compatibility.inspect !== undefined && !dsh.compatibility.inspect.targets.includes(target)) {
+    // An injected provider owns its target surface (used by embedders and tests).
+    // Only the DSHX-owned bridge is constrained by the DSH adapter.
+    if (options.provider === undefined && dsh.compatibility.inspect !== undefined && !dsh.compatibility.inspect.targets.includes(target)) {
       return {
         profile: project.profile,
         target,
@@ -241,7 +263,15 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
     }
   try {
     const method =
-      target === 'slots' ? provider.listSlots : target === 'tools' ? provider.listTools : target === 'services' ? provider.listServices : provider.listEvents
+      target === 'slots'
+        ? provider.listSlots
+        : target === 'tools'
+          ? provider.listTools
+          : target === 'services'
+            ? provider.listServices
+            : target === 'events'
+              ? provider.listEvents
+              : provider.listConfigs
     if (typeof method !== 'function')
       return {
         profile: project.profile,
@@ -257,7 +287,8 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
       }
     let raw: unknown
     try {
-      raw = target === 'slots' ? await provider.listSlots(options.slotRoot === undefined ? undefined : { root: options.slotRoot }) : await method.call(provider)
+      raw =
+        target === 'slots' ? await provider.listSlots!(options.slotRoot === undefined ? undefined : { root: options.slotRoot }) : await method.call(provider)
     } catch (error) {
       return {
         profile: project.profile,
@@ -270,7 +301,7 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
         ...(profileLink === undefined ? {} : { profileLink }),
       }
     }
-    let items: readonly SlotSummary[] | readonly ToolSummary[] | readonly ServiceSummary[] | readonly EventSummary[]
+    let items: readonly SlotSummary[] | readonly ToolSummary[] | readonly ServiceSummary[] | readonly EventSummary[] | readonly ConfigSummary[]
     try {
       items =
         target === 'slots'
@@ -279,7 +310,9 @@ export async function inspectProjectComposition(project: ResolvedDshxConfig, tar
             ? normalizeTools(raw)
             : target === 'services'
               ? normalizeServices(raw)
-              : normalizeEvents(raw)
+              : target === 'events'
+                ? normalizeEvents(raw)
+                : normalizeConfigs(raw)
     } catch (error) {
       return {
         profile: project.profile,

@@ -1,6 +1,13 @@
 import type { OperationsCommandContract } from "../contracts.js";
 
-export const dailyOperationsPromptVersion = 7 as const;
+export const dailyOperationsPromptVersion = 8 as const;
+
+export const dailyOperationsCliPackageName = "@becomeopc/dshx-hub-cli" as const;
+
+export const dailyOperationsCliChannel = "preview" as const;
+
+export const dailyOperationsPromptUrl =
+  "https://dshx.io/admin/agent-prompt" as const;
 
 export const dailyOperationsCommandContract = [
   {
@@ -8,7 +15,11 @@ export const dailyOperationsCommandContract = [
     usage: "dshx-hub capabilities",
     access: "local-read",
   },
-  { command: "ops prompt", usage: "dshx-hub ops prompt", access: "local-read" },
+  {
+    command: "ops bundle",
+    usage: "dshx-hub ops bundle --output FILE [--hub URL]",
+    access: "hub-read",
+  },
   {
     command: "ops preflight",
     usage: "dshx-hub ops preflight [--expect-cli-version VERSION]",
@@ -29,6 +40,11 @@ export const dailyOperationsCommandContract = [
     command: "ops finish",
     usage:
       "dshx-hub ops finish --run-id RUN_ID --outcome completed|partial|blocked",
+    access: "local-write",
+  },
+  {
+    command: "auth login",
+    usage: "dshx-hub auth login [--scopes catalog:write] [--hub URL]",
     access: "local-write",
   },
   {

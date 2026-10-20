@@ -68,6 +68,10 @@ describe('experimental Conversation lifecycle', () => {
     expect(next).toEqual({ title: 'Audit', completed: 4 })
     expect(definition.buildViewNode?.({ ...context, state: next } as never)).toMatchObject({
       kind: 'review-job',
+      target: 'chat',
+      anchorSeq: 1,
+      location: { kind: 'unresolved' },
+      visibility: 'visible',
       data: { label: 'Audit:4' },
     })
   })

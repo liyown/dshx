@@ -115,11 +115,11 @@ export default defineClient({ locales: [copy], slots: [statusSlot] });
 | `/host`                         | API Candidate          | Host definitions, Tools, Commands, Prompt contributions              |
 | `/client`                       | API Candidate          | Client definitions, Locales, Slots, API/Settings Hooks               |
 | `/api`                          | API Candidate          | Shared typed unary API contracts and opaque errors                   |
-| `/settings`                     | API Candidate          | Shared Schemastery-backed Settings contracts                         |
+| `/settings`                     | API Candidate          | Shared Schemastery Config schema projected by DSH SettingsForms      |
 | `/experimental/conversation`    | Experimental           | Pure official event lifecycle plus React renderer                    |
 | `/tooling`                      | Tooling / Experimental | Node-only compiler, compatibility, diagnostics, CLI, and repair APIs |
 
-API Candidate is the intended `0.1.x` authoring shape; it is not a 1.0 stability guarantee. See the [0.1.1 to 0.1.2 migration](./docs/migrations/0.1.1-to-0.1.2.md) for removed fields, entries, and aliases.
+API Candidate is the intended `0.2.x` authoring shape; it is not a 1.0 stability guarantee. See the [0.1 to 0.2 migration](./docs/migrations/0.1-to-0.2.md) for the DSH 0.2 Settings, Conversation, Connection, and manifest changes.
 
 ## Technical documentation
 
@@ -146,17 +146,17 @@ dshx check                 # offline config, manifest, migration, compatibility,
 dshx check --runtime       # additionally require Profile, Composition, bridge, runtime readiness
 dshx build                 # typecheck, then build Host and Client artifacts
 dshx dev                   # Vite build-watch plus official DSH development session
-dshx inspect slots
-dshx add ui --slot <slot-name>
+dshx inspect services      # also: tools, events, configs
+dshx add ui --slot <slot-name> --provider <package> --id <id>
 ```
 
-`check` is read-only unless `--fix` is explicit. `build` does not rewrite source or manifest metadata. `inspect` requires a supported running Composition. See the [CLI reference](./docs/cli-reference.md) for all commands and JSON fields.
+`check` is read-only unless `--fix` is explicit. `build` does not rewrite source or manifest metadata. `inspect` requires a supported running Composition. DSH 0.2 no longer exposes a runtime Slot catalog, so `inspect slots` reports `DSHX3204`; `add ui` accepts explicit `--slot`/`--provider` values and verifies the generated contribution with `dshx check`. See the [CLI reference](./docs/cli-reference.md) for all commands and JSON fields.
 
 ## Compatibility
 
-The active `protocol-1` adapter publishes the npm-safe peer range `>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2`; verified real-runtime boundaries are `0.1.0-rc.8` and `0.1.1-rc.2`. The explicit rc.2 arm avoids npm's cross-patch prerelease exclusion. Plugin public support belongs in `peerDependencies`; one concrete development version belongs in `devDependencies`.
+The active `protocol-2` adapter publishes the peer range `>=0.2.1-rc.2 <0.3.0-0` and declares public support through `engines.dsh` (with `peerDependencies` as a fallback). The verified real-runtime baseline is a build of source tag `dsh-v0.2.1-rc.2`; the current npm `0.2.1-rc.2` artifact contains stale profile-boot code and is treated as experimental until upstream republishes it. One concrete development version belongs in `devDependencies`.
 
-Conversation remains Experimental because the published protocol has no out-of-tree durable event-vocabulary registry. It accepts official `SessionEventMap` keys only.
+Settings use the official plugin `Config` schema and `ctx.configForms`; the ConfigForm identity is the Host profile entry id. Conversation remains Experimental because the published protocol has no out-of-tree durable event-vocabulary registry; it accepts official `SessionEventMap` keys only.
 
 ## Develop this repository
 
@@ -164,8 +164,7 @@ Conversation remains Experimental because the published protocol has no out-of-t
 pnpm install --frozen-lockfile
 pnpm check:all
 pnpm smoke:packages
-pnpm smoke:dsh -- --version 0.1.0-rc.8
-pnpm smoke:dsh -- --version 0.1.1-rc.2
+pnpm smoke:dsh -- --dsh-source /path/to/deepseek-harness
 ```
 
 Read [Contributing](./CONTRIBUTING.md), the [dependency policy](./docs/dependency-policy.md), and [Security](./SECURITY.md) before opening a change.

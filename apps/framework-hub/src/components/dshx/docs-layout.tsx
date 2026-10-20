@@ -10,14 +10,14 @@ const shellCopy = {
   en: {
     home: "Documentation home",
     mobile: "Documentation navigation",
-    version: "DSHX 0.1",
+    version: "DSHX 0.2",
     experimental: "experimental",
     onPage: "On this chapter",
   },
   zh: {
     home: "文档首页",
     mobile: "文档导航",
-    version: "DSHX 0.1",
+    version: "DSHX 0.2",
     experimental: "实验性",
     onPage: "本章目录",
   },

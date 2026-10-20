@@ -108,7 +108,7 @@ Client registration order is:
 3. Slots, in array order.
 4. `setup(ctx)`.
 
-Non-empty Locales add `locale`. Non-empty Conversations add `conversationEvents` and `slots`. Non-empty Slots add `slots`. Hook capabilities add `connection` or `settingsScope` only when the corresponding Hook module survives final tree-shaking.
+Non-empty Locales add `locale`. Non-empty Conversations add `uiConversation` and `slots`. Non-empty Slots add `slots`. Hook capabilities add `connection` or `configForms` only when the corresponding Hook module survives final tree-shaking.
 
 Slot and Conversation components are wrapped with the current Client Fiber's API and Settings contexts. Contract identity maps belong to that Fiber and disappear on dispose/HMR; DSHX does not retain a global scope or API cache.
 

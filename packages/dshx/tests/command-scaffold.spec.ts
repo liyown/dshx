@@ -13,6 +13,7 @@ function project(root: string, hostEntry?: string, configFile?: string): Resolve
     configDependencies: [],
     packageId: '@demo/plugin',
     name: '@demo/plugin',
+    settingsNamespace: '-demo-plugin',
     ...(hostEntry === undefined ? {} : { hostEntry }),
     outDir: resolve(root, 'dist'),
     profile: 'web',

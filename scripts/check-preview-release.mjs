@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const expected = new Map([
-  ['@becomeopc/dshx', /^0\.1\.4-preview\.\d+$/],
-  ['create-dshx', /^0\.1\.4-preview\.\d+$/],
-  ['@becomeopc/dshx-hub-cli', /^0\.1\.2-preview\.\d+$/],
-  ['@becomeopc/dshx-plugin-marketplace', /^0\.1\.0-preview\.\d+$/],
+  ['@becomeopc/dshx', /^0\.2\.0-preview\.\d+$/],
+  ['create-dshx', /^0\.2\.0-preview\.\d+$/],
+  ['@becomeopc/dshx-hub-cli', /^0\.1\.3-preview\.\d+$/],
+  ['@becomeopc/dshx-plugin-marketplace', /^0\.2\.0-preview\.\d+$/],
 ])
 
 const packageFiles = new Map([
@@ -64,7 +64,13 @@ if (process.exitCode === undefined) {
     if (releases.length === 0) fail('publish plan contains no unpublished Preview packages.')
     for (const release of releases) {
       if (!expected.has(release.name)) fail(`publish plan unexpectedly contains ${release.name}.`)
-      if (release.tag !== 'preview') fail(`${release.name} would publish to ${JSON.stringify(release.tag)} instead of preview.`)
+      if (release.tag !== 'preview') {
+        const remedy =
+          release.tag === 'latest'
+            ? ` Changesets promotes a package whose published versions are all Preview prereleases to latest. Remove the stale latest dist-tag with "npm dist-tag rm ${release.name} latest" and rerun this check.`
+            : ''
+        fail(`${release.name} would publish to ${JSON.stringify(release.tag)} instead of preview.${remedy}`)
+      }
       if (release.version !== versions.get(release.name)) fail(`${release.name} publish-plan version does not match package.json.`)
     }
   } finally {

@@ -52,6 +52,7 @@ export interface CliIO {
 
 export interface CliRuntime {
   readonly resolveConfig?: typeof resolveDshxConfig
+  readonly detectInstalledDsh?: typeof detectInstalledDshVersion
   readonly checkManifest?: typeof checkProjectManifest
   readonly checkMigrations?: typeof checkMigrationDiagnostics
   readonly checkPackageTargets?: typeof checkPackageTargets
@@ -262,7 +263,7 @@ function printCompatibilitySummary(io: CliIO, assessment: DshProjectCompatibilit
 async function runBuild(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
   const io = options.io ?? defaultIO()
   const runtime = options.runtime ?? {}
-  const installed = detectInstalledDshVersion(project.packageFile)
+  const installed = (runtime.detectInstalledDsh ?? detectInstalledDshVersion)(project.packageFile)
   const assessment = assessProjectCompatibility(project.manifest, installed)
   const installedResolution = assessment.resolution
   const compatibility = assessment.compatibility
@@ -339,6 +340,7 @@ async function runBuild(args: CliArgs, options: CliRunOptions, project: Resolved
       task: (runtime.buildClient ?? buildClient)({
         packageId: project.packageId,
         logicalName: project.name,
+        settingsNamespace: project.settingsNamespace,
         root: project.root,
         entry: project.clientEntry,
         outDir: project.outDir,
@@ -439,7 +441,7 @@ async function collectCheck(options: CliRunOptions, project: ResolvedDshxConfig,
       runtimeDiagnostics.push(diagnosticFromError(error, project.packageFile))
     }
   }
-  const installedVersion = dsh?.version ?? detectInstalledDshVersion(project.packageFile)
+  const installedVersion = dsh?.version ?? (runtime.detectInstalledDsh ?? detectInstalledDshVersion)(project.packageFile)
   const compatibilityAssessment = assessProjectCompatibility(project.manifest, installedVersion)
   const compatibility = compatibilityAssessment.compatibility
   const connectionSpec = compatibility.connection
@@ -614,7 +616,7 @@ async function runInspect(args: CliArgs, options: CliRunOptions, project: Resolv
   const target = args.inspectTarget as InspectTarget | undefined
   // The parser guarantees this in normal CLI use; retaining the guard keeps the
   // injected runtime API safe for callers that construct CliArgs themselves.
-  if (target === undefined) throw new CliUsageError('Inspect requires a target: slots, tools, services, or events.')
+  if (target === undefined) throw new CliUsageError('Inspect requires a target: tools, services, events, or configs.')
   const result = await (runtime.inspectComposition ?? inspectProjectComposition)(project, target, args.root === undefined ? {} : { slotRoot: args.root })
   if (args.json) {
     write(io.stdout, `${JSON.stringify(inspectSummary(project, result), null, 2)}\n`)
@@ -641,6 +643,10 @@ async function runInspect(args: CliArgs, options: CliRunOptions, project: Resolv
         const service = item as { readonly name: string; readonly provider?: string; readonly scope?: string }
         const details = [service.provider, service.scope].filter((value): value is string => value !== undefined).join(' / ')
         write(io.stdout, `  ${service.name}${details === '' ? '' : ` (${details})`}\n`)
+      } else if (target === 'configs') {
+        const config = item as { readonly name: string; readonly provider?: string; readonly patchId?: string; readonly status?: string }
+        const details = [config.provider, config.patchId, config.status].filter((value): value is string => value !== undefined).join(' / ')
+        write(io.stdout, `  ${config.name}${details === '' ? '' : ` (${details})`}\n`)
       } else {
         const event = item as { readonly name: string; readonly provider?: string }
         const details = event.provider
@@ -946,7 +952,7 @@ function eventLine(stream: Writable, event: DevEvent): string | undefined {
 async function runDev(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
   const io = options.io ?? defaultIO()
   const runtime = options.runtime ?? {}
-  const installed = detectInstalledDshVersion(project.packageFile)
+  const installed = (runtime.detectInstalledDsh ?? detectInstalledDshVersion)(project.packageFile)
   const initialAssessment = assessProjectCompatibility(project.manifest, installed)
   const diagnostics = [
     ...projectCompatibilityDiagnostics(initialAssessment, project.packageFile, project.compatibility),
@@ -1044,7 +1050,7 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
   if (args.help) {
     write(
       io.stdout,
-      'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ncheck: --runtime --fix --dry-run\ndev: --open --port <port>\ninspect targets: slots, tools, services, events\ninspect slots: --root <slot-name>\nadd targets: ui, tool, command, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd command options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n',
+      'Usage: dshx <build|check|dev|inspect|add> [target] [options]\n\nOptions: --cwd <path> --verbose --help --version\ncheck/inspect/add: --json\ncheck: --runtime --fix --dry-run\ndev: --open --port <port>\ninspect targets: tools, services, events, configs\nadd targets: ui, tool, command, hook\nadd ui options: --slot <name> --provider <package> --file <path> --id <id> --order <integer> --dry-run\nadd tool options: --name <name> --description <text> --file <path> --dry-run\nadd command options: --name <name> --description <text> --file <path> --dry-run\nadd hook options: --event <name> --file <path> --dry-run\n',
     )
     return 0
   }

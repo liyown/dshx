@@ -1,12 +1,12 @@
 # DSHX Roadmap
 
-DSHX remains on `0.1.x`. `0.1.2` establishes an API Candidate authoring surface but does not promise 1.0 stability. Further breaking changes require an explicit migration and must pass both verified DSH boundaries.
+DSHX now follows the DSH `0.2.x` line. `0.2.0` establishes the `protocol-2` API Candidate authoring surface for DSH 0.2.1-rc.2 but does not promise 1.0 stability. Further breaking changes require an explicit migration and must pass the verified source-build boundary.
 
 ## Runtime boundary
 
 DSHX adds declarations, types, compilation, diagnostics, Profile orchestration, and scaffolding. Official DSH/Cordis continues to own registries, scope, transport, persistence, Prompt assembly, Conversation replay, HMR cleanup, and disposer lifetimes.
 
-## 0.1.2 API Candidate
+## 0.2.0 API Candidate
 
 ### Stable entry layout
 
@@ -100,7 +100,7 @@ Conversation remains under `@becomeopc/dshx/experimental/conversation`. Pure lif
 
 ### Tooling
 
-`@becomeopc/dshx/tooling` contains Node-only build/watch, config resolution, compatibility, diagnostics, CLI, and repair APIs. `BuildReport` and `BuildWatcher` hide raw Vite return types, but programmatic Tooling remains Experimental during `0.1.x`.
+`@becomeopc/dshx/tooling` contains Node-only build/watch, config resolution, compatibility, diagnostics, CLI, and repair APIs. `BuildReport` and `BuildWatcher` hide raw Vite return types, but programmatic Tooling remains Experimental during `0.2.x`.
 
 ## Completed delivery stages
 
@@ -113,7 +113,7 @@ Conversation remains under `@becomeopc/dshx/experimental/conversation`. Pure lif
 | 5. Conversation component lifecycle | Experimental                        | official event replay and integrated renderer implemented; durable custom events unavailable            |
 | 5.5. API/build stabilization        | Candidate + Experimental extensions | entry cleanup, Vite kernel, standard CSS/assets, Creator matrix, offline check, declarations, migration |
 
-The representative `protocol-1` boundaries remain `0.1.0-rc.8` and `0.1.1-rc.2`.
+The representative `protocol-2` boundary is a source build of `dsh-v0.2.1-rc.2`. The npm artifact with the same version remains experimental until upstream republishes it.
 
 ## Next capability tracks
 

@@ -1,4 +1,4 @@
-import type { LocaleId } from '@deepseek-ai/dsh-client-locale/client'
+import type { BuiltInLocaleId } from '@deepseek-ai/dsh-client-locale/client'
 import type { LocaleDefinition, LocaleDictionaries } from './types.js'
 
 export interface LocaleDefinitionParts {
@@ -9,13 +9,13 @@ export interface LocaleDefinitionParts {
 const localeDefinitions = new WeakMap<object, LocaleDefinitionParts>()
 
 type DictionaryKeys<Dictionaries extends LocaleDictionaries> = {
-  [Id in LocaleId]: keyof Dictionaries[Id]
-}[LocaleId] &
+  [Id in BuiltInLocaleId]: keyof Dictionaries[Id]
+}[BuiltInLocaleId] &
   string
 
 type BalancedDictionaries<Dictionaries extends LocaleDictionaries> = Dictionaries &
-  Record<Exclude<keyof Dictionaries, LocaleId>, never> & {
-    readonly [Id in LocaleId]: Dictionaries[Id] & Record<Exclude<DictionaryKeys<Dictionaries>, keyof Dictionaries[Id]>, never>
+  Record<Exclude<keyof Dictionaries, BuiltInLocaleId>, never> & {
+    readonly [Id in BuiltInLocaleId]: Dictionaries[Id] & Record<Exclude<DictionaryKeys<Dictionaries>, keyof Dictionaries[Id]>, never>
   }
 
 /** Define one type-safe namespace without requiring LocaleNamespaceMap declaration merging. */

@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { RuntimePluginStatus } from './runtime-plugins.js'
 
-const PROTOCOL_VERSION = 1
+const PROTOCOL_VERSION = 2
 const MAX_MESSAGE_BYTES = 64 * 1024
 const REQUEST_TIMEOUT_MS = 10_000
 
@@ -15,7 +15,7 @@ function runtimeProcess(): NodeJS.Process | undefined {
   return process
 }
 
-export type HostInspectTarget = 'services' | 'events' | 'slots'
+export type HostInspectTarget = 'tools' | 'services' | 'events' | 'configs'
 
 export interface HostInspectBridgeMetadata {
   readonly packageId: string
@@ -45,11 +45,10 @@ interface BridgeRequest {
   readonly token?: unknown
   readonly operation?: unknown
   readonly target?: unknown
-  readonly input?: unknown
 }
 
 interface BridgeResponse {
-  readonly version: 1
+  readonly version: 2
   readonly requestId: string
   readonly ok: boolean
   readonly target: HostInspectTarget
@@ -119,7 +118,7 @@ function responseError(requestId: string, target: HostInspectTarget, code: strin
   return { version: PROTOCOL_VERSION, requestId, ok: false, target, error: { code, message } }
 }
 
-function parseRequest(text: string, token: string): { requestId: string; target: HostInspectTarget; input?: Record<string, unknown> } {
+function parseRequest(text: string, token: string): { requestId: string; target: HostInspectTarget } {
   let value: unknown
   try {
     value = JSON.parse(text)
@@ -132,119 +131,71 @@ function parseRequest(text: string, token: string): { requestId: string; target:
     throw new BridgeFailure('DSHX3203', 'Inspect bridge request has an invalid protocol header.')
   }
   if (request.token !== token) throw new BridgeFailure('DSHX3202', 'Inspect bridge authentication failed.')
-  if (request.operation !== 'list' || (request.target !== 'services' && request.target !== 'events' && request.target !== 'slots')) {
-    throw new BridgeFailure('DSHX3204', 'Inspect bridge only supports list operations for services, events, and slots.')
-  }
-  if (request.target !== 'slots' && request.input !== undefined)
-    throw new BridgeFailure('DSHX3204', 'Inspect bridge input is only supported for Slot tree queries.')
-  if (request.target === 'slots' && request.input !== undefined) {
-    if (
-      !isRecord(request.input) ||
-      Object.keys(request.input).some(key => key !== 'root') ||
-      (request.input.root !== undefined && (typeof request.input.root !== 'string' || request.input.root.trim() === ''))
-    ) {
-      throw new BridgeFailure('DSHX3203', 'Slot Inspect input must be an object containing an optional non-empty root string.')
-    }
-    return { requestId: request.requestId, target: request.target, input: request.input }
+  if (
+    request.operation !== 'list' ||
+    (request.target !== 'tools' && request.target !== 'services' && request.target !== 'events' && request.target !== 'configs')
+  ) {
+    throw new BridgeFailure('DSHX3204', 'Inspect bridge only supports list operations for tools, services, events, and configs.')
   }
   return { requestId: request.requestId, target: request.target }
 }
 
+const CATALOG_FIELDS: Readonly<Record<HostInspectTarget, string>> = {
+  tools: 'tools',
+  services: 'services',
+  events: 'events',
+  configs: 'entries',
+}
+
+const CATALOG_PROVIDERS: Readonly<Record<HostInspectTarget, string>> = {
+  tools: 'Tool',
+  services: 'Service',
+  events: 'Event',
+  configs: 'Config',
+}
+
+const CATALOG_METHODS: Readonly<Record<HostInspectTarget, string>> = {
+  tools: 'listTools',
+  services: 'listService',
+  events: 'listEvents',
+  configs: 'listConfigs',
+}
+
 function catalogItems(target: HostInspectTarget, value: unknown): readonly Record<string, unknown>[] {
   if (!isRecord(value)) throw new BridgeFailure('DSHX3203', 'Inspect provider returned a non-object catalog.')
-  const field = target === 'services' ? 'services' : 'events'
+  const field = CATALOG_FIELDS[target]
   const entries = value[field]
   if (!Array.isArray(entries)) throw new BridgeFailure('DSHX3203', `Inspect provider catalog is missing ${field}.`)
   return entries.map(entry => {
     if (!isRecord(entry)) throw new BridgeFailure('DSHX3203', `Inspect provider returned an invalid ${field} item.`)
-    const key = target === 'services' ? entry.key : entry.name
+    const key = target === 'services' ? entry.key : target === 'configs' ? entry.id : entry.name
     if (typeof key !== 'string' || key.trim() === '')
-      throw new BridgeFailure('DSHX3203', `Inspect provider returned an item without a valid ${target === 'services' ? 'key' : 'name'}.`)
-    const { key: _key, name: _name, metadata: nestedMetadata, ...metadata } = entry
-    let combinedMetadata: Record<string, unknown> = isRecord(nestedMetadata)
-      ? { ...nestedMetadata, ...metadata }
-      : {
-          ...metadata,
-          ...(nestedMetadata === undefined ? {} : { metadata: nestedMetadata }),
-        }
-    while (Object.keys(combinedMetadata).length === 1 && isRecord(combinedMetadata.metadata)) {
-      combinedMetadata = combinedMetadata.metadata
+      throw new BridgeFailure(
+        'DSHX3203',
+        `Inspect provider returned an item without a valid ${target === 'services' ? 'key' : target === 'configs' ? 'id' : 'name'}.`,
+      )
+    const { key: _key, id: _id, name: _name, description, metadata: nestedMetadata, ...rest } = entry
+    const metadata = {
+      ...(isRecord(nestedMetadata) ? nestedMetadata : {}),
+      ...rest,
+      ...(nestedMetadata !== undefined && !isRecord(nestedMetadata) ? { metadata: nestedMetadata } : {}),
     }
     return {
       name: key,
-      provider: target === 'services' ? 'Service' : 'Event',
-      ...(Object.keys(combinedMetadata).length === 0 ? {} : { metadata: combinedMetadata }),
+      provider: CATALOG_PROVIDERS[target],
+      ...(target === 'tools' && typeof description === 'string' ? { description } : {}),
+      ...(Object.keys(metadata).length === 0 ? {} : { metadata }),
     }
   })
 }
 
-function slotNode(node: unknown): Record<string, unknown> {
-  if (
-    !isRecord(node) ||
-    typeof node.name !== 'string' ||
-    node.name.trim() === '' ||
-    typeof node.kind !== 'string' ||
-    node.kind.trim() === '' ||
-    typeof node.scope !== 'string' ||
-    node.scope.trim() === ''
-  ) {
-    throw new BridgeFailure('DSHX3203', 'Slot Inspect returned a tree item without valid name, kind, and scope fields.')
-  }
-  if (node.children !== undefined && (!Array.isArray(node.children) || node.children.some(child => !isRecord(child)))) {
-    throw new BridgeFailure('DSHX3203', 'Slot Inspect returned an invalid children tree.')
-  }
-  const { name, kind, scope, ...rest } = node
-  return {
-    name,
-    kind,
-    scope,
-    ...(Object.keys(rest).length === 0 ? {} : { metadata: rest }),
-  }
-}
-
-function slotItems(value: unknown): readonly Record<string, unknown>[] {
-  if (!isRecord(value) || !Array.isArray(value.trees)) throw new BridgeFailure('DSHX3203', 'Slot Inspect provider returned a response without a trees array.')
-  const requestedRoot = value.requestedRoot
-  if (
-    requestedRoot !== undefined &&
-    (!isRecord(requestedRoot) || typeof requestedRoot.name !== 'string' || requestedRoot.name.trim() === '' || typeof requestedRoot.available !== 'boolean')
-  ) {
-    throw new BridgeFailure('DSHX3203', 'Slot Inspect returned an invalid requestedRoot descriptor.')
-  }
-  if (requestedRoot !== undefined) {
-    const selected = value.selected
-    if (!requestedRoot.available) {
-      if (selected !== undefined) throw new BridgeFailure('DSHX3203', 'Slot Inspect returned a selected contract for an unavailable root.')
-      return []
-    }
-    if (selected === undefined) throw new BridgeFailure('DSHX3203', 'Slot Inspect returned an available root without a selected contract.')
-    if (!isRecord(selected) || selected.name !== requestedRoot.name)
-      throw new BridgeFailure('DSHX3203', 'Slot Inspect selected contract does not match requestedRoot.')
-    return [slotNode(selected)]
-  }
-  const output: Record<string, unknown>[] = []
-  const visit = (node: unknown): void => {
-    if (!isRecord(node)) throw new BridgeFailure('DSHX3203', 'Slot Inspect returned an invalid tree item.')
-    output.push(slotNode(node))
-    if (Array.isArray(node.children)) for (const child of node.children) visit(child)
-  }
-  for (const tree of value.trees) visit(tree)
-  return output
-}
-
-async function queryComposition(
-  ctx: Context,
-  metadata: HostInspectBridgeMetadata,
-  target: HostInspectTarget,
-  input?: Record<string, unknown>,
-): Promise<readonly Record<string, unknown>[]> {
+async function queryComposition(ctx: Context, metadata: HostInspectBridgeMetadata, target: HostInspectTarget): Promise<readonly Record<string, unknown>[]> {
   const registry = ctx.get('cordisInspect') as InspectRegistry | undefined
   const agents = ctx.get('agents') as AgentRegistry | undefined
   if (registry === undefined || agents === undefined)
     throw new BridgeFailure('DSHX3201', 'The official Cordis Inspect registry or Agent factory is unavailable.')
-  const provider = target === 'services' ? 'Service' : target === 'events' ? 'Event' : 'Slots'
-  const method = target === 'services' ? 'listService' : target === 'events' ? 'listEvents' : 'listSubTree'
-  const platform = target === 'slots' ? 'client' : 'host'
+  const provider = CATALOG_PROVIDERS[target]
+  const method = CATALOG_METHODS[target]
   if (!registry.list().some(entry => entry.id === provider)) throw new BridgeFailure('DSHX3201', `The official ${provider} Inspect provider is not registered.`)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(new Error('Inspect provider request timed out.')), REQUEST_TIMEOUT_MS)
@@ -254,8 +205,8 @@ async function queryComposition(
   let failed = false
   try {
     handle = await agents.create({ sessionId: `dshx-inspect-${randomUUID()}`, meta: { cwd: metadata.root } })
-    const result = await registry.query(platform, provider, method, input, handle.agent, controller.signal)
-    items = target === 'slots' ? slotItems(result) : catalogItems(target, result)
+    const result = await registry.query('host', provider, method, undefined, handle.agent, controller.signal)
+    items = catalogItems(target, result)
   } catch (error) {
     failed = true
     failure = error instanceof BridgeFailure ? error : new BridgeFailure('DSHX3202', `Official Inspect query failed: ${errorMessage(error)}`)
@@ -313,7 +264,7 @@ export async function startHostInspectBridge(ctx: Context, metadata: HostInspect
         const request = parseRequest(text, token)
         requestId = request.requestId
         target = request.target
-        void queryComposition(ctx, metadata, target, request.input)
+        void queryComposition(ctx, metadata, target)
           .then(items => writeResponse(socket, { version: PROTOCOL_VERSION, requestId, ok: true, target, items }))
           .catch(error =>
             writeResponse(socket, responseError(requestId, target, error instanceof BridgeFailure ? error.code : 'DSHX3202', errorMessage(error))),

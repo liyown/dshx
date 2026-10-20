@@ -1,6 +1,5 @@
 import Schema from '@deepseek-ai/schemastery'
 import { defineSettings } from '@becomeopc/dshx/settings'
-import type { SettingsScope } from '@deepseek-ai/dsh-settings'
 
 export const DEFAULT_HUB_BASE_URL = 'https://dshx.io'
 
@@ -28,29 +27,25 @@ export function normalizeHubBaseUrl(value: string): string {
   return url.href.replace(/\/$/, '')
 }
 
-let activeSettings: SettingsScope<MarketplaceSettings> | undefined
+const DEFAULT_SETTINGS: MarketplaceSettings = { hubBaseUrl: DEFAULT_HUB_BASE_URL }
+let activeSettings: MarketplaceSettings | undefined
 
 export function getMarketplaceSettings(): MarketplaceSettings {
-  return activeSettings?.get() ?? { hubBaseUrl: DEFAULT_HUB_BASE_URL }
+  return activeSettings ?? DEFAULT_SETTINGS
+}
+
+/** Activate the Config DSH resolved for this plugin entry; returns a disposer. */
+export function applyMarketplaceSettings(value: MarketplaceSettings | undefined): () => void {
+  const settings = value ?? DEFAULT_SETTINGS
+  validateHubBaseUrl(settings.hubBaseUrl)
+  activeSettings = settings
+  return () => {
+    if (activeSettings === settings) activeSettings = undefined
+  }
 }
 
 export const marketplaceSettings = defineSettings({
-  namespace: 'dshx-plugin-marketplace',
   schema: Schema.object({
     hubBaseUrl: Schema.string().default(DEFAULT_HUB_BASE_URL),
   }),
-  applies: 'live',
-})
-
-export const marketplaceSettingsHost = marketplaceSettings.host({
-  base: { hubBaseUrl: DEFAULT_HUB_BASE_URL },
-  validate(value) {
-    validateHubBaseUrl(value.hubBaseUrl)
-  },
-  setup(scope) {
-    activeSettings = scope
-    return () => {
-      if (activeSettings === scope) activeSettings = undefined
-    }
-  },
 })

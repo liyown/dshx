@@ -56,6 +56,7 @@ describe('create-dshx', () => {
       devDependencies: Record<string, string>
       peerDependencies: Record<string, string>
       scripts: Record<string, string>
+      engines: Record<string, string>
       dsh: { client: { inject: string[] } }
     }
     expect(manifest.devDependencies['@becomeopc/dshx']).toBe(packageVersion())
@@ -94,7 +95,7 @@ describe('create-dshx', () => {
     expect(client).not.toContain('useQuery')
     expect(host.includes('definePromptSection')).toBe(template === 'showcase')
     expect(host.includes('definePromptContext')).toBe(template === 'showcase')
-    expect(host.includes('settings: [runtimeSettings]')).toBe(template === 'showcase')
+    expect(host.includes('config: runtimeSettings')).toBe(template === 'showcase')
     expect(host.includes('apis: [statusHostApi]')).toBe(template === 'showcase')
     expect(client.includes("useApiQuery(statusApi, 'get', { enabled: true })")).toBe(template === 'showcase')
     expect(client.includes("useApiQuery(statusApi, 'refresh', {")).toBe(template === 'showcase')
@@ -113,8 +114,9 @@ describe('create-dshx', () => {
     expect(Boolean(manifest.devDependencies['@deepseek-ai/dsh-client-connection'])).toBe(template === 'showcase')
     expect(Boolean(manifest.peerDependencies['@deepseek-ai/dsh-client-connection'])).toBe(template === 'showcase')
     expect(Boolean(manifest.devDependencies['@deepseek-ai/dsh-system-prompt'])).toBe(template === 'showcase')
-    expect(manifest.devDependencies['@deepseek-ai/dsh-settings']).toBe(DEFAULT_DSH_VERSION)
-    expect(manifest.peerDependencies['@deepseek-ai/dsh-settings']).toBe(DEFAULT_DSH_RANGE)
+    expect(manifest.devDependencies['@deepseek-ai/dsh-client-ui-settings']).toBe(template === 'showcase' ? DEFAULT_DSH_VERSION : undefined)
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-client-ui-settings']).toBe(template === 'showcase' ? DEFAULT_DSH_RANGE : undefined)
+    expect(manifest.engines).toEqual({ dsh: DEFAULT_DSH_RANGE })
 
     if (style === 'tailwind') {
       const css = await readFile(resolve(result.root, 'src/styles.css'), 'utf8')

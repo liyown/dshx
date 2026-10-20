@@ -108,7 +108,9 @@ There is no Conversation-specific Host channel. Call Host behavior through `useA
 
 ## Durable event boundary
 
-Only keys already present in the official `SessionEventMap` are supported. TypeScript declaration merging can help an in-memory test compile but does not register a new durable vocabulary with DSH persistence. The current `protocol-1` contract rejects unknown required persisted events, so DSHX does not provide custom events, an emit shortcut, a private event bus, or a durable migration layer.
+Only keys already present in the official `SessionEventMap` are supported. TypeScript declaration merging can help an in-memory test compile but does not register a new durable vocabulary with DSH persistence. The current `protocol-2` contract (Session format 4) rejects unknown required persisted events, so DSHX does not provide custom events, an emit shortcut, a private event bus, or a durable migration layer.
+
+Registration uses the official Client service: `ctx.uiConversation.events.register(definition)`. The 0.1 `conversationEvents` service and `@deepseek-ai/dsh-client-runtime` package are removed; see the [0.1 to 0.2 migration](../migrations/0.1-to-0.2.md).
 
 ## Errors
 

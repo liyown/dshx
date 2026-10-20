@@ -146,7 +146,7 @@ export default defineConfig({
     language: "read-only",
     lines: [
       { text: "dshx check --runtime", kind: "cmd" },
-      { text: "runtime ready · protocol-1", kind: "ok" },
+      { text: "runtime ready · protocol-2", kind: "ok" },
       { text: "", kind: "dim" },
       { text: "dshx inspect slots --root sidebar", kind: "cmd" },
       { text: "sidebar.footer.action", kind: "accent" },

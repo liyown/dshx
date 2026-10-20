@@ -1,5 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type { LocaleId } from '@deepseek-ai/dsh-client-locale/client'
+import type { BuiltInLocaleId } from '@deepseek-ai/dsh-client-locale/client'
 import type {
   ChildrenDecl,
   CommonKeyOf,
@@ -22,7 +22,7 @@ declare const localeDefinitionBrand: unique symbol
 type LocaleDictionary = Readonly<Record<string, string>>
 
 /** Complete set of dictionaries accepted by the official zh/en Locale provider. */
-export type LocaleDictionaries = Readonly<Record<LocaleId, LocaleDictionary>>
+export type LocaleDictionaries = Readonly<Record<BuiltInLocaleId, LocaleDictionary>>
 
 /** Opaque declarative Locale contribution consumed by the Client adapter. */
 export interface LocaleDefinition<Namespace extends string = string, Key extends string = string> {

@@ -19,7 +19,6 @@ export type {
   ConversationUpdateEvent,
 } from './types.js'
 export type {
-  ChatConversationViewNode,
   ConversationContextReader,
   ConversationLocation,
   ConversationMatch,
@@ -27,5 +26,6 @@ export type {
   ConversationNodeDefinition,
   ConversationPreviousContext,
   ConversationPublication,
-} from '@deepseek-ai/dsh-client-runtime/client'
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
+export type { ChatConversationViewNode, ChatNodeOwnerProps, UseChatNodeTurnData } from '@deepseek-ai/dsh-client-ui-chat/client'
 export type { SessionEvent, SessionEventMap, SessionEventType, SessionId } from '@deepseek-ai/dsh-session/types'

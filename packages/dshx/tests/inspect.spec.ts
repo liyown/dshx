@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { inspectProjectComposition, normalizeSlots, normalizeTools } from '../src/inspect/index.js'
 import type { ResolvedDshxConfig } from '../src/config/types.js'
-import { DSH_0_1_COMPATIBILITY } from '../src/compat/index.js'
+import { PROTOCOL_2_COMPATIBILITY } from '../src/compat/index.js'
 
 function project(): ResolvedDshxConfig {
   return {
@@ -11,6 +11,7 @@ function project(): ResolvedDshxConfig {
     configDependencies: [],
     packageId: '@test/plugin',
     name: '@test/plugin',
+    settingsNamespace: '-test-plugin',
     hostEntry: '/project/plugin/src/host.ts',
     outDir: '/project/plugin/dist',
     profile: 'web',
@@ -23,13 +24,13 @@ function project(): ResolvedDshxConfig {
 
 function installation() {
   return {
-    version: '0.1.0-rc.8',
+    version: '0.2.1-rc.2',
     executable: 'local' as const,
     support: 'verified' as const,
-    adapterId: DSH_0_1_COMPATIBILITY.id,
-    protocolGeneration: DSH_0_1_COMPATIBILITY.protocolGeneration,
-    supportedRange: DSH_0_1_COMPATIBILITY.dshRange,
-    compatibility: DSH_0_1_COMPATIBILITY,
+    adapterId: PROTOCOL_2_COMPATIBILITY.id,
+    protocolGeneration: PROTOCOL_2_COMPATIBILITY.protocolGeneration,
+    supportedRange: PROTOCOL_2_COMPATIBILITY.dshRange,
+    compatibility: PROTOCOL_2_COMPATIBILITY,
     diagnostics: [],
   }
 }

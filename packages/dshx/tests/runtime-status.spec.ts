@@ -9,6 +9,7 @@ const project: ResolvedDshxConfig = {
   configDependencies: [],
   packageId: 'runtime-status-test',
   name: 'runtime-status-test',
+  settingsNamespace: 'runtime-status-test',
   outDir: `${process.cwd()}/dist`,
   profile: 'web',
   dev: { hostRestart: 'manual' },

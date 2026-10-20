@@ -87,16 +87,33 @@ Hub requests have a 30-second deadline covering both headers and the response bo
 
 ## Scheduled operations
 
-The installed package supplies its own v7 prompt, policy, command contract, and input schemas:
+The installed package supplies its own v8 prompt, policy, command contract, and input schemas:
 
 ```bash
 export DSHX_HUB_OPS_STATE_DIR='/absolute/private/operations-state'
 dshx-hub capabilities --output capabilities.json
-dshx-hub ops prompt --output prompt.json
+dshx-hub ops bundle --output agent-bundle.json  # administrator token; prompt + resources
 dshx-hub ops begin --expect-cli-version INSTALLED_VERSION --output begin.json
 ```
 
-`capabilities` reads the executing package version and enumerates the same command registry used by argument validation. Its JSON Schemas are generated from the runtime Zod validators, including the exact bilingual `plugin curate` input. Commands still enforce cross-field refinements, canonical observation IDs, and local media validation. `ops prompt` reads the version-matched bundled prompt; neither command needs a source checkout or a Hub request.
+`capabilities` reads the executing package version and enumerates the same command registry used by argument validation. Its JSON Schemas are generated from the runtime Zod validators, including the exact bilingual `plugin curate` input. Commands still enforce cross-field refinements, canonical observation IDs, and local media validation. The public CLI does not contain the administrator-only prompt; it is delivered only by the authenticated `ops bundle` endpoint.
+
+The administrator-only bootstrap prompt is previewed at `https://dshx.io/admin/agent-prompt`. It is short: it tells the operations Agent to fetch the latest full prompt and allowlisted resources with the pinned CLI and an administrator-managed credential:
+
+```bash
+npx --yes --package @becomeopc/dshx-hub-cli@VERSION dshx-hub ops bundle \
+  --output /absolute/private/path/agent-bundle.json
+```
+
+`ops bundle` writes `bootstrap`, `prompt`, `resources`, and version metadata to one private file with mode `0600`; it never prints resource values. The CLI credential must belong to a Hub administrator. The Agent follows `bundle.prompt` and sets each `bundle.resources` entry as an environment variable for the run. The prompt text is not shipped in the public CLI package; the Hub snapshot is the only prompt source.
+
+The bootstrap uses the stable `preview` channel for its first fetch. If the Hub snapshot was generated for a different CLI contract, `ops bundle` returns `agent_bundle_mismatch` with `details.expectedCliVersion`; the Agent re-runs the same command with that exact version (at most twice), then uses `bundle.meta.cliVersion` for every subsequent command. This lets a scheduled Agent converge after a CLI or Hub update without re-copying the bootstrap.
+
+The pinned invocation is:
+
+```bash
+npx --yes --package @becomeopc/dshx-hub-cli@VERSION dshx-hub
+```
 
 `ops begin` verifies the bundled prompt, claims one local run, validates the executing CLI version, and checks catalog access with one authenticated read. It performs no Hub writes. If preflight fails after the claim, it records the blocked result locally. Its successful `data.run` contains `runId`, `startedAt`, `stopStartingAt`, and `leaseExpiresAt`. `ops preflight` provides the same package/access check without claiming or writing a run. Successful preflight output omits token values, token prefixes, and user details.
 
@@ -128,16 +145,18 @@ The claim coordinates processes using the same state directory on one machine. I
 
 ### Scheduler prompt template
 
-Replace the three placeholders during installation, using the configured executable, persistent state directory, and verified package version:
+For new schedulers, prefer the administrator-generated bootstrap prompt from `https://dshx.io/admin/agent-prompt`: it pins the CLI version and instructs the Agent to fetch the latest full prompt and resources with `ops bundle`. The following hand-maintained template shows the minimum bootstrap only.
+
+Replace the four placeholders during installation, using the configured executable, persistent state directory, verified package version, and private bundle path:
 
 ```text
 Own DSHX Hub operations: proactively search the public web, add valuable plugins, and improve missing information. Decide priorities and actions from current evidence.
 Use {{CLI_PATH}} for Hub operations.
 Set DSHX_HUB_OPS_STATE_DIR={{STATE_DIR}} for every command.
+Run {{CLI_PATH}} ops bundle --output {{BUNDLE_PATH}} with the administrator credential, then follow its prompt and set its resources as environment variables without printing them.
 Run {{CLI_PATH}} ops begin --expect-cli-version {{CLI_VERSION}} once.
 On failure, stop and retain the exact JSON error; ops_run_active/ops_state_busy must not start a second run.
-On success, read {{CLI_PATH}} ops prompt and {{CLI_PATH}} capabilities, then follow the bundled prompt using the existing begin result.
-Use its runId on every Hub write and checkpoint each confirmed item stage.
+Use the runId on every Hub write and checkpoint each confirmed item stage.
 Respect stopStartingAt and leaseExpiresAt. Verify the Hub report before ops finish; finish blocked if access or report confirmation is unavailable.
 Do not reinstall the CLI, inspect Git checkouts, parse help, scan processes, or reconstruct the environment during a run.
 ```
@@ -258,6 +277,6 @@ Use `capabilities` for machine-readable inputs and `dshx-hub <command> --help` f
 pnpm --dir packages/framework-hub-cli build
 ```
 
-Source builds require the sibling private `packages/hub-ops-prompt` workspace package. The build compiles that package and embeds its matching prompt, policy, and command contract into `dist/ops-prompt.json`, checking the prompt version and registered commands. Published CLI packages include this JSON in the tarball; operating machines do not need the private package, a Git checkout, or a prompt build at runtime.
+The private `packages/hub-ops-prompt` workspace package is a build-time source for the administrator-only Hub snapshot. The public CLI build compiles only the command surface and does not embed the prompt, policy, or command contract; published CLI tarballs must not contain `dist/ops-prompt.json` or `dist/agent-prompt.md`. Operating machines fetch the prompt and resources from the authenticated `ops bundle` endpoint.
 
 MIT © DSHX contributors.

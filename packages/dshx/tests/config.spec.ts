@@ -81,6 +81,31 @@ describe('resolveDshxConfig', () => {
     expect(resolved.configDependencies).toEqual([])
   })
 
+  it('resolves the Settings namespace from the declared bundle patch entry', async () => {
+    const { root } = await temporaryProject({
+      name: '@test/plugin',
+      type: 'module',
+      dsh: { bundle: { patch: ['./patches/first.yml', './patches/second.yml'] } },
+    })
+    await source(root, 'src/host.ts')
+    await mkdir(resolve(root, 'patches'), { recursive: true })
+    await writeFile(resolve(root, 'patches/first.yml'), '- id: unrelated\n  name: "@other/plugin"\n')
+    await writeFile(resolve(root, 'patches/second.yml'), '- insert:\n    - id: custom-entry\n      name: "@test/plugin"\n')
+
+    const resolved = await resolveDshxConfig({ cwd: root })
+
+    expect(resolved.settingsNamespace).toBe('custom-entry')
+  })
+
+  it('falls back to the sanitized package id when no patch entry names the package', async () => {
+    const { root } = await temporaryProject()
+    await source(root, 'src/host.ts')
+
+    const resolved = await resolveDshxConfig({ cwd: root })
+
+    expect(resolved.settingsNamespace).toBe('-test-plugin')
+  })
+
   it('loads only the root TypeScript config and gives explicit fields precedence', async () => {
     const { root } = await temporaryProject()
     await source(root, 'src/host.ts')

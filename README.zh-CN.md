@@ -109,17 +109,17 @@ export default defineClient({ locales: [copy], slots: [statusSlot] });
 
 ## 公共入口
 
-| 入口                           | 状态                   | 用途                                            |
-| ------------------------------ | ---------------------- | ----------------------------------------------- |
-| `@becomeopc/dshx` 与 `/config` | API Candidate          | 仅 browser-safe `defineConfig` 和 `DshxConfig`  |
-| `/host`                        | API Candidate          | Host 定义、Tools、Commands、Prompt contribution |
-| `/client`                      | API Candidate          | Client 定义、Locale、Slots、API/Settings Hooks  |
-| `/api`                         | API Candidate          | 共享类型 API contract 与 opaque error           |
-| `/settings`                    | API Candidate          | 共享 Schemastery Settings contract              |
-| `/experimental/conversation`   | Experimental           | 纯官方事件生命周期和 React renderer             |
-| `/tooling`                     | Tooling / Experimental | Node-only compiler、兼容、诊断、CLI、repair API |
+| 入口                           | 状态                   | 用途                                                      |
+| ------------------------------ | ---------------------- | --------------------------------------------------------- |
+| `@becomeopc/dshx` 与 `/config` | API Candidate          | 仅 browser-safe `defineConfig` 和 `DshxConfig`            |
+| `/host`                        | API Candidate          | Host 定义、Tools、Commands、Prompt contribution           |
+| `/client`                      | API Candidate          | Client 定义、Locale、Slots、API/Settings Hooks            |
+| `/api`                         | API Candidate          | 共享类型 API contract 与 opaque error                     |
+| `/settings`                    | API Candidate          | 共享 Schemastery Config schema，由 DSH SettingsForms 投影 |
+| `/experimental/conversation`   | Experimental           | 纯官方事件生命周期和 React renderer                       |
+| `/tooling`                     | Tooling / Experimental | Node-only compiler、兼容、诊断、CLI、repair API           |
 
-API Candidate 表示当前 `0.1.x` 计划保持的 authoring 形状，不是 1.0 稳定承诺。被删除的字段、入口和别名见[从 0.1.1 迁移到 0.1.2](./docs/migrations/0.1.1-to-0.1.2.zh-CN.md)。
+API Candidate 表示当前 `0.2.x` 计划保持的 authoring 形状，不是 1.0 稳定承诺。DSH 0.2 的 Settings、Conversation、Connection 与 manifest 变化见[从 0.1 迁移到 0.2](./docs/migrations/0.1-to-0.2.zh-CN.md)。
 
 ## 技术文档
 
@@ -146,17 +146,17 @@ dshx check                 # 离线检查 config、manifest、迁移、兼容、
 dshx check --runtime       # 额外要求 Profile、Composition、bridge、runtime readiness
 dshx build                 # 先 typecheck，再构建 Host/Client
 dshx dev                   # Vite build-watch 加官方 DSH 开发会话
-dshx inspect slots
-dshx add ui --slot <slot-name>
+dshx inspect services      # 也支持 tools、events、configs
+dshx add ui --slot <slot-name> --provider <package> --id <id>
 ```
 
-除非显式使用 `--fix`，`check` 保持只读。`build` 不改写源码或 Manifest 元数据。`inspect` 需要受支持且正在运行的 Composition。完整命令与 JSON 字段见 [CLI 参考](./docs/cli-reference.md)。
+除非显式使用 `--fix`，`check` 保持只读。`build` 不改写源码或 Manifest 元数据。`inspect` 需要受支持且正在运行的 Composition。DSH 0.2 不再提供运行时 Slot catalog，`inspect slots` 会返回 `DSHX3204`；`add ui` 接受显式的 `--slot`/`--provider`，并由 `dshx check` 验证生成结果。完整命令与 JSON 字段见 [CLI 参考](./docs/cli-reference.md)。
 
 ## 兼容性
 
-当前 `protocol-1` adapter 发布 npm 安全的 peer range `>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2`；真实运行时验证边界为 `0.1.0-rc.8` 和 `0.1.1-rc.2`。显式 rc.2 分支用于避开 npm 对跨 patch prerelease 的排除规则。插件公开支持范围写入 `peerDependencies`，本地开发使用一个具体 `devDependencies` 版本。
+当前 `protocol-2` adapter 发布 peer range `>=0.2.1-rc.2 <0.3.0-0`，公开支持范围优先写入 `engines.dsh`（缺失时回退到 `peerDependencies`）。真实运行时基线是源码 tag `dsh-v0.2.1-rc.2` 的构建；当前 npm `0.2.1-rc.2` 产物包含过期的 profile-boot 代码，在上游重新发布前按 experimental 处理。本地开发使用一个具体 `devDependencies` 版本。
 
-Conversation 仍为 Experimental，因为已发布协议没有仓库外 durable event vocabulary registry；它只能使用官方 `SessionEventMap` 键。
+Settings 使用官方插件 `Config` schema 与 `ctx.configForms`，ConfigForm 身份是 Host profile 的 entry id。Conversation 仍为 Experimental，因为已发布协议没有仓库外 durable event vocabulary registry；它只能使用官方 `SessionEventMap` 键。
 
 ## 开发本仓库
 
@@ -164,8 +164,7 @@ Conversation 仍为 Experimental，因为已发布协议没有仓库外 durable 
 pnpm install --frozen-lockfile
 pnpm check:all
 pnpm smoke:packages
-pnpm smoke:dsh -- --version 0.1.0-rc.8
-pnpm smoke:dsh -- --version 0.1.1-rc.2
+pnpm smoke:dsh -- --dsh-source /path/to/deepseek-harness
 ```
 
 提交前请阅读[贡献指南](./CONTRIBUTING.md)、[依赖政策](./docs/dependency-policy.md)和[安全政策](./SECURITY.md)。

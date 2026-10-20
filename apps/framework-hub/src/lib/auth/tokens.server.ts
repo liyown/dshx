@@ -47,3 +47,10 @@ export async function requireApiToken(db: Database, request: Request, scope: str
     throw new HttpError(403, `Token lacks ${scope}`, "insufficient_scope");
   return row;
 }
+
+export async function requireAdminApiToken(db: Database, request: Request) {
+  const row = await authenticateApiToken(db, request);
+  if (row.profile.role !== "admin")
+    throw new HttpError(403, "Administrator role required", "admin_required");
+  return row;
+}

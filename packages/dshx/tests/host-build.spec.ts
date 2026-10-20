@@ -229,16 +229,16 @@ describe('host compiler', () => {
     ])
   })
 
-  it('inlines the shared Settings helper while keeping only the official Host service import', async () => {
+  it('inlines the shared Config helper without importing official Settings code', async () => {
     const root = await temporaryProject()
     await writeFile(
       resolve(root, 'src/host.ts'),
       [
         "import { defineHost } from '@becomeopc/dshx/host'",
         "import { defineSettings } from '@becomeopc/dshx/settings'",
-        "const schema = Object.assign(value => value, { toJSON: () => ({ type: 'object' }) })",
-        "const runtimeSettings = defineSettings({ namespace: 'phase-a', schema, applies: 'live' })",
-        'export default defineHost({ settings: [runtimeSettings] })',
+        "const schema = Object.assign(value => value, { toJSON: () => ({ type: 'object' }), volatile() { return this } })",
+        'const config = defineSettings({ schema })',
+        'export default defineHost({ config })',
         '',
       ].join('\n'),
     )
@@ -251,9 +251,10 @@ describe('host compiler', () => {
     const code = await readFile(resolve(root, 'dist/index.js'), 'utf8')
     expect(code).not.toContain('@becomeopc/dshx/settings')
     expect(code).not.toContain('@becomeopc/dshx/host')
-    expect(code).toContain('@deepseek-ai/dsh-settings')
-    expect(code).toContain('settings: [defineSettings({')
-    expect(code).toContain('namespace: "phase-a"')
+    expect(code).not.toContain('@deepseek-ai/dsh-settings')
+    expect(code).toContain('defineSettings({')
+    expect(code).toContain('config')
+    expect(code).toContain('Config')
   })
 
   it('emits a Node ESM entry with a sourcemap and preserves package imports', async () => {

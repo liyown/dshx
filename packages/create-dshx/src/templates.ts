@@ -130,16 +130,14 @@ export const statusApi = defineApi({
 `
 }
 
-function renderSettings(context: TemplateContext): string {
+function renderSettings(_context: TemplateContext): string {
   return `import Schema from '@deepseek-ai/schemastery'
 import { defineSettings } from '@becomeopc/dshx/settings'
 
 export const runtimeSettings = defineSettings({
-  namespace: '${packageSlug(context.packageId)}',
   schema: Schema.object({
     showActivity: Schema.boolean().default(true),
   }),
-  applies: 'live',
 })
 `
 }
@@ -194,7 +192,7 @@ export default defineHost({
   name: '${context.packageId}',
   tools: [statusTool],
   prompts: [statusGuidance, runtimeContext],
-  settings: [runtimeSettings],
+  config: runtimeSettings,
   apis: [statusHostApi],
 })
 `
@@ -346,7 +344,6 @@ export const TEMPLATE_REGISTRY = {
       '@becomeopc/dshx': context.dshxVersion,
       '@deepseek-ai/dsh': context.dshVersion,
       '@deepseek-ai/dsh-cordis-host-runner': context.dshVersion,
-      '@deepseek-ai/dsh-settings': context.dshVersion,
       '@deepseek-ai/dsh-tool-cordis': context.dshVersion,
       '@deepseek-ai/dsh-tools': context.dshVersion,
       [localeProvider]: context.dshVersion,
@@ -358,7 +355,6 @@ export const TEMPLATE_REGISTRY = {
     }),
     peerDependencies: context => ({
       '@deepseek-ai/dsh': context.dshRange,
-      '@deepseek-ai/dsh-settings': context.dshRange,
       '@deepseek-ai/dsh-tools': context.dshRange,
       [localeProvider]: context.dshRange,
       [sidebarProvider]: context.dshRange,
@@ -379,8 +375,7 @@ export const TEMPLATE_REGISTRY = {
       '@deepseek-ai/dsh-tool-cordis': context.dshVersion,
       '@deepseek-ai/dsh-tools': context.dshVersion,
       '@deepseek-ai/dsh-system-prompt': context.dshVersion,
-      '@deepseek-ai/dsh-settings': context.dshVersion,
-      '@deepseek-ai/schemastery': '3.18.1',
+      '@deepseek-ai/schemastery': '3.18.5',
       [connectionProvider]: context.dshVersion,
       [sidebarProvider]: context.dshVersion,
       [settingsProvider]: context.dshVersion,
@@ -393,8 +388,7 @@ export const TEMPLATE_REGISTRY = {
       '@deepseek-ai/dsh': context.dshRange,
       '@deepseek-ai/dsh-tools': context.dshRange,
       '@deepseek-ai/dsh-system-prompt': context.dshRange,
-      '@deepseek-ai/dsh-settings': context.dshRange,
-      '@deepseek-ai/schemastery': '^3.18.1',
+      '@deepseek-ai/schemastery': '^3.18.5',
       [connectionProvider]: context.dshRange,
       [sidebarProvider]: context.dshRange,
       [settingsProvider]: context.dshRange,
@@ -442,6 +436,7 @@ function renderManifest(context: TemplateContext, templateName: TemplateName, st
         './package.json': './package.json',
       },
       files: ['dist', 'cordis.patch.yml'],
+      engines: { dsh: context.dshRange },
       dsh: {
         bundle: { patch: './cordis.patch.yml' },
         client: {

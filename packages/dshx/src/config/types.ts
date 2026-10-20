@@ -42,6 +42,8 @@ export interface ResolvedDshxConfig {
   readonly configDependencies: readonly string[]
   readonly packageId: string
   readonly name: string
+  /** Profile entry id owning this plugin's Host Config form. */
+  readonly settingsNamespace: string
   readonly hostEntry?: string
   readonly clientEntry?: string
   readonly hostVitePlugins?: readonly PluginOption[]

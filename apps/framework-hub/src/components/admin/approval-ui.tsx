@@ -91,7 +91,13 @@ export function RiskBadge({ risk }: { risk: string }) {
   );
 }
 
-export function AdminHeader({ back }: { back?: boolean }) {
+export function AdminHeader({
+  back,
+  title = "Approval ledger",
+}: {
+  back?: boolean;
+  title?: string;
+}) {
   return (
     <header className="border-b border-border bg-background">
       <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between px-5 lg:px-8">
@@ -106,11 +112,17 @@ export function AdminHeader({ back }: { back?: boolean }) {
           <ShieldCheck className="size-5 text-accent" aria-hidden="true" />
           <div className="flex items-baseline gap-2">
             <span className="font-semibold tracking-tight">DSHX Hub</span>
-            <span className="text-sm text-muted-foreground">Approval ledger</span>
+            <span className="text-sm text-muted-foreground">{title}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <ThemeToggle />
+          <Link
+            to="/admin/agent-prompt"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Operator prompt
+          </Link>
           <Link
             to="/$locale"
             params={{ locale: "en" }}

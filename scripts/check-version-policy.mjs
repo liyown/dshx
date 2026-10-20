@@ -17,8 +17,15 @@ for (const [name, file] of packages) {
   const version = typeof manifest.version === 'string' ? manifest.version : ''
   versions.set(name, version)
   const isUnreleasedMarketplace = name === '@becomeopc/dshx-plugin-marketplace' && version === '0.0.0'
-  if (!isUnreleasedMarketplace && !/^0\.1\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
-    errors.push(`${name} must stay on the 0.1.x line; found ${JSON.stringify(version)} in ${file}.`)
+  // The Hub CLI ships its own operations contract and versions independently of the
+  // DSH compatibility line; the DSH-facing packages must track 0.2.x.
+  const pattern = name === '@becomeopc/dshx-hub-cli' ? /^0\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/ : /^0\.2\.\d+(?:-[0-9A-Za-z.-]+)?$/
+  if (!isUnreleasedMarketplace && !pattern.test(version)) {
+    errors.push(
+      name === '@becomeopc/dshx-hub-cli'
+        ? `${name} must declare a valid semver version; found ${JSON.stringify(version)} in ${file}.`
+        : `${name} must stay on the 0.2.x DSH line; found ${JSON.stringify(version)} in ${file}.`,
+    )
   }
 }
 
@@ -37,8 +44,8 @@ for (const entry of await readdir('.changeset', { withFileTypes: true })) {
     if (!declaration || !packages.has(declaration[1])) continue
     const isInitialMarketplace =
       declaration[1] === '@becomeopc/dshx-plugin-marketplace' && versions.get(declaration[1]) === '0.0.0' && declaration[2] === 'minor'
-    if (declaration[2] !== 'patch' && !isInitialMarketplace) {
-      errors.push(`.changeset/${entry.name} declares ${declaration[2]} for ${declaration[1]}; use patch while the project remains on 0.1.x.`)
+    if (declaration[2] === 'major' && !isInitialMarketplace) {
+      errors.push(`.changeset/${entry.name} declares major for ${declaration[1]}; a 0.x minor is the breaking-change bump.`)
     }
   }
 }
@@ -47,5 +54,5 @@ if (errors.length > 0) {
   for (const error of errors) process.stderr.write(`version policy: ${error}\n`)
   process.exitCode = 1
 } else {
-  process.stdout.write('version policy: public packages and changesets remain on 0.1.x\n')
+  process.stdout.write('version policy: DSH-facing packages remain on 0.2.x and changesets avoid major bumps\n')
 }

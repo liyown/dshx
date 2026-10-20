@@ -264,16 +264,18 @@ process.exitCode = code;
     name: metadata.name,
     version: metadata.version,
   });
-  assert.equal(surface.data.dailyPromptVersion, 7);
+  assert.ok(surface.data.capabilitiesHash);
+  assert.ok(
+    surface.data.commands.some((entry) => entry.command === "ops bundle"),
+  );
+  assert.ok(
+    !surface.data.commands.some((entry) => entry.command === "ops prompt"),
+    "The public CLI must not expose the administrator-only prompt command",
+  );
   assert.ok(
     surface.data.commands.find((entry) => entry.command === "plugin curate")
       ?.input.schema.properties.overviewMarkdown,
   );
-  checks++;
-
-  const prompt = await invoke(["ops", "prompt"], 0, false);
-  assert.equal(prompt.data.promptVersion, 7);
-  assert.ok(prompt.data.prompt.includes("ops begin"));
   assert.equal(requests.length, 0, "Package discovery must stay offline");
   checks++;
 
@@ -456,7 +458,6 @@ process.exitCode = code;
     `${JSON.stringify({
       ok: true,
       package: { name: metadata.name, version: metadata.version },
-      promptVersion: 7,
       checks,
       childProcesses: childProcesses.size,
       mockRequests: requests.length,

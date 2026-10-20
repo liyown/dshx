@@ -80,7 +80,7 @@ export const architecture = defineDocsChapter({
           blocks: [
             {
               kind: "note",
-              text: "Verified for @becomeopc/dshx 0.1.4-preview.0 and protocol-1 DSH boundaries 0.1.0-rc.8 and 0.1.1-rc.2. DSHX does not provide a parallel Agent, Session, Tool, Slot, transport, persistence, or HMR runtime. Experimental surfaces remain labeled and do not imply a 1.0 stability guarantee.",
+              text: "Verified for @becomeopc/dshx 0.2.0-preview.0 on the protocol-2 DSH boundary 0.2.1-rc.2 (source tag dsh-v0.2.1-rc.2). DSHX does not provide a parallel Agent, Session, Tool, Slot, transport, persistence, or HMR runtime. Experimental surfaces remain labeled and do not imply a 1.0 stability guarantee.",
             },
           ],
         },
@@ -148,7 +148,7 @@ export const architecture = defineDocsChapter({
           blocks: [
             {
               kind: "note",
-              text: "本文已按 @becomeopc/dshx 0.1.4-preview.0，以及 protocol-1 的 DSH 0.1.0-rc.8 与 0.1.1-rc.2 边界验证。DSHX 不提供平行的 Agent、Session、Tool、Slot、Transport、持久化或 HMR Runtime。实验性能力会明确标注，也不代表 1.0 稳定性承诺。",
+              text: "本文已按 @becomeopc/dshx 0.2.0-preview.0，以及 protocol-2 的 DSH 0.2.1-rc.2（源码 tag dsh-v0.2.1-rc.2）边界验证。DSHX 不提供平行的 Agent、Session、Tool、Slot、Transport、持久化或 HMR Runtime。实验性能力会明确标注，也不代表 1.0 稳定性承诺。",
             },
           ],
         },

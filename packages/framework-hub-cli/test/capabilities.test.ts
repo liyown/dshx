@@ -26,10 +26,17 @@ describe("embedded CLI capabilities", () => {
     });
     expect(await readCliPackage()).toEqual(document.package);
     expect(document.apiProtocolVersion).toBe(1);
-    expect(document.dailyPromptVersion).toBe(7);
+    expect(document.capabilitiesHash).toMatch(/^[a-f0-9]{64}$/);
     expect(document.commands.map((entry) => entry.command)).toEqual(
       Object.keys(commandShapes),
     );
+    const bundle = document.commands.find(
+      (entry) => entry.command === "ops bundle",
+    );
+    expect(bundle?.options).toEqual(["hub", "output"]);
+    expect(
+      document.commands.some((entry) => entry.command === "ops prompt"),
+    ).toBe(false);
     expect(fetch).not.toHaveBeenCalled();
   });
 

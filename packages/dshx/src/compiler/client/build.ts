@@ -23,7 +23,7 @@ const SETTINGS_PROVIDER_PACKAGE = '@deepseek-ai/dsh-client-ui-settings'
 const SETTINGS_CAPABILITY_GLOBAL = '__DSHX_CLIENT_SETTINGS_CAPABILITY__'
 const API_PROVIDER_PACKAGE = '@deepseek-ai/dsh-client-connection'
 const API_CAPABILITY_GLOBAL = '__DSHX_CLIENT_API_CAPABILITY__'
-const CONVERSATION_PROVIDER_PACKAGES = ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation'] as const
+const CONVERSATION_PROVIDER_PACKAGES = ['@deepseek-ai/dsh-client-ui-conversation'] as const
 const LOCALE_PROVIDER_PACKAGE = '@deepseek-ai/dsh-client-locale'
 const CLIENT_RUNTIME_PATH = fileURLToPath(new URL('../../client/runtime.js', import.meta.url))
 const CLIENT_DEFINE_PATH = fileURLToPath(new URL('../../client/define.js', import.meta.url))
@@ -39,6 +39,8 @@ const CONVERSATION_DEFINE_PATH = fileURLToPath(new URL('../../conversation/defin
 export interface BuildClientOptions {
   readonly packageId: string
   readonly logicalName?: string
+  /** Profile entry id that owns this plugin's Host Config form. */
+  readonly settingsNamespace?: string
   readonly entry: string
   readonly outDir: string
   readonly root?: string
@@ -128,6 +130,7 @@ function clientEntryPlugin(paths: Awaited<ReturnType<typeof resolveOptions>>, op
       const metadata = {
         packageId: options.packageId,
         logicalName: name,
+        ...(options.settingsNamespace === undefined ? {} : { settingsNamespace: options.settingsNamespace }),
         sourceFile: relative(paths.root, paths.entry).replaceAll('\\', '/'),
       }
       return [
@@ -157,7 +160,7 @@ function clientCapabilitiesPlugin(options: BuildClientOptions): Plugin {
       const settingsRetained = Object.hasOwn(chunk.modules, VIRTUAL_CLIENT_SETTINGS_HOOK)
       const apiRetained = Object.hasOwn(chunk.modules, VIRTUAL_CLIENT_API_HOOKS)
       if (settingsRetained && !(options.inject ?? []).includes(SETTINGS_PROVIDER_PACKAGE)) {
-        throw new DshxError('DSHX1203', 'useSettings() requires the official Settings Scope provider package edge.', {
+        throw new DshxError('DSHX1203', 'useSettings() requires the official Config Forms provider package edge.', {
           hint: `Add ${JSON.stringify(SETTINGS_PROVIDER_PACKAGE)} to package.json dsh.client.inject, then rebuild.`,
         })
       }
@@ -177,7 +180,7 @@ async function validateConversationProviderEdges(paths: Awaited<ReturnType<typeo
   if (!(await clientUsesConversationComponents(paths.entry, paths.root))) return
   const missing = CONVERSATION_PROVIDER_PACKAGES.filter(packageName => !(options.inject ?? []).includes(packageName))
   if (missing.length === 0) return
-  throw new DshxError('DSHX1203', 'Conversation components require the official Client Runtime and Conversation UI package edges.', {
+  throw new DshxError('DSHX1203', 'Conversation components require the official Conversation UI package edge.', {
     file: paths.entry,
     hint: `Add ${missing.map(packageName => JSON.stringify(packageName)).join(' and ')} to package.json dsh.client.inject, then rebuild.`,
   })

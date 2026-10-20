@@ -343,7 +343,7 @@ describe('client compiler', () => {
         root,
         entry: 'src/client.tsx',
         outDir: 'dist',
-        inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation'],
+        inject: ['@deepseek-ai/dsh-client-ui-settings', '@deepseek-ai/dsh-client-ui-conversation'],
       }),
     ).resolves.toEqual(expect.objectContaining({ face: 'client' }))
   })
@@ -372,7 +372,7 @@ describe('client compiler', () => {
       root,
       entry: 'src/client.tsx',
       outDir: 'dist',
-      inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-conversation'],
+      inject: ['@deepseek-ai/dsh-client-ui-conversation'],
     })
 
     const code = await readFile(resolve(root, 'dist/client.js'), 'utf8')
@@ -393,13 +393,15 @@ describe('client compiler', () => {
       inject: string[]
       apply(ctx: unknown): void
     }
-    expect(plugin.inject).toEqual(['conversationEvents', 'slots'])
+    expect(plugin.inject).toEqual(['uiConversation', 'slots'])
 
     const calls: string[] = []
     plugin.apply({
-      conversationEvents: {
-        register: (value: { kind: string }) => {
-          calls.push(`definition:${value.kind}`)
+      uiConversation: {
+        events: {
+          register: (value: { kind: string }) => {
+            calls.push(`definition:${value.kind}`)
+          },
         },
       },
       slots: {
@@ -415,7 +417,7 @@ describe('client compiler', () => {
     expect(calls).toEqual(['definition:review-job', 'inject:conversation.chat.node', 'renderer:review-job:function'])
   })
 
-  it('fails a retained Conversation component without both official provider package edges', async () => {
+  it('fails a retained Conversation component without the official provider package edge', async () => {
     const root = await temporaryProject()
     await writeFile(
       resolve(root, 'src/client.tsx'),
@@ -432,7 +434,7 @@ describe('client compiler', () => {
         root,
         entry: 'src/client.tsx',
         outDir: 'dist',
-        inject: ['@deepseek-ai/dsh-client-runtime'],
+        inject: ['@deepseek-ai/dsh-client-ui-layout'],
       }),
     ).rejects.toMatchObject({
       code: 'DSHX1203',
@@ -634,15 +636,15 @@ describe('client compiler', () => {
     expect(code).toContain('require("@deepseek-ai/dsh-client-ui-layout/client")')
   })
 
-  it('infers settingsScope from a retained useSettings hook after tree-shaking', async () => {
+  it('infers configForms from a retained useSettings hook after tree-shaking', async () => {
     const root = await temporaryProject()
     await writeFile(
       resolve(root, 'src/client.tsx'),
       [
         "import { defineClient, defineSlot, useSettings } from '@becomeopc/dshx/client'",
         "import { defineSettings } from '@becomeopc/dshx/settings'",
-        "const schema = Object.assign(value => value, { toJSON: () => ({ type: 'object' }) })",
-        "const settings = defineSettings({ namespace: 'phase-a', schema })",
+        "const schema = Object.assign(value => value, { toJSON: () => ({ type: 'object' }), volatile() { return this } })",
+        'const settings = defineSettings({ schema })',
         'function Status() {',
         '  const state = useSettings(settings)',
         '  return <div>{String(state.value)}</div>',
@@ -678,7 +680,7 @@ describe('client compiler', () => {
       if (id === 'react/jsx-runtime') return {}
       throw new Error(`unexpected require: ${id}`)
     }) as { inject: string[] }
-    expect(plugin.inject).toEqual(['slots', 'settingsScope'])
+    expect(plugin.inject).toEqual(['slots', 'configForms'])
   })
 
   it('does not infer Settings when an imported hook is removed by tree-shaking', async () => {

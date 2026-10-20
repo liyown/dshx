@@ -19,11 +19,23 @@
         "src/cli/index.ts",
         "src/compiler/host/index.ts",
       ],
-      "ignoreDependencies": ["@deepseek-ai/dsh"],
+      // Client-platform peers the compiled plugin bundles resolve at runtime;
+      // DSHX source only references their module ids, never imports them.
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        // dsh-client-store imports these without declaring them; tests and the
+        // real Client module table expect them in the workspace.
+        "immer",
+        "zustand",
+      ],
     },
     "fixtures/phase-a": {
       "entry": ["src/host.ts"],
-      "ignoreDependencies": ["@deepseek-ai/dsh"],
+      // JSX uses the automatic runtime, so neither package appears in an import.
+      "ignoreDependencies": ["@deepseek-ai/dsh", "react", "@types/react"],
     },
     "packages/plugin-marketplace": {
       "entry": [

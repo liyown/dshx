@@ -1,16 +1,13 @@
 export { defineSettings } from './define.js'
-export type { SettingsDefinition } from './define.js'
+export type { SettingsDefinition, VolatileSchema } from './define.js'
 export type {
-  SettingsClientOptions,
   SettingsContract,
-  SettingsContribution,
-  SettingsHostContribution,
-  SettingsHostOptions,
+  SettingsFormValue,
   SettingsMutationState,
+  SettingsPathOp,
   SettingsReadError,
   SettingsReadErrorKind,
   SettingsSecretState,
   SettingsState,
   SettingsValue,
 } from './types.js'
-export type { SettingsApplies, SettingsRegisterOptions, SettingsScope } from '@deepseek-ai/dsh-settings'

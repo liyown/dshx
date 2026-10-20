@@ -1,4 +1,4 @@
-import { IconDownloadOutline16, IconLoadingOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconDownloadOutlineMedium, IconLoadingOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { useApi, useApiQuery, type PropsLocaleOf } from '@becomeopc/dshx/client'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -177,7 +177,9 @@ function InstallDialog({
                   else onInstall(state.plugin)
                 }}
               >
-                <span aria-hidden="true">{installing ? <IconLoadingOutline16 className={styles.spinner} /> : risk ? <IconDownloadOutline16 /> : null}</span>
+                <span aria-hidden="true">
+                  {installing ? <IconLoadingOutlineMedium className={styles.spinner} /> : risk ? <IconDownloadOutlineMedium /> : null}
+                </span>
                 {installing ? t('downloading') : risk ? t('finalConfirmInstall') : t('continueInstall')}
               </button>
             </>
@@ -389,11 +391,11 @@ export function MarketplaceTab({ t }: MarketplaceTabProps): ReactNode {
                   >
                     {installing ? (
                       <span aria-hidden="true">
-                        <IconLoadingOutline16 className={styles.spinner} />
+                        <IconLoadingOutlineMedium className={styles.spinner} />
                       </span>
                     ) : !plugin.installed ? (
                       <span aria-hidden="true">
-                        <IconDownloadOutline16 />
+                        <IconDownloadOutlineMedium />
                       </span>
                     ) : null}
                     {label}

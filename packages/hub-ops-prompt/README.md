@@ -2,7 +2,7 @@
 
 Private workspace package for the v7 DSHX Hub operator mandate. The Agent is responsible for making the website useful, accurate, and fresh through active research, discovery and admission of new plugins, and improvements to existing entries. It decides what deserves attention, how to investigate it, and how much useful work to undertake. The CLI supplies tools and reliable receipts.
 
-This package does not schedule or execute the Agent. The CLI build bundles the prompt, policy, and command reference into `dist/ops-prompt.json`; operating machines read it through `dshx-hub ops prompt` without needing this private package or a Git checkout.
+This package does not schedule or execute the Agent. It is a private build-time source: the Hub snapshot generator imports this package to produce the administrator-only bootstrap and full prompt. The public CLI package does not contain the prompt text; the authenticated `dshx-hub ops bundle` endpoint delivers the prompt and configured resources to the Agent.
 
 ## Editorial autonomy
 

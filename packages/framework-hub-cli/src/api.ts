@@ -15,14 +15,23 @@ export type AuthenticationMode = "required" | "optional" | "none";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export class ApiError extends Error {
+  readonly status: number;
+  readonly issue: OperationError;
+  readonly requestId: string;
+  readonly body: unknown;
+
   constructor(
-    readonly status: number,
-    readonly issue: OperationError,
-    readonly requestId: string,
-    readonly body: unknown,
+    status: number,
+    issue: OperationError,
+    requestId: string,
+    body: unknown,
   ) {
     super(issue.message);
     this.name = "ApiError";
+    this.status = status;
+    this.issue = issue;
+    this.requestId = requestId;
+    this.body = body;
   }
 }
 

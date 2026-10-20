@@ -35,6 +35,7 @@ async function temporaryProject(
     configDependencies: [],
     packageId,
     name: packageId,
+    settingsNamespace: packageId.replace(/[^a-zA-Z0-9_-]/g, '-'),
     hostEntry,
     outDir: resolve(root, 'dist'),
     profile: overrides.profile ?? 'web',
@@ -68,20 +69,20 @@ afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true })))
 })
 describe('DSH installation resolution', () => {
-  it('recognizes the verified rc.8 CLI and forwards cwd and environment', async () => {
+  it('recognizes the verified 0.2.1 CLI and forwards cwd and environment', async () => {
     const project = await temporaryProject()
     const calls: RecordedCommand[] = []
     const installation = await resolveDshInstallation(project, {
       env: { DSH_HOME: '/isolated/dsh-home' },
-      runner: queuedRunner([success('0.1.0-rc.8\n')], calls),
+      runner: queuedRunner([success('0.2.1-rc.2\n')], calls),
     })
 
     expect(installation).toMatchObject({
-      version: '0.1.0-rc.8',
+      version: '0.2.1-rc.2',
       support: 'verified',
       diagnostics: [],
     })
-    expect(installation.compatibility.version).toBe('0.1.0-rc.8')
+    expect(installation.compatibility.version).toBe('0.2.1-rc.2')
     expect(calls).toHaveLength(1)
     expect(calls[0]?.args).toEqual(['--version'])
     expect(calls[0]?.options.cwd).toBe(project.root)
@@ -119,40 +120,40 @@ describe('DSH installation resolution', () => {
 
   it('continues experimentally for an unverified prerelease inside the supported generation', async () => {
     const project = await temporaryProject()
-    const installation = await resolveDshInstallation(project, { runner: queuedRunner([success('0.1.0-rc.9')]) })
+    const installation = await resolveDshInstallation(project, { runner: queuedRunner([success('0.2.1-rc.3')]) })
     expect(installation).toMatchObject({
       support: 'experimental',
-      adapterId: 'protocol-1',
-      protocolGeneration: 'protocol-1',
-      supportedRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
+      adapterId: 'protocol-2',
+      protocolGeneration: 'protocol-2',
+      supportedRange: '>=0.2.1-rc.2 <0.3.0-0',
     })
     expect(installation.diagnostics).toEqual([expect.objectContaining({ code: 'DSHX5101', severity: 'warning', file: project.packageFile })])
   })
 
   it('continues compatibly for an unverified stable version inside the supported generation', async () => {
     const project = await temporaryProject()
-    const installation = await resolveDshInstallation(project, { runner: queuedRunner([success('0.1.2')]) })
-    expect(installation).toMatchObject({ support: 'compatible', adapterId: 'protocol-1', protocolGeneration: 'protocol-1' })
+    const installation = await resolveDshInstallation(project, { runner: queuedRunner([success('0.2.2')]) })
+    expect(installation).toMatchObject({ support: 'compatible', adapterId: 'protocol-2', protocolGeneration: 'protocol-2' })
   })
 
   it('blocks a new protocol generation by default', async () => {
     const project = await temporaryProject()
     await expect(
       resolveDshInstallation(project, {
-        runner: queuedRunner([success('0.2.0')]),
+        runner: queuedRunner([success('0.3.0')]),
       }),
     ).rejects.toMatchObject({ code: 'DSHX5101', file: project.packageFile })
   })
 
-  it('continues with the rc.8 adapter and a warning when explicitly allowed', async () => {
+  it('continues with the protocol-2 adapter and a warning when explicitly allowed', async () => {
     const project = await temporaryProject({ allowUnsupported: true })
     const installation = await resolveDshInstallation(project, {
-      runner: queuedRunner([success('0.2.0')]),
+      runner: queuedRunner([success('0.3.0')]),
     })
     expect(installation).toMatchObject({
-      version: '0.2.0',
+      version: '0.3.0',
       support: 'unsupported',
-      compatibility: { version: '0.1.0-rc.8' },
+      compatibility: { version: '0.2.1-rc.2' },
     })
     expect(installation.diagnostics).toEqual([expect.objectContaining({ code: 'DSHX5101', severity: 'warning', file: project.packageFile })])
   })
@@ -246,7 +247,7 @@ describe('profile linking', () => {
     const project = await temporaryProject()
     const calls: RecordedCommand[] = []
     const prepared = await ensureProjectProfile(project, {
-      runner: queuedRunner([success('0.1.0-rc.8'), list({ [project.packageId]: { path: project.root } })], calls),
+      runner: queuedRunner([success('0.2.1-rc.2'), list({ [project.packageId]: { path: project.root } })], calls),
     })
     expect(prepared.link).toBe('existing')
     expect(calls.map(call => call.args)).toEqual([['--version'], ['plugin', '--profile', 'web', 'list', '--depth', '0', '--json']])
@@ -256,7 +257,7 @@ describe('profile linking', () => {
     const project = await temporaryProject()
     const calls: RecordedCommand[] = []
     const prepared = await ensureProjectProfile(project, {
-      runner: queuedRunner([success('0.1.0-rc.8'), list(), success('installed'), list({ [project.packageId]: { path: project.root } })], calls),
+      runner: queuedRunner([success('0.2.1-rc.2'), list(), success('installed'), list({ [project.packageId]: { path: project.root } })], calls),
     })
     expect(prepared).toMatchObject({
       profile: 'web',
@@ -277,7 +278,7 @@ describe('profile linking', () => {
     const project = await temporaryProject()
     await expect(
       ensureProjectProfile(project, {
-        runner: queuedRunner([success('0.1.0-rc.8'), list(), { exitCode: 1, stdout: '', stderr: 'pnpm add failed' }]),
+        runner: queuedRunner([success('0.2.1-rc.2'), list(), { exitCode: 1, stdout: '', stderr: 'pnpm add failed' }]),
       }),
     ).rejects.toMatchObject({ code: 'DSHX4304', message: expect.stringContaining('pnpm add failed') })
   })
@@ -286,7 +287,7 @@ describe('profile linking', () => {
     const project = await temporaryProject()
     await expect(
       ensureProjectProfile(project, {
-        runner: queuedRunner([success('0.1.0-rc.8'), list(), success(), list()]),
+        runner: queuedRunner([success('0.2.1-rc.2'), list(), success(), list()]),
       }),
     ).rejects.toMatchObject({ code: 'DSHX4304', message: expect.stringContaining('still absent') })
   })
@@ -298,7 +299,7 @@ describe('local-first DSH resolution', () => {
     const manifest = {
       name: project.packageId,
       type: 'module',
-      devDependencies: { '@deepseek-ai/dsh': '0.1.0-rc.8' },
+      devDependencies: { '@deepseek-ai/dsh': '0.2.1-rc.2' },
     }
     await writeFile(project.packageFile, JSON.stringify(manifest, null, 2))
     const packageDir = resolve(project.root, 'node_modules/@deepseek-ai/dsh')
@@ -309,11 +310,11 @@ describe('local-first DSH resolution', () => {
       resolve(packageDir, 'package.json'),
       JSON.stringify({
         name: '@deepseek-ai/dsh',
-        version: '0.1.0-rc.8',
+        version: '0.2.1-rc.2',
         bin: { dsh: './bin.cjs' },
       }),
     )
-    await writeFile(resolve(packageDir, 'bin.cjs'), '#!/usr/bin/env node\nconsole.log("0.1.0-rc.8")\n')
+    await writeFile(resolve(packageDir, 'bin.cjs'), '#!/usr/bin/env node\nconsole.log("0.2.1-rc.2")\n')
     await chmod(resolve(packageDir, 'bin.cjs'), 0o755)
     if (process.platform === 'win32') {
       await writeFile(resolve(binDir, 'dsh.CMD'), '@ECHO off\r\nnode "%~dp0\\..\\@deepseek-ai\\dsh\\bin.cjs" %*\r\n')
@@ -322,7 +323,7 @@ describe('local-first DSH resolution', () => {
     }
     const localProject: ResolvedDshxConfig = { ...project, manifest }
     await expect(resolveDshInstallation(localProject)).resolves.toMatchObject({
-      version: '0.1.0-rc.8',
+      version: '0.2.1-rc.2',
       executable: 'local',
       support: 'verified',
     })
@@ -333,11 +334,11 @@ describe('local-first DSH resolution', () => {
     const originalPath = process.env.PATH
     const binDir = await mkdtemp(resolve(tmpdir(), 'dshx-bin-'))
     temporaryDirectories.push(binDir)
-    await writeFile(resolve(binDir, 'dsh'), '#!/usr/bin/env node\nconsole.log("0.1.0-rc.8")\n')
+    await writeFile(resolve(binDir, 'dsh'), '#!/usr/bin/env node\nconsole.log("0.2.1-rc.2")\n')
     await chmod(resolve(binDir, 'dsh'), 0o755)
     process.env.PATH = `${binDir}:${originalPath ?? ''}`
     try {
-      await expect(resolveDshInstallation(project)).resolves.toMatchObject({ executable: 'global', version: '0.1.0-rc.8' })
+      await expect(resolveDshInstallation(project)).resolves.toMatchObject({ executable: 'global', version: '0.2.1-rc.2' })
     } finally {
       if (originalPath === undefined) delete process.env.PATH
       else process.env.PATH = originalPath

@@ -48,10 +48,10 @@ Final artifacts contain no import of a DSHX authoring/runtime-private module.
 
 - validates the matching `dsh.client.inject` provider package edge;
 - embeds the capability flag used by the Client adapter;
-- adds `connection` or `settingsScope` to the Cordis inject list;
+- adds `connection` or `configForms` to the Cordis inject list;
 - creates one contract-identity map scoped to the current Client Fiber.
 
-There is no marker-string scan, global API cache, global Settings scope, or stale HMR map.
+There is no marker-string scan, global API cache, global Config form binding, or stale HMR map.
 
 ## Vite extension boundary
 
@@ -61,7 +61,7 @@ User Vite plugins are standard `PluginOption[]`, not a DSHX plugin abstraction. 
 
 The experimental Conversation helper creates one official node definition plus one keyed chat renderer. The official assembler still executes matching, folding, projection scheduling, replay, ordering, pagination, location, HMR rebuild, and disposal. Host interaction uses the ordinary typed Connection API.
 
-The verified `protocol-1` persistence contract has no out-of-tree durable event-vocabulary registry. Conversation event keys therefore remain limited to the official `SessionEventMap`; TypeScript declaration merging alone does not authorize persistence.
+The verified `protocol-2` persistence contract (Session format 4) has no out-of-tree durable event-vocabulary registry. Conversation event keys therefore remain limited to the official `SessionEventMap`; TypeScript declaration merging alone does not authorize persistence.
 
 ## Compatibility and Inspect
 

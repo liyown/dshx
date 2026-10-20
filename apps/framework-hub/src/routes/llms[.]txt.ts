@@ -14,6 +14,7 @@ const llmsText = `# DSHX
 - [Compatibility](https://dshx.io/en/docs/compatibility)
 - [Publishing plugins](https://dshx.io/en/docs/publishing)
 - [Troubleshooting](https://dshx.io/en/docs/troubleshooting)
+- [Public operations log](https://dshx.io/en/operations)
 - [DSH plugin directory](https://dshx.io/en/plugins)
 - [Source repository](https://github.com/liyown/dshx)
 

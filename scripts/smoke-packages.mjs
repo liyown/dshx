@@ -67,6 +67,11 @@ async function pack(spec, destination) {
   for (const required of requiredFiles) {
     if (!files.has(required)) throw new Error(`${archive} is missing ${required}`)
   }
+  if (spec.bin === 'dshx-hub') {
+    for (const forbidden of ['package/dist/agent-prompt.md', 'package/dist/ops-prompt.json']) {
+      if (files.has(forbidden)) throw new Error(`${archive} must not contain the administrator-only prompt file ${forbidden}`)
+    }
+  }
   const targets = []
   const visitTarget = value => {
     if (typeof value === 'string') {

@@ -279,7 +279,6 @@ describe("system keyring adapter", () => {
     const result = await promisify(execFile)(
       process.execPath,
       [
-        "--experimental-transform-types",
         "--input-type=module",
         "-e",
         script,

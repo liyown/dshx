@@ -12,6 +12,7 @@ function project(): ResolvedDshxConfig {
     configDependencies: [],
     packageId: 'demo-plugin',
     name: 'demo-plugin',
+    settingsNamespace: 'demo',
     hostEntry: '/project/plugin/src/host.ts',
     outDir: '/project/plugin/dist',
     profile: 'web',

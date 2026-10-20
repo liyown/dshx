@@ -16,6 +16,28 @@ export const dailyOperationsPolicy = {
     fixedItemQuota: false,
     requiredBusinessSequence: false,
   },
+  discipline: {
+    // An effort floor before declaring that no useful work exists. This is not
+    // a publication quota and does not prescribe a business sequence.
+    minimumResearchBeforeZeroWork: {
+      distinctQueries: 3,
+      distinctProviders: 2,
+      candidatesInspected: 3,
+      reviewQueuedSubmissions: true,
+      reviewIncompleteEntries: true,
+      recordRejectedLeads: true,
+    },
+    identicalFailureRetryLimit: 2,
+    maxMinutesPerItemWithoutNewEvidence: 15,
+    requireWriteVerification: true,
+    requireReportBeforeFinish: true,
+  },
+  credentials: {
+    managedBy: "dshx-hub auth login",
+    tokenLifetimeDays: 180,
+    automaticRefresh: false,
+    tokenInPrompt: false,
+  },
   research: {
     sources: [
       "public web search",

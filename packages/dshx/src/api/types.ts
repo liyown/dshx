@@ -44,10 +44,19 @@ export type ApiClientOutput<M> = M extends ApiMethodDefinition<any, any, any, in
 export type ApiInput<M> = ApiClientInput<M>
 export type ApiOutput<M> = ApiClientOutput<M>
 
+/** Read-only identity of the connection Peer that invoked this method. */
+export interface ApiPeer {
+  readonly id: string
+  readonly principal: { readonly kind: string }
+  readonly signal: AbortSignal
+}
+
 export type ApiHandlerContext<I> = {
   readonly input: I
   readonly ctx: Context
   readonly signal: AbortSignal
+  /** The Peer admitted by DSH Connection for this request. */
+  readonly peer: ApiPeer
 }
 
 export type ApiHandler<I, O> = (context: ApiHandlerContext<I>) => O | Promise<O>
@@ -56,9 +65,11 @@ export type ApiHandlers<Methods extends Record<string, AnyApiMethodDefinition>> 
   readonly [K in keyof Methods]: ApiHandler<ApiHostInput<Methods[K]>, ApiHostOutput<Methods[K]>>
 }
 
-export type ApiHostOptions = {
-  readonly authority?: 'loopback' | 'trusted-host'
-}
+/**
+ * Connection 0.2 admits every RPC channel through its own Peer policy. Host
+ * registrations no longer choose a loopback/trusted-host authority.
+ */
+export type ApiHostOptions = Record<never, never>
 
 export interface ApiHostRegistration<
   Methods extends Record<string, AnyApiMethodDefinition> = Record<string, AnyApiMethodDefinition>,

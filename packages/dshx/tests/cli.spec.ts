@@ -15,6 +15,7 @@ function project(): ResolvedDshxConfig {
     configDependencies: [],
     packageId: '@test/plugin',
     name: '@test/plugin',
+    settingsNamespace: '-test-plugin',
     hostEntry: '/project/plugin/src/host.ts',
     clientEntry: '/project/plugin/src/client.tsx',
     outDir: '/project/plugin/dist',
@@ -25,8 +26,8 @@ function project(): ResolvedDshxConfig {
     manifest: {
       name: '@test/plugin',
       type: 'module',
-      devDependencies: { '@deepseek-ai/dsh': '0.1.0-rc.8' },
-      peerDependencies: { '@deepseek-ai/dsh': '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2' },
+      devDependencies: { '@deepseek-ai/dsh': '0.2.1-rc.2' },
+      peerDependencies: { '@deepseek-ai/dsh': '>=0.2.1-rc.2 <0.3.0-0' },
     },
   }
 }
@@ -68,22 +69,22 @@ function profile(projectValue: ResolvedDshxConfig): PreparedProjectProfile {
     link: 'existing',
     diagnostics: [],
     dsh: {
-      version: '0.1.0-rc.8',
-      adapterId: 'protocol-1',
-      protocolGeneration: 'protocol-1',
-      supportedRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
+      version: '0.2.1-rc.2',
+      adapterId: 'protocol-2',
+      protocolGeneration: 'protocol-2',
+      supportedRange: '>=0.2.1-rc.2 <0.3.0-0',
       support: 'verified',
       diagnostics: [],
       compatibility: {
-        id: 'protocol-1',
-        protocolGeneration: 'protocol-1',
+        id: 'protocol-2',
+        protocolGeneration: 'protocol-2',
         lifecycle: 'active',
-        version: '0.1.0-rc.8',
-        dshRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
-        verified: { minimum: '0.1.0-rc.8', latest: '0.1.0-rc.8' },
-        verifiedVersions: ['0.1.0-rc.8'],
+        version: '0.2.1-rc.2',
+        dshRange: '>=0.2.1-rc.2 <0.3.0-0',
+        verified: { minimum: '0.2.1-rc.2', latest: '0.2.1-rc.2' },
+        verifiedVersions: ['0.2.1-rc.2'],
         profile: { listCommand: 'plugin-list-json', addCommand: 'plugin-add' },
-        inspect: { targets: ['slots', 'tools'], provider: 'unavailable' },
+        inspect: { targets: ['tools', 'services', 'events', 'configs'], provider: 'runtime' },
         nodeRange: '^22.19.0 || >=24.0.0',
         client: { platformModules: [], preloadedExternals: [], manifest: { platform: 'web', moduleRequestsField: 'external', packageEdgesField: 'inject' } },
       },
@@ -92,6 +93,7 @@ function profile(projectValue: ResolvedDshxConfig): PreparedProjectProfile {
 }
 
 const offlineChecks = {
+  detectInstalledDsh: () => '0.2.1-rc.2',
   checkMigrations: async () => [],
   checkPackageTargets: async () => [],
   typecheckProject: async (root: string) => ({ status: 'passed' as const, configFile: `${root}/tsconfig.json`, diagnostics: [] }),
@@ -265,7 +267,7 @@ describe('CLI commands', () => {
       ...value,
       manifest: {
         ...value.manifest,
-        peerDependencies: { '@deepseek-ai/dsh': '>=0.1.0-rc.8 <0.3.0-0' },
+        peerDependencies: { '@deepseek-ai/dsh': '>=0.2.1-rc.2 <0.4.0-0' },
       },
     }
     const buildHost = vi.fn()
@@ -305,14 +307,14 @@ describe('CLI commands', () => {
       diagnostics: [{ code: 'DSHX4305', severity: 'error' }],
       compatibility: {
         dshxVersion: 'test-version',
-        declaredRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2',
-        installedVersion: '0.1.0-rc.8',
+        declaredRange: '>=0.2.1-rc.2 <0.3.0-0',
+        installedVersion: '0.2.1-rc.2',
         rangeStatus: 'single-generation',
         support: 'verified',
-        adapterId: 'protocol-1',
-        protocolGeneration: 'protocol-1',
+        adapterId: 'protocol-2',
+        protocolGeneration: 'protocol-2',
       },
-      dsh: { adapterId: 'protocol-1', protocolGeneration: 'protocol-1', supportedRange: '>=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2' },
+      dsh: { adapterId: 'protocol-2', protocolGeneration: 'protocol-2', supportedRange: '>=0.2.1-rc.2 <0.3.0-0' },
       bridge: { state: 'disabled', metadata: null },
     })
   })
@@ -322,12 +324,12 @@ describe('CLI commands', () => {
     const value = project()
     const narrow = {
       ...value,
-      manifest: { ...value.manifest, peerDependencies: { '@deepseek-ai/dsh': '0.1.0-rc.8' } },
+      manifest: { ...value.manifest, peerDependencies: { '@deepseek-ai/dsh': '0.2.1-rc.2' } },
     }
     const installed = {
       ...profile(value).dsh,
-      version: '0.1.1-rc.2',
-      support: 'verified' as const,
+      version: '0.2.2',
+      support: 'compatible' as const,
     }
     const code = await runCli(['check', '--runtime', '--json'], {
       io: streams,
@@ -349,7 +351,7 @@ describe('CLI commands', () => {
       compatibility: Record<string, unknown>
     }
     expect(output.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'DSHX5108', severity: 'error' })]))
-    expect(output.compatibility).toMatchObject({ installedVersion: '0.1.1-rc.2', installedWithinDeclaredRange: false })
+    expect(output.compatibility).toMatchObject({ installedVersion: '0.2.2', installedWithinDeclaredRange: false })
   })
 
   it('supports check --fix dry-run with a machine-readable repair summary', async () => {
@@ -532,6 +534,7 @@ describe('CLI commands', () => {
       io: streams,
       version: 'test-version',
       runtime: {
+        detectInstalledDsh: () => '0.2.1-rc.2',
         resolveConfig: async () => value,
         checkManifest: async () => [],
         ensureProfile: async () => prepared,
@@ -548,8 +551,8 @@ describe('CLI commands', () => {
     streams.err.end()
     const output = await text(streams.out)
     expect(output).toContain('DSHX: test-version')
-    expect(output).toContain('Installed DSH: 0.1.0-rc.8 (verified)')
-    expect(output).toContain('Plugin peer range: >=0.1.0-rc.8 <0.2.0-0 || 0.1.1-rc.2')
+    expect(output).toContain('Installed DSH: 0.2.1-rc.2 (verified)')
+    expect(output).toContain('Plugin peer range: >=0.2.1-rc.2 <0.3.0-0')
   })
 
   it('pauses TTY stdin after Ctrl+C so the dev command can exit cleanly', async () => {
@@ -567,6 +570,7 @@ describe('CLI commands', () => {
     const codePromise = runCli(['dev'], {
       io: streams,
       runtime: {
+        detectInstalledDsh: () => '0.2.1-rc.2',
         resolveConfig: async () => value,
         checkManifest: async () => [],
         ensureProfile: async () => profile(value),
