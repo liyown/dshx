@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 const llmsText = `# DSHX
 
-> DSHX is the build-time TypeScript, React, and Vite toolchain for creating DeepSeek Harness plugins. It does not replace the official DSH/Cordis runtime; the framework builds plugins, while DSHX Hub helps people discover verified plugin metadata.
+> DSHX is the build-time TypeScript, React, and Vite toolchain for creating DeepSeek Harness plugins. It does not replace the official DeepSeek Harness/Cordis runtime; the framework builds plugins, while DSHX Hub helps people discover verified plugin metadata.
 
 ## Primary documentation
 
@@ -15,7 +15,9 @@ const llmsText = `# DSHX
 - [Publishing plugins](https://dshx.io/en/docs/publishing)
 - [Troubleshooting](https://dshx.io/en/docs/troubleshooting)
 - [Public operations log](https://dshx.io/en/operations)
-- [DSH plugin directory](https://dshx.io/en/plugins)
+- [DeepSeek Harness plugin directory](https://dshx.io/en/plugins)
+- [Featured DeepSeek Harness plugins](https://dshx.io/en/featured)
+- [DSHX blog](https://dshx.io/en/blog)
 - [Source repository](https://github.com/liyown/dshx)
 
 ## Language versions

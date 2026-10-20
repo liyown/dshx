@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { BlogContent } from "@/lib/blog.contracts";
 import type { ChangelogContent } from "@/lib/changelog.contracts";
 import {
   check,
@@ -36,6 +37,30 @@ export const changelogEntries = sqliteTable(
     check("changelog_channel_check", sql`${table.channel} in ('preview','release')`),
     check("changelog_revision_check", sql`${table.revision} > 0`),
     check("changelog_content_check", sql`json_valid(${table.contentJson})`),
+  ],
+);
+
+export const blogPosts = sqliteTable(
+  "blog_posts",
+  {
+    id: text("id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    status: text("status", { enum: ["draft", "published"] })
+      .notNull()
+      .default("draft"),
+    publishedAt: text("published_at").notNull(),
+    coverImageUrl: text("cover_image_url"),
+    contentJson: text("content_json", { mode: "json" }).$type<BlogContent>().notNull(),
+    revision: integer("revision").notNull().default(1),
+    updatedByTokenId: text("updated_by_token_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (table) => [
+    index("blog_publication_idx").on(table.status, table.publishedAt, table.slug),
+    check("blog_status_check", sql`${table.status} in ('draft','published')`),
+    check("blog_revision_check", sql`${table.revision} > 0`),
+    check("blog_content_check", sql`json_valid(${table.contentJson})`),
   ],
 );
 
@@ -479,6 +504,46 @@ export const pluginCategories = sqliteTable(
   (table) => [
     primaryKey({ columns: [table.pluginId, table.categoryId] }),
     index("plugin_categories_category_idx").on(table.categoryId, table.isPrimary),
+  ],
+);
+
+export const blogPostPlugins = sqliteTable(
+  "blog_post_plugins",
+  {
+    blogPostId: text("blog_post_id")
+      .notNull()
+      .references(() => blogPosts.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id")
+      .notNull()
+      .references(() => plugins.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.blogPostId, table.pluginId] }),
+    index("blog_post_plugins_plugin_idx").on(table.pluginId),
+  ],
+);
+
+/**
+ * Editorial shelves for /featured. Curated rows are intentionally separate
+ * from the derived `plugins.featured` quality flag.
+ */
+export const featuredPluginPicks = sqliteTable(
+  "featured_plugin_picks",
+  {
+    categoryId: text("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id")
+      .notNull()
+      .references(() => plugins.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (table) => [
+    primaryKey({ columns: [table.categoryId, table.pluginId] }),
+    index("featured_plugin_picks_order_idx").on(table.categoryId, table.sortOrder),
   ],
 );
 

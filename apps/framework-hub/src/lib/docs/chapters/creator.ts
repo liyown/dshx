@@ -86,7 +86,7 @@ export const creator = defineDocsChapter({
               items: [
                 "check runs the offline project and TypeScript checks.",
                 "build runs type checking and emits Host, Client, sourcemaps, and declarations.",
-                "dev runs dshx dev --open and opens the real DSH build-watch loop.",
+                "dev runs dshx dev --open and opens the real DeepSeek Harness build-watch loop.",
                 "prepack uses npm run check && npm run build so every selected package manager can invoke it.",
                 "Starter registers typed zh/en dictionaries without LocaleNamespaceMap declaration merging and includes the official Locale provider edge.",
                 "The six template/style combinations contain no workspace:* specifiers and declare only the selected official provider edges.",
@@ -185,7 +185,7 @@ export const creator = defineDocsChapter({
               items: [
                 "check 运行离线项目检查和 TypeScript 检查。",
                 "build 先检查类型，再输出 Host、Client、sourcemap 和 declaration。",
-                "dev 通过 dshx dev --open 启动真实 DSH build-watch 循环。",
+                "dev 通过 dshx dev --open 启动真实 DeepSeek Harness build-watch 循环。",
                 "prepack 使用 npm run check && npm run build，因此所有已选择的包管理器都能调用。",
                 "Starter 无需 LocaleNamespaceMap declaration merging 即可注册类型化 zh/en 词典，并包含官方 Locale Provider edge。",
                 "六种 template/style 组合都不含 workspace:* specifier，且只声明选中的官方 Provider edge。",

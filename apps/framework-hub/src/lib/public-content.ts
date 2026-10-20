@@ -2,7 +2,7 @@ export const aboutCopy = {
   en: {
     title: "About DSHX",
     description:
-      "DSHX is an open-source, build-time TypeScript, React, and Vite toolchain for DeepSeek Harness plugins. Official DSH and Cordis services retain runtime ownership.",
+      "DSHX is an open-source, build-time TypeScript, React, and Vite toolchain for DeepSeek Harness plugins. Official DeepSeek Harness and Cordis services retain runtime ownership.",
     eyebrow: "Open-source framework",
     boundary: "Framework boundary",
     boundaryBody:
@@ -21,7 +21,7 @@ export const aboutCopy = {
   zh: {
     title: "关于 DSHX",
     description:
-      "DSHX 是面向 DeepSeek Harness 插件的开源构建期 TypeScript、React 与 Vite 工具链；Runtime 仍由官方 DSH 与 Cordis 服务负责。",
+      "DSHX 是面向 DeepSeek Harness 插件的开源构建期 TypeScript、React 与 Vite 工具链；Runtime 仍由官方 DeepSeek Harness 与 Cordis 服务负责。",
     eyebrow: "开源框架",
     boundary: "框架边界",
     boundaryBody:
@@ -133,7 +133,7 @@ export const legalDocuments = {
   terms: {
     en: {
       title: "Marketplace terms",
-      intro: "Rules for publishing, using and discussing DSH plugins.",
+      intro: "Rules for publishing, using and discussing DeepSeek Harness plugins.",
       sections: [
         [
           "Verified is not endorsed",
@@ -151,7 +151,7 @@ export const legalDocuments = {
     },
     zh: {
       title: "市场条款",
-      intro: "发布、使用和讨论 DSH 插件时应遵守的规则。",
+      intro: "发布、使用和讨论 DeepSeek Harness 插件时应遵守的规则。",
       sections: [
         [
           "验证不等于背书",

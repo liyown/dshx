@@ -1,7 +1,7 @@
 import { DOC_SLUGS } from "@/lib/docs";
 
 export type SitemapEntryKind =
-  "static" | "document" | "changelog" | "plugin" | "category" | "publisher";
+  "static" | "document" | "changelog" | "blog" | "plugin" | "category" | "publisher";
 
 export type SitemapEntry = {
   readonly loc: string;
@@ -45,7 +45,17 @@ function normalizedSiteUrl(siteUrl: string): string {
 
 function staticEntries(site: string): SitemapEntry[] {
   return (["en", "zh"] as const).flatMap((locale) => {
-    const basePaths = ["", "/plugins", "/operations", "/docs", "/examples", "/about", "/changelog"];
+    const basePaths = [
+      "",
+      "/plugins",
+      "/featured",
+      "/operations",
+      "/docs",
+      "/examples",
+      "/about",
+      "/blog",
+      "/changelog",
+    ];
     const legalPaths = ["privacy", "terms", "community"].map((document) => `/legal/${document}`);
     return [
       ...basePaths.map((path) => ({
@@ -71,11 +81,13 @@ function dynamicEntry(site: string, row: SitemapDatabaseRow): SitemapEntry {
   const prefix =
     row.kind === "changelog"
       ? "changelog"
-      : row.kind === "plugin"
-        ? "plugins"
-        : row.kind === "category"
-          ? "categories"
-          : "publishers";
+      : row.kind === "blog"
+        ? "blog"
+        : row.kind === "plugin"
+          ? "plugins"
+          : row.kind === "category"
+            ? "categories"
+            : "publishers";
   const updatedAt = row.updated_at == null ? null : new Date(row.updated_at);
   const lastmod =
     updatedAt &&

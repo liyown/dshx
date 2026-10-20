@@ -170,7 +170,7 @@ export const conversation = defineDocsChapter({
             {
               kind: "list",
               items: [
-                "DSH owns matching, replay, ordering, folding, publication, pagination, location, HMR cleanup, reconnect, and disposal.",
+                "DeepSeek Harness owns matching, replay, ordering, folding, publication, pagination, location, HMR cleanup, reconnect, and disposal.",
                 "Renderer components may call useApi, useApiQuery, and useSettings. Host interaction uses an ordinary typed API.",
                 "Only official SessionEventMap events and the chat target are supported.",
                 "DSHX does not add durable events, an event bus, an emit shortcut, or a Conversation-specific Host channel.",
@@ -310,7 +310,7 @@ export const conversation = defineDocsChapter({
             {
               kind: "list",
               items: [
-                "matching、replay、ordering、folding、publication、pagination、location、HMR 清理、重连与 dispose 由 DSH 管理。",
+                "matching、replay、ordering、folding、publication、pagination、location、HMR 清理、重连与 dispose 由 DeepSeek Harness 管理。",
                 "Renderer Component 可以使用 useApi、useApiQuery 和 useSettings；Host 交互使用普通类型化 API。",
                 "只支持官方 SessionEventMap event 和 chat target。",
                 "DSHX 不增加 durable event、event bus、emit shortcut 或 Conversation 专用 Host channel。",

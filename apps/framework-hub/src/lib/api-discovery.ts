@@ -31,7 +31,7 @@ export type ApiCatalogDocument = {
 };
 
 const TAG_DESCRIPTIONS: Readonly<Record<ApiOperationTag, string>> = {
-  Catalog: "Read-only public DSH plugin discovery.",
+  Catalog: "Read-only public DeepSeek Harness plugin discovery.",
   Operations:
     "Atomic catalog maintenance operations. All endpoints except status require a bearer token with catalog:write scope.",
   "CLI authorization": "Browser-assisted authorization and token lifecycle for the DSHX Hub CLI.",
@@ -176,7 +176,7 @@ export function buildOpenApiDocument(origin: string) {
       title: "DSHX Hub API",
       version: "1.0.0",
       description:
-        "Public discovery endpoints for the DSH plugin catalog and authenticated atomic operations used by the DSHX Hub CLI.",
+        "Public discovery endpoints for the DeepSeek Harness plugin catalog and authenticated atomic operations used by the DSHX Hub CLI.",
       license: { name: "MIT", identifier: "MIT" },
     },
     servers: [{ url: serverUrl }],
@@ -279,6 +279,8 @@ ${operationSection(
 - OpenAPI 3.1: ${site}/openapi.json
 - Authentication: ${site}/auth.md
 - Human plugin directory: ${site}/en/plugins
+- Featured DeepSeek Harness plugins: ${site}/en/featured
+- DSHX blog: ${site}/en/blog
 - Public operations log: ${site}/en/operations
 - Source operations contract: https://github.com/liyown/dshx/blob/main/apps/framework-hub/OPERATIONS.md
 `;

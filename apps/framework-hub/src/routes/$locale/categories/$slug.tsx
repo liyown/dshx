@@ -11,16 +11,18 @@ const categoryCopy = {
   en: {
     label: "Verified registry",
     description:
-      "Verified DSH bundles in a Hub-managed category. The Hub uses GitHub topics only as source evidence for its public categories.",
+      "Verified DeepSeek Harness bundles in a Hub-managed category. The Hub uses GitHub topics only as source evidence for its public categories.",
     title: (name: string) => `${name} plugins | DSHX Hub`,
     meta: (name: string) =>
-      `Verified DSH plugins in ${name}, with compatibility, version and maintainer information.`,
+      `Verified DeepSeek Harness plugins in ${name}, with compatibility, version and maintainer information.`,
   },
   zh: {
     label: "已验证目录",
-    description: "Hub 管理的分类中已通过验证的 DSH Bundle。GitHub Topic 仅作为公开分类的来源依据。",
+    description:
+      "Hub 管理的分类中已通过验证的 DeepSeek Harness Bundle。GitHub Topic 仅作为公开分类的来源依据。",
     title: (name: string) => `${name} 插件 | DSHX Hub`,
-    meta: (name: string) => `查看 ${name} 分类中已验证的 DSH 插件、兼容性、版本与维护者信息。`,
+    meta: (name: string) =>
+      `查看 ${name} 分类中已验证的 DeepSeek Harness 插件、兼容性、版本与维护者信息。`,
   },
 } as const;
 

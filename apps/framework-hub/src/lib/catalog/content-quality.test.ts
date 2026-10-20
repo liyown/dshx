@@ -51,9 +51,7 @@ describe("catalog content quality", () => {
       ),
     ).toBe(true);
     expect(
-      isLowInformationCatalogCopy(
-        "为 DSH Web 增加 Git 面板，可暂存、提交、推送并切换分支。",
-      ),
+      isLowInformationCatalogCopy("为 DSH Web 增加 Git 面板，可暂存、提交、推送并切换分支。"),
     ).toBe(false);
   });
 });

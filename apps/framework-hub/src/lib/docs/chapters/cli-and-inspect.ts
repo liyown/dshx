@@ -128,7 +128,7 @@ export const cliAndInspect = defineDocsChapter({
               items: [
                 "The final Client factory contains the single CSS result; registering the script alone does not inject it.",
                 "Materialization creates one style element with data-plugin and data-plugin-css ownership attributes.",
-                "Official DSH HMR removes the previous plugin-owned style before materializing the replacement.",
+                "Official DeepSeek Harness HMR removes the previous plugin-owned style before materializing the replacement.",
                 "A final build may contain one JavaScript file, one sourcemap, and no standalone CSS, assets, chunks, workers, or WASM.",
               ],
             },
@@ -143,7 +143,7 @@ export const cliAndInspect = defineDocsChapter({
               kind: "list",
               items: [
                 "Install tailwindcss@^4.3.3 and @tailwindcss/vite@^4.3.3 in the plugin project, then add tailwindcss() to client.vite.plugins.",
-                "Omit Preflight so a plugin cannot reset the shared DSH page DOM.",
+                "Omit Preflight so a plugin cannot reset the shared DeepSeek Harness page DOM.",
                 "Use the dshx: prefix for utilities and generated theme variables.",
                 "Write complete static class names so Tailwind content detection can find them.",
                 "Tailwind is optional and is not a DSHX peer dependency or Core wrapper.",
@@ -161,12 +161,12 @@ export const cliAndInspect = defineDocsChapter({
                 {
                   name: "dshx check",
                   type: "offline",
-                  body: "Checks config, manifest, dependency/provider edges, protocol compatibility, migration diagnostics, and TypeScript noEmit without requiring a Profile or running DSH.",
+                  body: "Checks config, manifest, dependency/provider edges, protocol compatibility, migration diagnostics, and TypeScript noEmit without requiring a Profile or running DeepSeek Harness.",
                 },
                 {
                   name: "dshx check --runtime",
                   type: "runtime readiness",
-                  body: "Additionally checks the Profile, Composition, bridge, and current DSH runtime.",
+                  body: "Additionally checks the Profile, Composition, bridge, and current DeepSeek Harness runtime.",
                 },
                 {
                   name: "dshx build",
@@ -181,13 +181,13 @@ export const cliAndInspect = defineDocsChapter({
                 {
                   name: "dshx dev --port <0-65535>",
                   type: "Web port",
-                  body: "Passes a validated DSH Web port to the development session. Zero asks the OS for an available loopback port and remains stable for that session.",
+                  body: "Passes a validated DeepSeek Harness Web port to the development session. Zero asks the OS for an available loopback port and remains stable for that session.",
                 },
               ],
             },
             {
               kind: "note",
-              text: "JSON check output separates static, typecheck, and runtime status. Report --runtime or a real DSH load separately from the offline result.",
+              text: "JSON check output separates static, typecheck, and runtime status. Report --runtime or a real DeepSeek Harness load separately from the offline result.",
             },
           ],
         },
@@ -197,7 +197,7 @@ export const cliAndInspect = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "Reads the active DSH Composition through the selected protocol adapter. It is a live runtime inspection command, not an offline catalog; run it only after runtime readiness succeeds.",
+              text: "Reads the active DeepSeek Harness Composition through the selected protocol adapter. It is a live runtime inspection command, not an offline catalog; run it only after runtime readiness succeeds.",
             },
           ],
         },
@@ -312,7 +312,7 @@ export const cliAndInspect = defineDocsChapter({
               items: [
                 "最终 Client factory 包含唯一 CSS 结果；仅注册脚本不提前注入样式。",
                 "Materialization 创建带 data-plugin 和 data-plugin-css 所有权属性的唯一 style。",
-                "官方 DSH HMR 在 materialize 新版本前删除上一个插件所有的 style。",
+                "官方 DeepSeek Harness HMR 在 materialize 新版本前删除上一个插件所有的 style。",
                 "最终只允许一个 JavaScript、一个 sourcemap，且不得存在独立 CSS、asset、chunk、worker 或 WASM。",
               ],
             },
@@ -327,7 +327,7 @@ export const cliAndInspect = defineDocsChapter({
               kind: "list",
               items: [
                 "在插件项目安装 tailwindcss@^4.3.3 和 @tailwindcss/vite@^4.3.3，并把 tailwindcss() 加到 client.vite.plugins。",
-                "省略 Preflight，避免插件重置 DSH 共享页面 DOM。",
+                "省略 Preflight，避免插件重置 DeepSeek Harness 共享页面 DOM。",
                 "utility 和生成 theme variable 使用 dshx: 前缀。",
                 "只写可静态扫描的完整 class name。",
                 "Tailwind 是可选项，不是 DSHX peer dependency 或 Core wrapper。",
@@ -345,12 +345,12 @@ export const cliAndInspect = defineDocsChapter({
                 {
                   name: "dshx check",
                   type: "离线",
-                  body: "检查 config、manifest、dependency/provider edge、protocol 兼容、迁移诊断和 TypeScript noEmit，不需要 Profile 或运行中 DSH。",
+                  body: "检查 config、manifest、dependency/provider edge、protocol 兼容、迁移诊断和 TypeScript noEmit，不需要 Profile 或运行中 DeepSeek Harness。",
                 },
                 {
                   name: "dshx check --runtime",
                   type: "Runtime readiness",
-                  body: "额外检查 Profile、Composition、bridge 和当前 DSH Runtime。",
+                  body: "额外检查 Profile、Composition、bridge 和当前 DeepSeek Harness Runtime。",
                 },
                 {
                   name: "dshx build",
@@ -365,13 +365,13 @@ export const cliAndInspect = defineDocsChapter({
                 {
                   name: "dshx dev --port <0-65535>",
                   type: "Web 端口",
-                  body: "向开发会话传入已验证的 DSH Web 端口；0 让操作系统分配可用 loopback 端口，并在本次会话内保持稳定。",
+                  body: "向开发会话传入已验证的 DeepSeek Harness Web 端口；0 让操作系统分配可用 loopback 端口，并在本次会话内保持稳定。",
                 },
               ],
             },
             {
               kind: "note",
-              text: "JSON check 输出分别提供 static、typecheck 和 runtime 状态。--runtime 或真实 DSH 加载必须与离线结果分开报告。",
+              text: "JSON check 输出分别提供 static、typecheck 和 runtime 状态。--runtime 或真实 DeepSeek Harness 加载必须与离线结果分开报告。",
             },
           ],
         },
@@ -381,7 +381,7 @@ export const cliAndInspect = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "通过选中的 protocol adapter 读取当前 DSH Composition。它是真实 Runtime 检查而不是离线 catalog；只在 Runtime readiness 成功后运行。",
+              text: "通过选中的 protocol adapter 读取当前 DeepSeek Harness Composition。它是真实 Runtime 检查而不是离线 catalog；只在 Runtime readiness 成功后运行。",
             },
           ],
         },

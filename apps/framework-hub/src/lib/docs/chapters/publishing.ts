@@ -15,9 +15,9 @@ export const publishing = defineDocsChapter({
     en: {
       navigation: "Publishing",
       eyebrow: "Release and catalog",
-      title: "Publish a DSH plugin",
+      title: "Publish a DeepSeek Harness plugin",
       intro:
-        "A publishable DSH plugin needs explicit runtime compatibility, one reproducible installation target, a public source repository, and enough evidence for developers to evaluate it before installation.",
+        "A publishable DeepSeek Harness plugin needs explicit runtime compatibility, one reproducible installation target, a public source repository, and enough evidence for developers to evaluate it before installation.",
       description:
         "Prepare, release, and submit a DeepSeek Harness plugin with explicit compatibility, provenance, and an exact installation target.",
       sections: [
@@ -29,7 +29,7 @@ export const publishing = defineDocsChapter({
             {
               kind: "list",
               items: [
-                "Declare the public DSH support range in peerDependencies and keep one concrete DSH version in devDependencies.",
+                "Declare the public DeepSeek Harness support range in peerDependencies and keep one concrete DeepSeek Harness version in devDependencies.",
                 "Publish a README that explains purpose, permissions, configuration, installation, compatibility, known limits, and license.",
                 "Keep repository, package name, version, license, and issue URL consistent between npm and GitHub.",
                 "Run pnpm check and pnpm build before creating a release.",
@@ -37,7 +37,7 @@ export const publishing = defineDocsChapter({
             },
             {
               kind: "note",
-              text: "Verified for @becomeopc/dshx 0.2.0-preview.0 on the protocol-2 DSH boundary 0.2.1-rc.2 (source tag dsh-v0.2.1-rc.2). Re-check the compatibility page before publishing a later Preview.",
+              text: "Verified for @becomeopc/dshx 0.2.0-preview.0 on the protocol-2 DeepSeek Harness boundary 0.2.1-rc.2 (source tag dsh-v0.2.1-rc.2). Re-check the compatibility page before publishing a later Preview.",
             },
           ],
         },
@@ -77,9 +77,9 @@ export const publishing = defineDocsChapter({
     zh: {
       navigation: "发布插件",
       eyebrow: "发布与收录",
-      title: "发布 DSH 插件",
+      title: "发布 DeepSeek Harness 插件",
       intro:
-        "可发布的 DSH 插件需要明确 Runtime 兼容范围、一个可复现的安装目标、公开源码仓库，以及足以让开发者在安装前判断风险的证据。",
+        "可发布的 DeepSeek Harness 插件需要明确 Runtime 兼容范围、一个可复现的安装目标、公开源码仓库，以及足以让开发者在安装前判断风险的证据。",
       description: "以明确兼容性、来源证据和精确安装目标准备、发布并提交 DeepSeek Harness 插件。",
       sections: [
         {
@@ -90,7 +90,7 @@ export const publishing = defineDocsChapter({
             {
               kind: "list",
               items: [
-                "在 peerDependencies 声明公开 DSH 支持范围，在 devDependencies 保留一个具体开发版本。",
+                "在 peerDependencies 声明公开 DeepSeek Harness 支持范围，在 devDependencies 保留一个具体开发版本。",
                 "README 需要说明用途、权限、配置、安装、兼容性、已知限制和许可证。",
                 "确保 npm 与 GitHub 的仓库、包名、版本、许可证和 Issue 地址一致。",
                 "创建 Release 前运行 pnpm check 与 pnpm build。",
@@ -98,7 +98,7 @@ export const publishing = defineDocsChapter({
             },
             {
               kind: "note",
-              text: "本文已按 @becomeopc/dshx 0.2.0-preview.0，以及 protocol-2 的 DSH 0.2.1-rc.2（源码 tag dsh-v0.2.1-rc.2）边界验证；发布后续 Preview 前请重新检查兼容性页面。",
+              text: "本文已按 @becomeopc/dshx 0.2.0-preview.0，以及 protocol-2 的 DeepSeek Harness 0.2.1-rc.2（源码 tag dsh-v0.2.1-rc.2）边界验证；发布后续 Preview 前请重新检查兼容性页面。",
             },
           ],
         },

@@ -634,6 +634,63 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
   };
 }
 
+/**
+ * Resolves a curated list of plugin slugs to the same cards the catalog uses,
+ * preserving the caller's order and dropping anything no longer publishable.
+ * Editorial surfaces must never promote archived or suspended plugins.
+ */
+export async function listCatalogCardsBySlugs(
+  db: Database,
+  slugs: readonly string[],
+  locale: "en" | "zh",
+): Promise<CatalogCard[]> {
+  const unique = [...new Set(slugs)];
+  if (unique.length === 0) return [];
+  const now = Date.now();
+  const qualityScore = catalogQualityScore(now);
+  // D1 caps bound parameters per statement; large curated surfaces are
+  // resolved in bounded chunks without changing the caller's order.
+  const chunks: string[][] = [];
+  for (let index = 0; index < unique.length; index += 50)
+    chunks.push(unique.slice(index, index + 50));
+  const rowGroups = await Promise.all(
+    chunks.map((chunk) => {
+      const values = sql.join(
+        chunk.map((slug) => sql`${slug}`),
+        sql`, `,
+      );
+      return db.all<ListRow>(sql`
+        select p.id, p.slug, p.package_name,
+          coalesce(case when requested.translation_status = 'ready' then requested.display_name end,
+                   case when fallback.translation_status = 'ready' then fallback.display_name end, p.name) as name,
+          coalesce(case when requested.translation_status = 'ready' then requested.short_description end,
+                   case when fallback.translation_status = 'ready' then fallback.short_description end, p.description) as description,
+          p.author_handle, p.latest_version, p.compatibility_range, p.category, p.badge, p.featured,
+          ${latestPublishedAt} latest_published_at, p.updated_at,
+          m.github_stars, m.npm_downloads_week, m.trend_score_7d, m.review_count, m.rating_sum,
+          ${qualityScore} quality_score,
+          pub.login publisher_login, pub.avatar_url publisher_avatar_url,
+          (select pm.id from plugin_media pm
+           where pm.plugin_id=p.id and pm.kind='icon' and pm.status='active'
+           order by pm.sort_order,pm.created_at limit 1) icon_media_id
+        from plugins p
+        left join publishers pub on pub.id = p.publisher_id
+        left join plugin_localizations requested on requested.plugin_id = p.id and requested.locale = ${locale}
+        left join plugin_localizations fallback on fallback.plugin_id = p.id and fallback.locale = case when ${locale} = 'en' then 'zh' else 'en' end
+        left join plugin_metrics_current m on m.plugin_id = p.id
+        where p.slug in (${values})
+          and p.status = 'published'
+          and p.lifecycle_status in ('active', 'unmaintained')
+      `);
+    }),
+  );
+  const cards = new Map(rowGroups.flat().map((row) => [row.slug, toCard(row)]));
+  return unique.flatMap((slug) => {
+    const card = cards.get(slug);
+    return card ? [card] : [];
+  });
+}
+
 export async function listCatalogCategories(db: Database, locale: "en" | "zh") {
   return db.all<{ slug: string; name: string }>(sql`
     select c.slug, coalesce(cl.name, c.slug) as name from categories c

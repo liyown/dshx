@@ -11,7 +11,7 @@ describe("MCP Server Card", () => {
       protocolVersion: "2025-06-18",
       serverInfo: { name: "dshx-hub", version: "1.0.0" },
       description:
-        "Read-only discovery for installable DSH plugins and verified DSHX framework documentation.",
+        "Read-only discovery for installable DeepSeek Harness plugins and verified DSHX framework documentation.",
       transport: {
         type: "streamable-http",
         endpoint: "https://dshx.io/mcp",

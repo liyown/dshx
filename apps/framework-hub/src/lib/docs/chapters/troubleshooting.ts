@@ -20,7 +20,7 @@ export const troubleshooting = defineDocsChapter({
       eyebrow: "Diagnostics",
       title: "Troubleshoot DSHX",
       intro:
-        "Start with the offline check, then add runtime validation only when the failure depends on a linked DSH Profile, Composition, bridge, Slot, service, or event.",
+        "Start with the offline check, then add runtime validation only when the failure depends on a linked DeepSeek Harness Profile, Composition, bridge, Slot, service, or event.",
       description:
         "Diagnose DSHX build, Client HMR, Host restart, Profile, Composition, compatibility, and installation failures.",
       sections: [
@@ -40,7 +40,7 @@ export const troubleshooting = defineDocsChapter({
             },
             {
               kind: "note",
-              text: "Verified for @becomeopc/dshx 0.2.0-preview.0 on the protocol-2 DSH boundary 0.2.1-rc.2 (source tag dsh-v0.2.1-rc.2). Plain check is read-only and offline. Use --runtime only after package-level checks pass and a supported DSH Composition is running.",
+              text: "Verified for @becomeopc/dshx 0.2.0-preview.0 on the protocol-2 DeepSeek Harness boundary 0.2.1-rc.2 (source tag dsh-v0.2.1-rc.2). Plain check is read-only and offline. Use --runtime only after package-level checks pass and a supported DeepSeek Harness Composition is running.",
             },
           ],
         },
@@ -67,7 +67,7 @@ export const troubleshooting = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "Verify the linked Profile, active Composition, DSH version, bridge readiness, and plugin manifest. DSHX can diagnose these boundaries but does not replace the official runtime that owns restart and disposal.",
+              text: "Verify the linked Profile, active Composition, DeepSeek Harness version, bridge readiness, and plugin manifest. DSHX can diagnose these boundaries but does not replace the official runtime that owns restart and disposal.",
             },
           ],
         },
@@ -89,7 +89,7 @@ export const troubleshooting = defineDocsChapter({
       eyebrow: "诊断",
       title: "排查 DSHX 问题",
       intro:
-        "先运行离线检查；只有当问题依赖关联的 DSH Profile、Composition、Bridge、Slot、Service 或 Event 时，再加入 Runtime 校验。",
+        "先运行离线检查；只有当问题依赖关联的 DeepSeek Harness Profile、Composition、Bridge、Slot、Service 或 Event 时，再加入 Runtime 校验。",
       description:
         "诊断 DSHX 构建、Client HMR、Host 重启、Profile、Composition、兼容性与安装错误。",
       sections: [
@@ -109,7 +109,7 @@ export const troubleshooting = defineDocsChapter({
             },
             {
               kind: "note",
-              text: "本文已按 @becomeopc/dshx 0.2.0-preview.0，以及 protocol-2 的 DSH 0.2.1-rc.2（源码 tag dsh-v0.2.1-rc.2）边界验证。普通 check 只读且离线；包级检查通过并启动受支持的 DSH Composition 后，再使用 --runtime。",
+              text: "本文已按 @becomeopc/dshx 0.2.0-preview.0，以及 protocol-2 的 DeepSeek Harness 0.2.1-rc.2（源码 tag dsh-v0.2.1-rc.2）边界验证。普通 check 只读且离线；包级检查通过并启动受支持的 DeepSeek Harness Composition 后，再使用 --runtime。",
             },
           ],
         },
@@ -136,7 +136,7 @@ export const troubleshooting = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "检查关联 Profile、活动 Composition、DSH 版本、Bridge 就绪状态和插件 Manifest。DSHX 可以诊断这些边界，但不会替代负责 Restart 与 Dispose 的官方 Runtime。",
+              text: "检查关联 Profile、活动 Composition、DeepSeek Harness 版本、Bridge 就绪状态和插件 Manifest。DSHX 可以诊断这些边界，但不会替代负责 Restart 与 Dispose 的官方 Runtime。",
             },
           ],
         },

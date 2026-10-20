@@ -1,9 +1,9 @@
 {
-  "promptVersion": 8,
+  "promptVersion": 9,
   "cliVersion": "0.1.3-preview.0",
   "cliChannel": "preview",
   "capabilitiesHash": "7ac87b072fe0220b7e55ef7a5f92992c5471ab7922e5ebf82941434314291512",
-  "contentSha256": "2e5f43e555ffff64be4156feb622f725bafa92107e502c5ab1774c79be0de564",
+  "contentSha256": "108646f6bdc465de6df73d0d8f7ac34316360851996c25d9ca8958e6f7c2a37e",
   "sourceUrl": "https://dshx.io/admin/agent-prompt",
   "npxCommand": "npx --yes --package @becomeopc/dshx-hub-cli@0.1.3-preview.0 dshx-hub"
 }

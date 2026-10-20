@@ -24,7 +24,7 @@ export function buildMcpServerCard(origin: string) {
     protocolVersion: MCP_PROTOCOL_VERSION,
     serverInfo: MCP_SERVER_INFO,
     description:
-      "Read-only discovery for installable DSH plugins and verified DSHX framework documentation.",
+      "Read-only discovery for installable DeepSeek Harness plugins and verified DSHX framework documentation.",
     transport: {
       type: "streamable-http",
       endpoint: `${site}/mcp`,

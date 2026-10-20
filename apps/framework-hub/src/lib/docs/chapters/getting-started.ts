@@ -19,9 +19,9 @@ export const gettingStarted = defineDocsChapter({
       eyebrow: "01 · Start",
       title: "Create and run a plugin",
       intro:
-        "Generate a complete Host and Client project, then let DSHX coordinate the official DSH build, link, and development loop.",
+        "Generate a complete Host and Client project, then let DSHX coordinate the official DeepSeek Harness build, link, and development loop.",
       description:
-        "Install DSHX, create a plugin, understand its files, and run the DSH development loop.",
+        "Install DSHX, create a plugin, understand its files, and run the DeepSeek Harness development loop.",
       sections: [
         {
           id: "create",
@@ -29,7 +29,7 @@ export const gettingStarted = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "The initializer pins a matching DSHX release, declares the supported DSH protocol range, installs dependencies, and never overwrites an existing directory.",
+              text: "The initializer pins a matching DSHX release, declares the supported DeepSeek Harness protocol range, installs dependencies, and never overwrites an existing directory.",
             },
             {
               kind: "terminal",
@@ -38,7 +38,7 @@ export const gettingStarted = defineDocsChapter({
                 { text: "# or: --template showcase --style tailwind", kind: "dim" },
                 { text: "cd my-plugin", kind: "cmd" },
                 { text: "pnpm dev", kind: "cmd" },
-                { text: "host ready · client watching · DSH opened", kind: "ok" },
+                { text: "host ready · client watching · DeepSeek Harness opened", kind: "ok" },
               ],
             },
             {
@@ -53,7 +53,7 @@ export const gettingStarted = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "Install DSHX and DSH directly only when the package already exists. Add the adapter-approved provider packages for the contribution seams you actually use.",
+              text: "Install DSHX and DeepSeek Harness directly only when the package already exists. Add the adapter-approved provider packages for the contribution seams you actually use.",
             },
             {
               kind: "code",
@@ -62,7 +62,7 @@ export const gettingStarted = defineDocsChapter({
             },
             {
               kind: "note",
-              text: "Keep the public DSH range in peerDependencies and pin one concrete DSH version in devDependencies. DSHX versions independently from DSH.",
+              text: "Keep the public DeepSeek Harness range in peerDependencies and pin one concrete DeepSeek Harness version in devDependencies. DSHX versions independently from DeepSeek Harness.",
             },
           ],
         },
@@ -72,7 +72,7 @@ export const gettingStarted = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "Host and Client execute in different environments but ship as one DSH plugin package. Shared modules contain data-only contracts that both compilers can safely consume.",
+              text: "Host and Client execute in different environments but ship as one DeepSeek Harness plugin package. Shared modules contain data-only contracts that both compilers can safely consume.",
             },
             { kind: "code", title: "project", code: projectTree },
           ],
@@ -86,19 +86,19 @@ export const gettingStarted = defineDocsChapter({
               items: [
                 {
                   title: "Start the session",
-                  body: "pnpm dev builds both entries, links the current package, starts watchers, and opens DSH after the initial build succeeds. Pass -- --port 0 when the default Web port is occupied.",
+                  body: "pnpm dev builds both entries, links the current package, starts watchers, and opens DeepSeek Harness after the initial build succeeds. Pass -- --port 0 when the default Web port is occupied.",
                 },
                 {
                   title: "Edit the Client",
-                  body: "React and Slot changes use DSH native Client HMR, so the interface refreshes without restarting the Host.",
+                  body: "React and Slot changes use DeepSeek Harness native Client HMR, so the interface refreshes without restarting the Host.",
                 },
                 {
                   title: "Edit the Host",
-                  body: "Host changes rebuild the Node entry and restart DSH automatically. Set dev.hostRestart to manual when restarts must wait for r; press q to close the session.",
+                  body: "Host changes rebuild the Node entry and restart DeepSeek Harness automatically. Set dev.hostRestart to manual when restarts must wait for r; press q to close the session.",
                 },
                 {
                   title: "Validate",
-                  body: "Run pnpm check for offline config, manifest, dependency, migration, and TypeScript diagnostics. Use pnpm exec dshx check --runtime only when you also need Profile and live DSH readiness.",
+                  body: "Run pnpm check for offline config, manifest, dependency, migration, and TypeScript diagnostics. Use pnpm exec dshx check --runtime only when you also need Profile and live DeepSeek Harness readiness.",
                 },
               ],
             },
@@ -110,8 +110,9 @@ export const gettingStarted = defineDocsChapter({
       navigation: "开始使用",
       eyebrow: "01 · 开始",
       title: "创建并运行插件",
-      intro: "生成完整的 Host 与 Client 项目，让 DSHX 协调官方 DSH 的构建、关联和开发循环。",
-      description: "安装 DSHX、创建插件、了解项目文件，并启动 DSH 开发循环。",
+      intro:
+        "生成完整的 Host 与 Client 项目，让 DSHX 协调官方 DeepSeek Harness 的构建、关联和开发循环。",
+      description: "安装 DSHX、创建插件、了解项目文件，并启动 DeepSeek Harness 开发循环。",
       sections: [
         {
           id: "create",
@@ -119,7 +120,7 @@ export const gettingStarted = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "初始化器会固定匹配的 DSHX 版本、声明支持的 DSH 协议范围并安装依赖，而且不会覆盖已有目录。",
+              text: "初始化器会固定匹配的 DSHX 版本、声明支持的 DeepSeek Harness 协议范围并安装依赖，而且不会覆盖已有目录。",
             },
             {
               kind: "terminal",
@@ -128,7 +129,7 @@ export const gettingStarted = defineDocsChapter({
                 { text: "# 或：--template showcase --style tailwind", kind: "dim" },
                 { text: "cd my-plugin", kind: "cmd" },
                 { text: "pnpm dev", kind: "cmd" },
-                { text: "Host 就绪 · Client 监听中 · DSH 已打开", kind: "ok" },
+                { text: "Host 就绪 · Client 监听中 · DeepSeek Harness 已打开", kind: "ok" },
               ],
             },
             {
@@ -143,7 +144,7 @@ export const gettingStarted = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "只有目标包已经存在时才直接安装 DSHX 和 DSH；插件使用到哪类贡献，再安装 adapter 认可的对应 Provider 包。",
+              text: "只有目标包已经存在时才直接安装 DSHX 和 DeepSeek Harness；插件使用到哪类贡献，再安装 adapter 认可的对应 Provider 包。",
             },
             {
               kind: "code",
@@ -152,7 +153,7 @@ export const gettingStarted = defineDocsChapter({
             },
             {
               kind: "note",
-              text: "在 peerDependencies 声明公开 DSH 范围，在 devDependencies 固定一个具体 DSH 版本。DSHX 与 DSH 独立发版。",
+              text: "在 peerDependencies 声明公开 DeepSeek Harness 范围，在 devDependencies 固定一个具体 DeepSeek Harness 版本。DSHX 与 DeepSeek Harness 独立发版。",
             },
           ],
         },
@@ -162,7 +163,7 @@ export const gettingStarted = defineDocsChapter({
           blocks: [
             {
               kind: "paragraph",
-              text: "Host 与 Client 运行在不同环境，但最终作为一个 DSH 插件包发布。共享模块只保存两个编译器都能安全消费的数据契约。",
+              text: "Host 与 Client 运行在不同环境，但最终作为一个 DeepSeek Harness 插件包发布。共享模块只保存两个编译器都能安全消费的数据契约。",
             },
             { kind: "code", title: "project", code: projectTree },
           ],
@@ -176,19 +177,19 @@ export const gettingStarted = defineDocsChapter({
               items: [
                 {
                   title: "启动会话",
-                  body: "pnpm dev 构建两个入口、关联当前包、启动 watcher，并在首次构建成功后打开 DSH；默认 Web 端口被占用时传入 -- --port 0。",
+                  body: "pnpm dev 构建两个入口、关联当前包、启动 watcher，并在首次构建成功后打开 DeepSeek Harness；默认 Web 端口被占用时传入 -- --port 0。",
                 },
                 {
                   title: "修改 Client",
-                  body: "React 与 Slot 修改复用 DSH 原生 Client HMR，无需重启 Host。",
+                  body: "React 与 Slot 修改复用 DeepSeek Harness 原生 Client HMR，无需重启 Host。",
                 },
                 {
                   title: "修改 Host",
-                  body: "Host 修改会重新构建 Node 入口并自动重启 DSH。只有将 dev.hostRestart 设为 manual 时才需要按 r；按 q 关闭会话。",
+                  body: "Host 修改会重新构建 Node 入口并自动重启 DeepSeek Harness。只有将 dev.hostRestart 设为 manual 时才需要按 r；按 q 关闭会话。",
                 },
                 {
                   title: "执行验证",
-                  body: "运行 pnpm check 执行离线 config、manifest、dependency、migration 和 TypeScript 诊断。只在还需要 Profile 与真实 DSH readiness 时执行 pnpm exec dshx check --runtime。",
+                  body: "运行 pnpm check 执行离线 config、manifest、dependency、migration 和 TypeScript 诊断。只在还需要 Profile 与真实 DeepSeek Harness readiness 时执行 pnpm exec dshx check --runtime。",
                 },
               ],
             },

@@ -134,7 +134,7 @@ function createDshxMcpServer(origin: string, gateway: McpCatalogGateway): McpSer
   server.registerTool(
     "search_plugins",
     {
-      title: "Search installable DSH plugins",
+      title: "Search installable DeepSeek Harness plugins",
       description:
         "Search the public DSHX Hub marketplace. Results are limited to published plugins with a unique active install target.",
       inputSchema: searchPluginsArgumentsSchema,
@@ -154,7 +154,7 @@ function createDshxMcpServer(origin: string, gateway: McpCatalogGateway): McpSer
   server.registerTool(
     "get_plugin",
     {
-      title: "Get an installable DSH plugin",
+      title: "Get an installable DeepSeek Harness plugin",
       description:
         "Return version, compatibility, installation targets, source provenance, releases, and documentation for one installable plugin.",
       inputSchema: getPluginArgumentsSchema,

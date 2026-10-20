@@ -204,7 +204,7 @@ export const hostContributions = defineDocsChapter({
             { kind: "code", title: "Tool and Command", code: helperExample },
             {
               kind: "note",
-              text: "Tool schemas, execution, rendering, Command invocation/results, duplicates, and disposal keep official DSH behavior.",
+              text: "Tool schemas, execution, rendering, Command invocation/results, duplicates, and disposal keep official DeepSeek Harness behavior.",
             },
           ],
         },
@@ -316,7 +316,7 @@ export const hostContributions = defineDocsChapter({
             { kind: "code", title: "Tool 与 Command", code: helperExample },
             {
               kind: "note",
-              text: "Tool schema、执行、渲染、Command invocation/result、duplicate 与 dispose 均保持官方 DSH 行为。",
+              text: "Tool schema、执行、渲染、Command invocation/result、duplicate 与 dispose 均保持官方 DeepSeek Harness 行为。",
             },
           ],
         },

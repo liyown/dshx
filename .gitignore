@@ -3,6 +3,7 @@ dist/
 .cache/
 coverage/
 .dshx/
+.claude/
 *.tsbuildinfo
 apps/framework-hub/bun.lock
 .playwright-cli/

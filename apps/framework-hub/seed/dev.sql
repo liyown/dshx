@@ -152,3 +152,23 @@ insert into plugin_search(
   ('00000000-0000-5000-8000-000000000001','zh','DSHX 示例 Bundle',
    '用于验证完整 DSHX Hub 市场流程的本地开发数据。',
    '@dshx-dev/example-bundle','dshx-dev','开发工具');
+
+-- Development-only editorial fixtures for /featured and /blog.
+insert or ignore into featured_plugin_picks(category_id,plugin_id,sort_order)
+values('category-developer-tools','00000000-0000-5000-8000-000000000001',0);
+
+insert or ignore into blog_posts(
+  id,slug,status,published_at,cover_image_url,content_json,revision,updated_by_token_id,
+  created_at,updated_at
+) values(
+  '00000000-0000-5000-8000-000000000101','working-with-the-example-bundle','published',
+  date('now'),null,
+  '{"en":{"title":"Working with the DSHX example bundle","description":"A short walkthrough of the local fixture used to verify catalog, editorial, and marketplace surfaces.","sections":[{"id":"overview","title":"Overview","blocks":[{"type":"paragraph","text":"The DSHX Example Bundle is a development-only fixture. It exists so maintainers can verify catalog ingestion, curation, and community flows without installing third-party plugin code."}]},{"id":"what-it-covers","title":"What it covers","blocks":[{"type":"list","items":["Bilingual catalog content","An exact npm installation target","A published release and category assignment"]},{"type":"paragraph","text":"Use it only in the local preview environment. Its metrics are sample values, not real package claims."}]}]},"zh":{"title":"使用 DSHX 示例 Bundle","description":"这篇短文介绍用于验证目录、精选与市场流程的本地开发数据。","sections":[{"id":"overview","title":"概述","blocks":[{"type":"paragraph","text":"DSHX 示例 Bundle 是一条仅用于开发环境的样本数据，帮助维护者在不执行第三方插件代码的前提下验证目录采集、运营精选与社区流程。"}]},{"id":"what-it-covers","title":"包含内容","blocks":[{"type":"list","items":["中英文目录内容","精确的 npm 安装目标","已发布版本与分类关联"]},{"type":"paragraph","text":"请只在本地预览环境使用它。页面中的指标是示例值，不代表真实包数据。"}]}]}}',
+  1,null,unixepoch()*1000,unixepoch()*1000
+);
+
+insert or ignore into blog_post_plugins(blog_post_id,plugin_id,sort_order)
+values(
+  '00000000-0000-5000-8000-000000000101',
+  '00000000-0000-5000-8000-000000000001',0
+);

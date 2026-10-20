@@ -202,7 +202,7 @@ const copy: Record<"en" | "zh", Record<CapabilityId, CapabilityCopy>> = {
       bullets: [
         "Fixed, inspectable contribution order",
         "Providers are injected only when a contribution uses them",
-        "Native DSH registries still own lifecycle",
+        "Native DeepSeek Harness registries still own lifecycle",
       ],
       status: "loader-ready Host module · no private runtime import",
     },
@@ -218,13 +218,13 @@ const copy: Record<"en" | "zh", Record<CapabilityId, CapabilityCopy>> = {
     },
     react: {
       title: "React components and typed Hooks",
-      body: "Author DSH UI with TSX components, Hooks and typed official Slot props. Browser-safe React libraries can be included when they satisfy the Client bundle contract.",
+      body: "Author DeepSeek Harness UI with TSX components, Hooks and typed official Slot props. Browser-safe React libraries can be included when they satisfy the Client bundle contract.",
       bullets: [
         "React 18 and 19 peer range",
         "Typed Slot, API and Settings Hooks",
         "Official Client Fiber owns cleanup",
       ],
-      status: "React component · official DSH Slot",
+      status: "React component · official DeepSeek Harness Slot",
     },
     tailwind: {
       title: "Tailwind and the Vite ecosystem",
@@ -274,7 +274,7 @@ const copy: Record<"en" | "zh", Record<CapabilityId, CapabilityCopy>> = {
       bullets: [
         "固定且可检查的贡献顺序",
         "仅当 Contribution 使用 Provider 时自动注入",
-        "生命周期仍由 DSH 原生 Registry 管理",
+        "生命周期仍由 DeepSeek Harness 原生 Registry 管理",
       ],
       status: "直接输出 Loader 模块 · 不保留私有 Runtime Import",
     },
@@ -290,13 +290,13 @@ const copy: Record<"en" | "zh", Record<CapabilityId, CapabilityCopy>> = {
     },
     react: {
       title: "React Component 与类型化 Hook",
-      body: "使用 TSX Component、Hook 和官方 Slot Props 类型编写 DSH UI。满足 Client Bundle 契约的 Browser-safe React 库可以直接使用。",
+      body: "使用 TSX Component、Hook 和官方 Slot Props 类型编写 DeepSeek Harness UI。满足 Client Bundle 契约的 Browser-safe React 库可以直接使用。",
       bullets: [
         "React 18 与 19 Peer Range",
         "类型化 Slot、API 与 Settings Hook",
         "官方 Client Fiber 负责清理",
       ],
-      status: "React Component · 官方 DSH Slot",
+      status: "React Component · 官方 DeepSeek Harness Slot",
     },
     tailwind: {
       title: "Tailwind 与 Vite 生态",

@@ -10,14 +10,14 @@ const copy = {
     copied: "Copied. Paste it into your Agent",
     failed: "Copy failed. Try again",
     title:
-      "Copy a prompt for your Agent to install the current DSHX development Skill, read the API guide, and distinguish offline checks from a real DSH smoke test.",
+      "Copy a prompt for your Agent to install the current DSHX development Skill, read the API guide, and distinguish offline checks from a real DeepSeek Harness smoke test.",
   },
   zh: {
     idle: "复制开发 Prompt",
     copied: "已复制，粘贴给 Agent",
     failed: "复制失败，请重试",
     title:
-      "复制一段 Prompt，让 Agent 安装当前 DSHX 开发 Skill、读取 API 指引，并区分离线检查与真实 DSH smoke test。",
+      "复制一段 Prompt，让 Agent 安装当前 DSHX 开发 Skill、读取 API 指引，并区分离线检查与真实 DeepSeek Harness smoke test。",
   },
 } as const;
 

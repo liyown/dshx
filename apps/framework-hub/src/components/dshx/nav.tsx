@@ -10,8 +10,10 @@ import { ThemeToggle } from "./theme-toggle";
 
 const links = [
   { key: "nav.plugins", to: "/plugins" },
+  { key: "nav.featured", to: "/featured" },
   { key: "nav.operations", to: "/operations" },
   { key: "nav.docs", to: "/docs" },
+  { key: "nav.blog", to: "/blog" },
   { key: "nav.changelog", to: "/changelog" },
 ] as const;
 

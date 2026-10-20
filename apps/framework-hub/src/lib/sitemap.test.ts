@@ -56,6 +56,26 @@ describe("single dynamic sitemap", () => {
     ).toEqual([]);
   });
 
+  it("includes the localized blog and featured surfaces with database articles", () => {
+    const modified = 1_700_000_000_000;
+    const entries = createSitemapEntries("https://dshx.io", [
+      { kind: "blog", locale: "en", value: "database-article", updated_at: modified },
+      { kind: "blog", locale: "zh", value: "database-article", updated_at: modified },
+    ]);
+    for (const locale of ["en", "zh"]) {
+      expect(entries.some((entry) => entry.loc === `https://dshx.io/${locale}/blog`)).toBe(true);
+      expect(entries.some((entry) => entry.loc === `https://dshx.io/${locale}/featured`)).toBe(
+        true,
+      );
+      expect(entries).toContainEqual({
+        loc: `https://dshx.io/${locale}/blog/database-article`,
+        kind: "blog",
+        locale,
+        lastmod: new Date(modified).toISOString(),
+      });
+    }
+  });
+
   it("omits invalid and future lastmod values", () => {
     const entries = createSitemapEntries("https://dshx.io", [
       {

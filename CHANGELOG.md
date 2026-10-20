@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.2.0
+## 0.2.0-preview.0
+
+The first Preview on the DSH 0.2 line, published through npm's `preview` tag.
 
 - Move the public line to DSH 0.2.x with a new `protocol-2` adapter verified against a source build of `dsh-v0.2.1-rc.2`. The npm `0.2.1-rc.2` artifact remains experimental until upstream republishes it.
 - Replace the 0.1 Settings contract with a plugin `Config` schema projected by DSH `SettingsForms`; `useSettings` now reads `ctx.configForms` by Host profile entry id, marks the root schema volatile, reports redacted secrets, and returns booleans from writes.

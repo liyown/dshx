@@ -22,7 +22,7 @@ const migrationList = [
   "prompt persona → personaPrefix / personaSuffix",
   "command input.images → input.attachments",
   "tool mode: 'both' → explicit native or PTC face",
-  "DSH peer range → engines.dsh with peerDependencies fallback",
+  "DeepSeek Harness peer range → engines.dsh with peerDependencies fallback",
   "@deepseek-ai/dsh-client-runtime → official renderer, store, settings, and conversation packages",
 ] as const;
 
@@ -33,7 +33,7 @@ const migrationListZh = [
   "prompt persona → personaPrefix / personaSuffix",
   "command input.images → input.attachments",
   "tool mode: 'both' → 明确选择 native 或 PTC face",
-  "DSH peer range → 优先 engines.dsh，回退 peerDependencies",
+  "DeepSeek Harness peer range → 优先 engines.dsh，回退 peerDependencies",
   "@deepseek-ai/dsh-client-runtime → 官方 renderer、store、settings 与 conversation 包",
 ] as const;
 
@@ -107,12 +107,12 @@ export const compatibility = defineDocsChapter({
                 {
                   name: "analyzeDeclaredDshRange",
                   type: "range status",
-                  body: "Classifies a public DSH peer range as one generation, spanning, partial, unsupported, or invalid.",
+                  body: "Classifies a public DeepSeek Harness peer range as one generation, spanning, partial, unsupported, or invalid.",
                 },
                 {
                   name: "resolveCompatibility",
                   type: "DshCompatibility",
-                  body: "Selects the adapter for one installed DSH version or throws a diagnostic.",
+                  body: "Selects the adapter for one installed DeepSeek Harness version or throws a diagnostic.",
                 },
                 {
                   name: "assessProjectCompatibility",
@@ -149,7 +149,7 @@ export const compatibility = defineDocsChapter({
                 "defineLocale requires the dsh-client-locale package edge; its declarative contribution adds the Locale service automatically.",
                 "useApi and useApiQuery require dsh-client-connection and the generated ctx.remote namespace.",
                 "Conversation requires dsh-client-ui-conversation; Slots are compile-time provider contracts, not runtime catalog entries.",
-                "An adjacent DSH source checkout is not a published compatibility claim.",
+                "An adjacent DeepSeek Harness source checkout is not a published compatibility claim.",
               ],
             },
           ],
@@ -233,12 +233,12 @@ export const compatibility = defineDocsChapter({
                 {
                   name: "analyzeDeclaredDshRange",
                   type: "range status",
-                  body: "把公开 DSH peer range 分类为单 generation、跨 generation、部分支持、不支持或无效。",
+                  body: "把公开 DeepSeek Harness peer range 分类为单 generation、跨 generation、部分支持、不支持或无效。",
                 },
                 {
                   name: "resolveCompatibility",
                   type: "DshCompatibility",
-                  body: "为一个已安装 DSH 版本选择 adapter，否则抛出诊断。",
+                  body: "为一个已安装 DeepSeek Harness 版本选择 adapter，否则抛出诊断。",
                 },
                 {
                   name: "assessProjectCompatibility",
@@ -275,7 +275,7 @@ export const compatibility = defineDocsChapter({
                 "defineLocale 需要 dsh-client-locale package edge；它的声明式贡献会自动添加 Locale Service。",
                 "useApi 和 useApiQuery 需要 dsh-client-connection 以及生成的 ctx.remote namespace。",
                 "Conversation 需要 dsh-client-ui-conversation；Slot 是编译期 Provider 契约，不是 Runtime catalog 条目。",
-                "相邻 DSH source checkout 不构成已发布兼容性声明。",
+                "相邻 DeepSeek Harness source checkout 不构成已发布兼容性声明。",
               ],
             },
           ],

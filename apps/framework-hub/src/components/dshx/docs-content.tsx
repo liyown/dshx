@@ -24,8 +24,8 @@ const overviewCopy = {
       "Choose a public module to see its exported functions, signatures, parameters, return values, examples, automatic wiring, and errors.",
     quickstart: "Quick start",
     quickstartBody:
-      "The initializer creates the conventional Host and Client entries, installs dependencies, and prepares the official DSH development loop.",
-    ready: "host ready · client watching · DSH opened",
+      "The initializer creates the conventional Host and Client entries, installs dependencies, and prepares the official DeepSeek Harness development loop.",
+    ready: "host ready · client watching · DeepSeek Harness opened",
     chapters: "API modules and guides",
     chaptersBody:
       "Host, Client, Settings, Typed API, Conversation, compiler, CLI, and compatibility are documented separately.",
@@ -40,8 +40,9 @@ const overviewCopy = {
     title: "DSHX API 参考",
     intro: "按公开模块查看导出函数、签名、参数、返回值、完整示例、自动接线与错误。",
     quickstart: "快速开始",
-    quickstartBody: "初始化器会创建标准 Host 与 Client 入口、安装依赖，并准备官方 DSH 开发循环。",
-    ready: "Host 就绪 · Client 监听中 · DSH 已打开",
+    quickstartBody:
+      "初始化器会创建标准 Host 与 Client 入口、安装依赖，并准备官方 DeepSeek Harness 开发循环。",
+    ready: "Host 就绪 · Client 监听中 · DeepSeek Harness 已打开",
     chapters: "API 模块与指南",
     chaptersBody:
       "Host、Client、Settings、类型化 API、Conversation、Compiler、CLI 与兼容性分别说明。",

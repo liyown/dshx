@@ -22,9 +22,9 @@ const promptContext = {
 } as const;
 
 describe("autonomous operations mandate", () => {
-  it("ships a deterministic v8 mandate centered on website value", () => {
+  it("ships a deterministic v9 mandate centered on website value", () => {
     const prompt = loadDailyOperationsPrompt();
-    expect(dailyOperationsPromptVersion).toBe(8);
+    expect(dailyOperationsPromptVersion).toBe(9);
     expect(prompt).toBe(loadDailyOperationsPrompt());
     expect(prompt).toContain("responsible operator and editor");
     expect(prompt).toContain("useful, accurate, and fresh");

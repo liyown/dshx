@@ -121,7 +121,7 @@ describe("scheduled operations CLI", () => {
             prompt: "full operations prompt",
             resources: { GITHUB_TOKEN: "secret-token" },
             meta: {
-              promptVersion: 8,
+              promptVersion: 9,
               cliVersion: surface.package.version,
               capabilitiesHash: surface.capabilitiesHash,
             },
@@ -167,7 +167,7 @@ describe("scheduled operations CLI", () => {
               prompt: "full operations prompt",
               resources: {},
               meta: {
-                promptVersion: 8,
+                promptVersion: 9,
                 cliVersion: "9.9.9",
                 capabilitiesHash: "0".repeat(64),
               },

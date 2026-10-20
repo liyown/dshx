@@ -257,7 +257,10 @@ async function dynamicDocument(
     );
     const install = target ? buildPluginInstallCommand(target.spec) : null;
     return {
-      title: locale === "zh" ? `${plugin.name} DSH 插件` : `${plugin.name} DSH Plugin`,
+      title:
+        locale === "zh"
+          ? `${plugin.name} DeepSeek Harness 插件`
+          : `${plugin.name} DeepSeek Harness Plugin`,
       description: detail.seoDescription,
       canonical: canonical(pathname),
       locale,
@@ -350,8 +353,8 @@ async function dynamicDocument(
       title: locale === "zh" ? `${category.name} 插件` : `${category.name} plugins`,
       description:
         locale === "zh"
-          ? `已验证的 ${category.name} DSH 插件。`
-          : `Verified DSH plugins in ${category.name}.`,
+          ? `已验证的 ${category.name} DeepSeek Harness 插件。`
+          : `Verified DeepSeek Harness plugins in ${category.name}.`,
       canonical: canonical(pathname),
       locale,
       sections: [

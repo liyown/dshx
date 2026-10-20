@@ -1,6 +1,6 @@
 # DSHX Hub Operations Prompt
 
-Private workspace package for the v7 DSHX Hub operator mandate. The Agent is responsible for making the website useful, accurate, and fresh through active research, discovery and admission of new plugins, and improvements to existing entries. It decides what deserves attention, how to investigate it, and how much useful work to undertake. The CLI supplies tools and reliable receipts.
+Private workspace package for the current DSHX Hub operator mandate. The Agent is responsible for making the website useful, accurate, and fresh through active research, discovery and admission of new plugins, and improvements to existing entries. It decides what deserves attention, how to investigate it, and how much useful work to undertake. The CLI supplies tools and reliable receipts.
 
 This package does not schedule or execute the Agent. It is a private build-time source: the Hub snapshot generator imports this package to produce the administrator-only bootstrap and full prompt. The public CLI package does not contain the prompt text; the authenticated `dshx-hub ops bundle` endpoint delivers the prompt and configured resources to the Agent.
 
@@ -38,7 +38,7 @@ import {
 } from "@becomeopc/dshx-hub-ops-prompt";
 ```
 
-- `loadDailyOperationsPrompt()` returns the deterministic v7 operator mandate.
+- `loadDailyOperationsPrompt()` returns the deterministic operator mandate; `dailyOperationsPromptVersion` exposes its current version.
 - `dailyOperationsPolicy` describes editorial autonomy, research, provenance, publication quality, tool constraints, and reporting.
 - `dailyDiscoveryQueries` contains optional GitHub/npm search examples.
 - `dailyReportTemplate` preserves the API shape and offers optional organization ideas.
@@ -55,4 +55,4 @@ pnpm --dir packages/hub-ops-prompt build
 pnpm --dir packages/hub-ops-prompt lint
 ```
 
-Tests protect editorial autonomy, supported CLI calls, evidence requirements, the local lease, and the stable report API. They do not prescribe a research order or establish that a live Agent completed useful work. The CLI source build requires this sibling package and checks bundled prompt version and command availability; published CLI tarballs carry the resulting JSON without a runtime dependency on the private package.
+Tests protect editorial autonomy, supported CLI calls, evidence requirements, the local lease, and the stable report API. They do not prescribe a research order or establish that a live Agent completed useful work. The Hub snapshot generator imports this sibling package, checks prompt version and command availability, and writes the administrator-only prompt snapshot. The public CLI does not embed the prompt; operating machines fetch it from the authenticated `ops bundle` endpoint.

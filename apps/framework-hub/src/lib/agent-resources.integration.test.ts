@@ -152,7 +152,7 @@ describe("agent resources and authenticated bundle", () => {
     expect(body.bootstrap).toContain("ops bundle");
     expect(body.prompt).toContain("Mandatory start checklist");
     expect(body.resources).toEqual({ GITHUB_TOKEN: "fixture-bundle-token" });
-    expect(body.meta.promptVersion).toBe(8);
+    expect(body.meta.promptVersion).toBe(9);
     expect(body.meta.cliVersion).toMatch(/^\d+\.\d+\.\d+/u);
   });
 });

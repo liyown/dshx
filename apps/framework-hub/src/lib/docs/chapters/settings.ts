@@ -205,7 +205,7 @@ export const settings = defineDocsChapter({
             },
             {
               kind: "paragraph",
-              text: "DSH continues to own persistence, layers, revisions, redaction, validation, watch, failure recovery, and scope disposal.",
+              text: "DeepSeek Harness continues to own persistence, layers, revisions, redaction, validation, watch, failure recovery, and scope disposal.",
             },
           ],
         },
@@ -361,7 +361,7 @@ export const settings = defineDocsChapter({
             },
             {
               kind: "paragraph",
-              text: "持久化、分层、revision、redaction、validation、watch、失败恢复与 scope dispose 继续由 DSH 管理。",
+              text: "持久化、分层、revision、redaction、validation、watch、失败恢复与 scope dispose 继续由 DeepSeek Harness 管理。",
             },
           ],
         },

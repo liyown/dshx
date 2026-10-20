@@ -21,6 +21,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
 import { Route as LocaleAboutRouteImport } from './routes/$locale/about'
 import { Route as LocaleExamplesRouteImport } from './routes/$locale/examples'
+import { Route as LocaleFeaturedRouteImport } from './routes/$locale/featured'
 import { Route as DotwellKnownApiCatalogRouteImport } from './routes/[.]well-known/api-catalog'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
@@ -35,6 +36,8 @@ import { Route as LocaleAccountNotificationsRouteImport } from './routes/$locale
 import { Route as LocaleAccountSettingsRouteImport } from './routes/$locale/account/settings'
 import { Route as LocaleAccountSubmissionsRouteImport } from './routes/$locale/account/submissions'
 import { Route as LocaleAuthCliRouteImport } from './routes/$locale/auth/cli'
+import { Route as LocaleBlogIndexRouteImport } from './routes/$locale/blog/index'
+import { Route as LocaleBlogSlugRouteImport } from './routes/$locale/blog/$slug'
 import { Route as LocaleCategoriesSlugRouteImport } from './routes/$locale/categories/$slug'
 import { Route as LocaleChangelogIndexRouteImport } from './routes/$locale/changelog/index'
 import { Route as LocaleChangelogSlugRouteImport } from './routes/$locale/changelog/$slug'
@@ -50,6 +53,9 @@ import { Route as LocaleUsersLoginRouteImport } from './routes/$locale/users/$lo
 import { Route as DotwellKnownMcpServerCardDotjsonRouteImport } from './routes/[.]well-known/mcp/server-card[.]json'
 import { Route as AdminApprovalsIndexRouteImport } from './routes/admin/approvals/index'
 import { Route as AdminApprovalsIdRouteImport } from './routes/admin/approvals/$id'
+import { Route as AdminBlogIndexRouteImport } from './routes/admin/blog/index'
+import { Route as AdminBlogSlugRouteImport } from './routes/admin/blog/$slug'
+import { Route as AdminBlogNewRouteImport } from './routes/admin/blog/new'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCliTokenRouteImport } from './routes/api/cli/token'
 import { Route as ApiCollectionsIdRouteImport } from './routes/api/collections/$id'
@@ -69,6 +75,8 @@ import { Route as ApiAdminAgentPromptIndexRouteImport } from './routes/api/admin
 import { Route as ApiAdminAgentPromptResourcesRouteImport } from './routes/api/admin/agent-prompt/resources'
 import { Route as ApiAdminApprovalsIndexRouteImport } from './routes/api/admin/approvals/index'
 import { Route as ApiAdminApprovalsIdRouteImport } from './routes/api/admin/approvals/$id'
+import { Route as ApiAdminBlogIndexRouteImport } from './routes/api/admin/blog/index'
+import { Route as ApiAdminBlogSlugRouteImport } from './routes/api/admin/blog/$slug'
 import { Route as ApiClaimsIdVerifyRouteImport } from './routes/api/claims/$id/verify'
 import { Route as ApiCliAuthorizationsIndexRouteImport } from './routes/api/cli/authorizations/index'
 import { Route as ApiMarketplacePluginsIndexRouteImport } from './routes/api/marketplace/plugins/index'
@@ -101,8 +109,12 @@ import { Route as ApiMePluginsPluginIdFollowRouteImport } from './routes/api/me/
 import { Route as ApiMePublishersPublisherIdFollowRouteImport } from './routes/api/me/publishers/$publisherId/follow'
 import { Route as ApiOpsApprovalsIdRevisionsRouteImport } from './routes/api/ops/approvals/$id/revisions'
 import { Route as ApiOpsUsersIdRoleRouteImport } from './routes/api/ops/users/$id/role'
+import { Route as ApiOpsV1BlogIndexRouteImport } from './routes/api/ops/v1/blog/index'
+import { Route as ApiOpsV1BlogSlugRouteImport } from './routes/api/ops/v1/blog/$slug'
 import { Route as ApiOpsV1ChangelogIndexRouteImport } from './routes/api/ops/v1/changelog/index'
 import { Route as ApiOpsV1ChangelogSlugRouteImport } from './routes/api/ops/v1/changelog/$slug'
+import { Route as ApiOpsV1FeaturedIndexRouteImport } from './routes/api/ops/v1/featured/index'
+import { Route as ApiOpsV1FeaturedCategoryRouteImport } from './routes/api/ops/v1/featured/$category'
 import { Route as ApiOpsV1ObservationsObservationIdRouteImport } from './routes/api/ops/v1/observations/$observationId'
 import { Route as ApiOpsV1PluginsIndexRouteImport } from './routes/api/ops/v1/plugins/index'
 import { Route as ApiOpsV1PluginsIdRouteImport } from './routes/api/ops/v1/plugins/$id'
@@ -177,6 +189,11 @@ const LocaleAboutRoute = LocaleAboutRouteImport.update({
 const LocaleExamplesRoute = LocaleExamplesRouteImport.update({
   id: '/examples',
   path: '/examples',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleFeaturedRoute = LocaleFeaturedRouteImport.update({
+  id: '/featured',
+  path: '/featured',
   getParentRoute: () => LocaleRoute,
 } as any)
 const DotwellKnownApiCatalogRoute = DotwellKnownApiCatalogRouteImport.update({
@@ -254,6 +271,16 @@ const LocaleAuthCliRoute = LocaleAuthCliRouteImport.update({
   path: '/auth/cli',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleBlogIndexRoute = LocaleBlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleBlogSlugRoute = LocaleBlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleCategoriesSlugRoute = LocaleCategoriesSlugRouteImport.update({
   id: '/categories/$slug',
   path: '/categories/$slug',
@@ -328,6 +355,21 @@ const AdminApprovalsIndexRoute = AdminApprovalsIndexRouteImport.update({
 const AdminApprovalsIdRoute = AdminApprovalsIdRouteImport.update({
   id: '/admin/approvals/$id',
   path: '/admin/approvals/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminBlogIndexRoute = AdminBlogIndexRouteImport.update({
+  id: '/admin/blog/',
+  path: '/admin/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminBlogSlugRoute = AdminBlogSlugRouteImport.update({
+  id: '/admin/blog/$slug',
+  path: '/admin/blog/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminBlogNewRoute = AdminBlogNewRouteImport.update({
+  id: '/admin/blog/new',
+  path: '/admin/blog/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -426,6 +468,16 @@ const ApiAdminApprovalsIndexRoute = ApiAdminApprovalsIndexRouteImport.update({
 const ApiAdminApprovalsIdRoute = ApiAdminApprovalsIdRouteImport.update({
   id: '/api/admin/approvals/$id',
   path: '/api/admin/approvals/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminBlogIndexRoute = ApiAdminBlogIndexRouteImport.update({
+  id: '/api/admin/blog/',
+  path: '/api/admin/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminBlogSlugRoute = ApiAdminBlogSlugRouteImport.update({
+  id: '/api/admin/blog/$slug',
+  path: '/api/admin/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiClaimsIdVerifyRoute = ApiClaimsIdVerifyRouteImport.update({
@@ -600,6 +652,16 @@ const ApiOpsUsersIdRoleRoute = ApiOpsUsersIdRoleRouteImport.update({
   path: '/api/ops/users/$id/role',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpsV1BlogIndexRoute = ApiOpsV1BlogIndexRouteImport.update({
+  id: '/api/ops/v1/blog/',
+  path: '/api/ops/v1/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsV1BlogSlugRoute = ApiOpsV1BlogSlugRouteImport.update({
+  id: '/api/ops/v1/blog/$slug',
+  path: '/api/ops/v1/blog/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOpsV1ChangelogIndexRoute = ApiOpsV1ChangelogIndexRouteImport.update({
   id: '/api/ops/v1/changelog/',
   path: '/api/ops/v1/changelog/',
@@ -610,6 +672,17 @@ const ApiOpsV1ChangelogSlugRoute = ApiOpsV1ChangelogSlugRouteImport.update({
   path: '/api/ops/v1/changelog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpsV1FeaturedIndexRoute = ApiOpsV1FeaturedIndexRouteImport.update({
+  id: '/api/ops/v1/featured/',
+  path: '/api/ops/v1/featured/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpsV1FeaturedCategoryRoute =
+  ApiOpsV1FeaturedCategoryRouteImport.update({
+    id: '/api/ops/v1/featured/$category',
+    path: '/api/ops/v1/featured/$category',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpsV1ObservationsObservationIdRoute =
   ApiOpsV1ObservationsObservationIdRouteImport.update({
     id: '/api/ops/v1/observations/$observationId',
@@ -708,6 +781,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$locale/about': typeof LocaleAboutRoute
   '/$locale/examples': typeof LocaleExamplesRoute
+  '/$locale/featured': typeof LocaleFeaturedRoute
   '/.well-known/api-catalog': typeof DotwellKnownApiCatalogRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
@@ -722,6 +796,7 @@ export interface FileRoutesByFullPath {
   '/$locale/account/settings': typeof LocaleAccountSettingsRoute
   '/$locale/account/submissions': typeof LocaleAccountSubmissionsRoute
   '/$locale/auth/cli': typeof LocaleAuthCliRoute
+  '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
   '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
   '/$locale/changelog/$slug': typeof LocaleChangelogSlugRoute
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
@@ -732,6 +807,8 @@ export interface FileRoutesByFullPath {
   '/$locale/users/$login': typeof LocaleUsersLoginRoute
   '/.well-known/mcp/server-card.json': typeof DotwellKnownMcpServerCardDotjsonRoute
   '/admin/approvals/$id': typeof AdminApprovalsIdRoute
+  '/admin/blog/$slug': typeof AdminBlogSlugRoute
+  '/admin/blog/new': typeof AdminBlogNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/token': typeof ApiCliTokenRoute
   '/api/collections/$id': typeof ApiCollectionsIdRoute
@@ -745,16 +822,19 @@ export interface FileRoutesByFullPath {
   '/api/replies/$id': typeof ApiRepliesIdRoute
   '/api/users/$login': typeof ApiUsersLoginRoute
   '/$locale/account/': typeof LocaleAccountIndexRoute
+  '/$locale/blog/': typeof LocaleBlogIndexRoute
   '/$locale/changelog/': typeof LocaleChangelogIndexRoute
   '/$locale/docs/': typeof LocaleDocsIndexRoute
   '/$locale/operations/': typeof LocaleOperationsIndexRoute
   '/$locale/plugins/': typeof LocalePluginsIndexRoute
   '/admin/approvals/': typeof AdminApprovalsIndexRoute
+  '/admin/blog/': typeof AdminBlogIndexRoute
   '/api/plugins/': typeof ApiPluginsIndexRoute
   '/api/reports/': typeof ApiReportsIndexRoute
   '/api/submissions/': typeof ApiSubmissionsIndexRoute
   '/api/admin/agent-prompt/resources': typeof ApiAdminAgentPromptResourcesRoute
   '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
+  '/api/admin/blog/$slug': typeof ApiAdminBlogSlugRoute
   '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
   '/api/marketplace/plugins/$slug': typeof ApiMarketplacePluginsSlugRoute
   '/api/me/blocks/$userId': typeof ApiMeBlocksUserIdRoute
@@ -773,6 +853,7 @@ export interface FileRoutesByFullPath {
   '/og/home/$locale/card.png': typeof OgHomeLocaleCardDotpngRoute
   '/api/admin/agent-prompt/': typeof ApiAdminAgentPromptIndexRoute
   '/api/admin/approvals/': typeof ApiAdminApprovalsIndexRoute
+  '/api/admin/blog/': typeof ApiAdminBlogIndexRoute
   '/api/cli/authorizations/': typeof ApiCliAuthorizationsIndexRoute
   '/api/marketplace/plugins/': typeof ApiMarketplacePluginsIndexRoute
   '/api/me/appeals/': typeof ApiMeAppealsIndexRoute
@@ -789,12 +870,16 @@ export interface FileRoutesByFullPath {
   '/api/me/publishers/$publisherId/follow': typeof ApiMePublishersPublisherIdFollowRoute
   '/api/ops/approvals/$id/revisions': typeof ApiOpsApprovalsIdRevisionsRoute
   '/api/ops/users/$id/role': typeof ApiOpsUsersIdRoleRoute
+  '/api/ops/v1/blog/$slug': typeof ApiOpsV1BlogSlugRoute
   '/api/ops/v1/changelog/$slug': typeof ApiOpsV1ChangelogSlugRoute
+  '/api/ops/v1/featured/$category': typeof ApiOpsV1FeaturedCategoryRoute
   '/api/ops/v1/observations/$observationId': typeof ApiOpsV1ObservationsObservationIdRoute
   '/api/ops/v1/plugins/$id': typeof ApiOpsV1PluginsIdRouteWithChildren
   '/api/ops/v1/submissions/$id': typeof ApiOpsV1SubmissionsIdRouteWithChildren
   '/og/plugins/$locale/$slug/card.png': typeof OgPluginsLocaleSlugCardDotpngRoute
+  '/api/ops/v1/blog/': typeof ApiOpsV1BlogIndexRoute
   '/api/ops/v1/changelog/': typeof ApiOpsV1ChangelogIndexRoute
+  '/api/ops/v1/featured/': typeof ApiOpsV1FeaturedIndexRoute
   '/api/ops/v1/plugins/': typeof ApiOpsV1PluginsIndexRoute
   '/api/ops/v1/reports/': typeof ApiOpsV1ReportsIndexRoute
   '/api/ops/v1/submissions/': typeof ApiOpsV1SubmissionsIndexRoute
@@ -818,6 +903,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$locale/about': typeof LocaleAboutRoute
   '/$locale/examples': typeof LocaleExamplesRoute
+  '/$locale/featured': typeof LocaleFeaturedRoute
   '/.well-known/api-catalog': typeof DotwellKnownApiCatalogRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
@@ -832,6 +918,7 @@ export interface FileRoutesByTo {
   '/$locale/account/settings': typeof LocaleAccountSettingsRoute
   '/$locale/account/submissions': typeof LocaleAccountSubmissionsRoute
   '/$locale/auth/cli': typeof LocaleAuthCliRoute
+  '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
   '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
   '/$locale/changelog/$slug': typeof LocaleChangelogSlugRoute
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
@@ -842,6 +929,8 @@ export interface FileRoutesByTo {
   '/$locale/users/$login': typeof LocaleUsersLoginRoute
   '/.well-known/mcp/server-card.json': typeof DotwellKnownMcpServerCardDotjsonRoute
   '/admin/approvals/$id': typeof AdminApprovalsIdRoute
+  '/admin/blog/$slug': typeof AdminBlogSlugRoute
+  '/admin/blog/new': typeof AdminBlogNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/token': typeof ApiCliTokenRoute
   '/api/collections/$id': typeof ApiCollectionsIdRoute
@@ -855,16 +944,19 @@ export interface FileRoutesByTo {
   '/api/replies/$id': typeof ApiRepliesIdRoute
   '/api/users/$login': typeof ApiUsersLoginRoute
   '/$locale/account': typeof LocaleAccountIndexRoute
+  '/$locale/blog': typeof LocaleBlogIndexRoute
   '/$locale/changelog': typeof LocaleChangelogIndexRoute
   '/$locale/docs': typeof LocaleDocsIndexRoute
   '/$locale/operations': typeof LocaleOperationsIndexRoute
   '/$locale/plugins': typeof LocalePluginsIndexRoute
   '/admin/approvals': typeof AdminApprovalsIndexRoute
+  '/admin/blog': typeof AdminBlogIndexRoute
   '/api/plugins': typeof ApiPluginsIndexRoute
   '/api/reports': typeof ApiReportsIndexRoute
   '/api/submissions': typeof ApiSubmissionsIndexRoute
   '/api/admin/agent-prompt/resources': typeof ApiAdminAgentPromptResourcesRoute
   '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
+  '/api/admin/blog/$slug': typeof ApiAdminBlogSlugRoute
   '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
   '/api/marketplace/plugins/$slug': typeof ApiMarketplacePluginsSlugRoute
   '/api/me/blocks/$userId': typeof ApiMeBlocksUserIdRoute
@@ -883,6 +975,7 @@ export interface FileRoutesByTo {
   '/og/home/$locale/card.png': typeof OgHomeLocaleCardDotpngRoute
   '/api/admin/agent-prompt': typeof ApiAdminAgentPromptIndexRoute
   '/api/admin/approvals': typeof ApiAdminApprovalsIndexRoute
+  '/api/admin/blog': typeof ApiAdminBlogIndexRoute
   '/api/cli/authorizations': typeof ApiCliAuthorizationsIndexRoute
   '/api/marketplace/plugins': typeof ApiMarketplacePluginsIndexRoute
   '/api/me/appeals': typeof ApiMeAppealsIndexRoute
@@ -899,12 +992,16 @@ export interface FileRoutesByTo {
   '/api/me/publishers/$publisherId/follow': typeof ApiMePublishersPublisherIdFollowRoute
   '/api/ops/approvals/$id/revisions': typeof ApiOpsApprovalsIdRevisionsRoute
   '/api/ops/users/$id/role': typeof ApiOpsUsersIdRoleRoute
+  '/api/ops/v1/blog/$slug': typeof ApiOpsV1BlogSlugRoute
   '/api/ops/v1/changelog/$slug': typeof ApiOpsV1ChangelogSlugRoute
+  '/api/ops/v1/featured/$category': typeof ApiOpsV1FeaturedCategoryRoute
   '/api/ops/v1/observations/$observationId': typeof ApiOpsV1ObservationsObservationIdRoute
   '/api/ops/v1/plugins/$id': typeof ApiOpsV1PluginsIdRouteWithChildren
   '/api/ops/v1/submissions/$id': typeof ApiOpsV1SubmissionsIdRouteWithChildren
   '/og/plugins/$locale/$slug/card.png': typeof OgPluginsLocaleSlugCardDotpngRoute
+  '/api/ops/v1/blog': typeof ApiOpsV1BlogIndexRoute
   '/api/ops/v1/changelog': typeof ApiOpsV1ChangelogIndexRoute
+  '/api/ops/v1/featured': typeof ApiOpsV1FeaturedIndexRoute
   '/api/ops/v1/plugins': typeof ApiOpsV1PluginsIndexRoute
   '/api/ops/v1/reports': typeof ApiOpsV1ReportsIndexRoute
   '/api/ops/v1/submissions': typeof ApiOpsV1SubmissionsIndexRoute
@@ -930,6 +1027,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$locale/about': typeof LocaleAboutRoute
   '/$locale/examples': typeof LocaleExamplesRoute
+  '/$locale/featured': typeof LocaleFeaturedRoute
   '/.well-known/api-catalog': typeof DotwellKnownApiCatalogRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
@@ -944,6 +1042,7 @@ export interface FileRoutesById {
   '/$locale/account/settings': typeof LocaleAccountSettingsRoute
   '/$locale/account/submissions': typeof LocaleAccountSubmissionsRoute
   '/$locale/auth/cli': typeof LocaleAuthCliRoute
+  '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
   '/$locale/categories/$slug': typeof LocaleCategoriesSlugRoute
   '/$locale/changelog/$slug': typeof LocaleChangelogSlugRoute
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
@@ -954,6 +1053,8 @@ export interface FileRoutesById {
   '/$locale/users/$login': typeof LocaleUsersLoginRoute
   '/.well-known/mcp/server-card.json': typeof DotwellKnownMcpServerCardDotjsonRoute
   '/admin/approvals/$id': typeof AdminApprovalsIdRoute
+  '/admin/blog/$slug': typeof AdminBlogSlugRoute
+  '/admin/blog/new': typeof AdminBlogNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/token': typeof ApiCliTokenRoute
   '/api/collections/$id': typeof ApiCollectionsIdRoute
@@ -967,16 +1068,19 @@ export interface FileRoutesById {
   '/api/replies/$id': typeof ApiRepliesIdRoute
   '/api/users/$login': typeof ApiUsersLoginRoute
   '/$locale/account/': typeof LocaleAccountIndexRoute
+  '/$locale/blog/': typeof LocaleBlogIndexRoute
   '/$locale/changelog/': typeof LocaleChangelogIndexRoute
   '/$locale/docs/': typeof LocaleDocsIndexRoute
   '/$locale/operations/': typeof LocaleOperationsIndexRoute
   '/$locale/plugins/': typeof LocalePluginsIndexRoute
   '/admin/approvals/': typeof AdminApprovalsIndexRoute
+  '/admin/blog/': typeof AdminBlogIndexRoute
   '/api/plugins/': typeof ApiPluginsIndexRoute
   '/api/reports/': typeof ApiReportsIndexRoute
   '/api/submissions/': typeof ApiSubmissionsIndexRoute
   '/api/admin/agent-prompt/resources': typeof ApiAdminAgentPromptResourcesRoute
   '/api/admin/approvals/$id': typeof ApiAdminApprovalsIdRouteWithChildren
+  '/api/admin/blog/$slug': typeof ApiAdminBlogSlugRoute
   '/api/claims/$id/verify': typeof ApiClaimsIdVerifyRoute
   '/api/marketplace/plugins/$slug': typeof ApiMarketplacePluginsSlugRoute
   '/api/me/blocks/$userId': typeof ApiMeBlocksUserIdRoute
@@ -995,6 +1099,7 @@ export interface FileRoutesById {
   '/og/home/$locale/card.png': typeof OgHomeLocaleCardDotpngRoute
   '/api/admin/agent-prompt/': typeof ApiAdminAgentPromptIndexRoute
   '/api/admin/approvals/': typeof ApiAdminApprovalsIndexRoute
+  '/api/admin/blog/': typeof ApiAdminBlogIndexRoute
   '/api/cli/authorizations/': typeof ApiCliAuthorizationsIndexRoute
   '/api/marketplace/plugins/': typeof ApiMarketplacePluginsIndexRoute
   '/api/me/appeals/': typeof ApiMeAppealsIndexRoute
@@ -1011,12 +1116,16 @@ export interface FileRoutesById {
   '/api/me/publishers/$publisherId/follow': typeof ApiMePublishersPublisherIdFollowRoute
   '/api/ops/approvals/$id/revisions': typeof ApiOpsApprovalsIdRevisionsRoute
   '/api/ops/users/$id/role': typeof ApiOpsUsersIdRoleRoute
+  '/api/ops/v1/blog/$slug': typeof ApiOpsV1BlogSlugRoute
   '/api/ops/v1/changelog/$slug': typeof ApiOpsV1ChangelogSlugRoute
+  '/api/ops/v1/featured/$category': typeof ApiOpsV1FeaturedCategoryRoute
   '/api/ops/v1/observations/$observationId': typeof ApiOpsV1ObservationsObservationIdRoute
   '/api/ops/v1/plugins/$id': typeof ApiOpsV1PluginsIdRouteWithChildren
   '/api/ops/v1/submissions/$id': typeof ApiOpsV1SubmissionsIdRouteWithChildren
   '/og/plugins/$locale/$slug/card.png': typeof OgPluginsLocaleSlugCardDotpngRoute
+  '/api/ops/v1/blog/': typeof ApiOpsV1BlogIndexRoute
   '/api/ops/v1/changelog/': typeof ApiOpsV1ChangelogIndexRoute
+  '/api/ops/v1/featured/': typeof ApiOpsV1FeaturedIndexRoute
   '/api/ops/v1/plugins/': typeof ApiOpsV1PluginsIndexRoute
   '/api/ops/v1/reports/': typeof ApiOpsV1ReportsIndexRoute
   '/api/ops/v1/submissions/': typeof ApiOpsV1SubmissionsIndexRoute
@@ -1043,6 +1152,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/$locale/about'
     | '/$locale/examples'
+    | '/$locale/featured'
     | '/.well-known/api-catalog'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
@@ -1057,6 +1167,7 @@ export interface FileRouteTypes {
     | '/$locale/account/settings'
     | '/$locale/account/submissions'
     | '/$locale/auth/cli'
+    | '/$locale/blog/$slug'
     | '/$locale/categories/$slug'
     | '/$locale/changelog/$slug'
     | '/$locale/collections/$id'
@@ -1067,6 +1178,8 @@ export interface FileRouteTypes {
     | '/$locale/users/$login'
     | '/.well-known/mcp/server-card.json'
     | '/admin/approvals/$id'
+    | '/admin/blog/$slug'
+    | '/admin/blog/new'
     | '/api/auth/$'
     | '/api/cli/token'
     | '/api/collections/$id'
@@ -1080,16 +1193,19 @@ export interface FileRouteTypes {
     | '/api/replies/$id'
     | '/api/users/$login'
     | '/$locale/account/'
+    | '/$locale/blog/'
     | '/$locale/changelog/'
     | '/$locale/docs/'
     | '/$locale/operations/'
     | '/$locale/plugins/'
     | '/admin/approvals/'
+    | '/admin/blog/'
     | '/api/plugins/'
     | '/api/reports/'
     | '/api/submissions/'
     | '/api/admin/agent-prompt/resources'
     | '/api/admin/approvals/$id'
+    | '/api/admin/blog/$slug'
     | '/api/claims/$id/verify'
     | '/api/marketplace/plugins/$slug'
     | '/api/me/blocks/$userId'
@@ -1108,6 +1224,7 @@ export interface FileRouteTypes {
     | '/og/home/$locale/card.png'
     | '/api/admin/agent-prompt/'
     | '/api/admin/approvals/'
+    | '/api/admin/blog/'
     | '/api/cli/authorizations/'
     | '/api/marketplace/plugins/'
     | '/api/me/appeals/'
@@ -1124,12 +1241,16 @@ export interface FileRouteTypes {
     | '/api/me/publishers/$publisherId/follow'
     | '/api/ops/approvals/$id/revisions'
     | '/api/ops/users/$id/role'
+    | '/api/ops/v1/blog/$slug'
     | '/api/ops/v1/changelog/$slug'
+    | '/api/ops/v1/featured/$category'
     | '/api/ops/v1/observations/$observationId'
     | '/api/ops/v1/plugins/$id'
     | '/api/ops/v1/submissions/$id'
     | '/og/plugins/$locale/$slug/card.png'
+    | '/api/ops/v1/blog/'
     | '/api/ops/v1/changelog/'
+    | '/api/ops/v1/featured/'
     | '/api/ops/v1/plugins/'
     | '/api/ops/v1/reports/'
     | '/api/ops/v1/submissions/'
@@ -1153,6 +1274,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/$locale/about'
     | '/$locale/examples'
+    | '/$locale/featured'
     | '/.well-known/api-catalog'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
@@ -1167,6 +1289,7 @@ export interface FileRouteTypes {
     | '/$locale/account/settings'
     | '/$locale/account/submissions'
     | '/$locale/auth/cli'
+    | '/$locale/blog/$slug'
     | '/$locale/categories/$slug'
     | '/$locale/changelog/$slug'
     | '/$locale/collections/$id'
@@ -1177,6 +1300,8 @@ export interface FileRouteTypes {
     | '/$locale/users/$login'
     | '/.well-known/mcp/server-card.json'
     | '/admin/approvals/$id'
+    | '/admin/blog/$slug'
+    | '/admin/blog/new'
     | '/api/auth/$'
     | '/api/cli/token'
     | '/api/collections/$id'
@@ -1190,16 +1315,19 @@ export interface FileRouteTypes {
     | '/api/replies/$id'
     | '/api/users/$login'
     | '/$locale/account'
+    | '/$locale/blog'
     | '/$locale/changelog'
     | '/$locale/docs'
     | '/$locale/operations'
     | '/$locale/plugins'
     | '/admin/approvals'
+    | '/admin/blog'
     | '/api/plugins'
     | '/api/reports'
     | '/api/submissions'
     | '/api/admin/agent-prompt/resources'
     | '/api/admin/approvals/$id'
+    | '/api/admin/blog/$slug'
     | '/api/claims/$id/verify'
     | '/api/marketplace/plugins/$slug'
     | '/api/me/blocks/$userId'
@@ -1218,6 +1346,7 @@ export interface FileRouteTypes {
     | '/og/home/$locale/card.png'
     | '/api/admin/agent-prompt'
     | '/api/admin/approvals'
+    | '/api/admin/blog'
     | '/api/cli/authorizations'
     | '/api/marketplace/plugins'
     | '/api/me/appeals'
@@ -1234,12 +1363,16 @@ export interface FileRouteTypes {
     | '/api/me/publishers/$publisherId/follow'
     | '/api/ops/approvals/$id/revisions'
     | '/api/ops/users/$id/role'
+    | '/api/ops/v1/blog/$slug'
     | '/api/ops/v1/changelog/$slug'
+    | '/api/ops/v1/featured/$category'
     | '/api/ops/v1/observations/$observationId'
     | '/api/ops/v1/plugins/$id'
     | '/api/ops/v1/submissions/$id'
     | '/og/plugins/$locale/$slug/card.png'
+    | '/api/ops/v1/blog'
     | '/api/ops/v1/changelog'
+    | '/api/ops/v1/featured'
     | '/api/ops/v1/plugins'
     | '/api/ops/v1/reports'
     | '/api/ops/v1/submissions'
@@ -1264,6 +1397,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/$locale/about'
     | '/$locale/examples'
+    | '/$locale/featured'
     | '/.well-known/api-catalog'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
@@ -1278,6 +1412,7 @@ export interface FileRouteTypes {
     | '/$locale/account/settings'
     | '/$locale/account/submissions'
     | '/$locale/auth/cli'
+    | '/$locale/blog/$slug'
     | '/$locale/categories/$slug'
     | '/$locale/changelog/$slug'
     | '/$locale/collections/$id'
@@ -1288,6 +1423,8 @@ export interface FileRouteTypes {
     | '/$locale/users/$login'
     | '/.well-known/mcp/server-card.json'
     | '/admin/approvals/$id'
+    | '/admin/blog/$slug'
+    | '/admin/blog/new'
     | '/api/auth/$'
     | '/api/cli/token'
     | '/api/collections/$id'
@@ -1301,16 +1438,19 @@ export interface FileRouteTypes {
     | '/api/replies/$id'
     | '/api/users/$login'
     | '/$locale/account/'
+    | '/$locale/blog/'
     | '/$locale/changelog/'
     | '/$locale/docs/'
     | '/$locale/operations/'
     | '/$locale/plugins/'
     | '/admin/approvals/'
+    | '/admin/blog/'
     | '/api/plugins/'
     | '/api/reports/'
     | '/api/submissions/'
     | '/api/admin/agent-prompt/resources'
     | '/api/admin/approvals/$id'
+    | '/api/admin/blog/$slug'
     | '/api/claims/$id/verify'
     | '/api/marketplace/plugins/$slug'
     | '/api/me/blocks/$userId'
@@ -1329,6 +1469,7 @@ export interface FileRouteTypes {
     | '/og/home/$locale/card.png'
     | '/api/admin/agent-prompt/'
     | '/api/admin/approvals/'
+    | '/api/admin/blog/'
     | '/api/cli/authorizations/'
     | '/api/marketplace/plugins/'
     | '/api/me/appeals/'
@@ -1345,12 +1486,16 @@ export interface FileRouteTypes {
     | '/api/me/publishers/$publisherId/follow'
     | '/api/ops/approvals/$id/revisions'
     | '/api/ops/users/$id/role'
+    | '/api/ops/v1/blog/$slug'
     | '/api/ops/v1/changelog/$slug'
+    | '/api/ops/v1/featured/$category'
     | '/api/ops/v1/observations/$observationId'
     | '/api/ops/v1/plugins/$id'
     | '/api/ops/v1/submissions/$id'
     | '/og/plugins/$locale/$slug/card.png'
+    | '/api/ops/v1/blog/'
     | '/api/ops/v1/changelog/'
+    | '/api/ops/v1/featured/'
     | '/api/ops/v1/plugins/'
     | '/api/ops/v1/reports/'
     | '/api/ops/v1/submissions/'
@@ -1383,6 +1528,8 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   DotwellKnownMcpServerCardDotjsonRoute: typeof DotwellKnownMcpServerCardDotjsonRoute
   AdminApprovalsIdRoute: typeof AdminApprovalsIdRoute
+  AdminBlogSlugRoute: typeof AdminBlogSlugRoute
+  AdminBlogNewRoute: typeof AdminBlogNewRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCliTokenRoute: typeof ApiCliTokenRoute
   ApiCollectionsIdRoute: typeof ApiCollectionsIdRoute
@@ -1396,11 +1543,13 @@ export interface RootRouteChildren {
   ApiRepliesIdRoute: typeof ApiRepliesIdRoute
   ApiUsersLoginRoute: typeof ApiUsersLoginRoute
   AdminApprovalsIndexRoute: typeof AdminApprovalsIndexRoute
+  AdminBlogIndexRoute: typeof AdminBlogIndexRoute
   ApiPluginsIndexRoute: typeof ApiPluginsIndexRoute
   ApiReportsIndexRoute: typeof ApiReportsIndexRoute
   ApiSubmissionsIndexRoute: typeof ApiSubmissionsIndexRoute
   ApiAdminAgentPromptResourcesRoute: typeof ApiAdminAgentPromptResourcesRoute
   ApiAdminApprovalsIdRoute: typeof ApiAdminApprovalsIdRouteWithChildren
+  ApiAdminBlogSlugRoute: typeof ApiAdminBlogSlugRoute
   ApiClaimsIdVerifyRoute: typeof ApiClaimsIdVerifyRoute
   ApiMarketplacePluginsSlugRoute: typeof ApiMarketplacePluginsSlugRoute
   ApiMeBlocksUserIdRoute: typeof ApiMeBlocksUserIdRoute
@@ -1416,6 +1565,7 @@ export interface RootRouteChildren {
   OgHomeLocaleCardDotpngRoute: typeof OgHomeLocaleCardDotpngRoute
   ApiAdminAgentPromptIndexRoute: typeof ApiAdminAgentPromptIndexRoute
   ApiAdminApprovalsIndexRoute: typeof ApiAdminApprovalsIndexRoute
+  ApiAdminBlogIndexRoute: typeof ApiAdminBlogIndexRoute
   ApiCliAuthorizationsIndexRoute: typeof ApiCliAuthorizationsIndexRoute
   ApiMarketplacePluginsIndexRoute: typeof ApiMarketplacePluginsIndexRoute
   ApiMeAppealsIndexRoute: typeof ApiMeAppealsIndexRoute
@@ -1430,12 +1580,16 @@ export interface RootRouteChildren {
   ApiMePluginsPluginIdFollowRoute: typeof ApiMePluginsPluginIdFollowRoute
   ApiMePublishersPublisherIdFollowRoute: typeof ApiMePublishersPublisherIdFollowRoute
   ApiOpsUsersIdRoleRoute: typeof ApiOpsUsersIdRoleRoute
+  ApiOpsV1BlogSlugRoute: typeof ApiOpsV1BlogSlugRoute
   ApiOpsV1ChangelogSlugRoute: typeof ApiOpsV1ChangelogSlugRoute
+  ApiOpsV1FeaturedCategoryRoute: typeof ApiOpsV1FeaturedCategoryRoute
   ApiOpsV1ObservationsObservationIdRoute: typeof ApiOpsV1ObservationsObservationIdRoute
   ApiOpsV1PluginsIdRoute: typeof ApiOpsV1PluginsIdRouteWithChildren
   ApiOpsV1SubmissionsIdRoute: typeof ApiOpsV1SubmissionsIdRouteWithChildren
   OgPluginsLocaleSlugCardDotpngRoute: typeof OgPluginsLocaleSlugCardDotpngRoute
+  ApiOpsV1BlogIndexRoute: typeof ApiOpsV1BlogIndexRoute
   ApiOpsV1ChangelogIndexRoute: typeof ApiOpsV1ChangelogIndexRoute
+  ApiOpsV1FeaturedIndexRoute: typeof ApiOpsV1FeaturedIndexRoute
   ApiOpsV1PluginsIndexRoute: typeof ApiOpsV1PluginsIndexRoute
   ApiOpsV1ReportsIndexRoute: typeof ApiOpsV1ReportsIndexRoute
   ApiOpsV1SubmissionsIndexRoute: typeof ApiOpsV1SubmissionsIndexRoute
@@ -1525,6 +1679,13 @@ declare module '@tanstack/react-router' {
       path: '/examples'
       fullPath: '/$locale/examples'
       preLoaderRoute: typeof LocaleExamplesRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/featured': {
+      id: '/$locale/featured'
+      path: '/featured'
+      fullPath: '/$locale/featured'
+      preLoaderRoute: typeof LocaleFeaturedRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/.well-known/api-catalog': {
@@ -1623,6 +1784,20 @@ declare module '@tanstack/react-router' {
       path: '/auth/cli'
       fullPath: '/$locale/auth/cli'
       preLoaderRoute: typeof LocaleAuthCliRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/blog/': {
+      id: '/$locale/blog/'
+      path: '/blog'
+      fullPath: '/$locale/blog/'
+      preLoaderRoute: typeof LocaleBlogIndexRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/blog/$slug': {
+      id: '/$locale/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/$locale/blog/$slug'
+      preLoaderRoute: typeof LocaleBlogSlugRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/categories/$slug': {
@@ -1728,6 +1903,27 @@ declare module '@tanstack/react-router' {
       path: '/admin/approvals/$id'
       fullPath: '/admin/approvals/$id'
       preLoaderRoute: typeof AdminApprovalsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/blog/': {
+      id: '/admin/blog/'
+      path: '/admin/blog'
+      fullPath: '/admin/blog/'
+      preLoaderRoute: typeof AdminBlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/blog/$slug': {
+      id: '/admin/blog/$slug'
+      path: '/admin/blog/$slug'
+      fullPath: '/admin/blog/$slug'
+      preLoaderRoute: typeof AdminBlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/blog/new': {
+      id: '/admin/blog/new'
+      path: '/admin/blog/new'
+      fullPath: '/admin/blog/new'
+      preLoaderRoute: typeof AdminBlogNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -1861,6 +2057,20 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/approvals/$id'
       fullPath: '/api/admin/approvals/$id'
       preLoaderRoute: typeof ApiAdminApprovalsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/blog/': {
+      id: '/api/admin/blog/'
+      path: '/api/admin/blog'
+      fullPath: '/api/admin/blog/'
+      preLoaderRoute: typeof ApiAdminBlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/blog/$slug': {
+      id: '/api/admin/blog/$slug'
+      path: '/api/admin/blog/$slug'
+      fullPath: '/api/admin/blog/$slug'
+      preLoaderRoute: typeof ApiAdminBlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/claims/$id/verify': {
@@ -2087,6 +2297,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpsUsersIdRoleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ops/v1/blog/': {
+      id: '/api/ops/v1/blog/'
+      path: '/api/ops/v1/blog'
+      fullPath: '/api/ops/v1/blog/'
+      preLoaderRoute: typeof ApiOpsV1BlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/v1/blog/$slug': {
+      id: '/api/ops/v1/blog/$slug'
+      path: '/api/ops/v1/blog/$slug'
+      fullPath: '/api/ops/v1/blog/$slug'
+      preLoaderRoute: typeof ApiOpsV1BlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/ops/v1/changelog/': {
       id: '/api/ops/v1/changelog/'
       path: '/api/ops/v1/changelog'
@@ -2099,6 +2323,20 @@ declare module '@tanstack/react-router' {
       path: '/api/ops/v1/changelog/$slug'
       fullPath: '/api/ops/v1/changelog/$slug'
       preLoaderRoute: typeof ApiOpsV1ChangelogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/v1/featured/': {
+      id: '/api/ops/v1/featured/'
+      path: '/api/ops/v1/featured'
+      fullPath: '/api/ops/v1/featured/'
+      preLoaderRoute: typeof ApiOpsV1FeaturedIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ops/v1/featured/$category': {
+      id: '/api/ops/v1/featured/$category'
+      path: '/api/ops/v1/featured/$category'
+      fullPath: '/api/ops/v1/featured/$category'
+      preLoaderRoute: typeof ApiOpsV1FeaturedCategoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ops/v1/observations/$observationId': {
@@ -2212,6 +2450,7 @@ declare module '@tanstack/react-router' {
 interface LocaleRouteChildren {
   LocaleAboutRoute: typeof LocaleAboutRoute
   LocaleExamplesRoute: typeof LocaleExamplesRoute
+  LocaleFeaturedRoute: typeof LocaleFeaturedRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
   LocaleAccountAppealsRoute: typeof LocaleAccountAppealsRoute
   LocaleAccountCollectionsRoute: typeof LocaleAccountCollectionsRoute
@@ -2219,6 +2458,7 @@ interface LocaleRouteChildren {
   LocaleAccountSettingsRoute: typeof LocaleAccountSettingsRoute
   LocaleAccountSubmissionsRoute: typeof LocaleAccountSubmissionsRoute
   LocaleAuthCliRoute: typeof LocaleAuthCliRoute
+  LocaleBlogSlugRoute: typeof LocaleBlogSlugRoute
   LocaleCategoriesSlugRoute: typeof LocaleCategoriesSlugRoute
   LocaleChangelogSlugRoute: typeof LocaleChangelogSlugRoute
   LocaleCollectionsIdRoute: typeof LocaleCollectionsIdRoute
@@ -2228,6 +2468,7 @@ interface LocaleRouteChildren {
   LocalePublishersLoginRoute: typeof LocalePublishersLoginRoute
   LocaleUsersLoginRoute: typeof LocaleUsersLoginRoute
   LocaleAccountIndexRoute: typeof LocaleAccountIndexRoute
+  LocaleBlogIndexRoute: typeof LocaleBlogIndexRoute
   LocaleChangelogIndexRoute: typeof LocaleChangelogIndexRoute
   LocaleDocsIndexRoute: typeof LocaleDocsIndexRoute
   LocaleOperationsIndexRoute: typeof LocaleOperationsIndexRoute
@@ -2237,6 +2478,7 @@ interface LocaleRouteChildren {
 const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleAboutRoute: LocaleAboutRoute,
   LocaleExamplesRoute: LocaleExamplesRoute,
+  LocaleFeaturedRoute: LocaleFeaturedRoute,
   LocaleIndexRoute: LocaleIndexRoute,
   LocaleAccountAppealsRoute: LocaleAccountAppealsRoute,
   LocaleAccountCollectionsRoute: LocaleAccountCollectionsRoute,
@@ -2244,6 +2486,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleAccountSettingsRoute: LocaleAccountSettingsRoute,
   LocaleAccountSubmissionsRoute: LocaleAccountSubmissionsRoute,
   LocaleAuthCliRoute: LocaleAuthCliRoute,
+  LocaleBlogSlugRoute: LocaleBlogSlugRoute,
   LocaleCategoriesSlugRoute: LocaleCategoriesSlugRoute,
   LocaleChangelogSlugRoute: LocaleChangelogSlugRoute,
   LocaleCollectionsIdRoute: LocaleCollectionsIdRoute,
@@ -2253,6 +2496,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocalePublishersLoginRoute: LocalePublishersLoginRoute,
   LocaleUsersLoginRoute: LocaleUsersLoginRoute,
   LocaleAccountIndexRoute: LocaleAccountIndexRoute,
+  LocaleBlogIndexRoute: LocaleBlogIndexRoute,
   LocaleChangelogIndexRoute: LocaleChangelogIndexRoute,
   LocaleDocsIndexRoute: LocaleDocsIndexRoute,
   LocaleOperationsIndexRoute: LocaleOperationsIndexRoute,
@@ -2367,6 +2611,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   DotwellKnownMcpServerCardDotjsonRoute: DotwellKnownMcpServerCardDotjsonRoute,
   AdminApprovalsIdRoute: AdminApprovalsIdRoute,
+  AdminBlogSlugRoute: AdminBlogSlugRoute,
+  AdminBlogNewRoute: AdminBlogNewRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCliTokenRoute: ApiCliTokenRoute,
   ApiCollectionsIdRoute: ApiCollectionsIdRoute,
@@ -2380,11 +2626,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRepliesIdRoute: ApiRepliesIdRoute,
   ApiUsersLoginRoute: ApiUsersLoginRoute,
   AdminApprovalsIndexRoute: AdminApprovalsIndexRoute,
+  AdminBlogIndexRoute: AdminBlogIndexRoute,
   ApiPluginsIndexRoute: ApiPluginsIndexRoute,
   ApiReportsIndexRoute: ApiReportsIndexRoute,
   ApiSubmissionsIndexRoute: ApiSubmissionsIndexRoute,
   ApiAdminAgentPromptResourcesRoute: ApiAdminAgentPromptResourcesRoute,
   ApiAdminApprovalsIdRoute: ApiAdminApprovalsIdRouteWithChildren,
+  ApiAdminBlogSlugRoute: ApiAdminBlogSlugRoute,
   ApiClaimsIdVerifyRoute: ApiClaimsIdVerifyRoute,
   ApiMarketplacePluginsSlugRoute: ApiMarketplacePluginsSlugRoute,
   ApiMeBlocksUserIdRoute: ApiMeBlocksUserIdRoute,
@@ -2400,6 +2648,7 @@ const rootRouteChildren: RootRouteChildren = {
   OgHomeLocaleCardDotpngRoute: OgHomeLocaleCardDotpngRoute,
   ApiAdminAgentPromptIndexRoute: ApiAdminAgentPromptIndexRoute,
   ApiAdminApprovalsIndexRoute: ApiAdminApprovalsIndexRoute,
+  ApiAdminBlogIndexRoute: ApiAdminBlogIndexRoute,
   ApiCliAuthorizationsIndexRoute: ApiCliAuthorizationsIndexRoute,
   ApiMarketplacePluginsIndexRoute: ApiMarketplacePluginsIndexRoute,
   ApiMeAppealsIndexRoute: ApiMeAppealsIndexRoute,
@@ -2414,13 +2663,17 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMePluginsPluginIdFollowRoute: ApiMePluginsPluginIdFollowRoute,
   ApiMePublishersPublisherIdFollowRoute: ApiMePublishersPublisherIdFollowRoute,
   ApiOpsUsersIdRoleRoute: ApiOpsUsersIdRoleRoute,
+  ApiOpsV1BlogSlugRoute: ApiOpsV1BlogSlugRoute,
   ApiOpsV1ChangelogSlugRoute: ApiOpsV1ChangelogSlugRoute,
+  ApiOpsV1FeaturedCategoryRoute: ApiOpsV1FeaturedCategoryRoute,
   ApiOpsV1ObservationsObservationIdRoute:
     ApiOpsV1ObservationsObservationIdRoute,
   ApiOpsV1PluginsIdRoute: ApiOpsV1PluginsIdRouteWithChildren,
   ApiOpsV1SubmissionsIdRoute: ApiOpsV1SubmissionsIdRouteWithChildren,
   OgPluginsLocaleSlugCardDotpngRoute: OgPluginsLocaleSlugCardDotpngRoute,
+  ApiOpsV1BlogIndexRoute: ApiOpsV1BlogIndexRoute,
   ApiOpsV1ChangelogIndexRoute: ApiOpsV1ChangelogIndexRoute,
+  ApiOpsV1FeaturedIndexRoute: ApiOpsV1FeaturedIndexRoute,
   ApiOpsV1PluginsIndexRoute: ApiOpsV1PluginsIndexRoute,
   ApiOpsV1ReportsIndexRoute: ApiOpsV1ReportsIndexRoute,
   ApiOpsV1SubmissionsIndexRoute: ApiOpsV1SubmissionsIndexRoute,

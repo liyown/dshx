@@ -8,7 +8,7 @@ export const dailyDiscoveryQueries = [
     query: '"dsh.bundle.patch"',
     signal: "dsh.bundle.patch",
     rationale:
-      "Find repositories that mention the canonical DSH plugin bundle patch.",
+      "Find repositories that mention the canonical DeepSeek Harness plugin bundle patch.",
   },
   {
     id: "github-cordis-patch",
@@ -24,7 +24,7 @@ export const dailyDiscoveryQueries = [
     query: '"DSH" plugin',
     signal: "dsh-plugin-keywords",
     rationale:
-      "Find repository names, descriptions, topics, and README metadata describing DSH plugins.",
+      "Find repository names, descriptions, topics, and README metadata that use the DSH shorthand for DeepSeek Harness plugins.",
   },
   {
     id: "github-deepseek-harness-plugin-keywords",
@@ -33,6 +33,14 @@ export const dailyDiscoveryQueries = [
     signal: "deepseek-harness-plugin-keywords",
     rationale:
       "Find repository metadata that describes a DeepSeek Harness plugin.",
+  },
+  {
+    id: "github-deepseek-harness-phrase",
+    provider: "github",
+    query: '"DeepSeek Harness" plugin',
+    signal: "deepseek-harness-plugin-keywords",
+    rationale:
+      "Find repository metadata that spells out the full DeepSeek Harness product name.",
   },
   {
     id: "npm-dsh-bundle-patch",
@@ -56,7 +64,7 @@ export const dailyDiscoveryQueries = [
     query: "DSH plugin",
     signal: "dsh-plugin-keywords",
     rationale:
-      "Find npm package names, descriptions, and keywords describing DSH plugins.",
+      "Find npm package names, descriptions, and keywords that use the DSH shorthand for DeepSeek Harness plugins.",
   },
   {
     id: "npm-deepseek-harness-plugin-keywords",
@@ -64,5 +72,13 @@ export const dailyDiscoveryQueries = [
     query: "deepseek-harness plugin",
     signal: "deepseek-harness-plugin-keywords",
     rationale: "Find npm package metadata describing DeepSeek Harness plugins.",
+  },
+  {
+    id: "npm-deepseek-harness-phrase",
+    provider: "npm",
+    query: '"DeepSeek Harness" plugin',
+    signal: "deepseek-harness-plugin-keywords",
+    rationale:
+      "Find npm package metadata that spells out the full DeepSeek Harness product name.",
   },
 ] as const satisfies readonly DailyDiscoveryQuery[];

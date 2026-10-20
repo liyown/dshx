@@ -577,7 +577,7 @@ function ReleasesPanel({
             </div>
             <div className="text-sm text-muted-foreground">
               {release.compatibility_range
-                ? `DSH ${release.compatibility_range}`
+                ? `DeepSeek Harness ${release.compatibility_range}`
                 : "Compatibility not declared"}
               {release.git_tag ? ` · ${release.git_tag}` : ""}
             </div>

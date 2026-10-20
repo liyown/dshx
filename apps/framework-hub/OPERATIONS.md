@@ -38,6 +38,12 @@ The Hub snapshot is generated from the private prompt package at release time an
 | `PUT`   | `/api/ops/v1/submissions/{id}/resolution`  | Resolve a submission                    |
 | `GET`   | `/api/ops/v1/reports`                      | Read the latest operations report       |
 | `POST`  | `/api/ops/v1/reports`                      | Publish one immutable operations report |
+| `GET`   | `/api/ops/v1/blog`                         | List blog articles including drafts     |
+| `POST`  | `/api/ops/v1/blog`                         | Create a bilingual blog article         |
+| `GET`   | `/api/ops/v1/blog/{slug}`                  | Read one blog article and its revision  |
+| `PUT`   | `/api/ops/v1/blog/{slug}`                  | Edit, publish, or withdraw an article   |
+| `GET`   | `/api/ops/v1/featured`                     | Read curated featured shelves           |
+| `PUT`   | `/api/ops/v1/featured/{category}`          | Replace the ordered picks for a shelf   |
 | `POST`  | `/api/ops/v1/plugins/{id}/media`           | Upload plugin media and metadata        |
 | `GET`   | `/api/ops/v1/audit`                        | Read consistency findings               |
 
@@ -202,3 +208,24 @@ Media upload validates MIME type, byte size, dimensions, content hash, Alt text,
 `POST /reports` accepts `runId`, `startedAt`, `completedAt`, `outcome=completed|partial`, and `body.en/body.zh` (maximum 10,000 characters each). A `runId` with identical content is an idempotent success; different content returns `idempotency_conflict`. Reports cannot be updated. Each insert atomically prunes the oldest rows by `completedAt, runId`, keeping at most 1,000 globally.
 
 Public report bodies are rendered as plain text. They must not contain credentials, email addresses, private addresses, local paths, raw stack traces, or internal audit payloads.
+
+## Blog articles
+
+`/api/ops/v1/blog` manages the bilingual editorial blog. A `POST` creates one article; a `PUT` edits, publishes, or withdraws it. Both require the `catalog:write` scope.
+
+- `slug` is unique, lower-case kebab-case, and immutable after creation.
+- `status` is `draft` or `published`; a published article cannot use a future `publishedAt`.
+- `content.en` and `content.zh` are required and contain sections with `paragraph`, `list`, `code`, or `quote` blocks. Section IDs are unique per locale, and the serialized content must stay within 250 KB.
+- `relatedPluginSlugs` stores at most eight unique, existing plugin slugs in display order; an unknown slug returns `422 blog_plugin_not_found`.
+- Updates require `ifRevision`; a stale revision returns `409 revision_conflict` with the current article as the repair target. A duplicate create returns `409 blog_slug_conflict`.
+- Public `/en/blog` and `/zh/blog` list only published articles whose `publishedAt` is today or earlier. Draft reads and writes require the bearer token.
+- Creating or updating an article invalidates the blog sitemap cache. The administrator editor at `/admin/blog` uses the session-authenticated `/api/admin/blog` endpoints, which expose the same article contract.
+
+## Featured shelves
+
+`/featured` is curated per category and is separate from the derived `plugins.featured` quality flag.
+
+- `PUT /api/ops/v1/featured/{category}` replaces the entire shelf for one category with the supplied `pluginSlugs` array, preserving array order. At most 24 unique slugs are accepted; an empty array clears the shelf.
+- An unknown category returns `404 featured_category_not_found`; an unknown plugin slug returns `422 featured_plugin_not_found` with the missing slugs.
+- `GET /api/ops/v1/featured` returns only categories that have picks, including each pick's status and lifecycle status so operators can see non-public selections. The public page renders published plugins only.
+- Migration `0013` creates the blog tables and seeds up to four published picks per active category. Apply it with `pnpm db:migrate:remote` before deploying a Hub build that serves these routes.

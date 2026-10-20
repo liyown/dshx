@@ -17,7 +17,7 @@ export const architecture = defineDocsChapter({
       eyebrow: "System boundaries",
       title: "DSHX architecture",
       intro:
-        "DSHX is a build-time toolchain for out-of-tree DeepSeek Harness plugins. It prepares typed Host and Client modules; official DSH and Cordis services continue to own execution and lifecycle.",
+        "DSHX is a build-time toolchain for out-of-tree DeepSeek Harness plugins. It prepares typed Host and Client modules; official DeepSeek Harness and Cordis services continue to own execution and lifecycle.",
       description:
         "Understand the boundary between DSHX, DeepSeek Harness, Cordis, plugin Host modules, Client modules, and the DSHX Hub.",
       sections: [
@@ -67,7 +67,7 @@ export const architecture = defineDocsChapter({
                 },
                 {
                   title: "Run",
-                  body: "Let the linked DSH Profile and Composition load and own the resulting plugin lifecycle.",
+                  body: "Let the linked DeepSeek Harness Profile and Composition load and own the resulting plugin lifecycle.",
                 },
               ],
             },
@@ -80,7 +80,7 @@ export const architecture = defineDocsChapter({
           blocks: [
             {
               kind: "note",
-              text: "Verified for @becomeopc/dshx 0.2.0-preview.0 on the protocol-2 DSH boundary 0.2.1-rc.2 (source tag dsh-v0.2.1-rc.2). DSHX does not provide a parallel Agent, Session, Tool, Slot, transport, persistence, or HMR runtime. Experimental surfaces remain labeled and do not imply a 1.0 stability guarantee.",
+              text: "Verified for @becomeopc/dshx 0.2.0-preview.0 on the protocol-2 DeepSeek Harness boundary 0.2.1-rc.2 (source tag dsh-v0.2.1-rc.2). DSHX does not provide a parallel Agent, Session, Tool, Slot, transport, persistence, or HMR runtime. Experimental surfaces remain labeled and do not imply a 1.0 stability guarantee.",
             },
           ],
         },
@@ -91,7 +91,7 @@ export const architecture = defineDocsChapter({
       eyebrow: "系统边界",
       title: "DSHX 架构",
       intro:
-        "DSHX 是面向 DeepSeek Harness 外部插件的构建期工具链。它生成类型化 Host 与 Client 模块；实际执行和生命周期仍由官方 DSH 与 Cordis 服务负责。",
+        "DSHX 是面向 DeepSeek Harness 外部插件的构建期工具链。它生成类型化 Host 与 Client 模块；实际执行和生命周期仍由官方 DeepSeek Harness 与 Cordis 服务负责。",
       description:
         "了解 DSHX、DeepSeek Harness、Cordis、插件 Host、Client 与 DSHX Hub 的职责边界。",
       sections: [
@@ -135,7 +135,7 @@ export const architecture = defineDocsChapter({
                 },
                 {
                   title: "运行",
-                  body: "由关联的 DSH Profile 与 Composition 加载并管理插件生命周期。",
+                  body: "由关联的 DeepSeek Harness Profile 与 Composition 加载并管理插件生命周期。",
                 },
               ],
             },
@@ -148,7 +148,7 @@ export const architecture = defineDocsChapter({
           blocks: [
             {
               kind: "note",
-              text: "本文已按 @becomeopc/dshx 0.2.0-preview.0，以及 protocol-2 的 DSH 0.2.1-rc.2（源码 tag dsh-v0.2.1-rc.2）边界验证。DSHX 不提供平行的 Agent、Session、Tool、Slot、Transport、持久化或 HMR Runtime。实验性能力会明确标注，也不代表 1.0 稳定性承诺。",
+              text: "本文已按 @becomeopc/dshx 0.2.0-preview.0，以及 protocol-2 的 DeepSeek Harness 0.2.1-rc.2（源码 tag dsh-v0.2.1-rc.2）边界验证。DSHX 不提供平行的 Agent、Session、Tool、Slot、Transport、持久化或 HMR Runtime。实验性能力会明确标注，也不代表 1.0 稳定性承诺。",
             },
           ],
         },

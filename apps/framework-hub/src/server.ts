@@ -38,16 +38,20 @@ function withSecurityHeaders(response: Response, request: Request): Response {
     !request.headers.has("authorization") &&
     !request.headers.has("cookie") &&
     !headers.has("set-cookie") &&
-    (/^\/(?:en|zh)\/changelog(?:\/[^/]+)?$/.test(pathname) ||
+    (/^\/(?:en|zh)\/(?:changelog|blog)(?:\/[^/]+)?$/.test(pathname) ||
+      /^\/(?:en|zh)\/featured\/?$/.test(pathname) ||
       /^\/(?:en|zh)(?:\/(?:about|categories|docs|examples|legal|operations|plugins|publishers)(?:\/|$))?$/.test(
         pathname,
       ));
   if (cacheablePublicPage) {
     headers.set("cache-control", "public, max-age=60, s-maxage=300, stale-while-revalidate=86400");
   }
-  // Changelog publication and withdrawal take effect directly from D1, without
-  // serving a previously published article from a browser or edge page cache.
-  if (/^\/(?:en|zh)\/changelog(?:\/|$)/.test(pathname)) {
+  // Editorial publication, withdrawal, and curation take effect directly from
+  // D1, without serving stale content from a browser or edge page cache.
+  if (
+    /^\/(?:en|zh)\/(?:changelog|blog)(?:\/|$)/.test(pathname) ||
+    /^\/(?:en|zh)\/featured\/?$/.test(pathname)
+  ) {
     headers.set("cache-control", "no-store");
   }
   return new Response(response.body, {
@@ -88,6 +92,8 @@ export function redirectToLocale(request: Request): Response | undefined {
   const isRoot = url.pathname === "/";
   const isLegacyPage =
     /^\/changelog(?:\/[^/]+)?(?:\/)?$/.test(url.pathname) ||
+    /^\/blog(?:\/[^/]+)?(?:\/)?$/.test(url.pathname) ||
+    /^\/featured(?:\/)?$/.test(url.pathname) ||
     /^\/docs(?:\/[^/]+)*(?:\/)?$/.test(url.pathname) ||
     /^\/examples(?:\/)?$/.test(url.pathname) ||
     /^\/plugins(?:\/[^/]+)?(?:\/)?$/.test(url.pathname);

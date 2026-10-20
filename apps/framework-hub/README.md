@@ -50,6 +50,21 @@ one active primary target whose package name and version match the current catal
 list responses include localized `categories`; marketplace detail is available
 at `GET /api/marketplace/plugins/:slug` under the same eligibility rule.
 
+## Editorial content
+
+`/{locale}/blog` lists published bilingual articles and `/{locale}/featured` is
+the curated plugin shelf. Both are included in the sitemap.
+
+Administrators edit articles at `/admin/blog`; the editor calls the
+session-authenticated `/api/admin/blog` endpoints. The same article contract is
+available to operators through `/api/ops/v1/blog` with a `catalog:write` bearer
+token. Featured shelves are replaced through
+`PUT /api/ops/v1/featured/{category}`; see [OPERATIONS.md](./OPERATIONS.md) for
+ordering, conflict, and validation rules.
+
+Migration `0013` creates the blog and featured tables. Apply it with
+`pnpm db:migrate:remote` before deploying a Hub build that serves these routes.
+
 Before the first remote deployment, create the D1 database and replace the
 all-zero `database_id` in `wrangler.jsonc` with the ID returned by Cloudflare:
 

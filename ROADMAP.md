@@ -119,6 +119,7 @@ The representative `protocol-2` boundary is a source build of `dsh-v0.2.1-rc.2`.
 
 ### Adoption and ecosystem
 
+- Track distribution and backlink work in [TODO.md](./TODO.md); it is operational, not an API track.
 - Keep the Framework Hub examples, copyable development Prompt, and standalone DSHX development Skill aligned with the installed release.
 - Add verified example plugins that demonstrate Candidate APIs without depending on Experimental Conversation.
 - Improve diagnostics from real user failures before adding more helpers.

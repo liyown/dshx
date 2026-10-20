@@ -87,7 +87,7 @@ Hub requests have a 30-second deadline covering both headers and the response bo
 
 ## Scheduled operations
 
-The installed package supplies its own v8 prompt, policy, command contract, and input schemas:
+The authenticated operations bundle supplies the current prompt, policy, and command contract; the installed CLI supplies capabilities and validates inputs against its own schemas:
 
 ```bash
 export DSHX_HUB_OPS_STATE_DIR='/absolute/private/operations-state'
