@@ -162,10 +162,10 @@ Settings 使用官方插件 `Config` schema 与 `ctx.configForms`，ConfigForm �
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm check:all
-pnpm smoke:packages
-pnpm smoke:dsh -- --dsh-source /path/to/deepseek-harness
+DSH_SOURCE_ROOT=/path/to/deepseek-harness pnpm check:all
 ```
+
+`check:all` 已包含打包产物与真实 DSH 两套 smoke；指定源码目录后，后者使用已验证的 DSH 构建，而不是过期的 npm 产物。
 
 提交前请阅读[贡献指南](./CONTRIBUTING.md)、[依赖政策](./docs/dependency-policy.md)和[安全政策](./SECURITY.md)。
 

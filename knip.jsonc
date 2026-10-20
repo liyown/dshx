@@ -10,7 +10,13 @@
     "catalogReferences",
   ],
   "ignoreBinaries": ["dsh", "dshx", "wrangler"],
-  "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
+  "ignoreDependencies": [
+    "@arethetypeswrong/cli",
+    "publint",
+    // scripts/smoke-dsh.mjs invokes the installed playwright-cli binary by
+    // path for the local real-DSH browser scenario; nothing imports it.
+    "@playwright/cli",
+  ],
   "workspaces": {
     "packages/dshx": {
       "entry": [

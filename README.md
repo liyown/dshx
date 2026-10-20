@@ -162,10 +162,10 @@ Settings use the official plugin `Config` schema and `ctx.configForms`; the Conf
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm check:all
-pnpm smoke:packages
-pnpm smoke:dsh -- --dsh-source /path/to/deepseek-harness
+DSH_SOURCE_ROOT=/path/to/deepseek-harness pnpm check:all
 ```
+
+`check:all` already includes the package-archive and real-DSH smokes; the source root makes the latter use the verified DSH build instead of the stale npm artifact.
 
 Read [Contributing](./CONTRIBUTING.md), the [dependency policy](./docs/dependency-policy.md), and [Security](./SECURITY.md) before opening a change.
 

@@ -13,7 +13,7 @@ pnpm check:ci
 
 Pushes and pull requests run one Ubuntu / Node 24 job with formatting, lint, dependency checks, type checks, and package tests. Core is built once to supply the workspace declarations needed by Marketplace checks.
 
-Run `pnpm check:all` locally before a release. The **Full CI** workflow is available through GitHub's manual **Run workflow** action for package archives, real DSH and browser scenarios, both Node versions, and native modules across operating systems.
+Run `pnpm check:all` locally before a release. The real-DSH browser scenario needs a source-built DSH checkout, so pass it explicitly: `DSH_SOURCE_ROOT=/path/to/deepseek-harness pnpm check:all`. The **Full CI** workflow is available through GitHub's manual **Run workflow** action for package archives, marketplace self-bootstrap, both Node versions, and native modules across operating systems.
 
 Use maintained ecosystem packages for generic infrastructure when they meet the repository's Node.js, ESM, security, and testability constraints. Keep custom code for DSH-specific product contracts rather than recreating the runtime. Read the [dependency policy](docs/dependency-policy.md) before adding a new helper or package.
 

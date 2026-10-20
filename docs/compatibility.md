@@ -33,7 +33,7 @@ They do not map one-to-one. A plugin declares public DSH support and pins one co
 
 ## Protocol-generation source of truth
 
-`packages/dshx/src/compat/protocol-2.ts` is the current generation record. `packages/dshx/src/compat/index.ts` validates the registry, analyzes plugin ranges, selects adapters, reports capabilities, and derives the CI matrix. Each adapter keeps together:
+`packages/dshx/src/compat/protocol-2.ts` is the current generation record. `packages/dshx/src/compat/index.ts` validates the registry, analyzes plugin ranges, selects adapters, reports capabilities, and derives the smoke matrix. Each adapter keeps together:
 
 - protocol generation, lifecycle, and non-overlapping DSH semver range;
 - the baseline contract version and adapter-owned runtime configuration;
@@ -104,11 +104,11 @@ pnpm smoke:dsh -- --version 0.2.1-rc.2
 
 `--dsh-source` (or `DSH_SOURCE_ROOT`) builds nothing by itself; it links the source checkout's `apps/cli/lib/bin.js` into the fixture and is the verified 0.2 path. The source checkout must already have its Host and Client `lib` output plus `pnpm run build:native-system`. Without a source root, DSHX installs the npm version and reports any stale-artifact failure instead of treating it as verified. CLI input wins over environment variables. Set `DSHX_KEEP_SMOKE=1` only to preserve a failed temporary fixture for diagnosis.
 
-## CI matrix policy
+## Smoke and CI policy
 
-`getCompatibilitySmokeMatrix()` emits the minimum and latest verified boundary for every generation this DSHX release still resolves. If they are identical it emits one job. A new DSH patch does not add a script or job; update the latest boundary only after the generic scenario passes. A new job pair appears only when an actual contract change introduces an adapter.
+`getCompatibilitySmokeMatrix()` exposes the minimum and latest verified boundary for every generation this DSHX release still resolves. It remains a public tooling export for downstream automation; this repository does not run a dynamic CI matrix because only one adapter is active.
 
-Prerelease or `next` probing may run as scheduled experimental coverage when its cost is justified. A known regression version belongs in the matrix only when it protects a concrete invariant.
+The real-DSH smoke is a local release gate rather than a CI job: `DSH_SOURCE_ROOT=/path/to/deepseek-harness pnpm check:all` uses a source-built checkout, while npm `0.2.1-rc.2` still ships stale profile-boot code. CI covers the offline gates, both supported Node versions, package archives, marketplace self-bootstrap, and native modules. Update the verified boundary only after the generic scenario passes against a source build; add an adapter and dedicated coverage only when an observable contract change requires it.
 
 ## Adapter and lifecycle policy
 
