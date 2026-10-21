@@ -177,7 +177,11 @@ export const dailyOperationsPolicy = {
   },
   report: {
     maximumCharactersPerLocale: 10_000,
-    format: "plain-text",
+    format: "markdown",
+    markdownDialect: "GitHub Flavored Markdown",
+    allowHtml: false,
+    mergeSameDay: true,
+    dayTimeZone: "Asia/Shanghai",
     languages: ["en", "zh"],
     requiredSections: false,
     scope:

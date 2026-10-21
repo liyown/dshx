@@ -497,10 +497,24 @@ export const publicOperationReportQuerySchema = z
   })
   .strict();
 
-export const publicOperationReportDetailQuerySchema = z
+export const operationReportDaySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/u)
+  .refine((value) => {
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  });
+
+export const publicOperationReportDayQuerySchema = z
+  .object({
+    day: operationReportDaySchema,
+    locale: z.enum(["en", "zh"]).default("en"),
+  })
+  .strict();
+
+export const publicOperationReportRunQuerySchema = z
   .object({
     runId: operationReportRunIdSchema,
-    locale: z.enum(["en", "zh"]).default("en"),
   })
   .strict();
 
@@ -515,3 +529,4 @@ export type SubmissionResolution = z.infer<typeof submissionResolutionSchema>;
 export type OperationMediaMetadata = z.infer<typeof operationMediaMetadataSchema>;
 export type OperationReportInput = z.infer<typeof operationReportInputSchema>;
 export type PublicOperationReportQuery = z.infer<typeof publicOperationReportQuerySchema>;
+export type PublicOperationReportDayQuery = z.infer<typeof publicOperationReportDayQuerySchema>;

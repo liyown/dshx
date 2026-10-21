@@ -7,7 +7,10 @@ import { createDatabase, type Database } from "@/lib/db/client";
 import { listIndexableSitemapLocales } from "@/lib/sitemap.repository.server";
 
 import { operationReportInputSchema } from "./operations-v1.contracts";
-import { getPublicOperationReportDetail } from "./operation-report-detail.server";
+import {
+  getOperationReportDayForRun,
+  getPublicOperationReportDay,
+} from "./operation-report-detail.server";
 import {
   latestOperationReport,
   listPublicOperationReports,
@@ -93,13 +96,21 @@ describe("immutable Hub operations reports with local D1", () => {
     await expect(
       listPublicOperationReports(db, { locale: "en", limit: 20 }),
     ).resolves.toMatchObject({
-      items: [{ runId: input.runId, body: input.body.en, outcome: "partial" }],
+      items: [
+        {
+          day: "2026-08-27",
+          runCount: 1,
+          latestRunId: input.runId,
+          body: input.body.en,
+          outcome: "partial",
+        },
+      ],
       nextCursor: null,
     });
     await expect(
       listPublicOperationReports(db, { locale: "zh", limit: 20 }),
     ).resolves.toMatchObject({
-      items: [{ runId: input.runId, body: input.body.zh }],
+      items: [{ day: "2026-08-27", body: input.body.zh }],
     });
   });
 
@@ -152,32 +163,33 @@ describe("immutable Hub operations reports with local D1", () => {
     ).rejects.toThrow(/immutable/i);
   });
 
-  it("paginates newest first with a stable cursor", async () => {
+  it("paginates daily reports newest first with a stable cursor", async () => {
     for (let index = 0; index < 3; index += 1) {
-      const minute = String(index).padStart(2, "0");
+      const day = String(27 + index).padStart(2, "0");
       await publishOperationReport(
         db,
         "actor-token",
         report({
           runId: `11111111-1111-4111-8111-${String(index + 1).padStart(12, "0")}`,
-          completedAt: `2026-08-27T00:${minute}:00.000Z`,
+          completedAt: `2026-08-${day}T00:30:00.000Z`,
           body: { en: `report ${index}`, zh: `报告 ${index}` },
         }),
       );
     }
     const first = await listPublicOperationReports(db, { locale: "en", limit: 2 });
-    expect(first.items.map(({ body }) => body)).toEqual(["report 2", "report 1"]);
+    expect(first.items.map(({ day }) => day)).toEqual(["2026-08-29", "2026-08-28"]);
+    expect(first.items.map(({ runCount }) => runCount)).toEqual([1, 1]);
     expect(first.nextCursor).toEqual(expect.any(String));
     const second = await listPublicOperationReports(db, {
       locale: "en",
       limit: 2,
       cursor: first.nextCursor!,
     });
-    expect(second.items.map(({ body }) => body)).toEqual(["report 0"]);
+    expect(second.items.map(({ day }) => day)).toEqual(["2026-08-27"]);
     expect(second.nextCursor).toBeNull();
   });
 
-  it("serves one report with audit-derived plugins and neighbouring runs", async () => {
+  it("serves a daily report with audit-derived plugins and neighbouring days", async () => {
     const suffix = crypto.randomUUID().replaceAll("-", "").slice(0, 12);
     const actor = `actor-run-detail-${suffix}`;
     const plugin = async (name: string) => {
@@ -233,27 +245,32 @@ describe("immutable Hub operations reports with local D1", () => {
     await audit(ignored.id, "observation.updated", "another-actor", createdAt - 5 * 60_000);
     await audit(first.id, "observation.updated", actor, createdAt - 70 * 60_000);
 
-    const detail = await getPublicOperationReportDetail(db, input.runId, "en");
+    const detail = await getPublicOperationReportDay(db, "2026-08-27", "en");
     expect(detail).toMatchObject({
-      runId: input.runId,
+      day: "2026-08-27",
+      runCount: 1,
       body: input.body.en,
+      earlier: [],
       related: [
         {
           plugin: { slug: first.slug },
           actions: ["observation.created", "plugin.curate"],
         },
       ],
-      newer: null,
-      older: null,
+      newerDay: null,
+      olderDay: null,
     });
-    await expect(getPublicOperationReportDetail(db, crypto.randomUUID(), "en")).resolves.toBeNull();
+    await expect(getPublicOperationReportDay(db, "2026-08-25", "en")).resolves.toBeNull();
+    await expect(getOperationReportDayForRun(db, input.runId)).resolves.toBe("2026-08-27");
+    await expect(getOperationReportDayForRun(db, crypto.randomUUID())).resolves.toBeNull();
 
     await publishOperationReport(
       db,
       actor,
       report({
         runId: "33333333-3333-4333-8333-333333333334",
-        completedAt: "2026-08-27T01:00:00.000Z",
+        startedAt: "2026-08-28T00:30:00.000Z",
+        completedAt: "2026-08-28T01:00:00.000Z",
         body: { en: "Newer report", zh: "较新的日报" },
       }),
     );
@@ -262,34 +279,128 @@ describe("immutable Hub operations reports with local D1", () => {
       actor,
       report({
         runId: "33333333-3333-4333-8333-333333333332",
-        startedAt: "2026-08-26T22:30:00.000Z",
-        completedAt: "2026-08-26T23:00:00.000Z",
+        startedAt: "2026-08-26T14:30:00.000Z",
+        completedAt: "2026-08-26T15:00:00.000Z",
         body: { en: "Older report", zh: "更早的日报" },
       }),
     );
-    await expect(getPublicOperationReportDetail(db, input.runId, "en")).resolves.toMatchObject({
-      newer: { runId: "33333333-3333-4333-8333-333333333334" },
-      older: { runId: "33333333-3333-4333-8333-333333333332" },
+    await expect(getPublicOperationReportDay(db, "2026-08-27", "en")).resolves.toMatchObject({
+      newerDay: "2026-08-28",
+      olderDay: "2026-08-26",
     });
   });
 
-  it("indexes only reports with substantive localized bodies", async () => {
+  it("merges same-day runs and hides earlier notes for a cumulative report", async () => {
+    const first = report({
+      runId: "66666666-6666-4666-8666-666666666661",
+      completedAt: "2026-08-27T01:00:00.000Z",
+      body: { en: "## Summary\n\nFirst run work.", zh: "## 摘要\n\n第一轮工作。" },
+    });
+    const second = report({
+      runId: "66666666-6666-4666-8666-666666666662",
+      startedAt: "2026-08-27T02:00:00.000Z",
+      completedAt: "2026-08-27T02:30:00.000Z",
+      body: { en: "## Summary\n\nSecond run work.", zh: "## 摘要\n\n第二轮工作。" },
+    });
+    await publishOperationReport(db, "actor-token", first);
+    await publishOperationReport(db, "actor-token", second);
+
+    const unmerged = await getPublicOperationReportDay(db, "2026-08-27", "en");
+    expect(unmerged).toMatchObject({
+      runCount: 2,
+      body: "## Summary\n\nSecond run work.",
+      earlier: [{ runId: first.runId, body: "## Summary\n\nFirst run work." }],
+      earlierTotal: 1,
+    });
+
+    const cumulative = report({
+      runId: "66666666-6666-4666-8666-666666666663",
+      startedAt: "2026-08-27T03:00:00.000Z",
+      completedAt: "2026-08-27T03:30:00.000Z",
+      body: {
+        en: "<!-- daily-report:merged -->\n## Summary\n\nFirst and second run work.",
+        zh: "<!-- daily-report:merged -->\n## 摘要\n\n第一轮与第二轮工作。",
+      },
+    });
+    await publishOperationReport(db, "actor-token", cumulative);
+    await expect(getPublicOperationReportDay(db, "2026-08-27", "en")).resolves.toMatchObject({
+      runCount: 3,
+      body: cumulative.body.en,
+      earlier: [],
+    });
+    await expect(
+      listPublicOperationReports(db, { locale: "en", limit: 20 }),
+    ).resolves.toMatchObject({
+      items: [{ day: "2026-08-27", runCount: 3, body: cumulative.body.en }],
+      nextCursor: null,
+    });
+  });
+
+  it("caps the earlier same-day fallback and mirrors it in the sitemap", async () => {
+    const base = Date.parse("2026-09-01T00:00:00.000Z");
+    await binding
+      .prepare(
+        `with recursive sequence(value) as (
+          select 0 union all select value + 1 from sequence where value < 24
+        )
+        insert into hub_operation_reports(
+          run_id,started_at,completed_at,outcome,body_en,body_zh,payload_hash,actor_token_id,created_at
+        )
+        select
+          'cap-' || printf('%02d',value), ? + value * 60000, ? + value * 60000, 'completed',
+          case when value < 4 then hex(zeroblob(50)) else 's' end,
+          case when value < 4 then hex(zeroblob(50)) else '短' end,
+          'hash-' || value, 'actor-token', ? + value * 60000
+        from sequence`,
+      )
+      .bind(base, base, base)
+      .run();
+
+    const capped = await getPublicOperationReportDay(db, "2026-09-01", "en");
+    expect(capped).toMatchObject({ runCount: 25, body: "s", earlierTotal: 24 });
+    expect(capped?.earlier).toHaveLength(20);
+    expect(capped?.earlier[0]?.body).toBe("s");
+    expect(capped?.earlier[19]?.body).toBe("s");
+    // The four long bodies are older than the visible window, so they must not
+    // make the day indexable.
+    expect(await listIndexableSitemapLocales(db, "operation-report", "2026-09-01")).toEqual([]);
+  });
+
+  it("indexes only days with substantive localized bodies", async () => {
     const shortBody = report({
       runId: "44444444-4444-4444-8444-444444444441",
+      startedAt: "2026-08-25T00:00:00.000Z",
+      completedAt: "2026-08-25T00:30:00.000Z",
       body: { en: "short", zh: "短" },
     });
     const longBody = report({
       runId: "44444444-4444-4444-8444-444444444442",
+      startedAt: "2026-08-26T00:00:00.000Z",
+      completedAt: "2026-08-26T00:30:00.000Z",
       body: { en: "x".repeat(400), zh: "中".repeat(400) },
     });
     await publishOperationReport(db, "actor-token", shortBody);
     await publishOperationReport(db, "actor-token", longBody);
 
-    expect(await listIndexableSitemapLocales(db, "operation-report", shortBody.runId)).toEqual([]);
-    expect(await listIndexableSitemapLocales(db, "operation-report", longBody.runId)).toEqual([
+    expect(await listIndexableSitemapLocales(db, "operation-report", "2026-08-25")).toEqual([]);
+    expect(await listIndexableSitemapLocales(db, "operation-report", "2026-08-26")).toEqual([
       "en",
       "zh",
     ]);
+
+    // A cumulative short report hides the earlier long body on the public page,
+    // so the day must drop out of the sitemap with it.
+    await publishOperationReport(
+      db,
+      "actor-token",
+      report({
+        runId: "44444444-4444-4444-8444-444444444443",
+        startedAt: "2026-08-26T01:00:00.000Z",
+        completedAt: "2026-08-26T01:30:00.000Z",
+        body: { en: "<!-- daily-report:merged -->\nshort", zh: "<!-- daily-report:merged -->\n短" },
+      }),
+    );
+    expect(await listIndexableSitemapLocales(db, "operation-report", "2026-08-26")).toEqual([]);
   });
 
   it("keeps exactly the latest 1000 reports after the 1001st publish", async () => {

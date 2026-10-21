@@ -46,7 +46,7 @@ import { Route as LocaleDocsIndexRouteImport } from './routes/$locale/docs/index
 import { Route as LocaleDocsSlugRouteImport } from './routes/$locale/docs/$slug'
 import { Route as LocaleLegalDocumentRouteImport } from './routes/$locale/legal/$document'
 import { Route as LocaleOperationsIndexRouteImport } from './routes/$locale/operations/index'
-import { Route as LocaleOperationsRunIdRouteImport } from './routes/$locale/operations/$runId'
+import { Route as LocaleOperationsReportKeyRouteImport } from './routes/$locale/operations/$reportKey'
 import { Route as LocalePluginsIndexRouteImport } from './routes/$locale/plugins/index'
 import { Route as LocalePluginsSlugRouteImport } from './routes/$locale/plugins/$slug'
 import { Route as LocalePublishersLoginRouteImport } from './routes/$locale/publishers/$login'
@@ -322,11 +322,12 @@ const LocaleOperationsIndexRoute = LocaleOperationsIndexRouteImport.update({
   path: '/operations/',
   getParentRoute: () => LocaleRoute,
 } as any)
-const LocaleOperationsRunIdRoute = LocaleOperationsRunIdRouteImport.update({
-  id: '/operations/$runId',
-  path: '/operations/$runId',
-  getParentRoute: () => LocaleRoute,
-} as any)
+const LocaleOperationsReportKeyRoute =
+  LocaleOperationsReportKeyRouteImport.update({
+    id: '/operations/$reportKey',
+    path: '/operations/$reportKey',
+    getParentRoute: () => LocaleRoute,
+  } as any)
 const LocalePluginsIndexRoute = LocalePluginsIndexRouteImport.update({
   id: '/plugins/',
   path: '/plugins/',
@@ -808,7 +809,7 @@ export interface FileRoutesByFullPath {
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
   '/$locale/docs/$slug': typeof LocaleDocsSlugRoute
   '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
-  '/$locale/operations/$runId': typeof LocaleOperationsRunIdRoute
+  '/$locale/operations/$reportKey': typeof LocaleOperationsReportKeyRoute
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
   '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
   '/$locale/users/$login': typeof LocaleUsersLoginRoute
@@ -931,7 +932,7 @@ export interface FileRoutesByTo {
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
   '/$locale/docs/$slug': typeof LocaleDocsSlugRoute
   '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
-  '/$locale/operations/$runId': typeof LocaleOperationsRunIdRoute
+  '/$locale/operations/$reportKey': typeof LocaleOperationsReportKeyRoute
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
   '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
   '/$locale/users/$login': typeof LocaleUsersLoginRoute
@@ -1056,7 +1057,7 @@ export interface FileRoutesById {
   '/$locale/collections/$id': typeof LocaleCollectionsIdRoute
   '/$locale/docs/$slug': typeof LocaleDocsSlugRoute
   '/$locale/legal/$document': typeof LocaleLegalDocumentRoute
-  '/$locale/operations/$runId': typeof LocaleOperationsRunIdRoute
+  '/$locale/operations/$reportKey': typeof LocaleOperationsReportKeyRoute
   '/$locale/plugins/$slug': typeof LocalePluginsSlugRoute
   '/$locale/publishers/$login': typeof LocalePublishersLoginRoute
   '/$locale/users/$login': typeof LocaleUsersLoginRoute
@@ -1182,7 +1183,7 @@ export interface FileRouteTypes {
     | '/$locale/collections/$id'
     | '/$locale/docs/$slug'
     | '/$locale/legal/$document'
-    | '/$locale/operations/$runId'
+    | '/$locale/operations/$reportKey'
     | '/$locale/plugins/$slug'
     | '/$locale/publishers/$login'
     | '/$locale/users/$login'
@@ -1305,7 +1306,7 @@ export interface FileRouteTypes {
     | '/$locale/collections/$id'
     | '/$locale/docs/$slug'
     | '/$locale/legal/$document'
-    | '/$locale/operations/$runId'
+    | '/$locale/operations/$reportKey'
     | '/$locale/plugins/$slug'
     | '/$locale/publishers/$login'
     | '/$locale/users/$login'
@@ -1429,7 +1430,7 @@ export interface FileRouteTypes {
     | '/$locale/collections/$id'
     | '/$locale/docs/$slug'
     | '/$locale/legal/$document'
-    | '/$locale/operations/$runId'
+    | '/$locale/operations/$reportKey'
     | '/$locale/plugins/$slug'
     | '/$locale/publishers/$login'
     | '/$locale/users/$login'
@@ -1868,11 +1869,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleOperationsIndexRouteImport
       parentRoute: typeof LocaleRoute
     }
-    '/$locale/operations/$runId': {
-      id: '/$locale/operations/$runId'
-      path: '/operations/$runId'
-      fullPath: '/$locale/operations/$runId'
-      preLoaderRoute: typeof LocaleOperationsRunIdRouteImport
+    '/$locale/operations/$reportKey': {
+      id: '/$locale/operations/$reportKey'
+      path: '/operations/$reportKey'
+      fullPath: '/$locale/operations/$reportKey'
+      preLoaderRoute: typeof LocaleOperationsReportKeyRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/plugins/': {
@@ -2483,7 +2484,7 @@ interface LocaleRouteChildren {
   LocaleCollectionsIdRoute: typeof LocaleCollectionsIdRoute
   LocaleDocsSlugRoute: typeof LocaleDocsSlugRoute
   LocaleLegalDocumentRoute: typeof LocaleLegalDocumentRoute
-  LocaleOperationsRunIdRoute: typeof LocaleOperationsRunIdRoute
+  LocaleOperationsReportKeyRoute: typeof LocaleOperationsReportKeyRoute
   LocalePluginsSlugRoute: typeof LocalePluginsSlugRoute
   LocalePublishersLoginRoute: typeof LocalePublishersLoginRoute
   LocaleUsersLoginRoute: typeof LocaleUsersLoginRoute
@@ -2512,7 +2513,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleCollectionsIdRoute: LocaleCollectionsIdRoute,
   LocaleDocsSlugRoute: LocaleDocsSlugRoute,
   LocaleLegalDocumentRoute: LocaleLegalDocumentRoute,
-  LocaleOperationsRunIdRoute: LocaleOperationsRunIdRoute,
+  LocaleOperationsReportKeyRoute: LocaleOperationsReportKeyRoute,
   LocalePluginsSlugRoute: LocalePluginsSlugRoute,
   LocalePublishersLoginRoute: LocalePublishersLoginRoute,
   LocaleUsersLoginRoute: LocaleUsersLoginRoute,

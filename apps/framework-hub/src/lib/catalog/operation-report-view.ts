@@ -7,6 +7,58 @@ export const OPERATIONS_TIME_ZONE = "Asia/Shanghai";
 // operations surface does not add thin pages to the site.
 export const OPERATION_REPORT_INDEX_MIN_CHARS = 400;
 export const OPERATION_REPORT_EXCERPT_CHARS = 700;
+// Days published before the merge prompt can hold many run notes. Keep the
+// latest ones visible without turning one page into an unbounded document.
+export const OPERATION_REPORT_EARLIER_LIMIT = 20;
+
+// Kept in sync with the operations prompt. A cumulative same-day report starts
+// with this comment, so the Hub can show it as the complete daily document
+// instead of displaying the earlier runs again.
+export const OPERATION_REPORT_MERGE_MARKER = "<!-- daily-report:merged -->";
+
+const dayKeyFormatter = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: OPERATIONS_TIME_ZONE,
+});
+
+/** The public daily report key, e.g. 2026-10-21, in Asia/Shanghai. */
+export function operationReportDayKey(value: string | number) {
+  const parts = dayKeyFormatter.formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((entry) => entry.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+export function isOperationReportMerged(body: string) {
+  return body.includes(OPERATION_REPORT_MERGE_MARKER);
+}
+
+/**
+ * Markdown keeps the public report readable; previews and SEO descriptions
+ * need the visible text instead of syntax. This intentionally handles only the
+ * constructs the operations prompt asks for.
+ */
+export function operationReportPlainText(markdown: string) {
+  return markdown
+    .replace(/<!--[\s\S]*?-->/gu, " ")
+    .replace(/```[^\n]*\n([\s\S]*?)```/gu, "$1")
+    .replace(/`([^`]+)`/gu, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gmu, "")
+    .replace(/^\s{0,3}>\s?/gmu, "")
+    .replace(/^\s{0,3}(?:[-*+]|\d+[.)])\s+/gmu, "")
+    .replace(/^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/gmu, " ")
+    .replace(/\|/gu, " ")
+    .replace(/\*\*([^*]+)\*\*/gu, "$1")
+    .replace(/\*([^*\n]+)\*/gu, "$1")
+    .replace(/~~([^~]+)~~/gu, "$1")
+    .replace(/<\/?[a-z][^>]*>/giu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
 
 export function formatOperationReportDate(value: string, locale: Locale) {
   return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
@@ -29,12 +81,16 @@ export function formatOperationReportDay(value: string, locale: Locale) {
   }).format(new Date(value));
 }
 
+export function formatOperationReportDayKey(day: string, locale: Locale) {
+  return formatOperationReportDay(`${day}T12:00:00+08:00`, locale);
+}
+
 export function isOperationReportIndexable(body: string) {
   return body.trim().length >= OPERATION_REPORT_INDEX_MIN_CHARS;
 }
 
 export function operationReportDescription(body: string, maximum = 160) {
-  const flattened = body.replace(/\s+/gu, " ").trim();
+  const flattened = operationReportPlainText(body);
   if (flattened.length <= maximum) return flattened;
   const slice = flattened.slice(0, maximum);
   const boundary = slice.lastIndexOf(" ");
@@ -43,10 +99,10 @@ export function operationReportDescription(body: string, maximum = 160) {
 }
 
 export function operationReportExcerpt(body: string, maximum = OPERATION_REPORT_EXCERPT_CHARS) {
-  const text = body.trim();
+  const text = operationReportPlainText(body);
   if (text.length <= maximum) return { text, truncated: false } as const;
   const slice = text.slice(0, maximum);
-  const boundary = Math.max(slice.lastIndexOf("\n"), slice.lastIndexOf(" "));
+  const boundary = slice.lastIndexOf(" ");
   const cut = boundary >= Math.floor(maximum * 0.7) ? slice.slice(0, boundary) : slice;
   return { text: `${cut.trimEnd()}…`, truncated: true } as const;
 }

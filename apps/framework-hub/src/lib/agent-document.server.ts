@@ -1,4 +1,5 @@
 import { getCatalogPlugin, listCatalogDiscovery } from "./catalog/repository.server";
+import { operationReportPlainText } from "./catalog/operation-report-view";
 import { listPublicOperationReports } from "./catalog/operation-reports.server";
 import { getPublicPublisher } from "./community/marketplace.server";
 import { createDatabase } from "./db/client";
@@ -429,10 +430,10 @@ async function dynamicDocument(
       canonical: canonical(pathname),
       locale,
       sections: reports.items.map((report) => ({
-        title: `${report.completedAt} · ${report.outcome}`,
+        title: `${report.day} · ${report.outcome}`,
         blocks: [
-          { kind: "paragraph", text: report.body },
-          { kind: "paragraph", text: `Run: ${report.runId}` },
+          { kind: "paragraph", text: operationReportPlainText(report.body) },
+          { kind: "paragraph", text: `Runs: ${report.runCount}` },
         ],
       })),
     };

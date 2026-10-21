@@ -1,6 +1,9 @@
 import { sql } from "drizzle-orm";
 
-import { OPERATION_REPORT_INDEX_MIN_CHARS } from "@/lib/catalog/operation-report-view";
+import {
+  OPERATION_REPORT_EARLIER_LIMIT,
+  OPERATION_REPORT_INDEX_MIN_CHARS,
+} from "@/lib/catalog/operation-report-view";
 import type { Database } from "@/lib/db/client";
 import type { SitemapDatabaseRow } from "@/lib/sitemap";
 
@@ -85,16 +88,54 @@ function blogRows(value?: string) {
 }
 
 function operationReportRows(value?: string) {
+  // Mirror the public page: a cumulative report hides earlier same-day runs, so
+  // only its own body decides indexability. Without the marker, the latest body
+  // plus the most recent earlier bodies are visible, and their combined length
+  // decides. The earlier list is capped in the page UI.
   return sql`
-    select 'operation-report' as kind,l.locale as locale,r.run_id as value,
-      r.completed_at as updated_at
-    from hub_operation_reports r
+    with ranked as (
+      select date(completed_at/1000,'unixepoch','+8 hours') day,
+        completed_at,
+        run_id,
+        body_en,
+        body_zh,
+        row_number() over (
+          partition by date(completed_at/1000,'unixepoch','+8 hours')
+          order by completed_at desc,run_id desc
+        ) rn
+      from hub_operation_reports
+    ),
+    days as (
+      select day,
+        max(completed_at) updated_at,
+        max(case when rn=1 then body_en end) latest_en,
+        max(case when rn=1 then body_zh end) latest_zh,
+        sum(case when rn<=${OPERATION_REPORT_EARLIER_LIMIT + 1}
+          then length(trim(body_en)) else 0 end) body_en_length,
+        sum(case when rn<=${OPERATION_REPORT_EARLIER_LIMIT + 1}
+          then length(trim(body_zh)) else 0 end) body_zh_length
+      from ranked
+      group by day
+    )
+    select 'operation-report' as kind,l.locale as locale,d.day as value,
+      d.updated_at as updated_at
+    from days d
     cross join (select 'en' as locale union all select 'zh' as locale) l
     where (
-      (l.locale='en' and length(trim(r.body_en))>=${OPERATION_REPORT_INDEX_MIN_CHARS})
-      or (l.locale='zh' and length(trim(r.body_zh))>=${OPERATION_REPORT_INDEX_MIN_CHARS})
+      (l.locale='en' and (
+        case when instr(d.latest_en,'<!-- daily-report:merged -->')>0
+          then length(trim(d.latest_en))
+          else d.body_en_length
+        end
+      )>=${OPERATION_REPORT_INDEX_MIN_CHARS})
+      or (l.locale='zh' and (
+        case when instr(d.latest_zh,'<!-- daily-report:merged -->')>0
+          then length(trim(d.latest_zh))
+          else d.body_zh_length
+        end
+      )>=${OPERATION_REPORT_INDEX_MIN_CHARS})
     )
-      ${value ? sql`and r.run_id=${value}` : sql``}
+      ${value ? sql`and d.day=${value}` : sql``}
   `;
 }
 

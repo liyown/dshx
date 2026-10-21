@@ -76,16 +76,16 @@ describe("single dynamic sitemap", () => {
     }
   });
 
-  it("includes indexable operations report detail pages", () => {
+  it("includes indexable daily operations reports", () => {
     const modified = 1_700_000_000_000;
-    const runId = "55555555-5555-4555-8555-555555555555";
+    const day = "2026-10-21";
     const entries = createSitemapEntries("https://dshx.io", [
-      { kind: "operation-report", locale: "en", value: runId, updated_at: modified },
-      { kind: "operation-report", locale: "zh", value: runId, updated_at: modified },
+      { kind: "operation-report", locale: "en", value: day, updated_at: modified },
+      { kind: "operation-report", locale: "zh", value: day, updated_at: modified },
     ]);
     for (const locale of ["en", "zh"]) {
       expect(entries).toContainEqual({
-        loc: `https://dshx.io/${locale}/operations/${runId}`,
+        loc: `https://dshx.io/${locale}/operations/${day}`,
         kind: "operation-report",
         locale,
         lastmod: new Date(modified).toISOString(),

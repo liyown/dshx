@@ -237,7 +237,7 @@ dshx-hub report latest
 dshx-hub report publish --input report.json
 ```
 
-Reports use an immutable UUID `runId`, ISO start/completion times, `outcome=completed|partial`, and English/Chinese plain-text bodies of at most 10,000 characters each. Identical retries are idempotent; conflicting content for one `runId` is rejected.
+Reports use an immutable UUID `runId`, ISO start/completion times, `outcome=completed|partial`, and English/Chinese GitHub-Flavored Markdown bodies of at most 10,000 characters each. Identical retries are idempotent; conflicting content for one `runId` is rejected. Run `report latest` first: when its date matches the active run's `Asia/Shanghai` date, publish a cumulative daily report whose first line is `<!-- daily-report:merged -->` so the Hub keeps one report per day.
 
 ## Submissions, media, and audit
 

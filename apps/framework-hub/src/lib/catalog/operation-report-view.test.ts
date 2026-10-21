@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatOperationReportDate,
+  formatOperationReportDayKey,
   isOperationReportIndexable,
+  isOperationReportMerged,
+  operationReportDayKey,
   operationReportDescription,
   operationReportExcerpt,
+  operationReportPlainText,
 } from "./operation-report-view";
 
 describe("formatOperationReportDate", () => {
@@ -14,7 +18,40 @@ describe("formatOperationReportDate", () => {
   });
 });
 
+describe("operation report days", () => {
+  it("groups reports by the Asia/Shanghai calendar day", () => {
+    expect(operationReportDayKey("2026-10-21T15:59:59.000Z")).toBe("2026-10-21");
+    expect(operationReportDayKey("2026-10-21T16:00:00.000Z")).toBe("2026-10-22");
+    expect(formatOperationReportDayKey("2026-10-21", "en")).toContain("Oct 21, 2026");
+    expect(formatOperationReportDayKey("2026-10-21", "zh")).toContain("2026年10月21日");
+  });
+
+  it("recognizes cumulative daily reports", () => {
+    expect(isOperationReportMerged("<!-- daily-report:merged -->\n## Summary")).toBe(true);
+    expect(isOperationReportMerged("## Summary\nplain report")).toBe(false);
+  });
+});
+
 describe("operation report previews", () => {
+  it("strips Markdown for previews and descriptions", () => {
+    const body = [
+      "<!-- daily-report:merged -->",
+      "## Summary",
+      "- Added **dsh-context** and `dsh-fast`.",
+      "- See [the source](https://example.com/plugin).",
+      "",
+      "| Item | Count |",
+      "| --- | --- |",
+      "| Curated | 3 |",
+    ].join("\n");
+    const text = operationReportPlainText(body);
+    expect(text).toBe(
+      "Summary Added dsh-context and dsh-fast. See the source. Item Count Curated 3",
+    );
+    expect(operationReportDescription(body, 40)).not.toContain("#");
+    expect(operationReportExcerpt(body, 40).text).not.toContain("**");
+  });
+
   it("keeps short bodies intact and truncates long ones on a word boundary", () => {
     expect(operationReportExcerpt("Short report", 100)).toEqual({
       text: "Short report",

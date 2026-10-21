@@ -202,13 +202,21 @@ export const dailyOperationsScenarios = [
   {
     schemaVersion: 1,
     id: "report-is-flexible-factual-and-confirmed",
-    title: "A concise report explains actual results without empty sections",
+    title:
+      "A concise Markdown daily report explains actual results without empty sections",
     given: [
       "The run produced one useful investigation and a confirmed content correction; no submissions or moderation were involved.",
+      "An earlier report from the same Asia/Shanghai day already covers other confirmed work.",
     ],
-    expectedCommands: ["report publish", "report latest", "ops finish"],
+    expectedCommands: [
+      "report latest",
+      "report publish",
+      "report latest",
+      "ops finish",
+    ],
     expectedOutcomes: [
-      "The Agent chooses a concise structure and omits irrelevant sections while preserving bilingual plain-text API fields.",
+      "The Agent writes GitHub-Flavored Markdown with H2 sections, no H1, and no raw HTML except the merge marker.",
+      "It merges the earlier same-day report into one cumulative body instead of publishing a separate run note.",
       "It distinguishes research from confirmed changes and excludes secrets, private URLs, paths, and raw internal errors.",
       "Immutable report retries reuse identical input, and local completion follows confirmation of the same report run ID.",
     ],

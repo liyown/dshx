@@ -26,17 +26,31 @@ export const dailyReportTemplate = {
   },
   maximumCharactersPerLocale: 10_000,
   rendering: {
-    mediaType: "text/plain",
-    parseMarkdown: false,
+    mediaType: "text/markdown",
+    dialect: "GitHub Flavored Markdown",
+    parseMarkdown: true,
     parseHtml: false,
+  },
+  markdown: {
+    includeTitle: false,
+    topLevelHeading: "h2",
+    allowHtml: false,
+    allowImages: false,
+    mergeMarker: "<!-- daily-report:merged -->",
+  },
+  dailyMerge: {
+    enabled: true,
+    timeZone: "Asia/Shanghai",
+    description:
+      "When a report from the same UTC+8 calendar day already exists, publish the cumulative daily report instead of a separate run note.",
   },
   sections: dailyReportSections,
   requiredSections: false,
   organization:
-    "Choose the structure that best explains this run's actual work.",
+    "Choose the structure that best explains the day's actual work, using stable H2 headings so merged reports stay readable.",
   body: {
-    en: "[Explain the priorities, evidence, useful findings, and confirmed changes that mattered. Include material unfinished work or blockers when relevant. Choose your own structure; omit empty categories.]",
-    zh: "[说明本轮重要的判断、证据、有用发现和已确认的改动；有实质未完成事项或阻碍时如实交代。自行组织内容，不必填写空白类别。]",
+    en: "[Explain the priorities, evidence, useful findings, and confirmed changes that mattered. Include material unfinished work or blockers when relevant. Use GitHub-Flavored Markdown with H2 sections; omit empty categories.]",
+    zh: "[说明本轮重要的判断、证据、有用发现和已确认的改动；有实质未完成事项或阻碍时如实交代。使用 GitHub-Flavored Markdown 和 H2 分节；不必填写空白类别。]",
   },
   forbiddenContent: [
     "tokens or credentials",

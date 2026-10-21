@@ -31,24 +31,23 @@ async function sha256(value: string) {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function encodeCursor(completedAt: number, runId: string) {
-  return btoa(JSON.stringify([completedAt, runId]))
+function encodeCursor(day: string) {
+  return btoa(JSON.stringify([day]))
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replaceAll("=", "");
 }
 
-function decodeCursor(cursor?: string): [number, string] | null {
+function decodeCursor(cursor?: string): string | null {
   if (!cursor) return null;
   try {
     const parsed = JSON.parse(atob(cursor.replaceAll("-", "+").replaceAll("_", "/"))) as unknown;
     if (
       Array.isArray(parsed) &&
-      typeof parsed[0] === "number" &&
-      Number.isFinite(parsed[0]) &&
-      typeof parsed[1] === "string"
+      typeof parsed[0] === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/u.test(parsed[0])
     )
-      return [parsed[0], parsed[1]];
+      return parsed[0];
   } catch {
     // Normalized below.
   }
@@ -168,33 +167,55 @@ export async function listPublicOperationReports(
   query: PublicOperationReportQuery,
 ) {
   const cursor = decodeCursor(query.cursor);
-  const result = await binding.all<ReportRow>(
+  // Group by the Asia/Shanghai calendar day so the public log shows one entry
+  // per day. Reports stay immutable per run; the newest report of the day is
+  // the cumulative body when the operations prompt merged the day's work.
+  const rows = await binding.all<{
+    day: string;
+    run_count: number;
+    started_at: number;
+    completed_at: number;
+    partial: number;
+    body_en: string;
+    body_zh: string;
+    run_id: string;
+  }>(
     parameterizedSql(
-      `select run_id,started_at,completed_at,outcome,body_en,body_zh,payload_hash,created_at
-       from hub_operation_reports
-       where (? is null or completed_at<? or (completed_at=? and run_id<?))
-       order by completed_at desc,run_id desc limit ?`,
-      [
-        cursor?.[0] ?? null,
-        cursor?.[0] ?? null,
-        cursor?.[0] ?? null,
-        cursor?.[1] ?? null,
-        query.limit + 1,
-      ],
+      `with ranked as (
+        select run_id,started_at,completed_at,outcome,body_en,body_zh,
+          date(completed_at/1000,'unixepoch','+8 hours') day,
+          row_number() over (
+            partition by date(completed_at/1000,'unixepoch','+8 hours')
+            order by completed_at desc,run_id desc
+          ) rn
+        from hub_operation_reports
+      ),
+      days as (
+        select day,count(*) run_count,min(started_at) started_at,max(completed_at) completed_at,
+          max(case when outcome='partial' then 1 else 0 end) partial
+        from ranked group by day
+      )
+      select d.day,d.run_count,d.started_at,d.completed_at,d.partial,
+        substr(r.body_en,1,2000) body_en,substr(r.body_zh,1,2000) body_zh,r.run_id
+      from days d
+      join ranked r on r.day=d.day and r.rn=1
+      where (? is null or d.day<?)
+      order by d.day desc limit ?`,
+      [cursor, cursor, query.limit + 1],
     ),
   );
-  const rows = result;
   const page = rows.slice(0, query.limit);
   const last = page.at(-1);
   return {
     items: page.map((row) => ({
-      runId: row.run_id,
+      day: row.day,
+      runCount: row.run_count,
       startedAt: new Date(row.started_at).toISOString(),
       completedAt: new Date(row.completed_at).toISOString(),
-      outcome: row.outcome,
+      outcome: row.partial === 1 ? ("partial" as const) : ("completed" as const),
+      latestRunId: row.run_id,
       body: query.locale === "zh" ? row.body_zh : row.body_en,
     })),
-    nextCursor:
-      rows.length > query.limit && last ? encodeCursor(last.completed_at, last.run_id) : null,
+    nextCursor: rows.length > query.limit && last ? encodeCursor(last.day) : null,
   };
 }

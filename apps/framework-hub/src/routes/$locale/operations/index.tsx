@@ -5,6 +5,7 @@ import { Container, SectionLabel } from "@/components/dshx/primitives";
 import { loadPublicOperationReports } from "@/lib/catalog/operation-report-functions";
 import {
   formatOperationReportDate,
+  formatOperationReportDayKey,
   operationReportExcerpt,
 } from "@/lib/catalog/operation-report-view";
 import { createTranslator, parseLocale } from "@/lib/i18n";
@@ -75,37 +76,44 @@ function ReportEntry({
         <div className="flex items-center gap-2.5">
           {latest ? <span className="mono-label text-accent">{t("operations.latest")}</span> : null}
           <Link
-            to="/$locale/operations/$runId"
-            params={{ locale, runId: report.runId }}
+            to="/$locale/operations/$reportKey"
+            params={{ locale, reportKey: report.day }}
             className="rounded-sm font-mono text-[11.5px] text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
           >
-            <time dateTime={report.completedAt}>
-              {formatOperationReportDate(report.completedAt, locale)}
-            </time>
+            <time dateTime={report.day}>{formatOperationReportDayKey(report.day, locale)}</time>
           </Link>
         </div>
-        <span
-          className={
-            report.outcome === "completed"
-              ? "font-mono text-[11px] uppercase tracking-[0.1em] text-foreground"
-              : "font-mono text-[11px] uppercase tracking-[0.1em] text-warn"
-          }
-        >
-          {t(report.outcome === "completed" ? "operations.completed" : "operations.partial")}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+            {t("operations.runCount", { count: report.runCount })}
+          </span>
+          <span
+            className={
+              report.outcome === "completed"
+                ? "font-mono text-[11px] uppercase tracking-[0.1em] text-foreground"
+                : "font-mono text-[11px] uppercase tracking-[0.1em] text-warn"
+            }
+          >
+            {t(report.outcome === "completed" ? "operations.completed" : "operations.partial")}
+          </span>
+        </div>
       </div>
-      <p className="mt-5 whitespace-pre-wrap break-words text-[14px] leading-7 text-foreground [overflow-wrap:anywhere]">
+      <p className="mt-5 break-words text-[14px] leading-7 text-foreground [overflow-wrap:anywhere]">
         {excerpt.text}
       </p>
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <Link
-          to="/$locale/operations/$runId"
-          params={{ locale, runId: report.runId }}
+          to="/$locale/operations/$reportKey"
+          params={{ locale, reportKey: report.day }}
           className="inline-flex min-h-9 items-center gap-2 rounded-sm text-[13px] text-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
         >
           {t("operations.readFull")} <ArrowRight className="size-3.5" data-icon="inline-end" />
         </Link>
-        <p className="break-all font-mono text-[10.5px] text-muted-foreground">{report.runId}</p>
+        <span className="font-mono text-[10.5px] text-muted-foreground">
+          {t("operations.lastRun", {
+            date: formatOperationReportDate(report.completedAt, locale),
+          })}
+        </span>
       </div>
     </article>
   );
@@ -136,11 +144,11 @@ function OperationsPage() {
             <div className="mb-3 flex items-center justify-between">
               <span className="mono-label">{t("operations.history")}</span>
               <span className="font-mono text-[11px] text-muted-foreground">
-                {t("operations.textOnly")}
+                {t("operations.format")}
               </span>
             </div>
             {history.map((report) => (
-              <ReportEntry key={report.runId} report={report} />
+              <ReportEntry key={report.day} report={report} />
             ))}
           </section>
         ) : null}

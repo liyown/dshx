@@ -22,9 +22,9 @@ const promptContext = {
 } as const;
 
 describe("autonomous operations mandate", () => {
-  it("ships a deterministic v10 mandate centered on website value", () => {
+  it("ships a deterministic v11 mandate centered on website value", () => {
     const prompt = loadDailyOperationsPrompt();
-    expect(dailyOperationsPromptVersion).toBe(10);
+    expect(dailyOperationsPromptVersion).toBe(11);
     expect(prompt).toBe(loadDailyOperationsPrompt());
     expect(prompt).toContain("responsible operator and editor");
     expect(prompt).toContain("useful, accurate, and fresh");
@@ -207,7 +207,7 @@ describe("tool and recovery contracts", () => {
 });
 
 describe("flexible reporting with a stable API", () => {
-  it("retains the immutable bilingual plain-text API fields", () => {
+  it("retains the immutable bilingual Markdown API fields", () => {
     expect(dailyOperationsApiContract).toMatchObject({
       protectedReportsEndpoint: "/api/ops/v1/reports",
       publicReportsEndpoint: "/api/operations/reports",
@@ -227,9 +227,21 @@ describe("flexible reporting with a stable API", () => {
       immutableAfterPublish: true,
     });
     expect(dailyReportTemplate.rendering).toEqual({
-      mediaType: "text/plain",
-      parseMarkdown: false,
+      mediaType: "text/markdown",
+      dialect: "GitHub Flavored Markdown",
+      parseMarkdown: true,
       parseHtml: false,
+    });
+    expect(dailyReportTemplate.markdown).toMatchObject({
+      includeTitle: false,
+      topLevelHeading: "h2",
+      allowHtml: false,
+      allowImages: false,
+      mergeMarker: "<!-- daily-report:merged -->",
+    });
+    expect(dailyReportTemplate.dailyMerge).toMatchObject({
+      enabled: true,
+      timeZone: "Asia/Shanghai",
     });
     expect(dailyReportTemplate.body.en.length).toBeLessThanOrEqual(10_000);
     expect(dailyReportTemplate.body.zh.length).toBeLessThanOrEqual(10_000);
@@ -240,7 +252,7 @@ describe("flexible reporting with a stable API", () => {
     expect(dailyOperationsPolicy.report.requiredSections).toBe(false);
     expect(dailyReportTemplate.sections).toEqual(dailyReportSections);
     const prompt = loadDailyOperationsPrompt();
-    expect(prompt).toContain("there are no mandatory report sections");
+    expect(prompt).toContain("These sections are optional");
     expect(prompt).toContain(
       "publishing a report is not itself a website improvement",
     );
@@ -338,6 +350,10 @@ describe("copyable running prompt", () => {
       "Anti-stall",
       "Checkpoint input:",
       "Report input:",
+      "GitHub-Flavored Markdown",
+      "Daily merge:",
+      "<!-- daily-report:merged -->",
+      "same date as this run's completedAt",
       "idempotency_conflict",
       "ops_run_expired",
       "ops_run_not_owner",

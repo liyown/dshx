@@ -2,9 +2,9 @@ import type { Locale } from "@/lib/i18n";
 import { createTranslator } from "@/lib/i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternates, publicUrl } from "@/lib/seo";
 
-import type { PublicOperationReportDetail } from "./operation-report-detail.server";
+import type { PublicOperationReportDay } from "./operation-report-detail.server";
 import {
-  formatOperationReportDay,
+  formatOperationReportDayKey,
   isOperationReportIndexable,
   operationReportDescription,
 } from "./operation-report-view";
@@ -16,20 +16,24 @@ const organization = {
   url: publicUrl("/"),
 };
 
-export function buildOperationReportHead(locale: Locale, report: PublicOperationReportDetail) {
+function fullDayBody(report: PublicOperationReportDay) {
+  return [report.body, ...report.earlier.map((run) => run.body)].join("\n\n");
+}
+
+export function buildOperationReportHead(locale: Locale, report: PublicOperationReportDay) {
   const t = createTranslator(locale);
-  const path = `/${locale}/operations/${report.runId}`;
-  const date = formatOperationReportDay(report.completedAt, locale);
+  const path = `/${locale}/operations/${report.day}`;
+  const date = formatOperationReportDayKey(report.day, locale);
   const title = `${t("operations.reportTitle", { date })} · DSHX`;
-  const description = operationReportDescription(report.body);
+  const description = operationReportDescription(fullDayBody(report));
   return buildSeoHead({
     locale,
     path,
     title,
     description,
     type: "article",
-    robots: isOperationReportIndexable(report.body) ? "index,follow" : "noindex,follow",
-    alternates: localizedAlternates(`/operations/${report.runId}`),
+    robots: isOperationReportIndexable(fullDayBody(report)) ? "index,follow" : "noindex,follow",
+    alternates: localizedAlternates(`/operations/${report.day}`),
     structuredData: [
       organization,
       {

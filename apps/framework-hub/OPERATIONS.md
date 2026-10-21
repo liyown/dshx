@@ -47,7 +47,7 @@ The Hub snapshot is generated from the private prompt package at release time an
 | `POST`  | `/api/ops/v1/plugins/{id}/media`           | Upload plugin media and metadata        |
 | `GET`   | `/api/ops/v1/audit`                        | Read consistency findings               |
 
-`GET /api/operations/reports` is the unprotected public, locale-selected report feed used by `/en/operations` and `/zh/operations`. It exposes only `runId`, timestamps, outcome, and the selected plain-text body.
+`GET /api/operations/reports` is the unprotected public, locale-selected report feed used by `/en/operations` and `/zh/operations`. It exposes one item per `Asia/Shanghai` calendar day: `day`, the day's run count, timestamps, outcome, the latest run ID, and the selected locale's Markdown body.
 
 Protected endpoints authenticate a bearer token and authorize the smallest scope required by the operation. Identity and permission decisions are always server-side.
 
@@ -207,7 +207,7 @@ Media upload validates MIME type, byte size, dimensions, content hash, Alt text,
 
 `POST /reports` accepts `runId`, `startedAt`, `completedAt`, `outcome=completed|partial`, and `body.en/body.zh` (maximum 10,000 characters each). A `runId` with identical content is an idempotent success; different content returns `idempotency_conflict`. Reports cannot be updated. Each insert atomically prunes the oldest rows by `completedAt, runId`, keeping at most 1,000 globally.
 
-Public report bodies are rendered as plain text. They must not contain credentials, email addresses, private addresses, local paths, raw stack traces, or internal audit payloads.
+Report bodies are GitHub-Flavored Markdown and rendered without raw HTML. The public detail URL is keyed by day (`/{locale}/operations/{YYYY-MM-DD}`); old run-based URLs redirect with 301. All runs published for the same `Asia/Shanghai` day are grouped: the newest body is shown, and when it starts with `<!-- daily-report:merged -->` the earlier same-day bodies are hidden because the newest report is cumulative. Without the marker, earlier bodies appear in a collapsed section so no work is lost. Reports must not contain credentials, email addresses, private addresses, local paths, raw stack traces, raw HTML, images, or internal audit payloads.
 
 ## Blog articles
 

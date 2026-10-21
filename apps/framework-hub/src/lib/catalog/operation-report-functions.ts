@@ -1,10 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import {
-  publicOperationReportDetailQuerySchema,
+  publicOperationReportDayQuerySchema,
   publicOperationReportQuerySchema,
+  publicOperationReportRunQuerySchema,
 } from "./operations-v1.contracts";
-import { getPublicOperationReportDetail } from "./operation-report-detail.server";
+import {
+  getOperationReportDayForRun,
+  getPublicOperationReportDay,
+} from "./operation-report-detail.server";
 import { listPublicOperationReports } from "./operation-reports.server";
 import { requireDatabase } from "@/lib/db/client";
 
@@ -12,8 +16,14 @@ export const loadPublicOperationReports = createServerFn({ method: "GET" })
   .validator(publicOperationReportQuerySchema)
   .handler(async ({ data, context }) => listPublicOperationReports(requireDatabase(context), data));
 
-export const loadPublicOperationReport = createServerFn({ method: "GET" })
-  .validator(publicOperationReportDetailQuerySchema)
+export const loadPublicOperationReportDay = createServerFn({ method: "GET" })
+  .validator(publicOperationReportDayQuerySchema)
   .handler(async ({ data, context }) =>
-    getPublicOperationReportDetail(requireDatabase(context), data.runId, data.locale),
+    getPublicOperationReportDay(requireDatabase(context), data.day, data.locale),
+  );
+
+export const loadOperationReportDayForRun = createServerFn({ method: "GET" })
+  .validator(publicOperationReportRunQuerySchema)
+  .handler(async ({ data, context }) =>
+    getOperationReportDayForRun(requireDatabase(context), data.runId),
   );

@@ -1,27 +1,41 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
+import { MarkdownReport } from "@/components/dshx/markdown-report";
 import { PluginCard } from "@/components/dshx/plugin-card";
 import { Container } from "@/components/dshx/primitives";
-import { loadPublicOperationReport } from "@/lib/catalog/operation-report-functions";
+import {
+  loadOperationReportDayForRun,
+  loadPublicOperationReportDay,
+} from "@/lib/catalog/operation-report-functions";
 import { buildOperationReportHead } from "@/lib/catalog/operation-report-seo";
 import {
   formatOperationReportDate,
-  formatOperationReportDay,
+  formatOperationReportDayKey,
 } from "@/lib/catalog/operation-report-view";
-import { operationReportRunIdSchema } from "@/lib/catalog/operations-v1.contracts";
+import {
+  operationReportDaySchema,
+  operationReportRunIdSchema,
+} from "@/lib/catalog/operations-v1.contracts";
 import { createTranslator, parseLocale, type MessageKey } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { buildSeoHead } from "@/lib/seo";
 
-export const Route = createFileRoute("/$locale/operations/$runId")({
+export const Route = createFileRoute("/$locale/operations/$reportKey")({
   loader: async ({ params }) => {
-    if (!operationReportRunIdSchema.safeParse(params.runId).success) throw notFound();
-    const report = await loadPublicOperationReport({
-      data: {
-        runId: params.runId,
-        locale: parseLocale(params.locale),
-      },
+    const locale = parseLocale(params.locale);
+    if (operationReportRunIdSchema.safeParse(params.reportKey).success) {
+      const day = await loadOperationReportDayForRun({ data: { runId: params.reportKey } });
+      if (!day) throw notFound();
+      throw redirect({
+        to: "/$locale/operations/$reportKey",
+        params: { locale: params.locale, reportKey: day },
+        statusCode: 301,
+      });
+    }
+    if (!operationReportDaySchema.safeParse(params.reportKey).success) throw notFound();
+    const report = await loadPublicOperationReportDay({
+      data: { day: params.reportKey, locale },
     });
     if (!report) throw notFound();
     return report;
@@ -31,7 +45,7 @@ export const Route = createFileRoute("/$locale/operations/$runId")({
     if (loaderData) return buildOperationReportHead(locale, loaderData);
     return buildSeoHead({
       locale,
-      path: `/${locale}/operations/${encodeURIComponent(params.runId)}`,
+      path: `/${locale}/operations/${encodeURIComponent(params.reportKey)}`,
       title: `${createTranslator(locale)("operations.notFound")} · DSHX`,
       description: createTranslator(locale)("operations.notFoundDescription"),
       robots: "noindex,follow",
@@ -87,7 +101,7 @@ function OperationReportPage() {
   const locale = parseLocale(Route.useParams().locale);
   const report = Route.useLoaderData();
   const { t } = useI18n();
-  const date = formatOperationReportDay(report.completedAt, locale);
+  const date = formatOperationReportDayKey(report.day, locale);
 
   return (
     <main>
@@ -128,6 +142,9 @@ function OperationReportPage() {
               >
                 {t(report.outcome === "completed" ? "operations.completed" : "operations.partial")}
               </span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+                {t("operations.runCount", { count: report.runCount })}
+              </span>
             </div>
             <dl className="mt-8 grid gap-x-10 gap-y-4 text-[12px] sm:grid-cols-2">
               <div>
@@ -146,20 +163,38 @@ function OperationReportPage() {
                   </time>
                 </dd>
               </div>
-              <div className="sm:col-span-2">
-                <dt className="text-muted-foreground">{t("operations.runId")}</dt>
-                <dd className="mt-1.5 break-all font-mono text-[11px] text-muted-foreground">
-                  {report.runId}
-                </dd>
-              </div>
             </dl>
           </header>
 
-          <div className="max-w-3xl pt-10 md:pt-14">
-            <p className="whitespace-pre-wrap break-words text-[15px] leading-8 text-foreground [overflow-wrap:anywhere]">
-              {report.body}
-            </p>
+          <div className="pt-10 md:pt-14">
+            <MarkdownReport>{report.body}</MarkdownReport>
           </div>
+
+          {report.earlier.length > 0 ? (
+            <details className="mt-10 rounded-lg border border-border bg-surface px-5 py-4 md:px-6">
+              <summary className="cursor-pointer text-[13px] font-medium text-foreground">
+                {t("operations.earlierRuns", { count: report.earlierTotal })}
+              </summary>
+              <div className="mt-6 space-y-10">
+                {report.earlier.map((run) => (
+                  <section key={run.runId}>
+                    <p className="font-mono text-[11px] text-muted-foreground">
+                      {formatOperationReportDate(run.completedAt, locale)} ·{" "}
+                      {t(
+                        run.outcome === "completed" ? "operations.completed" : "operations.partial",
+                      )}
+                    </p>
+                    <MarkdownReport className="mt-3">{run.body}</MarkdownReport>
+                  </section>
+                ))}
+              </div>
+              {report.earlierTotal > report.earlier.length ? (
+                <p className="mt-6 font-mono text-[11px] text-muted-foreground">
+                  {t("operations.earlierRunsShown", { count: report.earlier.length })}
+                </p>
+              ) : null}
+            </details>
+          ) : null}
         </article>
 
         {report.related.length > 0 ? (
@@ -187,15 +222,15 @@ function OperationReportPage() {
           </section>
         ) : null}
 
-        {report.newer || report.older ? (
+        {report.newerDay || report.olderDay ? (
           <nav
             aria-label={t("operations.reportNavigation")}
             className="mt-16 grid gap-8 border-t border-border pt-8 sm:grid-cols-2"
           >
-            {report.newer ? (
+            {report.newerDay ? (
               <Link
-                to="/$locale/operations/$runId"
-                params={{ locale, runId: report.newer.runId }}
+                to="/$locale/operations/$reportKey"
+                params={{ locale, reportKey: report.newerDay }}
                 className="group rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
               >
                 <span className="flex items-center gap-2 text-[12px] text-muted-foreground">
@@ -203,16 +238,16 @@ function OperationReportPage() {
                   {t("operations.newerReport")}
                 </span>
                 <span className="mt-2 block text-[15px] font-medium group-hover:text-accent">
-                  {formatOperationReportDate(report.newer.completedAt, locale)}
+                  {formatOperationReportDayKey(report.newerDay, locale)}
                 </span>
               </Link>
             ) : (
               <span />
             )}
-            {report.older ? (
+            {report.olderDay ? (
               <Link
-                to="/$locale/operations/$runId"
-                params={{ locale, runId: report.older.runId }}
+                to="/$locale/operations/$reportKey"
+                params={{ locale, reportKey: report.olderDay }}
                 className="group rounded-sm text-right focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
               >
                 <span className="flex items-center justify-end gap-2 text-[12px] text-muted-foreground">
@@ -220,7 +255,7 @@ function OperationReportPage() {
                   <ArrowRight className="size-3.5" aria-hidden="true" />
                 </span>
                 <span className="mt-2 block text-[15px] font-medium group-hover:text-accent">
-                  {formatOperationReportDate(report.older.completedAt, locale)}
+                  {formatOperationReportDayKey(report.olderDay, locale)}
                 </span>
               </Link>
             ) : null}

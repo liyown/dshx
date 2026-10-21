@@ -131,7 +131,7 @@ const commands: Record<string, HelpEntry> = {
     summary: "Read the newest immutable bilingual Hub operations report.",
     usage: "dshx-hub report latest [--hub URL] [--output FILE]",
     reads:
-      "The latest operations run timestamp, outcome, and bilingual plain-text body.",
+      "The latest operations report timestamp, outcome, and bilingual Markdown body.",
     writes: "Nothing except an explicitly requested output file.",
     recovery:
       "Use a 72-hour overlap when no previous report exists or the prior run was partial.",
@@ -141,7 +141,7 @@ const commands: Record<string, HelpEntry> = {
       "Publish one immutable bilingual report for a completed or partial operations run.",
     usage: "dshx-hub report publish --input FILE|- [--hub URL] [--output FILE]",
     reads:
-      "A versioned runId, timestamps, outcome, and English and Chinese plain text.",
+      "A versioned runId, timestamps, outcome, and English and Chinese Markdown.",
     writes:
       "One idempotent report; Hub prunes the oldest rows beyond the global 1,000 limit.",
     recovery:

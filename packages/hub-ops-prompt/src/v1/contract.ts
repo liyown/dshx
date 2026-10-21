@@ -1,6 +1,6 @@
 import type { OperationsCommandContract } from "../contracts.js";
 
-export const dailyOperationsPromptVersion = 10 as const;
+export const dailyOperationsPromptVersion = 11 as const;
 
 export const dailyOperationsCliPackageName = "@becomeopc/dshx-hub-cli" as const;
 
