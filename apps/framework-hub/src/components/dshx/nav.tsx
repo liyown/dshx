@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n/use-i18n";
 import { MobileSessionLink, SessionLink } from "@/components/community/auth-controls";
 import { GitHubStarLink } from "./github-star-link";
 import { ThemeToggle } from "./theme-toggle";
+import { BorderTraceRing, useRoutePending } from "./nav-pending";
 
 const links = [
   { key: "nav.plugins", to: "/plugins" },
@@ -16,6 +17,43 @@ const links = [
   { key: "nav.blog", to: "/blog" },
   { key: "nav.changelog", to: "/changelog" },
 ] as const;
+
+// rounded-md resolves to --radius-md (8px) in this theme.
+const NAV_LINK_RADIUS = 8;
+
+function HeaderNavLink({
+  to,
+  label,
+  variant,
+  onNavigate,
+}: {
+  to: string;
+  label: string;
+  variant: "bar" | "menu";
+  onNavigate?: () => void;
+}) {
+  const { locale } = useI18n();
+  const href = localizedPath(locale, to);
+  const pending = useRoutePending(href);
+
+  return (
+    <Link
+      to={href}
+      preload="intent"
+      aria-busy={pending || undefined}
+      activeProps={{ className: "text-foreground" }}
+      className={cn(
+        "relative rounded-md whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
+        variant === "bar" ? "shrink-0 px-2 py-1.5 text-[15px]" : "px-2 py-2.5 text-[15px]",
+        pending && "cursor-progress text-foreground",
+      )}
+      onClick={onNavigate}
+    >
+      {label}
+      {pending ? <BorderTraceRing radius={NAV_LINK_RADIUS} className="text-accent" /> : null}
+    </Link>
+  );
+}
 
 export function Nav() {
   const { locale, t } = useI18n();
@@ -46,16 +84,9 @@ export function Nav() {
           <Wordmark />
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex">
+        <nav className="hidden items-center gap-0.5 lg:flex">
           {links.map((link) => (
-            <Link
-              key={link.to}
-              to={localizedPath(locale, link.to)}
-              className="rounded-md px-2.5 py-1.5 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
-              activeProps={{ className: "text-foreground" }}
-            >
-              {t(link.key)}
-            </Link>
+            <HeaderNavLink key={link.to} to={link.to} label={t(link.key)} variant="bar" />
           ))}
         </nav>
 
@@ -97,14 +128,13 @@ export function Nav() {
         >
           <Container className="flex flex-col py-2">
             {links.map((link) => (
-              <Link
+              <HeaderNavLink
                 key={link.to}
-                to={localizedPath(locale, link.to)}
-                onClick={() => setOpen(false)}
-                className="py-2.5 text-[14px] text-muted-foreground"
-              >
-                {t(link.key)}
-              </Link>
+                to={link.to}
+                label={t(link.key)}
+                variant="menu"
+                onNavigate={() => setOpen(false)}
+              />
             ))}
             <div className="py-2.5">
               <GitHubStarLink compact />

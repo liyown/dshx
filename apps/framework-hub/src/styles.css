@@ -201,6 +201,35 @@
   animation: plugin-view-in 120ms 160ms both;
 }
 
+/* A pending header link traces its own rounded border, so the click reads as
+   "received" even before the route resolves. The 90ms delay hides the ring on
+   navigations that finish instantly. */
+.nav-pending-ring {
+  animation: plugin-view-in 120ms 90ms both;
+}
+
+@keyframes nav-pending-trace {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+.nav-pending-ring__trace {
+  animation: nav-pending-trace 1.05s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-pending-ring {
+    animation: none;
+  }
+
+  .nav-pending-ring__trace {
+    animation: none;
+    stroke-dasharray: 100;
+    opacity: 0.55;
+  }
+}
+
 /* The clicked card and the server-rendered detail header share snapshots.
    Unselected cards stay unnamed, even when the same plugin appears twice. */
 @media (prefers-reduced-motion: no-preference) {

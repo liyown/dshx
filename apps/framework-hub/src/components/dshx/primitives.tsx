@@ -97,7 +97,7 @@ export function Lede({
 /* ---------- buttons ---------- */
 
 const base =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-[10px] px-4 text-[13.5px] font-medium transition-colors duration-150";
+  "inline-flex h-10 items-center justify-center gap-2 rounded-[10px] px-4 text-[13.5px] font-medium whitespace-nowrap transition-colors duration-150";
 
 export function ButtonLink({
   to,
