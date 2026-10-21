@@ -2,6 +2,16 @@ import { sql, type SQL } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
 import type { MarketplaceListQuery, PluginListQuery } from "./contracts";
+import {
+  ensurePluginScores,
+  latestPublishedAt,
+  localeQualityBonus,
+  marketplaceTargetEligibility,
+  popularityRecencyScore,
+  qualityRecencyScore,
+  storedOrLivePopularity,
+  storedOrLiveQuality,
+} from "./scores.server";
 import type { CatalogCard } from "./types";
 
 export type { CatalogCard } from "./types";
@@ -94,218 +104,28 @@ function decodeCursor(value?: string | null): [number, number, string, number] |
   }
 }
 
-const marketplaceTargetEligibility = sql`(select count(*) from plugin_install_targets primary_target
-       where primary_target.plugin_id = p.id
-         and primary_target.is_primary = 1
-         and primary_target.status = 'active') = 1
-  and exists(select 1 from plugin_install_targets install_target
-             where install_target.plugin_id = p.id
-               and install_target.is_primary = 1
-               and install_target.status = 'active'
-               and install_target.package_name = p.package_name
-               and install_target.version = p.latest_version
-               and (
-                 (install_target.kind = 'npm'
-                  and install_target.spec = (p.package_name || '@' || p.latest_version))
-                 or
-                 (install_target.kind = 'github'
-                  and (select count(*) from plugin_releases exact_release
-                       where exact_release.plugin_id = p.id
-                         and exact_release.version = p.latest_version
-                         and exact_release.channel = 'stable'
-                         and exact_release.git_tag is not null
-                         and trim(exact_release.git_tag) != '') = 1
-                  and exists(select 1 from repositories exact_repository
-                             where exact_repository.id = p.primary_repository_id)
-                  and install_target.spec = (
-                    'github:' ||
-                    (select exact_repository.full_name from repositories exact_repository
-                     where exact_repository.id = p.primary_repository_id) ||
-                    '#' ||
-                    (select exact_release.git_tag from plugin_releases exact_release
-                     where exact_release.plugin_id = p.id
-                       and exact_release.version = p.latest_version
-                       and exact_release.channel = 'stable')
-                  ))
-               ))`;
-
-const latestPublishedAt = sql`coalesce(
-  (select release.published_at from plugin_releases release
-   where release.plugin_id = p.id and release.version = p.latest_version
-   order by release.published_at desc limit 1),
-  p.published_at
-)`;
-
-const dayMs = 86_400_000;
-
-function catalogQualityScore(now: number): SQL {
-  return sql`(
-    case when ${marketplaceTargetEligibility} then 15 else 0 end
-    + case when p.verification_status = 'verified' then 5 else 0 end
-    + case when p.repository_url is not null and trim(p.repository_url) != '' then 4 else 0 end
-    + case when p.dshx_detected = 1 then 3 else 0 end
-    + case when exists(
-        select 1 from plugin_source_documents source_document
-        where source_document.plugin_id = p.id
-          and source_document.kind = 'readme'
-          and source_document.availability = 'available'
-          and source_document.source_url != ''
-      ) then 3 else 0 end
-    + case when requested.translation_status = 'ready' then 8 else 0 end
-    + case
-        when length(trim(coalesce(requested.overview_markdown, ''))) >= 240 then 7
-        when length(trim(coalesce(requested.overview_markdown, ''))) >= 80 then 3
-        else 0
-      end
-    + case
-        when exists(
-          select 1 from plugin_source_documents source_document
-          where source_document.plugin_id = p.id
-            and source_document.kind = 'readme'
-            and source_document.availability = 'available'
-            and length(coalesce(source_document.content, '')) >= 800
-        ) then 6
-        when exists(
-          select 1 from plugin_source_documents source_document
-          where source_document.plugin_id = p.id
-            and source_document.kind = 'readme'
-            and source_document.availability = 'available'
-            and length(coalesce(source_document.content, '')) >= 200
-        ) then 3
-        else 0
-      end
-    + case when p.license_spdx is not null and trim(p.license_spdx) != '' then 2 else 0 end
-    + case when exists(
-        select 1 from plugin_media media
-        where media.plugin_id = p.id and media.kind = 'screenshot' and media.status = 'active'
-      ) then 2 else 0 end
-    + case
-        when trim(p.compatibility_range) != '' and trim(p.compatibility_range) != '*' then 7
-        else 0
-      end
-    + case when exists(
-        select 1 from plugin_releases release
-        where release.plugin_id = p.id
-          and release.version = p.latest_version
-          and release.channel = 'stable'
-          and release.deprecated = 0
-      ) then 8 else 0 end
-    + case when exists(
-        select 1 from plugin_releases release
-        where release.plugin_id = p.id
-          and release.version = p.latest_version
-          and release.compatibility_source in ('manifest', 'peer-dependency')
-      ) then 5 else 0 end
-    + case when exists(
-        select 1 from plugin_install_targets install_target
-        where install_target.plugin_id = p.id
-          and install_target.is_primary = 1
-          and install_target.status = 'active'
-          and (
-            (install_target.kind = 'npm' and install_target.integrity is not null)
-            or
-            (install_target.kind = 'github' and exists(
-              select 1 from plugin_releases release
-              where release.plugin_id = p.id
-                and release.version = p.latest_version
-                and release.git_tag is not null
-                and trim(release.git_tag) != ''
-            ))
-          )
-      ) then 5 else 0 end
-    + case when p.lifecycle_status = 'active' then 6 else 0 end
-    + case
-        when p.last_synced_at >= ${now - 30 * dayMs} then 5
-        when p.last_synced_at >= ${now - 90 * dayMs} then 2
-        else 0
-      end
-    + case
-        when ${latestPublishedAt} >= ${now - 180 * dayMs} then 6
-        when ${latestPublishedAt} >= ${now - 365 * dayMs} then 3
-        else 0
-      end
-    + case when (
-        select count(*) from plugin_releases release where release.plugin_id = p.id
-      ) >= 2 then 3 else 0 end
-  )`;
-}
-
-function catalogPopularityScore(now: number): SQL {
-  return sql`(
-    case
-      when coalesce(base.github_stars, 0) >= 1000 then 30
-      when coalesce(base.github_stars, 0) >= 300 then 26
-      when coalesce(base.github_stars, 0) >= 100 then 22
-      when coalesce(base.github_stars, 0) >= 50 then 18
-      when coalesce(base.github_stars, 0) >= 20 then 14
-      when coalesce(base.github_stars, 0) >= 10 then 10
-      when coalesce(base.github_stars, 0) >= 5 then 6
-      when coalesce(base.github_stars, 0) >= 1 then 2
-      else 0
-    end
-    + case
-      when coalesce(base.npm_downloads_week, 0) >= 10000 then 30
-      when coalesce(base.npm_downloads_week, 0) >= 3000 then 26
-      when coalesce(base.npm_downloads_week, 0) >= 1000 then 22
-      when coalesce(base.npm_downloads_week, 0) >= 300 then 18
-      when coalesce(base.npm_downloads_week, 0) >= 100 then 14
-      when coalesce(base.npm_downloads_week, 0) >= 30 then 10
-      when coalesce(base.npm_downloads_week, 0) >= 10 then 6
-      when coalesce(base.npm_downloads_week, 0) >= 1 then 2
-      else 0
-    end
-    + case
-      when (select count(*) from plugin_bookmarks bookmark where bookmark.plugin_id = base.id) >= 50 then 10
-      when (select count(*) from plugin_bookmarks bookmark where bookmark.plugin_id = base.id) >= 20 then 8
-      when (select count(*) from plugin_bookmarks bookmark where bookmark.plugin_id = base.id) >= 10 then 6
-      when (select count(*) from plugin_bookmarks bookmark where bookmark.plugin_id = base.id) >= 5 then 4
-      when (select count(*) from plugin_bookmarks bookmark where bookmark.plugin_id = base.id) >= 1 then 2
-      else 0
-    end
-    + case
-      when (select count(*) from plugin_follows follow where follow.plugin_id = base.id) >= 50 then 10
-      when (select count(*) from plugin_follows follow where follow.plugin_id = base.id) >= 20 then 8
-      when (select count(*) from plugin_follows follow where follow.plugin_id = base.id) >= 10 then 6
-      when (select count(*) from plugin_follows follow where follow.plugin_id = base.id) >= 5 then 4
-      when (select count(*) from plugin_follows follow where follow.plugin_id = base.id) >= 1 then 2
-      else 0
-    end
-    + case
-      when coalesce(base.review_count, 0) >= 20
-        and coalesce(base.rating_sum, 0) * 1.0 / base.review_count >= 4.5 then 10
-      when coalesce(base.review_count, 0) >= 10
-        and coalesce(base.rating_sum, 0) * 1.0 / base.review_count >= 4 then 8
-      when coalesce(base.review_count, 0) >= 5
-        and coalesce(base.rating_sum, 0) * 1.0 / base.review_count >= 4 then 6
-      when coalesce(base.review_count, 0) >= 1 then 2
-      else 0
-    end
-    + case
-      when base.latest_published_at >= ${now - 30 * dayMs} then 5
-      when base.latest_published_at >= ${now - 90 * dayMs} then 3
-      when base.latest_published_at >= ${now - 180 * dayMs} then 1
-      else 0
-    end
-    + case
-      when base.quality_score >= 80 then 5
-      when base.quality_score >= 60 then 3
-      when base.quality_score >= 40 then 1
-      else 0
-    end
-  )`;
-}
-
 async function listCatalogPluginPage(
   db: Database,
   query: PluginListQuery | MarketplaceListQuery,
   marketplaceOnly: boolean,
 ) {
+  ensurePluginScores(db);
   const cursor = decodeCursor(query.cursor);
   const currentPage = cursor?.[3] ?? 1;
   const search = query.q.trim();
   const now = Date.now();
-  const qualityScore = catalogQualityScore(now);
-  const popularityScore = catalogPopularityScore(now);
+  // Aggregate score components come from `plugin_scores`; only the recency
+  // buckets and the requested locale's translation bonus are computed here.
+  const latestPublished = sql`coalesce(s.latest_published_at, ${latestPublishedAt})`;
+  const qualityScore = sql`(
+    ${storedOrLiveQuality()}
+    + ${localeQualityBonus()}
+    + ${qualityRecencyScore(sql`coalesce(s.last_synced_at, p.last_synced_at)`, latestPublished, now)}
+  )`;
+  const popularityScore = sql`(
+    base.popularity_base
+    + ${popularityRecencyScore(sql`base.latest_published_at`, sql`base.quality_score`, now)}
+  )`;
   const primarySort =
     query.sort === "stars"
       ? sql`coalesce(scored.github_stars, 0)`
@@ -359,8 +179,9 @@ async function listCatalogPluginPage(
         coalesce(case when requested.translation_status = 'ready' then requested.short_description end,
                  case when fallback.translation_status = 'ready' then fallback.short_description end, p.description) as description,
         p.author_handle, p.latest_version, p.compatibility_range, p.category, p.badge,
-        p.featured, ${latestPublishedAt} latest_published_at, p.updated_at,
+        p.featured, ${latestPublished} latest_published_at, p.updated_at,
         m.github_stars, m.npm_downloads_week, m.trend_score_7d, m.review_count, m.rating_sum,
+        ${storedOrLivePopularity()} popularity_base,
         ${qualityScore} quality_score,
         pub.login publisher_login, pub.avatar_url publisher_avatar_url,
         (select pm.id from plugin_media pm
@@ -371,6 +192,7 @@ async function listCatalogPluginPage(
       left join plugin_localizations requested on requested.plugin_id = p.id and requested.locale = ${query.locale}
       left join plugin_localizations fallback on fallback.plugin_id = p.id and fallback.locale = case when ${query.locale} = 'en' then 'zh' else 'en' end
       left join plugin_metrics_current m on m.plugin_id = p.id
+      left join plugin_scores s on s.plugin_id = p.id
       where ${sql.join(baseConditions, sql` and `)}
       ), catalog_scored as (
         select base.*, ${popularityScore} popularity_score
@@ -647,7 +469,12 @@ export async function listCatalogCardsBySlugs(
   const unique = [...new Set(slugs)];
   if (unique.length === 0) return [];
   const now = Date.now();
-  const qualityScore = catalogQualityScore(now);
+  const latestPublished = sql`coalesce(s.latest_published_at, ${latestPublishedAt})`;
+  const qualityScore = sql`(
+    ${storedOrLiveQuality()}
+    + ${localeQualityBonus()}
+    + ${qualityRecencyScore(sql`coalesce(s.last_synced_at, p.last_synced_at)`, latestPublished, now)}
+  )`;
   // D1 caps bound parameters per statement; large curated surfaces are
   // resolved in bounded chunks without changing the caller's order.
   const chunks: string[][] = [];
@@ -666,7 +493,7 @@ export async function listCatalogCardsBySlugs(
           coalesce(case when requested.translation_status = 'ready' then requested.short_description end,
                    case when fallback.translation_status = 'ready' then fallback.short_description end, p.description) as description,
           p.author_handle, p.latest_version, p.compatibility_range, p.category, p.badge, p.featured,
-          ${latestPublishedAt} latest_published_at, p.updated_at,
+          ${latestPublished} latest_published_at, p.updated_at,
           m.github_stars, m.npm_downloads_week, m.trend_score_7d, m.review_count, m.rating_sum,
           ${qualityScore} quality_score,
           pub.login publisher_login, pub.avatar_url publisher_avatar_url,
@@ -678,6 +505,7 @@ export async function listCatalogCardsBySlugs(
         left join plugin_localizations requested on requested.plugin_id = p.id and requested.locale = ${locale}
         left join plugin_localizations fallback on fallback.plugin_id = p.id and fallback.locale = case when ${locale} = 'en' then 'zh' else 'en' end
         left join plugin_metrics_current m on m.plugin_id = p.id
+        left join plugin_scores s on s.plugin_id = p.id
         where p.slug in (${values})
           and p.status = 'published'
           and p.lifecycle_status in ('active', 'unmaintained')

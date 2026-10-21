@@ -95,6 +95,7 @@ import { Route as ApiOpsModerationActionsRouteImport } from './routes/api/ops/mo
 import { Route as ApiOpsModerationQueueRouteImport } from './routes/api/ops/moderation/queue'
 import { Route as ApiOpsV1AgentBundleRouteImport } from './routes/api/ops/v1/agent-bundle'
 import { Route as ApiOpsV1AuditRouteImport } from './routes/api/ops/v1/audit'
+import { Route as ApiOpsV1CatalogScoresRouteImport } from './routes/api/ops/v1/catalog-scores'
 import { Route as ApiOpsV1ObservationsChar58batchRouteImport } from './routes/api/ops/v1/observations:batch'
 import { Route as ApiOpsV1StatusRouteImport } from './routes/api/ops/v1/status'
 import { Route as ApiPluginsSlugClaimsRouteImport } from './routes/api/plugins/$slug/claims'
@@ -576,6 +577,11 @@ const ApiOpsV1AuditRoute = ApiOpsV1AuditRouteImport.update({
   path: '/api/ops/v1/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpsV1CatalogScoresRoute = ApiOpsV1CatalogScoresRouteImport.update({
+  id: '/api/ops/v1/catalog-scores',
+  path: '/api/ops/v1/catalog-scores',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOpsV1ObservationsChar58batchRoute =
   ApiOpsV1ObservationsChar58batchRouteImport.update({
     id: '/api/ops/v1/observations:batch',
@@ -852,6 +858,7 @@ export interface FileRoutesByFullPath {
   '/api/ops/moderation/queue': typeof ApiOpsModerationQueueRoute
   '/api/ops/v1/agent-bundle': typeof ApiOpsV1AgentBundleRoute
   '/api/ops/v1/audit': typeof ApiOpsV1AuditRoute
+  '/api/ops/v1/catalog-scores': typeof ApiOpsV1CatalogScoresRoute
   '/api/ops/v1/observations:batch': typeof ApiOpsV1ObservationsChar58batchRoute
   '/api/ops/v1/status': typeof ApiOpsV1StatusRoute
   '/api/plugins/$slug/claims': typeof ApiPluginsSlugClaimsRoute
@@ -975,6 +982,7 @@ export interface FileRoutesByTo {
   '/api/ops/moderation/queue': typeof ApiOpsModerationQueueRoute
   '/api/ops/v1/agent-bundle': typeof ApiOpsV1AgentBundleRoute
   '/api/ops/v1/audit': typeof ApiOpsV1AuditRoute
+  '/api/ops/v1/catalog-scores': typeof ApiOpsV1CatalogScoresRoute
   '/api/ops/v1/observations:batch': typeof ApiOpsV1ObservationsChar58batchRoute
   '/api/ops/v1/status': typeof ApiOpsV1StatusRoute
   '/api/plugins/$slug/claims': typeof ApiPluginsSlugClaimsRoute
@@ -1100,6 +1108,7 @@ export interface FileRoutesById {
   '/api/ops/moderation/queue': typeof ApiOpsModerationQueueRoute
   '/api/ops/v1/agent-bundle': typeof ApiOpsV1AgentBundleRoute
   '/api/ops/v1/audit': typeof ApiOpsV1AuditRoute
+  '/api/ops/v1/catalog-scores': typeof ApiOpsV1CatalogScoresRoute
   '/api/ops/v1/observations:batch': typeof ApiOpsV1ObservationsChar58batchRoute
   '/api/ops/v1/status': typeof ApiOpsV1StatusRoute
   '/api/plugins/$slug/claims': typeof ApiPluginsSlugClaimsRoute
@@ -1226,6 +1235,7 @@ export interface FileRouteTypes {
     | '/api/ops/moderation/queue'
     | '/api/ops/v1/agent-bundle'
     | '/api/ops/v1/audit'
+    | '/api/ops/v1/catalog-scores'
     | '/api/ops/v1/observations:batch'
     | '/api/ops/v1/status'
     | '/api/plugins/$slug/claims'
@@ -1349,6 +1359,7 @@ export interface FileRouteTypes {
     | '/api/ops/moderation/queue'
     | '/api/ops/v1/agent-bundle'
     | '/api/ops/v1/audit'
+    | '/api/ops/v1/catalog-scores'
     | '/api/ops/v1/observations:batch'
     | '/api/ops/v1/status'
     | '/api/plugins/$slug/claims'
@@ -1473,6 +1484,7 @@ export interface FileRouteTypes {
     | '/api/ops/moderation/queue'
     | '/api/ops/v1/agent-bundle'
     | '/api/ops/v1/audit'
+    | '/api/ops/v1/catalog-scores'
     | '/api/ops/v1/observations:batch'
     | '/api/ops/v1/status'
     | '/api/plugins/$slug/claims'
@@ -1572,6 +1584,7 @@ export interface RootRouteChildren {
   ApiOpsModerationQueueRoute: typeof ApiOpsModerationQueueRoute
   ApiOpsV1AgentBundleRoute: typeof ApiOpsV1AgentBundleRoute
   ApiOpsV1AuditRoute: typeof ApiOpsV1AuditRoute
+  ApiOpsV1CatalogScoresRoute: typeof ApiOpsV1CatalogScoresRoute
   ApiOpsV1ObservationsChar58batchRoute: typeof ApiOpsV1ObservationsChar58batchRoute
   ApiOpsV1StatusRoute: typeof ApiOpsV1StatusRoute
   ApiReviewsIdRepliesRoute: typeof ApiReviewsIdRepliesRoute
@@ -2212,6 +2225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpsV1AuditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ops/v1/catalog-scores': {
+      id: '/api/ops/v1/catalog-scores'
+      path: '/api/ops/v1/catalog-scores'
+      fullPath: '/api/ops/v1/catalog-scores'
+      preLoaderRoute: typeof ApiOpsV1CatalogScoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/ops/v1/observations:batch': {
       id: '/api/ops/v1/observations:batch'
       path: '/api/ops/v1/observations:batch'
@@ -2664,6 +2684,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpsModerationQueueRoute: ApiOpsModerationQueueRoute,
   ApiOpsV1AgentBundleRoute: ApiOpsV1AgentBundleRoute,
   ApiOpsV1AuditRoute: ApiOpsV1AuditRoute,
+  ApiOpsV1CatalogScoresRoute: ApiOpsV1CatalogScoresRoute,
   ApiOpsV1ObservationsChar58batchRoute: ApiOpsV1ObservationsChar58batchRoute,
   ApiOpsV1StatusRoute: ApiOpsV1StatusRoute,
   ApiReviewsIdRepliesRoute: ApiReviewsIdRepliesRoute,

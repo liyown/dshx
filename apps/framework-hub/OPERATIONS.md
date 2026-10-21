@@ -45,6 +45,7 @@ The Hub snapshot is generated from the private prompt package at release time an
 | `GET`   | `/api/ops/v1/featured`                     | Read curated featured shelves           |
 | `PUT`   | `/api/ops/v1/featured/{category}`          | Replace the ordered picks for a shelf   |
 | `POST`  | `/api/ops/v1/plugins/{id}/media`           | Upload plugin media and metadata        |
+| `POST`  | `/api/ops/v1/catalog-scores`               | Recompute catalog ranking signals       |
 | `GET`   | `/api/ops/v1/audit`                        | Read consistency findings               |
 
 `GET /api/operations/reports` is the unprotected public, locale-selected report feed used by `/en/operations` and `/zh/operations`. It exposes one item per `Asia/Shanghai` calendar day: `day`, the day's run count, timestamps, outcome, the latest run ID, and the selected locale's Markdown body.
@@ -189,6 +190,12 @@ Clients may send the last-read revision as a precondition. A stale value returns
 ```
 
 A successful content or visibility mutation increments the resource revision and appends an audit entry. A new plugin starts as `draft`; curation automatically publishes it when identity, name, version, an available source, one exact safe primary target, bilingual names/descriptions/overviews, a category, and `derivedFrom` are all present. Ordinary risk and legacy verification do not block publication.
+
+## Catalog ranking signals
+
+The public catalog sorts thousands of plugins by a quality and a popularity score. The aggregate parts of both formulas are stored per plugin in `plugin_scores`, so listing a page does not re-run the per-plugin aggregates. Recency buckets and the requested locale's translation bonus are applied while the catalog is read, so they never need a refresh.
+
+Scores are rewritten automatically when an observation, media upload, review, bookmark, follow, visibility change, or approval effect changes a plugin's facts. Scores that are missing — for example after an out-of-band D1 repair — are backfilled in the background on the next catalog request, and `POST /catalog-scores` forces a full recompute. A plugin with no score row still appears in the catalog using the live formula.
 
 ## Visibility, submissions, media, and audit
 

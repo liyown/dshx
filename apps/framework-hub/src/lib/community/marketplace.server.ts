@@ -1,5 +1,6 @@
 import type { ApprovalCreateInput } from "@/lib/approvals/contracts";
 import { createUserApproval } from "@/lib/approvals/service.server";
+import { refreshPluginScore } from "@/lib/catalog/scores.server";
 import type { Database } from "@/lib/db/client";
 import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
@@ -203,6 +204,8 @@ export async function setPluginRelationship(
       parameterizedSql(`delete from ${table} where user_id=? and plugin_id=?`, [userId, pluginId]),
     );
   }
+  // Bookmarks and follows feed the catalog popularity score.
+  await refreshPluginScore(binding, pluginId);
   return { pluginId, kind, enabled };
 }
 

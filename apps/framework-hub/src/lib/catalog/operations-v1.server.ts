@@ -5,6 +5,7 @@ import type { Database } from "@/lib/db/client";
 import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { buildPluginSeoDescription, buildPluginSeoTitle } from "./content-quality";
+import { refreshPluginScore } from "./scores.server";
 
 import {
   pluginObservationV1Schema,
@@ -1757,6 +1758,11 @@ export async function upsertObservation(
     }
     throw error;
   }
+  // The observation rewrote the facts the catalog ranks on; refresh the
+  // precomputed scores for this plugin after the batch committed. A failure
+  // here does not fail the observation: the catalog falls back to the live
+  // formula for an unscored plugin.
+  await refreshPluginScore(binding, plugin.id);
   return {
     identity: identityKey,
     pluginId: plugin.id,
@@ -2793,6 +2799,8 @@ export async function setPluginVisibility(
         repairHint: "Run plugin get and retry the visibility change.",
       },
     );
+  // Restoring visibility can publish a plugin that was never scored while hidden.
+  await refreshPluginScore(binding, plugin.id);
   return { status: "updated", pluginId: plugin.id, visibility, reason, revision: nextRevision };
 }
 

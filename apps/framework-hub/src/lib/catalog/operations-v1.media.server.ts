@@ -1,6 +1,7 @@
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { OperationMediaMetadata } from "./operations-v1.contracts";
+import { refreshPluginScore } from "./scores.server";
 import { OperationHttpError } from "./operations-v1.http";
 import type { Database } from "@/lib/db/client";
 import { runDrizzleBatch } from "@/lib/db/batch";
@@ -451,6 +452,8 @@ export async function uploadOperationMedia(
       });
     throw error;
   }
+  // Screenshots contribute to the catalog quality score.
+  await refreshPluginScore(binding, pluginId);
   return {
     status: existing ? "updated" : "created",
     id: mediaId,

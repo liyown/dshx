@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 
+import { refreshPluginScore } from "@/lib/catalog/scores.server";
 import type { Database } from "@/lib/db/client";
 
 export async function refreshReviewMetrics(db: Database, pluginId: string) {
@@ -11,4 +12,6 @@ export async function refreshReviewMetrics(db: Database, pluginId: string) {
       unixepoch()*1000)
     on conflict(plugin_id) do update set review_count=excluded.review_count,rating_sum=excluded.rating_sum,updated_at=excluded.updated_at
   `);
+  // Ratings feed the catalog popularity score.
+  await refreshPluginScore(db, pluginId);
 }

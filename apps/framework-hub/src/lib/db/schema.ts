@@ -669,6 +669,31 @@ export const pluginMetricsCurrent = sqliteTable(
   (table) => [index("plugin_metrics_trending_idx").on(table.trendScore7d, table.githubStars)],
 );
 
+/**
+ * Precomputed catalog ranking signals. The catalog list sorts thousands of
+ * rows, so the aggregate parts of the quality/popularity formulas are stored
+ * per plugin and only rewritten when its facts change. Recency buckets and the
+ * per-locale translation bonus stay out of this table because they depend on
+ * when and in which language the catalog is read.
+ */
+export const pluginScores = sqliteTable(
+  "plugin_scores",
+  {
+    pluginId: text("plugin_id")
+      .primaryKey()
+      .references(() => plugins.id, { onDelete: "cascade" }),
+    qualityBase: integer("quality_base").notNull().default(0),
+    popularityBase: integer("popularity_base").notNull().default(0),
+    latestPublishedAt: integer("latest_published_at", { mode: "timestamp_ms" }),
+    lastSyncedAt: integer("last_synced_at", { mode: "timestamp_ms" }),
+    scoredAt: integer("scored_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("plugin_scores_quality_idx").on(table.qualityBase),
+    index("plugin_scores_popularity_idx").on(table.popularityBase),
+  ],
+);
+
 export const pluginMetricDaily = sqliteTable(
   "plugin_metric_daily",
   {

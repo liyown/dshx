@@ -11,6 +11,7 @@ import {
   validateRegisteredPreconditions,
 } from "./effects.server";
 import { randomToken, sha256 } from "@/lib/auth/tokens.server";
+import { refreshPluginScore } from "@/lib/catalog/scores.server";
 import type { Database } from "@/lib/db/client";
 import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
@@ -940,6 +941,9 @@ export async function executeServerEffect(
       );
     }
     await runDrizzleBatch(binding, successStatements);
+    // Plugin effects (lifecycle, visibility, verification) change ranking
+    // facts; refresh the precomputed catalog score for the subject.
+    if (request.subject_type === "plugin") await refreshPluginScore(binding, request.subject_id);
     return output;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
