@@ -23,6 +23,7 @@ export const dailyOperationsPolicy = {
       distinctQueries: 3,
       distinctProviders: 2,
       candidatesInspected: 3,
+      contentCandidatesReviewed: 2,
       reviewQueuedSubmissions: true,
       reviewIncompleteEntries: true,
       recordRejectedLeads: true,

@@ -22,9 +22,9 @@ const promptContext = {
 } as const;
 
 describe("autonomous operations mandate", () => {
-  it("ships a deterministic v9 mandate centered on website value", () => {
+  it("ships a deterministic v10 mandate centered on website value", () => {
     const prompt = loadDailyOperationsPrompt();
-    expect(dailyOperationsPromptVersion).toBe(9);
+    expect(dailyOperationsPromptVersion).toBe(10);
     expect(prompt).toBe(loadDailyOperationsPrompt());
     expect(prompt).toContain("responsible operator and editor");
     expect(prompt).toContain("useful, accurate, and fresh");
@@ -356,10 +356,18 @@ describe("copyable running prompt", () => {
       distinctQueries: 3,
       distinctProviders: 2,
       candidatesInspected: 3,
+      contentCandidatesReviewed: 2,
       reviewQueuedSubmissions: true,
       reviewIncompleteEntries: true,
       recordRejectedLeads: true,
     });
+    const prompt = loadDailyOperationsPrompt();
+    expect(prompt).toContain("--state published --needs content");
+    expect(prompt).toContain("overview under 400 characters");
+    expect(prompt).toContain("never pad with keyword lists");
+    expect(prompt).toContain(
+      "Do not rewrite accurate copy merely to reach a length",
+    );
     expect(dailyOperationsPolicy.discipline.identicalFailureRetryLimit).toBe(2);
     expect(dailyOperationsPolicy.credentials).toMatchObject({
       managedBy: "dshx-hub auth login",

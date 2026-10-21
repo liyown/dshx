@@ -7,18 +7,24 @@ import {
 } from "@/lib/agent-prompt.server";
 import { loadAgentResources } from "@/lib/agent-resources.server";
 import { requireAdminApiToken } from "@/lib/auth/tokens.server";
+import {
+  operationFailure,
+  operationRequestId,
+  operationSuccess,
+} from "@/lib/catalog/operations-v1.http";
 import { requireDatabase } from "@/lib/db/client";
-import { jsonError } from "@/lib/http";
 
 export const Route = createFileRoute("/api/ops/v1/agent-bundle")({
   server: {
     handlers: {
       GET: async ({ request, context }) => {
+        const requestId = operationRequestId(request);
         try {
           const db = requireDatabase(context);
           await requireAdminApiToken(db, request);
           const resources = await loadAgentResources(db, context);
-          return Response.json(
+          const response = operationSuccess(
+            request,
             {
               bootstrap: AGENT_PROMPT_BOOTSTRAP,
               prompt: AGENT_PROMPT_MARKDOWN,
@@ -33,15 +39,16 @@ export const Route = createFileRoute("/api/ops/v1/agent-bundle")({
                 npxCommand: AGENT_PROMPT_META.npxCommand,
               },
             },
-            {
-              headers: {
-                "cache-control": "no-store",
-                "x-robots-tag": "noindex",
-              },
-            },
+            { requestId },
           );
+          response.headers.set("cache-control", "no-store");
+          response.headers.set("x-robots-tag", "noindex");
+          return response;
         } catch (error) {
-          return jsonError(error);
+          const response = operationFailure(request, error, requestId);
+          response.headers.set("cache-control", "no-store");
+          response.headers.set("x-robots-tag", "noindex");
+          return response;
         }
       },
     },

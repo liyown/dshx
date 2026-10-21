@@ -1873,6 +1873,51 @@ function riskSignals(
   return [...risks].sort();
 }
 
+const genericShortDescriptions = new Set([
+  "a plugin",
+  "a plugin for deepseek harness",
+  "a plugin for dsh",
+  "deepseek harness plugin",
+  "dsh plugin",
+  "plugin for deepseek harness",
+  "plugin for dsh",
+  "todo",
+  "no description",
+]);
+
+// Keep these thresholds aligned with lowQualityCurationSql, which lets the
+// list prefilter reach the same rows before pagination.
+function isWeakCuration(
+  curation: {
+    readonly shortDescription?: Record<string, unknown>;
+    readonly overviewMarkdown?: Record<string, unknown>;
+  },
+  identity: { readonly slug: string; readonly name: string; readonly packageName: string | null },
+): boolean {
+  const en =
+    typeof curation.shortDescription?.["en"] === "string"
+      ? curation.shortDescription["en"].trim()
+      : "";
+  const zh =
+    typeof curation.shortDescription?.["zh"] === "string"
+      ? curation.shortDescription["zh"].trim()
+      : "";
+  const overview =
+    typeof curation.overviewMarkdown?.["en"] === "string"
+      ? curation.overviewMarkdown["en"].trim()
+      : "";
+  return (
+    en.length < 40 ||
+    zh.length < 12 ||
+    en === identity.slug ||
+    en === identity.name ||
+    (identity.packageName !== null && en === identity.packageName) ||
+    en.startsWith("@") ||
+    genericShortDescriptions.has(en.toLowerCase()) ||
+    overview.length < 400
+  );
+}
+
 function needsFor(facts: JsonRecord, sources: SourceSummary[], curation: unknown, risks: string[]) {
   const needs: string[] = [];
   const curationFacts = jsonRecord(curation);
@@ -1888,6 +1933,7 @@ function needsFor(facts: JsonRecord, sources: SourceSummary[], curation: unknown
     needs.push("readme");
   if (
     !curation ||
+    curationFacts["lowQuality"] === true ||
     (readme["availability"] === "available" &&
       typeof readme["contentHash"] === "string" &&
       curationFacts["sourceReadmeHash"] !== readme["contentHash"])
@@ -1926,6 +1972,7 @@ type OpsListRow = PluginRow &
   OperationalRow & {
     has_curation: number;
     source_readme_hash: string | null;
+    curation_low_quality: number;
     ready_locale_count: number;
     unavailable_target_count: number;
     identity_conflict: number;
@@ -1936,7 +1983,10 @@ function summarizePluginRow(row: OpsListRow) {
   const sources = parseJson<SourceSummary[]>(row.sources_json, []);
   const curation =
     row.has_curation === 1
-      ? { ...(row.source_readme_hash ? { sourceReadmeHash: row.source_readme_hash } : {}) }
+      ? {
+          ...(row.source_readme_hash ? { sourceReadmeHash: row.source_readme_hash } : {}),
+          ...(row.curation_low_quality === 1 ? { lowQuality: true } : {}),
+        }
       : row.ready_locale_count >= 2
         ? {}
         : null;
@@ -1966,6 +2016,22 @@ function summarizePluginRow(row: OpsListRow) {
   };
 }
 
+// A curation row can exist and still be unusable as public copy: a package
+// name repeated as the description, a one-line overview, or a missing locale.
+// The same predicate drives both the list projection and the needs prefilter.
+const lowQualityCurationSql = `(
+  coalesce(length(trim(json_extract(c.short_description_json,'$.en'))),0) < 40
+  or coalesce(length(trim(json_extract(c.short_description_json,'$.zh'))),0) < 12
+  or trim(json_extract(c.short_description_json,'$.en')) in (p.slug,p.name,p.package_name)
+  or trim(json_extract(c.short_description_json,'$.en')) like '@%'
+  or lower(trim(json_extract(c.short_description_json,'$.en'))) in (
+    'a plugin','a plugin for deepseek harness','a plugin for dsh',
+    'deepseek harness plugin','dsh plugin','plugin for deepseek harness',
+    'plugin for dsh','todo','no description'
+  )
+  or coalesce(length(trim(json_extract(c.overview_markdown_json,'$.en'))),0) < 400
+)`;
+
 function pluginNeedsSqlPrefilter(needs: OpsPluginListQuery["needs"]) {
   if (!needs?.length) return { condition: "1=1", parameters: [] as unknown[] };
   const parameters: unknown[] = [];
@@ -1984,7 +2050,7 @@ function pluginNeedsSqlPrefilter(needs: OpsPluginListQuery["needs"]) {
         ) and coalesce(json_extract(o.facts_json,'$.readme.availability'),'')
           not in ('available','unavailable'))`;
       case "content":
-        return `(c.plugin_id is null or (
+        return `(c.plugin_id is null or ${lowQualityCurationSql} or (
           json_extract(o.facts_json,'$.readme.availability')='available'
           and json_type(o.facts_json,'$.readme.contentHash')='text'
           and c.source_readme_hash is not json_extract(o.facts_json,'$.readme.contentHash')
@@ -2038,6 +2104,7 @@ async function scanPluginRows(
         o.created_at operational_created_at,o.updated_at,
         case when c.plugin_id is null then 0 else 1 end has_curation,
         c.source_readme_hash,
+        case when c.plugin_id is null then 0 when ${lowQualityCurationSql} then 1 else 0 end curation_low_quality,
         (select count(*) from plugin_localizations l where l.plugin_id=p.id and l.translation_status='ready') ready_locale_count,
         (select count(*) from plugin_install_targets t where t.plugin_id=p.id and t.status='unavailable') unavailable_target_count,
         case when conflicts.package_name is null then 0 else 1 end identity_conflict
@@ -2179,7 +2246,19 @@ export async function getOpsPlugin(binding: Database, idOrSlug: string) {
   const state = (await findOperationalState(binding, plugin)) ?? fallbackOperationalState(plugin);
   const facts = parseJson<JsonRecord>(state.facts_json, {});
   const sources = parseJson<SourceSummary[]>(state.sources_json, []);
-  const curation = await readCuration(binding, plugin.id);
+  const storedCuration = await readCuration(binding, plugin.id);
+  const curation = storedCuration
+    ? {
+        ...storedCuration,
+        ...(isWeakCuration(storedCuration, {
+          slug: plugin.slug,
+          name: plugin.name,
+          packageName: plugin.package_name,
+        })
+          ? { lowQuality: true }
+          : {}),
+      }
+    : null;
   const [identities, targets, media, audit] = await Promise.all([
     binding.all<{ identity_key: string; kind: string; identity_json: string }>(
       parameterizedSql(
@@ -2858,6 +2937,7 @@ export async function getOpsStatus(
     sources_json: string;
     has_curation: number;
     source_readme_hash: string | null;
+    curation_low_quality: number;
     ready_locale_count: number;
     identity_conflict: number;
   }>(
@@ -2874,9 +2954,12 @@ export async function getOpsStatus(
       )
       select o.state,o.visibility,o.facts_json,o.sources_json,
         case when c.plugin_id is null then 0 else 1 end has_curation,
-        c.source_readme_hash,coalesce(l.ready_locale_count,0) ready_locale_count,
+        c.source_readme_hash,
+        case when c.plugin_id is null then 0 when ${lowQualityCurationSql} then 1 else 0 end curation_low_quality,
+        coalesce(l.ready_locale_count,0) ready_locale_count,
         case when conflicts.package_name is null then 0 else 1 end identity_conflict
       from plugin_operational_state o
+      left join plugins p on p.id=o.plugin_id
       left join plugin_curations c on c.plugin_id=o.plugin_id
       left join ready_localizations l on l.plugin_id=o.plugin_id
       left join identity_conflicts conflicts
@@ -2891,6 +2974,7 @@ export async function getOpsStatus(
       row.has_curation === 1
         ? {
             ...(row.source_readme_hash ? { sourceReadmeHash: row.source_readme_hash } : {}),
+            ...(row.curation_low_quality === 1 ? { lowQuality: true } : {}),
           }
         : row.ready_locale_count >= 2
           ? {}

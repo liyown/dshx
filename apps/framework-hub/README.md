@@ -81,12 +81,18 @@ committing them:
 
 ```bash
 pnpm exec wrangler secret put BETTER_AUTH_SECRET
+pnpm exec wrangler secret put AGENT_RESOURCE_KEY
 pnpm exec wrangler secret put GITHUB_CLIENT_ID
 pnpm exec wrangler secret put GITHUB_CLIENT_SECRET
 pnpm exec wrangler secret put GITHUB_TOKEN
 pnpm exec wrangler secret put TURNSTILE_SECRET_KEY
 pnpm exec wrangler secret put RESEND_API_KEY
 ```
+
+`AGENT_RESOURCE_KEY` must be 32 random bytes encoded as base64 (for example,
+`openssl rand -base64 32`). It encrypts values saved on the administrator
+prompt page; keep a private backup, because losing it makes stored resource
+values undecryptable.
 
 `GITHUB_TOKEN` is an optional fine-grained read-only token used only by the
 server-side, edge-cached repository metadata endpoint. Without it the star

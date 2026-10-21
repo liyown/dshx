@@ -124,6 +124,10 @@ describe("agent resources and authenticated bundle", () => {
       params: {},
     });
     expect(anonymous.status).toBe(401);
+    await expect(anonymous.json()).resolves.toMatchObject({
+      ok: false,
+      error: expect.objectContaining({ code: expect.any(String) }),
+    });
 
     const denied = await get({
       request: new Request("https://hub.test/api/ops/v1/agent-bundle", {
@@ -133,6 +137,7 @@ describe("agent resources and authenticated bundle", () => {
       params: {},
     });
     expect(denied.status).toBe(403);
+    await expect(denied.json()).resolves.toMatchObject({ ok: false });
 
     const response = await get({
       request: new Request("https://hub.test/api/ops/v1/agent-bundle", {
@@ -143,16 +148,27 @@ describe("agent resources and authenticated bundle", () => {
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    const body = (await response.json()) as {
-      bootstrap: string;
-      prompt: string;
-      resources: Record<string, string>;
-      meta: { promptVersion: number; cliVersion: string };
+    expect(response.headers.get("x-robots-tag")).toBe("noindex");
+    const envelope = (await response.json()) as {
+      ok: boolean;
+      data: {
+        bootstrap: string;
+        prompt: string;
+        resources: Record<string, string>;
+        meta: { promptVersion: number; cliVersion: string };
+      };
+      meta: { requestId: string };
     };
+    // The operations CLI requires every /api/ops/v1 success response to use the
+    // shared envelope; a bare bundle object fails as invalid_hub_response.
+    expect(envelope.ok).toBe(true);
+    expect(envelope.meta.requestId).toBeTruthy();
+    expect(response.headers.get("x-request-id")).toBe(envelope.meta.requestId);
+    const body = envelope.data;
     expect(body.bootstrap).toContain("ops bundle");
     expect(body.prompt).toContain("Mandatory start checklist");
     expect(body.resources).toEqual({ GITHUB_TOKEN: "fixture-bundle-token" });
-    expect(body.meta.promptVersion).toBe(9);
+    expect(body.meta.promptVersion).toBe(10);
     expect(body.meta.cliVersion).toMatch(/^\d+\.\d+\.\d+/u);
   });
 });

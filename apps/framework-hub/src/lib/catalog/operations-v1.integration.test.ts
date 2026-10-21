@@ -47,8 +47,14 @@ async function finalizeObservation(input: Record<string, unknown>): Promise<Plug
 function curation(label: string, category: string): PluginCurationContent {
   return {
     displayName: { en: `${label} curated`, zh: `${label} 整理版` },
-    shortDescription: { en: "Curated English description", zh: "人工整理的中文描述" },
-    overviewMarkdown: { en: "## Curated overview", zh: "## 人工整理概览" },
+    shortDescription: {
+      en: "Curated English description that explains the fixture's capabilities, configuration, and limits.",
+      zh: "人工整理的中文描述，说明这个测试插件的能力、使用方式与限制。",
+    },
+    overviewMarkdown: {
+      en: "## Curated overview\n\nThis fixture explains what the plugin does, how an operator configures it, and which limitations matter when the plugin runs inside a real DSH profile. It exists to exercise publication, curation, and list-filter flows with copy that is specific enough to stand on its own.\n\n## Core capabilities\n\n- Publishes fixture events to the Hub.\n- Documents its configuration and installation target.\n- Describes the boundaries of the fixture instead of repeating its name.\n\n## Limitations\n\nIt is test data only and is never installed or executed.",
+      zh: "## 人工整理概览\n\n这个测试插件用于验证发布、整理与列表筛选流程，说明它提供的能力、配置方式以及在实际 DSH Profile 中运行时需要注意的限制。文案本身应当足够具体，能够在脱离测试上下文时独立说明插件用途。\n\n## 核心能力\n\n- 向 Hub 发布测试事件。\n- 记录配置与安装目标。\n- 说明测试数据的边界，而不是重复插件名称。\n\n## 限制\n\n它只是测试数据，不会被安装或执行。",
+    },
     categories: [category],
     tags: ["fixture"],
     derivedFrom: ["https://example.test/source"],
@@ -524,6 +530,43 @@ describe("operations v1 atomic catalog model with local D1", () => {
       refreshed.revision!,
     );
     expect((await getOpsPlugin(db, id)).needs).not.toContain("content");
+
+    const weakCopy = {
+      ...curated,
+      shortDescription: { en: `@fixture/${suffix}`, zh: "短" },
+      overviewMarkdown: { en: "## Thin", zh: "## 简略" },
+      sourceReadmeHash: secondReadmeHash,
+    };
+    const weakRevision = (await getOpsPlugin(db, id)).revision;
+    await curatePlugin(db, actorTokenId, crypto.randomUUID(), id, weakCopy, weakRevision);
+    expect((await getOpsPlugin(db, id)).needs).toContain("content");
+    const queued = await listOpsPlugins(db, {
+      state: ["published"],
+      needs: ["content"],
+      limit: 100,
+    });
+    expect(queued.items.some((item) => item.id === id)).toBe(true);
+    const weakStatus = await getOpsStatus(db, {
+      authenticated: true,
+      scopes: ["catalog:write"],
+    });
+
+    await curatePlugin(
+      db,
+      actorTokenId,
+      crypto.randomUUID(),
+      id,
+      { ...curated, sourceReadmeHash: secondReadmeHash },
+      weakRevision + 1,
+    );
+    expect((await getOpsPlugin(db, id)).needs).not.toContain("content");
+    // The aggregate status must use the same quality signal as the list and
+    // detail projections, or the operator never sees the copy backlog.
+    const restoredStatus = await getOpsStatus(db, {
+      authenticated: true,
+      scopes: ["catalog:write"],
+    });
+    expect(weakStatus.catalog.needsContent).toBe(restoredStatus.catalog.needsContent + 1);
   });
 
   it("makes dry-run validate target conflicts without writing anything", async () => {
