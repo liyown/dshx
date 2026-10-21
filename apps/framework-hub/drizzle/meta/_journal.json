@@ -99,6 +99,13 @@
       "when": 1792488387634,
       "tag": "0013_minor_red_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1792551778508,
+      "tag": "0014_hub_changelog_october",
+      "breakpoints": true
     }
   ]
 }
