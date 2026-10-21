@@ -569,6 +569,74 @@ describe("operations v1 atomic catalog model with local D1", () => {
     expect(weakStatus.catalog.needsContent).toBe(restoredStatus.catalog.needsContent + 1);
   });
 
+  it("expires an unavailable README so operators can re-inspect the source", async () => {
+    const suffix = crypto.randomUUID();
+    const packageName = `@ops/readme-recheck-${suffix}`;
+    const fullName = `readme-owner-${suffix}/readme-plugin`;
+    const repositoryId = crypto.randomUUID();
+    const target = `github:${fullName}#main`;
+    const facts = {
+      package: { name: packageName, version: "1.0.0" },
+      installTargets: [
+        { kind: "github", spec: target, packageName, version: "1.0.0", primary: true },
+      ],
+    };
+    // A README that could not be read 30 days ago must resurface: the failed
+    // fetch was one observation, not a permanent property of the repository.
+    const created = await upsertObservation(
+      db,
+      actorTokenId,
+      crypto.randomUUID(),
+      await githubObservation(
+        { repositoryId, fullName, subdirectory: "" },
+        { observedAt: timestamp(30 * 24 * 60), facts },
+      ),
+    );
+    const id = created.pluginId!;
+    expect((await getOpsPlugin(db, id)).needs).toContain("readme");
+    const listed = await listOpsPlugins(db, { needs: ["readme"], limit: 100 });
+    expect(listed.items.some((item) => item.id === id)).toBe(true);
+
+    // A fresh failed observation restarts the window, so the entry drops out
+    // again instead of being re-inspected on every run.
+    await upsertObservation(
+      db,
+      actorTokenId,
+      crypto.randomUUID(),
+      await githubObservation(
+        { repositoryId, fullName, subdirectory: "" },
+        { fingerprint: crypto.randomUUID(), facts },
+      ),
+    );
+    expect((await getOpsPlugin(db, id)).needs).not.toContain("readme");
+
+    // Once the README is readable the need disappears for good.
+    await upsertObservation(
+      db,
+      actorTokenId,
+      crypto.randomUUID(),
+      await githubObservation(
+        { repositoryId, fullName, subdirectory: "" },
+        {
+          fingerprint: crypto.randomUUID(),
+          facts: {
+            ...facts,
+            readme: {
+              availability: "available",
+              format: "markdown",
+              sourceUrl: `https://github.com/${fullName}/blob/main/README.md`,
+              sourceRef: "main",
+              path: "README.md",
+              content: "# Readme plugin\n\nRecovers a README that once failed to load.",
+              contentHash: crypto.randomUUID().replace(/-/g, "").padEnd(64, "0").slice(0, 64),
+            },
+          },
+        },
+      ),
+    );
+    expect((await getOpsPlugin(db, id)).needs).not.toContain("readme");
+  });
+
   it("makes dry-run validate target conflicts without writing anything", async () => {
     const sharedSpec = `github:example/dry-run#${crypto.randomUUID()}`;
     const firstName = `@ops/dry-a-${crypto.randomUUID()}`;

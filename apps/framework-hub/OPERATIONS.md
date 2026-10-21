@@ -124,6 +124,7 @@ The CLI derives `observationId` from canonical identity, source URL, ref, and et
 - A missing incoming field preserves the existing value.
 - An older observation does not overwrite a newer value from the same source tier.
 - An unavailable source changes only that source's availability and observation time.
+- An unavailable README expires: once the source has not been observed for 14 days, the entry reports `needs=readme` again so an operator re-inspects it and upserts the fresh observation. The public plugin page stays out of the index and the sitemap until a README is `available`.
 - Observations never overwrite curated content.
 - A current README is projected into `plugin_source_documents`; immutable observation payloads retain its source history.
 - GitHub publisher facts upsert the publisher profile and attach its public avatar to the plugin and repository.

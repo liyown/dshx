@@ -82,6 +82,7 @@ export const curatedZhPluginLeads: Readonly<Record<string, string>> = {
   'dsh-terminal-panel': '在 DeepSeek Harness 中增加终端面板，可在当前工作区执行命令并实时查看流式输出。',
   'dsh-token-meter':
     '跟踪 DeepSeek Harness 当前会话与历史 token，提供本地预估和 API 精确统计；分词器运行在 Web Worker 中以避免阻塞界面，并支持阈值提醒、自动停止会话、中英双语和主题适配。',
+  'dsh-token-pet': 'DSH 双语悬浮桌宠：常驻显示实时上下文占用与累计 token 账本，提供用量趋势、可选的回合完成提示音，以及可编辑的提示词优化入口。',
   'dsh-ui-balance': '在 DeepSeek Harness 的每条回复下显示对应的 DeepSeek API 余额。',
   'dsh-web-plugins':
     'DSH Web 的 AionUI 风格右侧面板包；原文件浏览与多格式预览面板已停止维护且无法再启用，当前仅保留 Side Card 设置卡以兼容旧 Profile，官方说明计划在后续聚合包中移除。',
@@ -118,6 +119,9 @@ export const curatedZhPluginLeads: Readonly<Record<string, string>> = {
     'DSH Web 插件管理器：在官方 Plugins 设置中安装 npm 或 Git 插件、查看和更新已安装项、配置下次启动启停、处理安装冲突与撤销，并把失败交给修复会话。',
   'dsh-web-plugins-fc2621bd':
     '在 DSH Web 对话标题栏和侧边栏会话菜单增加永久删除操作；它会从 Host 会话存储移除当前会话并删除持久化 JSONL 日志，而不是仅做归档隐藏。',
+  'dsh-whale-girl-live2d': '基于 Live2D 的 DSH Web 鲸鱼娘桌宠：随 Agent 的真实状态切换表情与动作，点击角色可直接与 Agent 对话，右键打开钱包（余额）面板。',
+  'dsh-whale-widget-sankou':
+    '基于 MeteorNOX/DeepSeek-Balance-Whale-Widget（MIT）修改的 DSH 余额挂件分支，替换为“三口”角色形象、语音与状态动画，并修复余额提醒和菜单交互。',
   'dshbase-catalog': '让用户直接在 DeepSeek Harness 内搜索 dshbase 插件目录。',
   'forrestchang-dsh-multica-runtime': '为 Multica 环境提供 DSH 运行时接入。',
   'gin-7-dsh-pet-remielle': 'DSH Web 的 Remielle（绝区零）桌面宠物，会随 Harness 的等待、思考、工具执行等工作状态切换动态贴纸表情。',
@@ -166,6 +170,12 @@ export const curatedZhPluginLeads: Readonly<Record<string, string>> = {
 }
 
 export const curatedEnPluginLeads: Readonly<Record<string, string>> = {
+  'dsh-token-pet':
+    'A bilingual floating DSH pet that keeps live context usage and a lifetime token ledger on screen, with usage trends, an optional turn-completion sound, and an editable prompt-optimizer shortcut.',
+  'dsh-whale-girl-live2d':
+    "A Live2D whale-girl desktop pet for DSH Web: it mirrors the agent's real state with expressions and motion, opens a chat when clicked, and shows a wallet panel on right-click.",
+  'dsh-whale-widget-sankou':
+    'An MIT-licensed fork of the DeepSeek Balance Whale Widget for DSH, replacing the mascot with the "Sankou" character set, voice lines, and state animations, plus fixes for balance alerts and menu interactions.',
   'smelt-ai-dsh-acp-rich':
     'A presentation-complete Agent Client Protocol server for DeepSeek Harness that gives Smelt sessions a Claude- or Codex-like experience with streaming text and reasoning, tool cards, inline diffs, PLAN progress, usage statistics, slash commands, permission prompts, and session resume.',
 }

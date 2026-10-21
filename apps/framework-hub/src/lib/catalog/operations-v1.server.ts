@@ -1918,6 +1918,31 @@ function isWeakCuration(
   );
 }
 
+// "unavailable" describes one observation, not the repository. The fetch can
+// fail transiently, a README can be added later, or a repository can be made
+// public after the fact. Let the fact expire so operators can see the entry and
+// re-inspect it instead of leaving the page permanently out of the index.
+const README_RECHECK_MS = 14 * 86_400_000;
+
+function observedAtMs(sources: SourceSummary[]): number {
+  return sources.reduce((latest, source) => {
+    const value = Date.parse(source.lastObservedAt);
+    return Number.isFinite(value) && value > latest ? value : latest;
+  }, Number.NEGATIVE_INFINITY);
+}
+
+function readmeNeedsRecheck(
+  readme: JsonRecord,
+  sources: SourceSummary[],
+  now = Date.now(),
+): boolean {
+  const availability = String(readme["availability"] ?? "");
+  if (availability === "available") return false;
+  if (availability !== "unavailable") return true;
+  const observed = observedAtMs(sources);
+  return !Number.isFinite(observed) || now - observed > README_RECHECK_MS;
+}
+
 function needsFor(facts: JsonRecord, sources: SourceSummary[], curation: unknown, risks: string[]) {
   const needs: string[] = [];
   const curationFacts = jsonRecord(curation);
@@ -1926,11 +1951,7 @@ function needsFor(facts: JsonRecord, sources: SourceSummary[], curation: unknown
   const publicSourceObserved = sources.some(
     (source) => source.kind === "github" || source.kind === "npm",
   );
-  if (
-    publicSourceObserved &&
-    !["available", "unavailable"].includes(String(readme["availability"]))
-  )
-    needs.push("readme");
+  if (publicSourceObserved && readmeNeedsRecheck(readme, sources)) needs.push("readme");
   if (
     !curation ||
     curationFacts["lowQuality"] === true ||
@@ -2044,11 +2065,19 @@ function pluginNeedsSqlPrefilter(needs: OpsPluginListQuery["needs"]) {
           where json_extract(source.value,'$.lastObservedAt')>=?
         ))`;
       case "readme":
+        parameters.push(new Date(Date.now() - README_RECHECK_MS).toISOString());
         return `(exists(
           select 1 from json_each(o.sources_json) source
           where json_extract(source.value,'$.kind') in ('github','npm')
-        ) and coalesce(json_extract(o.facts_json,'$.readme.availability'),'')
-          not in ('available','unavailable'))`;
+        ) and (
+          coalesce(json_extract(o.facts_json,'$.readme.availability'),'')
+            not in ('available','unavailable')
+          or (json_extract(o.facts_json,'$.readme.availability')='unavailable'
+            and not exists(
+              select 1 from json_each(o.sources_json) source
+              where json_extract(source.value,'$.lastObservedAt')>=?
+            ))
+        ))`;
       case "content":
         return `(c.plugin_id is null or ${lowQualityCurationSql} or (
           json_extract(o.facts_json,'$.readme.availability')='available'
