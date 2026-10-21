@@ -463,10 +463,12 @@ const reportTextSchema = z
     "report text contains unsupported control characters",
   );
 
+export const operationReportRunIdSchema = z.string().uuid();
+
 export const operationReportInputSchema = z
   .object({
     schemaVersion: z.literal(1).default(1),
-    runId: z.string().uuid(),
+    runId: operationReportRunIdSchema,
     startedAt: isoDateTime,
     completedAt: isoDateTime,
     outcome: z.enum(["completed", "partial"]),
@@ -492,6 +494,13 @@ export const publicOperationReportQuerySchema = z
     locale: z.enum(["en", "zh"]).default("en"),
     limit: z.number().int().min(1).max(100).default(20),
     cursor: z.string().max(1_000).optional(),
+  })
+  .strict();
+
+export const publicOperationReportDetailQuerySchema = z
+  .object({
+    runId: operationReportRunIdSchema,
+    locale: z.enum(["en", "zh"]).default("en"),
   })
   .strict();
 

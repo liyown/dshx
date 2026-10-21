@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 
+import { OPERATION_REPORT_INDEX_MIN_CHARS } from "@/lib/catalog/operation-report-view";
 import type { Database } from "@/lib/db/client";
 import type { SitemapDatabaseRow } from "@/lib/sitemap";
 
@@ -83,19 +84,47 @@ function blogRows(value?: string) {
   `;
 }
 
-export function listSitemapDatabaseRows(db: Database): Promise<SitemapDatabaseRow[]> {
-  return db.all<SitemapDatabaseRow>(sql`
-    ${pluginRows()}
-    union all
-    ${categoryRows()}
-    union all
-    ${publisherRows()}
-    union all
-    ${changelogRows()}
-    union all
-    ${blogRows()}
-    order by kind,locale,value
-  `);
+function operationReportRows(value?: string) {
+  return sql`
+    select 'operation-report' as kind,l.locale as locale,r.run_id as value,
+      r.completed_at as updated_at
+    from hub_operation_reports r
+    cross join (select 'en' as locale union all select 'zh' as locale) l
+    where (
+      (l.locale='en' and length(trim(r.body_en))>=${OPERATION_REPORT_INDEX_MIN_CHARS})
+      or (l.locale='zh' and length(trim(r.body_zh))>=${OPERATION_REPORT_INDEX_MIN_CHARS})
+    )
+      ${value ? sql`and r.run_id=${value}` : sql``}
+  `;
+}
+
+function compareRows(left: SitemapDatabaseRow, right: SitemapDatabaseRow) {
+  for (const field of ["kind", "locale", "value"] as const) {
+    if (left[field] < right[field]) return -1;
+    if (left[field] > right[field]) return 1;
+  }
+  return 0;
+}
+
+export async function listSitemapDatabaseRows(db: Database): Promise<SitemapDatabaseRow[]> {
+  // D1 rejects compound selects with too many terms, so report rows are read
+  // separately and merged in the same kind/locale/value order.
+  const [rows, reportRows] = await Promise.all([
+    db.all<SitemapDatabaseRow>(sql`
+      ${pluginRows()}
+      union all
+      ${categoryRows()}
+      union all
+      ${publisherRows()}
+      union all
+      ${changelogRows()}
+      union all
+      ${blogRows()}
+      order by kind,locale,value
+    `),
+    db.all<SitemapDatabaseRow>(operationReportRows()),
+  ]);
+  return [...rows, ...reportRows].sort(compareRows);
 }
 
 export async function listIndexableSitemapLocales(
@@ -108,11 +137,13 @@ export async function listIndexableSitemapLocales(
       ? changelogRows(value)
       : kind === "blog"
         ? blogRows(value)
-        : kind === "plugin"
-          ? pluginRows(value)
-          : kind === "category"
-            ? categoryRows(value)
-            : publisherRows(value);
+        : kind === "operation-report"
+          ? operationReportRows(value)
+          : kind === "plugin"
+            ? pluginRows(value)
+            : kind === "category"
+              ? categoryRows(value)
+              : publisherRows(value);
   const rows = await db.all<Pick<SitemapDatabaseRow, "locale">>(query);
   return rows.map((row) => row.locale);
 }

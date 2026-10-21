@@ -3,7 +3,10 @@ import { ArrowRight } from "lucide-react";
 
 import { Container, SectionLabel } from "@/components/dshx/primitives";
 import { loadPublicOperationReports } from "@/lib/catalog/operation-report-functions";
-import { formatOperationReportDate } from "@/lib/catalog/operation-report-view";
+import {
+  formatOperationReportDate,
+  operationReportExcerpt,
+} from "@/lib/catalog/operation-report-view";
 import { createTranslator, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
@@ -59,6 +62,7 @@ function ReportEntry({
   latest?: boolean;
 }) {
   const { locale, t } = useI18n();
+  const excerpt = operationReportExcerpt(report.body);
   return (
     <article
       className={
@@ -70,9 +74,15 @@ function ReportEntry({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           {latest ? <span className="mono-label text-accent">{t("operations.latest")}</span> : null}
-          <time className="font-mono text-[11.5px] text-muted-foreground">
-            {formatOperationReportDate(report.completedAt, locale)}
-          </time>
+          <Link
+            to="/$locale/operations/$runId"
+            params={{ locale, runId: report.runId }}
+            className="rounded-sm font-mono text-[11.5px] text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+          >
+            <time dateTime={report.completedAt}>
+              {formatOperationReportDate(report.completedAt, locale)}
+            </time>
+          </Link>
         </div>
         <span
           className={
@@ -85,9 +95,18 @@ function ReportEntry({
         </span>
       </div>
       <p className="mt-5 whitespace-pre-wrap break-words text-[14px] leading-7 text-foreground [overflow-wrap:anywhere]">
-        {report.body}
+        {excerpt.text}
       </p>
-      <p className="mt-5 break-all font-mono text-[10.5px] text-muted-foreground">{report.runId}</p>
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <Link
+          to="/$locale/operations/$runId"
+          params={{ locale, runId: report.runId }}
+          className="inline-flex min-h-9 items-center gap-2 rounded-sm text-[13px] text-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+        >
+          {t("operations.readFull")} <ArrowRight className="size-3.5" data-icon="inline-end" />
+        </Link>
+        <p className="break-all font-mono text-[10.5px] text-muted-foreground">{report.runId}</p>
+      </div>
     </article>
   );
 }

@@ -76,6 +76,23 @@ describe("single dynamic sitemap", () => {
     }
   });
 
+  it("includes indexable operations report detail pages", () => {
+    const modified = 1_700_000_000_000;
+    const runId = "55555555-5555-4555-8555-555555555555";
+    const entries = createSitemapEntries("https://dshx.io", [
+      { kind: "operation-report", locale: "en", value: runId, updated_at: modified },
+      { kind: "operation-report", locale: "zh", value: runId, updated_at: modified },
+    ]);
+    for (const locale of ["en", "zh"]) {
+      expect(entries).toContainEqual({
+        loc: `https://dshx.io/${locale}/operations/${runId}`,
+        kind: "operation-report",
+        locale,
+        lastmod: new Date(modified).toISOString(),
+      });
+    }
+  });
+
   it("omits invalid and future lastmod values", () => {
     const entries = createSitemapEntries("https://dshx.io", [
       {

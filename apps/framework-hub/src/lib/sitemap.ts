@@ -1,7 +1,14 @@
 import { DOC_SLUGS } from "@/lib/docs";
 
 export type SitemapEntryKind =
-  "static" | "document" | "changelog" | "blog" | "plugin" | "category" | "publisher";
+  | "static"
+  | "document"
+  | "changelog"
+  | "blog"
+  | "plugin"
+  | "category"
+  | "publisher"
+  | "operation-report";
 
 export type SitemapEntry = {
   readonly loc: string;
@@ -87,7 +94,9 @@ function dynamicEntry(site: string, row: SitemapDatabaseRow): SitemapEntry {
           ? "plugins"
           : row.kind === "category"
             ? "categories"
-            : "publishers";
+            : row.kind === "operation-report"
+              ? "operations"
+              : "publishers";
   const updatedAt = row.updated_at == null ? null : new Date(row.updated_at);
   const lastmod =
     updatedAt &&

@@ -55,11 +55,26 @@ describe("public catalog surfaces", () => {
       new URL("../../routes/$locale/operations/index.tsx", import.meta.url),
       "utf8",
     );
+    const detail = readFileSync(
+      new URL("../../routes/$locale/operations/$runId.tsx", import.meta.url),
+      "utf8",
+    );
     const sitemap = readFileSync(new URL("../sitemap.ts", import.meta.url), "utf8");
+    const sitemapRepository = readFileSync(
+      new URL("../sitemap.repository.server.ts", import.meta.url),
+      "utf8",
+    );
     expect(page).toContain("whitespace-pre-wrap");
     expect(page).toContain('localizedAlternates("/operations")');
+    expect(page).toContain('to="/$locale/operations/$runId"');
     expect(page).not.toMatch(/dangerouslySetInnerHTML|ReactMarkdown|marked\(/);
+    expect(detail).toContain("loadPublicOperationReport");
+    expect(detail).toContain("PluginCard");
+    expect(detail).toContain("whitespace-pre-wrap");
+    expect(detail).not.toMatch(/dangerouslySetInnerHTML|ReactMarkdown|marked\(/);
     expect(sitemap).toContain('"/operations"');
+    expect(sitemap).toContain('"operation-report"');
+    expect(sitemapRepository).toContain("operationReportRows");
   });
 
   it("separates localized curation from the escaped original README", () => {
