@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { catalogListCacheKey, withCatalogCache } from "./catalog-cache.server";
 import { marketplaceListQuerySchema, pluginListQuerySchema } from "./contracts";
 import {
   getCatalogPlugin,
@@ -12,7 +13,9 @@ import { requireDatabase } from "@/lib/db/client";
 export const loadCatalog = createServerFn({ method: "GET" })
   .validator(pluginListQuerySchema)
   .handler(async ({ data, context }) => {
-    return listCatalogDiscovery(requireDatabase(context), data);
+    return withCatalogCache(catalogListCacheKey(data), () =>
+      listCatalogDiscovery(requireDatabase(context), data),
+    );
   });
 
 export const loadMarketplaceCatalog = createServerFn({ method: "GET" })

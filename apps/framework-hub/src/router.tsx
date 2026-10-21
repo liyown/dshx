@@ -10,7 +10,12 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
+    // Catalog loaders are edge-cached for a minute; reusing them briefly on the
+    // client keeps in-app navigation from re-requesting the same page.
+    defaultPreload: "intent",
+    defaultPreloadDelay: 120,
+    defaultPreloadStaleTime: 30_000,
+    defaultStaleTime: 30_000,
     defaultViewTransition: prefersReducedMotion() ? false : navigationViewTransition,
   });
 

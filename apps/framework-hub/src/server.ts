@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 
 import { withHomepageDiscoveryHeaders } from "./lib/discovery-link-headers";
@@ -10,6 +10,7 @@ import {
   isMarkdownNegotiablePage,
   withMarkdownVary,
 } from "./lib/markdown-negotiation";
+import { publicCache, readCached, storeCached, withCacheStatus } from "./lib/page-cache";
 import type { AppBindings, AppRequestContext } from "./lib/db/context";
 
 function withSecurityHeaders(response: Response, request: Request): Response {
@@ -125,6 +126,72 @@ function logRequestError(request: Request, id: string, error: unknown): void {
   );
 }
 
+/**
+ * Pages whose content is identical for every anonymous visitor and expensive
+ * enough to justify the edge cache. Detail pages stay live so publishing,
+ * withdrawal, and moderation take effect immediately.
+ */
+const PAGE_CACHE_PATH =
+  /^\/(?:en|zh)(?:\/(?:about|docs(?:\/[^/]+)?|examples|legal\/[^/]+|plugins|categories\/[^/]+))?$/;
+
+export function isPageCacheable(request: Request): boolean {
+  if (request.method !== "GET") return false;
+  if (request.headers.has("authorization") || request.headers.has("cookie")) return false;
+  // Markdown negotiation and plain HTML are different representations.
+  if (acceptsMarkdown(request)) return false;
+  const url = new URL(request.url);
+  if (!PAGE_CACHE_PATH.test(url.pathname)) return false;
+  // Search and pagination produce unbounded keys and stay on the live path.
+  if (url.searchParams.get("q") || url.searchParams.get("cursor")) return false;
+  return true;
+}
+
+function pageCacheKey(request: Request): string {
+  const url = new URL(request.url);
+  const params = [...url.searchParams.entries()].sort(([left], [right]) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  );
+  const search = new URLSearchParams(params).toString();
+  return `/page${url.pathname}${search ? `?${search}` : ""}`;
+}
+
+function isCacheablePageResponse(response: Response): boolean {
+  if (response.status !== 200) return false;
+  if (response.headers.has("set-cookie")) return false;
+  if ((response.headers.get("cache-control") ?? "").includes("no-store")) return false;
+  return (response.headers.get("content-type") ?? "").includes("text/html");
+}
+
+async function renderPage(request: Request): Promise<Response> {
+  const context: AppRequestContext = { cloudflare: env as AppBindings };
+  if (isMarkdownNegotiablePage(request) && acceptsMarkdown(request)) {
+    const { renderAgentMarkdownResponse } = await import("./lib/agent-document.server");
+    const markdown = await renderAgentMarkdownResponse(request, context);
+    if (markdown) {
+      return withHomepageDiscoveryHeaders(withSecurityHeaders(markdown, request), request);
+    }
+  }
+
+  const response = await handler.fetch(request, { context });
+  const negotiated = isMarkdownNegotiablePage(request) ? withMarkdownVary(response) : response;
+  return withHomepageDiscoveryHeaders(withSecurityHeaders(negotiated, request), request);
+}
+
+async function refreshPageCache(
+  cache: Cache,
+  key: string,
+  request: Request,
+  id: string,
+): Promise<void> {
+  try {
+    const response = await renderPage(request);
+    if (!isCacheablePageResponse(response)) return;
+    await storeCached(cache, key, response);
+  } catch (error) {
+    logRequestError(request, id, error);
+  }
+}
+
 export default createServerEntry({
   async fetch(request) {
     const id = requestId(request);
@@ -133,18 +200,32 @@ export default createServerEntry({
       if (redirect)
         return withHomepageDiscoveryHeaders(withSecurityHeaders(redirect, request), request);
 
-      const context: AppRequestContext = { cloudflare: env as AppBindings };
-      if (isMarkdownNegotiablePage(request) && acceptsMarkdown(request)) {
-        const { renderAgentMarkdownResponse } = await import("./lib/agent-document.server");
-        const markdown = await renderAgentMarkdownResponse(request, context);
-        if (markdown) {
-          return withHomepageDiscoveryHeaders(withSecurityHeaders(markdown, request), request);
+      const cache = isPageCacheable(request) ? publicCache() : null;
+      const key = cache ? pageCacheKey(request) : "";
+      if (cache) {
+        try {
+          const fresh = await readCached(cache, key, "fresh");
+          if (fresh) return withCacheStatus(fresh, "fresh");
+
+          const stale = await readCached(cache, key, "stale");
+          if (stale) {
+            waitUntil(refreshPageCache(cache, key, request, id));
+            return withCacheStatus(stale, "stale");
+          }
+        } catch (error) {
+          logRequestError(request, id, error);
         }
       }
 
-      const response = await handler.fetch(request, { context });
-      const negotiated = isMarkdownNegotiablePage(request) ? withMarkdownVary(response) : response;
-      return withHomepageDiscoveryHeaders(withSecurityHeaders(negotiated, request), request);
+      const response = await renderPage(request);
+      if (!cache || !isCacheablePageResponse(response)) return response;
+
+      waitUntil(
+        storeCached(cache, key, response.clone()).catch((error: unknown) => {
+          logRequestError(request, id, error);
+        }),
+      );
+      return withCacheStatus(response, "miss");
     } catch (error) {
       logRequestError(request, id, error);
       const response = new Response(
