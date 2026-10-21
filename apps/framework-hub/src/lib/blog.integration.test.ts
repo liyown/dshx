@@ -288,6 +288,12 @@ describe("blog and featured editorial data with local D1", () => {
     const publicSections = await listFeaturedSections(db, "en");
     expect(publicSections.some((section) => section.slug === category.slug)).toBe(false);
 
+    const cleared = await replaceFeaturedPicks(db, category.slug, []);
+    expect(cleared).toMatchObject({ slug: category.slug, plugins: [] });
+    expect((await listFeaturedSections(db, "en")).some((s) => s.slug === category.slug)).toBe(
+      false,
+    );
+
     await expect(
       replaceFeaturedPicks(db, category.slug, ["missing-featured-plugin"]),
     ).rejects.toMatchObject({ status: 422, code: "featured_plugin_not_found" });

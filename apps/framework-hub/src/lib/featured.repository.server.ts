@@ -143,7 +143,7 @@ export async function replaceFeaturedPicks(
   pluginSlugs: readonly string[],
 ): Promise<FeaturedOperationCategory> {
   const [category] = await db
-    .select({ id: categories.id, slug: categories.slug })
+    .select({ id: categories.id, slug: categories.slug, active: categories.active })
     .from(categories)
     .where(eq(categories.slug, categorySlug))
     .limit(1);
@@ -167,6 +167,10 @@ export async function replaceFeaturedPicks(
       );
   }
   const bySlug = new Map(ids.map((row) => [row.slug, row.id]));
+  const previous =
+    pluginSlugs.length === 0
+      ? (await getFeaturedForOperations(db)).items.find((item) => item.slug === category.slug)
+      : undefined;
   const replacements = pluginSlugs.map((slug, index) => ({
     categoryId: category.id,
     pluginId: bySlug.get(slug) as string,
@@ -189,12 +193,25 @@ export async function replaceFeaturedPicks(
   ]);
   const result = await getFeaturedForOperations(db);
   const updated = result.items.find((item) => item.slug === category.slug);
-  if (!updated)
-    throw new OperationHttpError(
-      500,
-      "featured_write_failed",
-      "Featured picks were saved but could not be read back.",
-      true,
+  if (updated) return updated;
+  if (pluginSlugs.length === 0) {
+    // A cleared shelf intentionally disappears from the operations list. Give
+    // the caller the previous localized entry with an empty pick list instead
+    // of treating a successful clear as a failed write.
+    return (
+      (previous && { ...previous, plugins: [] }) ?? {
+        slug: category.slug,
+        active: category.active,
+        name: { en: category.slug, zh: category.slug },
+        description: { en: null, zh: null },
+        plugins: [],
+      }
     );
-  return updated;
+  }
+  throw new OperationHttpError(
+    500,
+    "featured_write_failed",
+    "Featured picks were saved but could not be read back.",
+    true,
+  );
 }

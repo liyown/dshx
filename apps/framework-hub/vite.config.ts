@@ -4,7 +4,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode, isPreview }) => ({
   envPrefix: ["VITE_", "GOOGLE_SITE_VERIFICATION", "BING_SITE_VERIFICATION"],
   resolve: {
     tsconfigPaths: true,
@@ -13,7 +13,16 @@ export default defineConfig(({ mode }) => ({
       : {}),
   },
   plugins: [
-    ...(mode === "test" ? [] : [cloudflare({ viteEnvironment: { name: "ssr" } })]),
+    ...(mode === "test"
+      ? []
+      : [
+          cloudflare({
+            viteEnvironment: { name: "ssr" },
+            // `db:migrate:preview` and `db:seed:preview` write to this state
+            // directory, so the production-like preview must read the same D1.
+            ...(isPreview ? { persistState: { path: ".wrangler/preview-state" } } : {}),
+          }),
+        ]),
     tanstackStart({ server: { entry: "server" } }),
     tailwindcss(),
     react(),

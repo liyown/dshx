@@ -78,6 +78,9 @@ function FeaturedPage() {
           title={copy.title}
           description={copy.description}
         />
+        <p className="mt-5 max-w-3xl border-l border-border pl-3 text-[12px] leading-6 text-muted-foreground">
+          {copy.editorialNote}
+        </p>
 
         {sections.length === 0 ? (
           <div className="border-b border-border py-16">
