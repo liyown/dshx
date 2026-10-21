@@ -34,7 +34,11 @@ const components: Components = {
   ),
   li: ({ children }) => <li className="pl-1 leading-7 [overflow-wrap:anywhere]">{children}</li>,
   a: ({ href, children }) => {
-    const external = typeof href === "string" && /^https?:\/\//u.test(href);
+    // Same-site links keep normal navigation; only off-site sources open a tab.
+    const external =
+      typeof href === "string" &&
+      /^https?:\/\//u.test(href) &&
+      !/^https?:\/\/(?:www\.)?dshx\.io(?:\/|$)/u.test(href);
     return (
       <a
         href={href}
@@ -80,6 +84,38 @@ export function MarkdownReport({ children, className }: { children: string; clas
     <div className={cn("max-w-3xl text-foreground", className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={components}>
         {visible}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+const textComponents: Components = {
+  ...components,
+  p: ({ children }) => (
+    <p className="text-[15px] leading-8 text-muted-foreground [overflow-wrap:anywhere]">{children}</p>
+  ),
+  table: ({ children }) => (
+    <div className="mt-2 overflow-x-auto">
+      <table className="w-full border-collapse text-left text-[14px]">{children}</table>
+    </div>
+  ),
+};
+
+/**
+ * Renders one changelog paragraph or list item as Markdown. The same safe
+ * pipeline as reports applies: no raw HTML, no images, https links only after
+ * React Markdown's URL transform.
+ */
+export function MarkdownText({ children, className }: { children: string; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "text-[15px] leading-8 text-muted-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        className,
+      )}
+    >
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={textComponents}>
+        {children}
       </ReactMarkdown>
     </div>
   );

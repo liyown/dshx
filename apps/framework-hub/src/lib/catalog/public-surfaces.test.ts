@@ -84,6 +84,22 @@ describe("public catalog surfaces", () => {
     expect(sitemapRepository).toContain("operationReportRows");
   });
 
+  it("renders changelog copy as safe Markdown with inline source links", () => {
+    const detail = readFileSync(
+      new URL("../../routes/$locale/changelog/$slug.tsx", import.meta.url),
+      "utf8",
+    );
+    const markdown = readFileSync(
+      new URL("../../components/dshx/markdown-report.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(detail).toContain("MarkdownText");
+    expect(detail).not.toContain("dangerouslySetInnerHTML");
+    expect(markdown).toContain("export function MarkdownText");
+    expect(markdown).toContain("img: () => null");
+    expect(markdown).not.toContain("rehype-raw");
+  });
+
   it("separates localized curation from the escaped original README", () => {
     const detail = readFileSync(
       new URL("../../routes/$locale/plugins/$slug.tsx", import.meta.url),

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
 
+import { MarkdownText } from "@/components/dshx/markdown-report";
 import { Chip, Container } from "@/components/dshx/primitives";
 import { changelogCopy, formatChangelogDate } from "@/lib/changelog";
 import { loadChangelogDetail } from "@/lib/changelog.functions";
@@ -129,14 +130,14 @@ function ChangelogArticlePage() {
                     {section.title}
                   </h2>
                   <div className="space-y-4 text-[15px] leading-8 text-muted-foreground">
-                    {section.paragraphs?.map((paragraph) => (
-                      <p key={paragraph}>{paragraph}</p>
+                    {section.paragraphs?.map((paragraph, index) => (
+                      <MarkdownText key={`${section.id}-p-${index}`}>{paragraph}</MarkdownText>
                     ))}
                     {section.items ? (
                       <ul className="list-disc space-y-3 pl-5 marker:text-accent">
-                        {section.items.map((item) => (
-                          <li key={item} className="pl-1">
-                            {item}
+                        {section.items.map((item, index) => (
+                          <li key={`${section.id}-i-${index}`} className="pl-1">
+                            <MarkdownText>{item}</MarkdownText>
                           </li>
                         ))}
                       </ul>
