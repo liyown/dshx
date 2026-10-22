@@ -108,6 +108,41 @@ describe("Framework Hub architecture boundaries", () => {
     ).toEqual([]);
   });
 
+  it("keeps one pagination cursor format", async () => {
+    const files = await sourceFiles();
+    // Four base64url encoders meant four decode rules and two failure
+    // policies; the codec owns the format, the adapter owns what a bad cursor
+    // means.
+    expect(
+      violations(
+        files,
+        ({ path, text }) => path !== "lib/catalog/cursor.ts" && /btoa\(JSON\.stringify/u.test(text),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps the needs rule and its SQL projection in one policy module", async () => {
+    const files = await sourceFiles();
+    expect(
+      violations(
+        files,
+        ({ path, text }) =>
+          path !== "lib/catalog/lifecycle-policy.ts" && /json_type\(o\.facts_json/u.test(text),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps observation recency and provenance in the merge module", async () => {
+    const files = await sourceFiles();
+    expect(
+      violations(
+        files,
+        ({ path, text }) =>
+          path !== "lib/catalog/observation-merge.ts" && /installTargets\.primary/u.test(text),
+      ),
+    ).toEqual([]);
+  });
+
   it("keeps the curation quality rule in its policy module", async () => {
     const files = await sourceFiles();
     // The placeholder phrases are the tells of a copied rule. The SQL twin and

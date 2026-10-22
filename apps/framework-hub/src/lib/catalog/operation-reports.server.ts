@@ -1,5 +1,6 @@
+import { decodeCursor, encodeCursor } from "./cursor";
 import type { OperationReportInput, PublicOperationReportQuery } from "./operations-v1.contracts";
-import { OperationHttpError } from "./operations-v1.http";
+import { OperationHttpError, requireCursor } from "./operations-v1.http";
 import type { Database } from "@/lib/db/client";
 import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
@@ -29,31 +30,6 @@ function stablePayload(input: OperationReportInput) {
 async function sha256(value: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function encodeCursor(day: string) {
-  return btoa(JSON.stringify([day]))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
-}
-
-function decodeCursor(cursor?: string): string | null {
-  if (!cursor) return null;
-  try {
-    const parsed = JSON.parse(atob(cursor.replaceAll("-", "+").replaceAll("_", "/"))) as unknown;
-    if (
-      Array.isArray(parsed) &&
-      typeof parsed[0] === "string" &&
-      /^\d{4}-\d{2}-\d{2}$/u.test(parsed[0])
-    )
-      return parsed[0];
-  } catch {
-    // Normalized below.
-  }
-  throw new OperationHttpError(422, "invalid_cursor", "The pagination cursor is invalid", false, {
-    repairHint: "Restart the report query without the cursor.",
-  });
 }
 
 function privateReport(row: ReportRow) {
@@ -166,7 +142,7 @@ export async function listPublicOperationReports(
   binding: Database,
   query: PublicOperationReportQuery,
 ) {
-  const cursor = decodeCursor(query.cursor);
+  const cursor = requireCursor(decodeCursor(query.cursor, ["day"]));
   // Group by the Asia/Shanghai calendar day so the public log shows one entry
   // per day. Reports stay immutable per run; the newest report of the day is
   // the cumulative body when the operations prompt merged the day's work.
@@ -216,6 +192,6 @@ export async function listPublicOperationReports(
       latestRunId: row.run_id,
       body: query.locale === "zh" ? row.body_zh : row.body_en,
     })),
-    nextCursor: rows.length > query.limit && last ? encodeCursor(last.day) : null,
+    nextCursor: rows.length > query.limit && last ? encodeCursor([last.day]) : null,
   };
 }

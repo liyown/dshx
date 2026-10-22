@@ -2,6 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
 import type { MarketplaceListQuery, PluginListQuery } from "./contracts";
+import { decodeCursor, encodeCursor } from "./cursor";
 import { installReadySql } from "./install-readiness";
 import { ensureInstallReadiness } from "./install-readiness.server";
 import {
@@ -76,35 +77,6 @@ function toCard(row: ListRow): CatalogCard {
   };
 }
 
-function encodeCursor(primary: number, updatedAt: number, id: string, page: number): string {
-  return btoa(JSON.stringify([primary, updatedAt, id, page]))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
-}
-
-function decodeCursor(value?: string | null): [number, number, string, number] | null {
-  if (!value) return null;
-  try {
-    const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
-    const parsed = JSON.parse(atob(normalized)) as unknown;
-    if (
-      Array.isArray(parsed) &&
-      typeof parsed[0] === "number" &&
-      typeof parsed[1] === "number" &&
-      typeof parsed[2] === "string"
-    ) {
-      const page = parsed[3] === undefined ? 2 : parsed[3];
-      return Number.isSafeInteger(page) && page >= 2
-        ? [parsed[0], parsed[1], parsed[2], page]
-        : null;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 async function listCatalogPluginPage(
   db: Database,
   query: PluginListQuery | MarketplaceListQuery,
@@ -112,7 +84,10 @@ async function listCatalogPluginPage(
 ) {
   ensurePluginScores(db);
   if (marketplaceOnly) await ensureInstallReadiness(db);
-  const cursor = decodeCursor(query.cursor);
+  const decoded = decodeCursor(query.cursor, ["timestamp", "timestamp", "text", "page"]);
+  // A cursor this page cannot read is dropped rather than surfaced: the link
+  // still renders page one instead of failing the request.
+  const cursor = decoded.ok ? decoded.value : null;
   const currentPage = cursor?.[3] ?? 1;
   const search = query.q.trim();
   const now = Date.now();
@@ -225,7 +200,7 @@ async function listCatalogPluginPage(
     items: page.map(toCard),
     nextCursor:
       hasMore && last
-        ? encodeCursor(
+        ? encodeCursor([
             query.sort === "stars"
               ? (last.github_stars ?? 0)
               : query.sort === "downloads"
@@ -246,7 +221,7 @@ async function listCatalogPluginPage(
                   : last.updated_at,
             last.id,
             currentPage + 1,
-          )
+          ])
         : null,
     page: currentPage,
     pageSize: query.limit,

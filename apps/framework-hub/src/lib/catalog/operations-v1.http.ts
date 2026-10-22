@@ -3,6 +3,8 @@ import { ZodError } from "zod";
 
 import { HttpError } from "@/lib/http";
 
+import type { CursorField, CursorValues, ParsedCursor } from "./cursor";
+
 export type OperationErrorBody = {
   code: string;
   message: string;
@@ -50,6 +52,21 @@ const repairHints: Record<string, string> = {
   database_unavailable: "Retry after the Hub database becomes available.",
   media_unavailable: "Retry after Hub media storage becomes available.",
 };
+
+/**
+ * The operations API rejects a cursor it cannot read instead of quietly
+ * restarting at page one: a client that pages by cursor would otherwise loop
+ * over the first page forever.
+ */
+export function requireCursor<Shape extends readonly CursorField[]>(
+  cursor: ParsedCursor<Shape>,
+): CursorValues<Shape> | null {
+  if (!cursor.ok)
+    throw new OperationHttpError(422, "invalid_cursor", "The pagination cursor is invalid", false, {
+      ...(repairHints["invalid_cursor"] ? { repairHint: repairHints["invalid_cursor"] } : {}),
+    });
+  return cursor.value;
+}
 
 export function operationRequestId(request: Request): string {
   const supplied = request.headers.get("x-request-id")?.trim();

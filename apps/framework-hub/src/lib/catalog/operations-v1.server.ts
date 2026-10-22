@@ -1,4 +1,4 @@
-import { satisfies, validRange } from "semver";
+import { validRange } from "semver";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { Database } from "@/lib/db/client";
@@ -6,8 +6,24 @@ import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { buildPluginSeoDescription, buildPluginSeoTitle } from "./content-quality";
 import { isWeakCuration, weakCurationSql } from "./curation-policy";
+import { decodeCursor, encodeCursor } from "./cursor";
 import { refreshPluginReadiness } from "./install-readiness.server";
-import { jsonRecord, type JsonRecord } from "./json";
+import { jsonRecord, stableJson, type JsonRecord } from "./json";
+import {
+  needsFor,
+  needsPrefilterSql,
+  pluginStatusFor,
+  riskSignals,
+  sourceStale,
+} from "./lifecycle-policy";
+import {
+  installTargetProvenancePath,
+  mergeProjection,
+  mergeStoredObservation,
+  type FieldDiff,
+  type FieldProvenance,
+  type SourceSummary,
+} from "./observation-merge";
 import { publicationRequirements } from "./publication-readiness";
 import { refreshPluginScore } from "./scores.server";
 
@@ -22,12 +38,10 @@ import {
 } from "./operations-v1.contracts";
 import {
   OperationHttpError,
+  requireCursor,
   serializeOperationError,
   type OperationErrorBody,
 } from "./operations-v1.http";
-
-const SOURCE_STALE_MS = 30 * 86_400_000;
-const CURRENT_DSH_VERSION = "0.2.1-rc.2";
 
 type OperationalRow = {
   plugin_id: string;
@@ -66,37 +80,6 @@ type PluginRow = {
   updated_at: number;
 };
 
-type SourceSummary = {
-  kind: PluginObservationV1["source"]["kind"];
-  url: string;
-  ref?: string;
-  etag?: string;
-  contentHash?: string;
-  availability: "available" | "unavailable";
-  lastObservedAt: string;
-  lastSuccessfulAt?: string;
-  observationId: string;
-};
-
-type FieldProvenance = {
-  observationId: string;
-  sourceKind: PluginObservationV1["source"]["kind"];
-  sourceUrl: string;
-  observedAt: string;
-  priority: number;
-};
-
-type FieldDiff = {
-  path: string;
-  before: unknown;
-  after: unknown;
-  source?: {
-    kind: string;
-    url: string;
-    observationId: string;
-  };
-};
-
 type ObservationWriteResult = {
   identity: string;
   pluginId: string | null;
@@ -113,85 +96,6 @@ function parseJson<T>(value: unknown, fallback: T): T {
   } catch {
     return fallback;
   }
-}
-
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === "object")
-    return Object.fromEntries(
-      Object.entries(value as JsonRecord)
-        .filter(([, entry]) => entry !== undefined)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, entry]) => [key, canonicalize(entry)]),
-    );
-  return value;
-}
-
-function stableJson(value: unknown): string {
-  return JSON.stringify(canonicalize(value));
-}
-
-function mergeRecords(previous: JsonRecord, incoming: JsonRecord): JsonRecord {
-  const merged = structuredClone(previous);
-  for (const [key, value] of Object.entries(incoming)) {
-    if (value === undefined) continue;
-    const before = merged[key];
-    merged[key] =
-      before &&
-      value &&
-      typeof before === "object" &&
-      typeof value === "object" &&
-      !Array.isArray(before) &&
-      !Array.isArray(value)
-        ? mergeRecords(before as JsonRecord, value as JsonRecord)
-        : structuredClone(value);
-  }
-  return merged;
-}
-
-function mergeStoredObservation(
-  previous: PluginObservationV1,
-  incoming: PluginObservationV1,
-): PluginObservationV1 {
-  if (incoming.source.availability === "unavailable")
-    return {
-      ...incoming,
-      ...(previous.detection ? { detection: previous.detection } : {}),
-      ...(previous.facts ? { facts: previous.facts } : {}),
-    };
-  const previousFacts = previous.facts ? (structuredClone(previous.facts) as JsonRecord) : {};
-  const incomingFacts = incoming.facts ? (structuredClone(incoming.facts) as JsonRecord) : {};
-  const previousTargets = Array.isArray(previousFacts["installTargets"])
-    ? (previousFacts["installTargets"] as JsonRecord[])
-    : [];
-  const incomingTargets = Array.isArray(incomingFacts["installTargets"])
-    ? (incomingFacts["installTargets"] as JsonRecord[])
-    : [];
-  delete previousFacts["installTargets"];
-  delete incomingFacts["installTargets"];
-  const facts = mergeRecords(previousFacts, incomingFacts);
-  if (previousTargets.length || incomingTargets.length) {
-    const byKey = new Map(
-      previousTargets.flatMap((target) => {
-        const key = installTargetKey(target);
-        return key ? [[key, structuredClone(target)] as const] : [];
-      }),
-    );
-    for (const target of incomingTargets) {
-      const key = installTargetKey(target);
-      if (!key) continue;
-      byKey.set(key, byKey.has(key) ? { ...byKey.get(key)!, ...target } : target);
-    }
-    facts["installTargets"] = [...byKey.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([, target]) => target);
-  }
-  const detection = incoming.detection ?? previous.detection;
-  return {
-    ...incoming,
-    ...(detection ? { detection } : {}),
-    ...(Object.keys(facts).length ? { facts } : {}),
-  } as PluginObservationV1;
 }
 
 async function digest(value: string): Promise<string> {
@@ -225,367 +129,6 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 90);
-}
-
-function encodeCursor(updatedAt: number, id: string): string {
-  return btoa(JSON.stringify([updatedAt, id]))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
-}
-
-function decodeCursor(cursor?: string): [number, string] | null {
-  if (!cursor) return null;
-  try {
-    const parsed = JSON.parse(atob(cursor.replaceAll("-", "+").replaceAll("_", "/"))) as unknown;
-    if (
-      Array.isArray(parsed) &&
-      typeof parsed[0] === "number" &&
-      Number.isFinite(parsed[0]) &&
-      typeof parsed[1] === "string"
-    )
-      return [parsed[0], parsed[1]];
-  } catch {
-    // Normalized below.
-  }
-  throw new OperationHttpError(422, "invalid_cursor", "The pagination cursor is invalid", false, {
-    repairHint: "Restart the query without the cursor.",
-  });
-}
-
-function flatten(value: unknown, prefix = "", output: Record<string, unknown> = {}) {
-  if (Array.isArray(value) || value === null || typeof value !== "object") {
-    if (prefix) output[prefix] = value;
-    return output;
-  }
-  for (const [key, entry] of Object.entries(value as JsonRecord)) {
-    if (entry === undefined) continue;
-    flatten(entry, prefix ? `${prefix}.${key}` : key, output);
-  }
-  return output;
-}
-
-function valueAtPath(root: JsonRecord, path: string): unknown {
-  let current: unknown = root;
-  for (const segment of path.split(".")) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined;
-    current = (current as JsonRecord)[segment];
-  }
-  return current;
-}
-
-function setAtPath(root: JsonRecord, path: string, value: unknown) {
-  const segments = path.split(".");
-  let current = root;
-  for (const segment of segments.slice(0, -1)) {
-    const child = current[segment];
-    if (!child || typeof child !== "object" || Array.isArray(child)) current[segment] = {};
-    current = current[segment] as JsonRecord;
-  }
-  current[segments.at(-1)!] = structuredClone(value);
-}
-
-function factPriority(path: string, observation: PluginObservationV1): number {
-  const kind = observation.source.kind;
-  const exactNpmManifest = kind === "npm" && Boolean(observation.source.ref);
-  if (path.startsWith("publisher.")) {
-    if (kind === "github") return 600;
-    if (kind === "npm") return 500;
-    return 200;
-  }
-  if (path.startsWith("readme.")) {
-    if (kind === "github" || kind === "npm") return 600;
-    if (kind === "readme") return 550;
-    return 200;
-  }
-  if (path.startsWith("package.description") || path.startsWith("package.homepageUrl")) {
-    if (exactNpmManifest) return 600;
-    if (kind === "npm") return 550;
-    if (kind === "github") return 525;
-    if (kind === "readme") return 500;
-    if (kind === "release") return 350;
-    return 200;
-  }
-  if (path.startsWith("package.") || path.startsWith("installTargets")) {
-    if (exactNpmManifest) return 600;
-    if (kind === "npm") return 550;
-    if (kind === "github") return 525;
-    if (kind === "release") return 500;
-    if (kind === "readme") return 300;
-    return 200;
-  }
-  if (path.startsWith("repository.") || path.startsWith("metrics.github")) {
-    if (kind === "github") return 600;
-    if (kind === "release") return 500;
-    if (kind === "npm") return 400;
-    if (kind === "readme") return 300;
-    return 200;
-  }
-  if (path.startsWith("metrics.npm")) return kind === "npm" ? 600 : 200;
-  if (path.startsWith("compatibility.")) {
-    if (exactNpmManifest) return 600;
-    if (kind === "npm") return 550;
-    if (kind === "release") return 500;
-    if (kind === "readme") return 400;
-    if (kind === "github") return 300;
-    return 200;
-  }
-  return 100;
-}
-
-function sourceKey(source: Pick<SourceSummary, "kind" | "url">): string {
-  return `${source.kind}\u0000${source.url}`;
-}
-
-function installTargetKey(target: JsonRecord): string | null {
-  return typeof target["kind"] === "string" && typeof target["spec"] === "string"
-    ? `${target["kind"]}\u0000${target["spec"]}\u0000${
-        typeof target["packagePath"] === "string" ? target["packagePath"] : ""
-      }`
-    : null;
-}
-
-function installTargetProvenancePath(target: JsonRecord): string | null {
-  const key = installTargetKey(target);
-  return key ? `installTargets.${encodeURIComponent(key)}` : null;
-}
-
-function observationWins(
-  existing: FieldProvenance | undefined,
-  observationId: string,
-  incomingAt: number,
-  priority: number,
-  fallbackObservedAt = -Infinity,
-): boolean {
-  if (existing?.observationId === observationId) return true;
-  const parsedExistingAt = existing ? Date.parse(existing.observedAt) : fallbackObservedAt;
-  const existingAt = Number.isFinite(parsedExistingAt) ? parsedExistingAt : fallbackObservedAt;
-  const existingPriority = existing?.priority ?? 0;
-  if (incomingAt < existingAt || priority < existingPriority) return false;
-  if (incomingAt > existingAt || priority > existingPriority) return true;
-  return observationId.localeCompare(existing?.observationId ?? "legacy") > 0;
-}
-
-function mergeProjection(
-  current: {
-    state: "draft" | "published";
-    detection: JsonRecord | null;
-    facts: JsonRecord;
-    sources: SourceSummary[];
-    provenance: Record<string, FieldProvenance>;
-    lastObservedAt: number | null;
-  },
-  observation: PluginObservationV1,
-) {
-  const facts = structuredClone(current.facts);
-  const provenance = structuredClone(current.provenance);
-  const sources = structuredClone(current.sources);
-  const state = current.state;
-  let detection = current.detection ? structuredClone(current.detection) : null;
-  const diff: FieldDiff[] = [];
-  const incomingAt = Date.parse(observation.observedAt);
-
-  const existingSourceIndex = sources.findIndex(
-    (source) => sourceKey(source) === sourceKey(observation.source),
-  );
-  const existingSource = existingSourceIndex >= 0 ? sources[existingSourceIndex] : undefined;
-  const existingSourceAt = existingSource ? Date.parse(existingSource.lastObservedAt) : -Infinity;
-  if (
-    !existingSource ||
-    incomingAt > existingSourceAt ||
-    (incomingAt === existingSourceAt &&
-      observation.observationId.localeCompare(existingSource.observationId) >= 0)
-  ) {
-    const nextSource: SourceSummary = {
-      kind: observation.source.kind,
-      url: observation.source.url,
-      ...(observation.source.ref ? { ref: observation.source.ref } : {}),
-      ...(observation.source.etag ? { etag: observation.source.etag } : {}),
-      ...(observation.source.contentHash ? { contentHash: observation.source.contentHash } : {}),
-      availability: observation.source.availability,
-      lastObservedAt: observation.observedAt,
-      ...(observation.source.availability === "available"
-        ? { lastSuccessfulAt: observation.observedAt }
-        : existingSource?.lastSuccessfulAt
-          ? { lastSuccessfulAt: existingSource.lastSuccessfulAt }
-          : {}),
-      observationId: observation.observationId,
-    };
-    diff.push({
-      path: `sources.${sourceKey(nextSource)}`,
-      before: existingSource,
-      after: nextSource,
-    });
-    if (existingSourceIndex >= 0) sources[existingSourceIndex] = nextSource;
-    else sources.push(nextSource);
-  }
-
-  if (observation.source.availability === "available") {
-    const incomingFacts = structuredClone(observation.facts ?? {}) as JsonRecord;
-    const incomingTargets = Array.isArray(incomingFacts["installTargets"])
-      ? (incomingFacts["installTargets"] as JsonRecord[])
-      : [];
-    delete incomingFacts["installTargets"];
-    for (const [path, incoming] of Object.entries(flatten(incomingFacts))) {
-      const priority = factPriority(path, observation);
-      const existing = provenance[path];
-      const before = valueAtPath(facts, path);
-      // Recency is an absolute gate: replaying an older observation must never
-      // replace a value learned later, even when the old source ranks higher.
-      const wins = observationWins(
-        existing,
-        observation.observationId,
-        incomingAt,
-        priority,
-        before === undefined ? -Infinity : (current.lastObservedAt ?? -Infinity),
-      );
-      if (!wins) continue;
-      if (stableJson(before) !== stableJson(incoming))
-        diff.push({
-          path: `facts.${path}`,
-          before,
-          after: incoming,
-          source: {
-            kind: observation.source.kind,
-            url: observation.source.url,
-            observationId: observation.observationId,
-          },
-        });
-      setAtPath(facts, path, incoming);
-      provenance[path] = {
-        observationId: observation.observationId,
-        sourceKind: observation.source.kind,
-        sourceUrl: observation.source.url,
-        observedAt: observation.observedAt,
-        priority,
-      };
-    }
-
-    if (incomingTargets.length) {
-      const targets = Array.isArray(facts["installTargets"])
-        ? structuredClone(facts["installTargets"] as JsonRecord[])
-        : [];
-      incomingTargets.sort((left, right) =>
-        (installTargetKey(left) ?? "").localeCompare(installTargetKey(right) ?? ""),
-      );
-      for (const rawIncomingTarget of incomingTargets) {
-        const incomingTarget = structuredClone(rawIncomingTarget);
-        const key = installTargetKey(incomingTarget);
-        const provenancePath = installTargetProvenancePath(incomingTarget);
-        if (!key || !provenancePath) continue;
-        const targetIndex = targets.findIndex((target) => installTargetKey(target) === key);
-        const before = targetIndex >= 0 ? targets[targetIndex] : undefined;
-        const existing = provenance[provenancePath];
-        const priority = factPriority("installTargets", observation);
-        const wins = observationWins(
-          existing,
-          observation.observationId,
-          incomingAt,
-          priority,
-          before === undefined ? -Infinity : (current.lastObservedAt ?? -Infinity),
-        );
-        if (!wins) continue;
-        const nextTarget = before ? { ...before, ...incomingTarget } : incomingTarget;
-        if (nextTarget["primary"] === true) {
-          const primaryProvenance = provenance["installTargets.primary"];
-          const hasPrimary = targets.some(
-            (target, index) => index !== targetIndex && target["primary"] === true,
-          );
-          const primaryWins = observationWins(
-            primaryProvenance,
-            observation.observationId,
-            incomingAt,
-            priority,
-            hasPrimary ? (current.lastObservedAt ?? -Infinity) : -Infinity,
-          );
-          if (primaryWins) {
-            for (let index = 0; index < targets.length; index += 1) {
-              if (index === targetIndex || targets[index]?.["primary"] !== true) continue;
-              const demoted = { ...targets[index], primary: false };
-              diff.push({
-                path: `facts.${installTargetProvenancePath(targets[index]!)}`,
-                before: targets[index],
-                after: demoted,
-                source: {
-                  kind: observation.source.kind,
-                  url: observation.source.url,
-                  observationId: observation.observationId,
-                },
-              });
-              targets[index] = demoted;
-            }
-            provenance["installTargets.primary"] = {
-              observationId: observation.observationId,
-              sourceKind: observation.source.kind,
-              sourceUrl: observation.source.url,
-              observedAt: observation.observedAt,
-              priority,
-            };
-          } else nextTarget["primary"] = false;
-        }
-        if (stableJson(before) !== stableJson(nextTarget))
-          diff.push({
-            path: `facts.${provenancePath}`,
-            before,
-            after: nextTarget,
-            source: {
-              kind: observation.source.kind,
-              url: observation.source.url,
-              observationId: observation.observationId,
-            },
-          });
-        if (targetIndex >= 0) targets[targetIndex] = nextTarget;
-        else targets.push(nextTarget);
-        provenance[provenancePath] = {
-          observationId: observation.observationId,
-          sourceKind: observation.source.kind,
-          sourceUrl: observation.source.url,
-          observedAt: observation.observedAt,
-          priority,
-        };
-      }
-      targets.sort((left, right) =>
-        (installTargetKey(left) ?? "").localeCompare(installTargetKey(right) ?? ""),
-      );
-      facts["installTargets"] = targets;
-    }
-
-    if (observation.detection) {
-      const currentDetectedAt =
-        typeof detection?.["observedAt"] === "string"
-          ? Date.parse(String(detection["observedAt"]))
-          : -Infinity;
-      const existingDetectionId =
-        typeof detection?.["observationId"] === "string"
-          ? String(detection["observationId"])
-          : "legacy";
-      const isCurrent =
-        incomingAt > currentDetectedAt ||
-        (incomingAt === currentDetectedAt &&
-          observation.observationId.localeCompare(existingDetectionId) >= 0);
-      if (isCurrent) {
-        const nextDetection = {
-          ...observation.detection,
-          observationId: observation.observationId,
-          observedAt: observation.observedAt,
-        };
-        if (stableJson(detection) !== stableJson(nextDetection))
-          diff.push({ path: "detection", before: detection, after: nextDetection });
-        detection = nextDetection;
-      }
-    }
-  }
-
-  sources.sort((left, right) => sourceKey(left).localeCompare(sourceKey(right)));
-  return {
-    state,
-    detection,
-    facts,
-    sources,
-    provenance,
-    lastObservedAt: Math.max(current.lastObservedAt ?? -Infinity, incomingAt),
-    diff,
-  };
 }
 
 async function findPlugin(binding: Database, idOrSlug: string): Promise<PluginRow | null> {
@@ -1746,124 +1289,6 @@ export async function upsertObservationBatch(
   return { results };
 }
 
-function sourceStale(sources: SourceSummary[], now = Date.now()): boolean {
-  return (
-    sources.length === 0 ||
-    sources.every((source) => now - Date.parse(source.lastObservedAt) > SOURCE_STALE_MS)
-  );
-}
-
-function riskSignals(
-  facts: JsonRecord,
-  sources: SourceSummary[],
-  hasContent: boolean,
-  identityConflict: boolean,
-  unavailableTargetCount = 0,
-) {
-  const risks = new Set<string>(["runtime-not-verified"]);
-  const compatibility = jsonRecord(facts["compatibility"]);
-  const declared =
-    typeof compatibility["declaredRange"] === "string" ? compatibility["declaredRange"].trim() : "";
-  if (!declared || declared === "*") risks.add("compatibility-not-declared");
-  else if (
-    !validRange(declared, { includePrerelease: true }) ||
-    !satisfies(CURRENT_DSH_VERSION, declared, { includePrerelease: true })
-  )
-    risks.add("declared-range-mismatch");
-  const repository = jsonRecord(facts["repository"]);
-  const packageFacts = jsonRecord(facts["package"]);
-  if (repository["archived"] === true) risks.add("repository-archived");
-  if (repository["disabled"] === true) risks.add("repository-disabled");
-  if (packageFacts["deprecated"] === true) risks.add("package-deprecated");
-  const targets = Array.isArray(facts["installTargets"])
-    ? (facts["installTargets"] as JsonRecord[])
-    : [];
-  if (unavailableTargetCount > 0 || targets.some((target) => target["available"] === false))
-    risks.add("install-target-unavailable");
-  if (sourceStale(sources)) risks.add("source-stale");
-  if (
-    !hasContent ||
-    typeof packageFacts["name"] !== "string" ||
-    typeof packageFacts["version"] !== "string" ||
-    (typeof packageFacts["repositoryUrl"] !== "string" &&
-      typeof repository["fullName"] !== "string")
-  )
-    risks.add("metadata-incomplete");
-  if (identityConflict) risks.add("identity-conflict");
-  return [...risks].sort();
-}
-
-// "unavailable" describes one observation, not the repository. The fetch can
-// fail transiently, a README can be added later, or a repository can be made
-// public after the fact. Let the fact expire so operators can see the entry and
-// re-inspect it instead of leaving the page permanently out of the index.
-const README_RECHECK_MS = 14 * 86_400_000;
-
-function observedAtMs(sources: SourceSummary[]): number {
-  return sources.reduce((latest, source) => {
-    const value = Date.parse(source.lastObservedAt);
-    return Number.isFinite(value) && value > latest ? value : latest;
-  }, Number.NEGATIVE_INFINITY);
-}
-
-function readmeNeedsRecheck(
-  readme: JsonRecord,
-  sources: SourceSummary[],
-  now = Date.now(),
-): boolean {
-  const availability = String(readme["availability"] ?? "");
-  if (availability === "available") return false;
-  if (availability !== "unavailable") return true;
-  const observed = observedAtMs(sources);
-  return !Number.isFinite(observed) || now - observed > README_RECHECK_MS;
-}
-
-function needsFor(facts: JsonRecord, sources: SourceSummary[], curation: unknown, risks: string[]) {
-  const needs: string[] = [];
-  const curationFacts = jsonRecord(curation);
-  if (sourceStale(sources)) needs.push("refresh");
-  const readme = jsonRecord(facts["readme"]);
-  const publicSourceObserved = sources.some(
-    (source) => source.kind === "github" || source.kind === "npm",
-  );
-  if (publicSourceObserved && readmeNeedsRecheck(readme, sources)) needs.push("readme");
-  if (
-    !curation ||
-    curationFacts["lowQuality"] === true ||
-    (readme["availability"] === "available" &&
-      typeof readme["contentHash"] === "string" &&
-      curationFacts["sourceReadmeHash"] !== readme["contentHash"])
-  )
-    needs.push("content");
-  if (sources.length === 0 || sources.every((source) => source.availability === "unavailable"))
-    needs.push("source");
-  const packageFacts = jsonRecord(facts["package"]);
-  const repository = jsonRecord(facts["repository"]);
-  const publisher = jsonRecord(facts["publisher"]);
-  if (
-    typeof repository["fullName"] === "string" &&
-    (typeof publisher["githubId"] !== "string" ||
-      typeof publisher["avatarUrl"] !== "string" ||
-      typeof publisher["profileUrl"] !== "string")
-  )
-    needs.push("publisher");
-  if (
-    typeof packageFacts["name"] !== "string" ||
-    typeof packageFacts["version"] !== "string" ||
-    risks.includes("identity-conflict")
-  )
-    needs.push("metadata");
-  const targets = Array.isArray(facts["installTargets"])
-    ? (facts["installTargets"] as JsonRecord[])
-    : [];
-  if (
-    targets.filter((target) => target["primary"] === true && target["available"] !== false)
-      .length !== 1
-  )
-    needs.push("target");
-  return needs;
-}
-
 type OpsListRow = PluginRow &
   OperationalRow & {
     has_curation: number;
@@ -1886,14 +1311,11 @@ function summarizePluginRow(row: OpsListRow) {
       : row.ready_locale_count >= 2
         ? {}
         : null;
-  const hasContent = Boolean(curation);
-  const risks = riskSignals(
-    facts,
-    sources,
-    hasContent,
-    row.identity_conflict === 1,
-    row.unavailable_target_count,
-  );
+  const risks = riskSignals(facts, sources, {
+    hasContent: Boolean(curation),
+    identityConflict: row.identity_conflict === 1,
+    unavailableTargetCount: row.unavailable_target_count,
+  });
   const needs = needsFor(facts, sources, curation, risks);
   const publicState: "hidden" | "draft" | "published" =
     row.visibility === "hidden" ? "hidden" : row.state;
@@ -1912,69 +1334,13 @@ function summarizePluginRow(row: OpsListRow) {
   };
 }
 
-function pluginNeedsSqlPrefilter(needs: OpsPluginListQuery["needs"]) {
-  if (!needs?.length) return { condition: "1=1", parameters: [] as unknown[] };
-  const parameters: unknown[] = [];
-  const conditions = needs.map((need) => {
-    switch (need) {
-      case "refresh":
-        parameters.push(new Date(Date.now() - SOURCE_STALE_MS).toISOString());
-        return `(json_array_length(o.sources_json)=0 or not exists(
-          select 1 from json_each(o.sources_json) source
-          where json_extract(source.value,'$.lastObservedAt')>=?
-        ))`;
-      case "readme":
-        parameters.push(new Date(Date.now() - README_RECHECK_MS).toISOString());
-        return `(exists(
-          select 1 from json_each(o.sources_json) source
-          where json_extract(source.value,'$.kind') in ('github','npm')
-        ) and (
-          coalesce(json_extract(o.facts_json,'$.readme.availability'),'')
-            not in ('available','unavailable')
-          or (json_extract(o.facts_json,'$.readme.availability')='unavailable'
-            and not exists(
-              select 1 from json_each(o.sources_json) source
-              where json_extract(source.value,'$.lastObservedAt')>=?
-            ))
-        ))`;
-      case "content":
-        return `(c.plugin_id is null or ${weakCurationSql} or (
-          json_extract(o.facts_json,'$.readme.availability')='available'
-          and json_type(o.facts_json,'$.readme.contentHash')='text'
-          and c.source_readme_hash is not json_extract(o.facts_json,'$.readme.contentHash')
-        ))`;
-      case "source":
-        return `(json_array_length(o.sources_json)=0 or not exists(
-          select 1 from json_each(o.sources_json) source
-          where coalesce(json_extract(source.value,'$.availability'),'')<>'unavailable'
-        ))`;
-      case "publisher":
-        return `(json_type(o.facts_json,'$.repository.fullName')='text' and (
-          coalesce(json_type(o.facts_json,'$.publisher.githubId'),'')<>'text'
-          or coalesce(json_type(o.facts_json,'$.publisher.avatarUrl'),'')<>'text'
-          or coalesce(json_type(o.facts_json,'$.publisher.profileUrl'),'')<>'text'
-        ))`;
-      case "metadata":
-        return `(coalesce(json_type(o.facts_json,'$.package.name'),'')<>'text'
-          or coalesce(json_type(o.facts_json,'$.package.version'),'')<>'text'
-          or conflicts.package_name is not null)`;
-      case "target":
-        return `((select count(*) from json_each(
-          coalesce(json_extract(o.facts_json,'$.installTargets'),'[]')
-        ) target where json_extract(target.value,'$.primary')=1
-          and coalesce(json_extract(target.value,'$.available'),1)<>0)<>1)`;
-    }
-  });
-  return { condition: `(${conditions.join(" or ")})`, parameters };
-}
-
 async function scanPluginRows(
   binding: Database,
   start: [number, string] | null,
   limit: number,
   needs: OpsPluginListQuery["needs"],
 ) {
-  const prefilter = pluginNeedsSqlPrefilter(needs);
+  const prefilter = needsPrefilterSql(needs);
   return binding.all<OpsListRow>(
     parameterizedSql(
       `with conflicting_package_names as (
@@ -2016,7 +1382,7 @@ async function scanPluginRows(
 }
 
 export async function listOpsPlugins(binding: Database, query: OpsPluginListQuery) {
-  let scanCursor = decodeCursor(query.cursor);
+  let scanCursor = requireCursor(decodeCursor(query.cursor, ["timestamp", "text"]));
   const matches: Array<ReturnType<typeof summarizePluginRow>> = [];
   let exhausted = false;
   while (matches.length <= query.limit && !exhausted) {
@@ -2060,7 +1426,7 @@ export async function listOpsPlugins(binding: Database, query: OpsPluginListQuer
     items,
     nextCursor:
       matches.length > query.limit && last
-        ? encodeCursor(Date.parse(last.updatedAt), last.id)
+        ? encodeCursor([Date.parse(last.updatedAt), last.id])
         : null,
   };
 }
@@ -2181,13 +1547,10 @@ export async function getOpsPlugin(binding: Database, idOrSlug: string) {
       ),
     ),
   ]);
-  const risks = riskSignals(
-    facts,
-    sources,
-    Boolean(curation),
-    false,
-    targets.filter((target) => target["status"] === "unavailable").length,
-  );
+  const risks = riskSignals(facts, sources, {
+    hasContent: Boolean(curation),
+    unavailableTargetCount: targets.filter((target) => target["status"] === "unavailable").length,
+  });
   return {
     id: plugin.id,
     slug: plugin.slug,
@@ -2299,6 +1662,9 @@ export async function curatePlugin(
     ).length === 0
       ? "published"
       : "draft";
+  // This write is the curation, so the public copy exists by the time the
+  // plugins row switches status.
+  const pluginStatus = pluginStatusFor(nextState, state.visibility, true);
   const statements: BatchItem<"sqlite">[] = [];
   const stateWriteIndex = statements.length;
   if (!existingState)
@@ -2466,11 +1832,9 @@ export async function curatePlugin(
   statements.push(
     binding.run(
       parameterizedSql(
-        `update plugins set name=?,description=?,category=?,
-          status=case when ?='hidden' then 'archived'
-            when ?='published' then 'published' else 'draft' end,
-          published_at=case when ?='published' and ?='visible' then coalesce(published_at,?) else published_at end,
-          first_published_at=case when ?='published' and ?='visible'
+        `update plugins set name=?,description=?,category=?,status=?,
+          published_at=case when ?='published' then coalesce(published_at,?) else published_at end,
+          first_published_at=case when ?='published'
             then coalesce(first_published_at,?) else first_published_at end,
           updated_at=? where id=? and exists(
             select 1 from plugin_operational_state where plugin_id=? and last_operation_id=?
@@ -2479,13 +1843,10 @@ export async function curatePlugin(
           content.displayName.en,
           content.shortDescription.en,
           content.categories[0] ?? "uncategorized",
-          state.visibility,
-          nextState,
-          nextState,
-          state.visibility,
+          pluginStatus,
+          pluginStatus,
           now,
-          nextState,
-          state.visibility,
+          pluginStatus,
           now,
           now,
           plugin.id,
@@ -2554,8 +1915,8 @@ export async function setPluginVisibility(
   const nextRevision = state.revision + 1;
   const now = Date.now();
   const operationId = crypto.randomUUID();
-  const hasContent = Boolean(await readCuration(binding, plugin.id));
-  const restoredStatus = state.state === "published" && hasContent ? "published" : "draft";
+  const hasCuration = Boolean(await readCuration(binding, plugin.id));
+  const pluginStatus = pluginStatusFor(state.state, visibility, hasCuration);
   const statements: BatchItem<"sqlite">[] = [];
   const stateWriteIndex = statements.length;
   if (!existingState)
@@ -2607,10 +1968,10 @@ export async function setPluginVisibility(
           select 1 from plugin_operational_state where plugin_id=? and last_operation_id=?
         )`,
         [
-          visibility === "hidden" ? "archived" : restoredStatus,
-          visibility === "hidden" ? "archived" : restoredStatus,
+          pluginStatus,
+          pluginStatus,
           now,
-          visibility === "hidden" ? "archived" : restoredStatus,
+          pluginStatus,
           now,
           now,
           plugin.id,
@@ -2663,12 +2024,8 @@ export async function setPluginVisibility(
   return { status: "updated", pluginId: plugin.id, visibility, reason, revision: nextRevision };
 }
 
-function submissionCursor(createdAt: number, id: string) {
-  return encodeCursor(createdAt, id);
-}
-
 export async function listOpsSubmissions(binding: Database, query: SubmissionListQuery) {
-  const cursor = decodeCursor(query.cursor);
+  const cursor = requireCursor(decodeCursor(query.cursor, ["timestamp", "text"]));
   const statuses = query.status ?? [];
   const statusClause = statuses.length ? `status in (${statuses.map(() => "?").join(",")})` : "1=1";
   const result = await binding.all<Record<string, unknown>>(
@@ -2705,7 +2062,7 @@ export async function listOpsSubmissions(binding: Database, query: SubmissionLis
     items: page,
     nextCursor:
       rows.length > query.limit && last
-        ? submissionCursor(Date.parse(last.createdAt), last.id)
+        ? encodeCursor([Date.parse(last.createdAt), last.id])
         : null,
   };
 }

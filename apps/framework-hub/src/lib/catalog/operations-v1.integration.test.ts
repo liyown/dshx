@@ -11,8 +11,12 @@ import {
   pluginSubmissions,
 } from "@/lib/db/schema";
 
+import { parameterizedSql } from "@/lib/db/parameterized-sql";
+
 import { isWeakCuration, weakCurationSql } from "./curation-policy";
 import { refreshInstallReadiness } from "./install-readiness.server";
+import { needsFor, needsPrefilterSql, riskSignals } from "./lifecycle-policy";
+import type { SourceSummary } from "./observation-merge";
 import {
   pluginObservationV1Schema,
   type PluginCurationContent,
@@ -499,6 +503,167 @@ describe("operations v1 atomic catalog model with local D1", () => {
         sql: row?.weak === 1,
       }).toEqual({ label: entry.label, ts: entry.weak, sql: entry.weak });
     }
+  });
+
+  it("never lets the needs prefilter hide a plugin the rule would list", async () => {
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const readmeHash = "b".repeat(64);
+    const completeName = `@ops/needs-complete-${suffix}`;
+    const bareName = `@ops/needs-bare-${suffix}`;
+    const staleName = `@ops/needs-stale-${suffix}`;
+    const repository = `needs-fixture-${suffix}`;
+    const completeFacts = (packageName: string) => ({
+      package: {
+        name: packageName,
+        version: "1.0.0",
+        repositoryUrl: `https://github.com/${repository}/${packageName.slice(5)}`,
+      },
+      repository: { fullName: `${repository}/${packageName.slice(5)}` },
+      publisher: {
+        githubId: `test-owner:${repository}`,
+        login: repository,
+        kind: "user",
+        avatarUrl: `https://avatars.githubusercontent.com/u/${suffix}`,
+        profileUrl: `https://github.com/${repository}`,
+      },
+      compatibility: { declaredRange: ">=0.2.1-rc.2 <0.3.0" },
+      readme: {
+        availability: "available",
+        format: "markdown",
+        sourceUrl: `https://github.com/${repository}/${packageName.slice(5)}/blob/main/README.md`,
+        content: "# Needs fixture",
+        contentHash: readmeHash,
+      },
+      installTargets: [
+        { kind: "npm", spec: packageName, packageName, version: "1.0.0", primary: true },
+      ],
+    });
+    const complete = await upsertObservation(
+      db,
+      actorTokenId,
+      crypto.randomUUID(),
+      await npmObservation(completeName, {
+        observedAt: timestamp(30),
+        facts: completeFacts(completeName),
+      }),
+    );
+    const bare = await upsertObservation(
+      db,
+      actorTokenId,
+      crypto.randomUUID(),
+      await npmObservation(bareName, {
+        observedAt: timestamp(30),
+        facts: { package: { name: bareName, version: "1.0.0" } },
+      }),
+    );
+    const stale = await upsertObservation(
+      db,
+      actorTokenId,
+      crypto.randomUUID(),
+      await npmObservation(staleName, {
+        observedAt: new Date(Date.now() - 40 * 86_400_000).toISOString(),
+        facts: completeFacts(staleName),
+      }),
+    );
+    const ids = [complete.pluginId!, bare.pluginId!, stale.pluginId!];
+    for (const pluginId of [complete.pluginId!, stale.pluginId!])
+      await db.run(sql`
+        insert into plugin_curations(
+          plugin_id, display_name_json, short_description_json, overview_markdown_json,
+          source_readme_hash, updated_at
+        ) values (
+          ${pluginId}, ${JSON.stringify({ en: "Needs fixture", zh: "需求夹具" })},
+          ${JSON.stringify({
+            en: "Publishes fixture events to the Hub and documents the limits it runs into.",
+            zh: "向 Hub 发布测试事件，并详细说明运行时遇到的限制。",
+          })},
+          ${JSON.stringify({ en: "x".repeat(500), zh: "x".repeat(500) })},
+          ${readmeHash}, ${Date.now()}
+        )
+        on conflict(plugin_id) do update set source_readme_hash = excluded.source_readme_hash
+      `);
+
+    const now = Date.now();
+    const rows = await db.all<{
+      id: string;
+      facts_json: string;
+      sources_json: string;
+      has_curation: number;
+      source_readme_hash: string | null;
+      curation_low_quality: number;
+      ready_locale_count: number;
+    }>(sql`
+      select p.id, o.facts_json, o.sources_json,
+        case when c.plugin_id is null then 0 else 1 end has_curation,
+        c.source_readme_hash,
+        case when c.plugin_id is null then 0
+          when ${sql.raw(weakCurationSql)} then 1 else 0 end curation_low_quality,
+        (select count(*) from plugin_localizations l
+          where l.plugin_id = p.id and l.translation_status = 'ready') ready_locale_count
+      from plugins p
+      join plugin_operational_state o on o.plugin_id = p.id
+      left join plugin_curations c on c.plugin_id = p.id
+      where p.id in (${sql.join(
+        ids.map((id) => sql`${id}`),
+        sql`, `,
+      )})
+    `);
+    const needsByPlugin = new Map(
+      rows.map((row) => {
+        const facts = JSON.parse(row.facts_json) as Record<string, unknown>;
+        const sources = JSON.parse(row.sources_json) as SourceSummary[];
+        const curation =
+          row.has_curation === 1
+            ? {
+                ...(row.source_readme_hash ? { sourceReadmeHash: row.source_readme_hash } : {}),
+                ...(row.curation_low_quality === 1 ? { lowQuality: true } : {}),
+              }
+            : row.ready_locale_count >= 2
+              ? {}
+              : null;
+        const risks = riskSignals(facts, sources, { hasContent: Boolean(curation), now });
+        return [row.id, needsFor(facts, sources, curation, risks, now)] as const;
+      }),
+    );
+
+    const needs = [
+      "refresh",
+      "readme",
+      "content",
+      "source",
+      "publisher",
+      "metadata",
+      "target",
+    ] as const;
+    const matchedByNeed = new Map<(typeof needs)[number], Set<string>>();
+    for (const need of needs) {
+      const { condition, parameters } = needsPrefilterSql([need], now);
+      const statement = `with conflicting_package_names as (
+          select json_extract(facts_json,'$.package.name') package_name
+          from plugin_operational_state
+          where json_extract(facts_json,'$.package.name') is not null
+          group by json_extract(facts_json,'$.package.name') having count(*)>1
+        )
+        select p.id from plugins p
+        join plugin_operational_state o on o.plugin_id=p.id
+        left join plugin_curations c on c.plugin_id=p.id
+        left join conflicting_package_names conflicts
+          on conflicts.package_name=json_extract(o.facts_json,'$.package.name')
+        where p.id in (${ids.map(() => "?").join(",")}) and ${condition}`;
+      const matched = await db.all<{ id: string }>(
+        parameterizedSql(statement, [...ids, ...parameters]),
+      );
+      matchedByNeed.set(need, new Set(matched.map((row) => row.id)));
+    }
+
+    for (const need of needs) {
+      const hidden = ids.filter(
+        (id) => needsByPlugin.get(id)!.includes(need) && !matchedByNeed.get(need)!.has(id),
+      );
+      expect({ need, hidden }).toEqual({ need, hidden: [] });
+    }
+    // The prefilter is a superset, not a filter that matches everything.
+    expect(matchedByNeed.get("readme")!.has(complete.pluginId!)).toBe(false);
   });
 
   it("stores the original README and publisher avatar, then reopens content work on README changes", async () => {
