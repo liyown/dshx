@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { ApprovalEffectKind } from "./contracts";
+import { assertSubjectPreconditions } from "./subject";
 import type { Database } from "@/lib/db/client";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { HttpError, uuid } from "@/lib/http";
@@ -55,38 +56,8 @@ const maintainerInput = z.object({
 const agentInput = z.record(z.string(), z.unknown());
 const statePreconditions = z.record(z.string().min(1), z.unknown());
 
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function checkExactState(state: Record<string, unknown>, preconditions: Record<string, unknown>) {
-  for (const [key, expected] of Object.entries(preconditions)) {
-    if (!Object.prototype.hasOwnProperty.call(state, key)) {
-      throw new HttpError(
-        422,
-        `Unknown subject precondition: ${key}`,
-        "invalid_effect_precondition",
-      );
-    }
-    if (stableJson(state[key]) !== stableJson(expected)) {
-      throw new HttpError(
-        409,
-        `Approval precondition no longer holds: ${key}`,
-        "effect_precondition_failed",
-      );
-    }
-  }
-}
-
 function exactStateCheck(state: Record<string, unknown>, preconditions: Record<string, unknown>) {
-  checkExactState(state, preconditions);
+  assertSubjectPreconditions(state, preconditions);
 }
 
 const definitions: Record<ApprovalEffectKind, EffectDefinition> = {
@@ -117,7 +88,7 @@ const definitions: Record<ApprovalEffectKind, EffectDefinition> = {
     inputSchema: restoreContentInput,
     preconditionsSchema: statePreconditions,
     checkPreconditions: (state, preconditions) => {
-      checkExactState(state, preconditions);
+      exactStateCheck(state, preconditions);
       if (state["status"] !== "hidden")
         throw new HttpError(
           409,
@@ -165,7 +136,7 @@ const definitions: Record<ApprovalEffectKind, EffectDefinition> = {
     inputSchema: userAccessInput,
     preconditionsSchema: statePreconditions,
     checkPreconditions: (state, preconditions, raw) => {
-      checkExactState(state, preconditions);
+      exactStateCheck(state, preconditions);
       const input = userAccessInput.parse(raw);
       const status = state["status"];
       if (input.action === "unban" && status !== "banned")
@@ -274,7 +245,7 @@ const definitions: Record<ApprovalEffectKind, EffectDefinition> = {
     inputSchema: maintainerInput,
     preconditionsSchema: statePreconditions,
     checkPreconditions: (state, preconditions, raw) => {
-      checkExactState(state, preconditions);
+      exactStateCheck(state, preconditions);
       const input = maintainerInput.parse(raw);
       if (input.action === "revoke" && (state["missing"] === true || state["revoked_at"] != null))
         throw new HttpError(409, "Maintainer is not active", "effect_precondition_failed");
@@ -376,4 +347,41 @@ export function validateRegisteredPreconditions(
   }
   definition.checkPreconditions(state, parsed.data, input);
   return parsed.data;
+}
+
+/**
+ * An effect may only name the subject it was filed against.
+ *
+ * The subject is what the administrator reviewed and what the source hash
+ * fingerprints; an effect that reaches a different user or plugin would apply
+ * an approval to something nobody looked at.
+ */
+export function assertEffectSubject(
+  kind: ApprovalEffectKind,
+  input: Record<string, unknown>,
+  subjectType: string,
+  subjectId: string,
+): void {
+  const mismatch = (message: string) => new HttpError(422, message, "effect_subject_mismatch");
+  if (
+    (kind === "set_user_role" || kind === "set_user_access") &&
+    (subjectType !== "user" || input["userId"] !== subjectId)
+  )
+    throw mismatch("User effect must match its approval subject");
+  if (
+    kind === "restore_content" &&
+    (input["targetType"] !== subjectType || input["targetId"] !== subjectId)
+  )
+    throw mismatch("Restore effect must match its approval subject");
+  if (
+    kind === "set_plugin_lifecycle" &&
+    (subjectType !== "plugin" || input["pluginId"] !== subjectId)
+  )
+    throw mismatch("Plugin effect must match its approval subject");
+  if (
+    kind === "set_plugin_maintainer" &&
+    (subjectType !== "maintainer" ||
+      `${String(input["pluginId"])}:${String(input["userId"])}` !== subjectId)
+  )
+    throw mismatch("Maintainer effect must match its approval subject");
 }

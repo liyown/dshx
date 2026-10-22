@@ -90,19 +90,33 @@ describe("Framework Hub architecture boundaries", () => {
     ).toEqual([]);
   });
 
-  it("keeps one canonical JSON spelling in the catalog", async () => {
+  it("keeps one canonical JSON spelling in the Hub", async () => {
     const files = await sourceFiles();
-    // Every catalog hash, id and "did this change?" comparison is a string
-    // comparison over this serialization, so two spellings mean two answers
-    // the first time either changes. The approvals modules still carry their
-    // own copy because their hashes are persisted and need a migration of
-    // their own; see DECISIONS.md.
+    // Every hash, id and "did this change?" comparison is a string comparison
+    // over this serialization, so two spellings mean two answers the first
+    // time either changes. The catalog and the approval ledger both hash with
+    // the contracts package's `canonicalJson`; a local copy is how the
+    // approvals serializer drifted from the one the wire contract uses.
     expect(
       violations(
         files,
         ({ path, text }) =>
-          path.startsWith("lib/catalog/") &&
+          path.startsWith("lib/") &&
           /function (?:canonicalize|canonicalJson|stableJson)\s*\(/u.test(text),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps approval transitions and subject rules free of persistence", async () => {
+    const files = (await sourceFiles()).filter(({ path }) =>
+      ["lib/approvals/transitions.ts", "lib/approvals/subject.ts"].includes(path),
+    );
+    // Whether an irreversible write may proceed is a decision, not a query.
+    // Keeping these two files free of D1, Drizzle and `.server` imports is
+    // what lets the rules be tested without a database; see DECISIONS.md.
+    expect(
+      violations(files, ({ text }) =>
+        /from\s+["'][^"']*(?:drizzle-orm|\/db\/|\.server|cloudflare:workers)/u.test(text),
       ),
     ).toEqual([]);
   });

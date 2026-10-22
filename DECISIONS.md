@@ -321,3 +321,24 @@ The CLI's `contracts.ts` shrank from 532 lines to about 90 and now holds only wh
 The marketplace is not a third copy: it validates the public catalog response the Hub renders, not the observation payload. That response is a separate wire contract and stays a candidate of its own.
 
 `canonicalJson` is the Hub's only canonical serializer now; `catalog/json.ts` keeps `jsonRecord` and re-exports the type. The two `stableJson` copies in `lib/approvals/` deliberately do **not** move yet: they serialize persisted `input_hash` and state hashes, and the hand-rolled version keeps `undefined` keys that `canonicalJson` drops, so switching them changes stored hashes and needs its own migration. The boundary test is scoped to `lib/catalog/` for exactly that reason, and the approvals pair is what the next candidate (state machine) takes on.
+
+## 2026-10-22: the approval ledger is a state machine, not SQL with ifs
+
+`lib/approvals/service.server.ts` was 1,246 lines holding four concerns: the rules for whether an irreversible write may proceed, the SQL that performs it, the notification it sends, and the authorization that decides who may ask. `createApproval` and `createUserApproval` were two copies of one insert path that had to be edited together, and the "validate the effect, fingerprint the subject, check the preconditions" sequence appeared six times, once per operation. The rules were only reachable through a local D1, so the most irreversible path in the system — approving a role change, restoring hidden content, forcing a publication — had no test of its own.
+
+It is four modules now:
+
+- `transitions.ts` (239 lines, pure) — the statuses, the next state for each of the six operations, and refusals that carry their own status code. `Evidence = { current, approved }` is two fingerprints; the machine compares them and answers `approval_superseded` with `supersede: true`, so "the subject moved" is a rule instead of a write buried in an adapter. The operation signature also carries the actor, so an operation's authorization check and its state check are read on the same screen.
+- `subject.ts` (52 lines, pure) — the canonical text the fingerprint is taken over, and the precondition check.
+- `store.server.ts` (496 lines, adapter) — rows, subject reads, expiry on read, supersession, events, notifications, and the attempt record written on success or failure.
+- `service.server.ts` (746 lines) — read what the request rests on, ask the machine, write what it allowed.
+
+`architecture-boundaries.test.ts` fails if `transitions.ts` or `subject.ts` imports Drizzle, `lib/db/`, or a `.server` module, so the split cannot rot back into an adapter.
+
+**The approvals `stableJson` copies are gone.** The previous entry said they had to stay until their persisted hashes got a migration. Measuring first made that unnecessary: on every subject shape — user, review, reply, plugin, maintainer, catalog-run, and the missing-maintainer case — `stableJson` and `canonicalJson` produce byte-identical text. They differ only on `undefined` values, which a D1 row never carries and which a JSON-parsed precondition never produces. So the stored `source_hash` values do not change, and the boundary guard now covers all of `lib/` rather than `lib/catalog/`. Where they would have differed, the old hash would simply stop matching and the request would be superseded — the safe direction, never a wrong write. The `approval_effect_attempts.input_hash` changes only in that hypothetical, and it is an audit column nothing compares.
+
+`getApproval` took a boolean that meant "skip the visibility check" *and* "return the ledger instead of the requester's view". Splitting it into `getApprovalDetail` and `getRequesterApproval` removed a union type every caller had to know about; the whole `/api/ops` family now answers in the requester shape, including the list a caller polls with.
+
+Two smaller collapses: `effectOutcomeStatements` builds the success and failure records from one description, so the call log, the event and the notification cannot fall out of step; and one `insertApproval` serves both requesters, with the two exported names left as the public surface.
+
+The new tests are the point of the split: `transitions.test.ts` exercises the whole table — every operation, every refusal code, the stale branch, the expired lease, the duplicate success — in 19 cases and 3ms of assertions, with no database. The integration suite still runs, but now only proves that persistence and concurrency do what the machine decided.

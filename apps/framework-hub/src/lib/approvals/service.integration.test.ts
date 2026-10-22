@@ -6,7 +6,7 @@ import {
   completeAgentEffect,
   createApproval,
   decideApproval,
-  getApproval,
+  getApprovalDetail,
   retryApprovedEffect,
   reviseApproval,
 } from "./service.server";
@@ -166,7 +166,7 @@ describe("approval ledger and registered effects with local D1", () => {
     await expect(decideApproval(db, stale.id!, admin, { action: "approve" })).rejects.toThrow(
       "stale",
     );
-    expect((await getApproval(db, stale.id!, undefined, true)).request!.status).toBe("superseded");
+    expect((await getApprovalDetail(db, stale.id!)).request!.status).toBe("superseded");
 
     const agentRequest = await createApproval(
       db,
@@ -294,7 +294,7 @@ describe("approval ledger and registered effects with local D1", () => {
       .bind(Date.now() + 1_000, target)
       .run();
     await expect(claimAgentEffect(db, stale.id!, actor)).rejects.toThrow("stale");
-    expect((await getApproval(db, stale.id!, undefined, true)).request!.status).toBe("superseded");
+    expect((await getApprovalDetail(db, stale.id!)).request!.status).toBe("superseded");
 
     const failed = await makeRequest("failed");
     const firstLease = await claimAgentEffect(db, failed.id!, actor);
