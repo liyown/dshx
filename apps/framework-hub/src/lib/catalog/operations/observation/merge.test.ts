@@ -1,3 +1,4 @@
+import type { PluginObservationV1 } from "@becomeopc/dshx-hub-contracts";
 import { describe, expect, it } from "vitest";
 
 import type { JsonRecord } from "../../json";
@@ -7,7 +8,6 @@ import {
   type SourceSummary,
   type StoredProjection,
 } from "./merge";
-import type { PluginObservationV1 } from "../../operations-v1.contracts";
 
 const T1 = "2026-10-20T00:00:00.000Z";
 const T2 = "2026-10-21T00:00:00.000Z";

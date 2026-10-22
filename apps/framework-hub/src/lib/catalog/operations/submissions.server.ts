@@ -12,8 +12,8 @@ import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
 
 import { decodeCursor, encodeCursor } from "../cursor";
-import { stableJson } from "../json";
-import type { SubmissionListQuery, SubmissionResolution } from "../operations-v1.contracts";
+import type { SubmissionListQuery, SubmissionResolution } from "@becomeopc/dshx-hub-contracts";
+import { canonicalJson } from "@becomeopc/dshx-hub-contracts";
 import { OperationHttpError, requireCursor } from "../operations-v1.http";
 import { getOpsPlugin } from "./plugins/reads.server";
 import { findPlugin, parseJson } from "./store";
@@ -92,7 +92,7 @@ export async function resolveOpsSubmission(
   const current = await getOpsSubmission(binding, id);
   const existingResolution = current["resolution"];
   if (existingResolution) {
-    if (stableJson(existingResolution) === stableJson(resolution))
+    if (canonicalJson(existingResolution) === canonicalJson(resolution))
       return { status: "unchanged", id, resolution: existingResolution };
     throw new OperationHttpError(
       409,
@@ -136,7 +136,7 @@ export async function resolveOpsSubmission(
     binding.run(
       parameterizedSql(
         "update plugin_submissions set status='resolved',resolution_json=?,updated_at=? where id=? and resolution_json is null",
-        [stableJson(resolution), now, id],
+        [canonicalJson(resolution), now, id],
       ),
     ),
     binding.run(
@@ -153,7 +153,7 @@ export async function resolveOpsSubmission(
           "submission",
           id,
           resolution.pluginId ?? null,
-          stableJson({ resolution }),
+          canonicalJson({ resolution }),
           now,
         ],
       ),
@@ -161,7 +161,7 @@ export async function resolveOpsSubmission(
   ]);
   if (!result[0]?.meta.changes) {
     const winner = await getOpsSubmission(binding, id);
-    if (stableJson(winner["resolution"]) === stableJson(resolution))
+    if (canonicalJson(winner["resolution"]) === canonicalJson(resolution))
       return { status: "unchanged", id, resolution: winner["resolution"] };
     throw new OperationHttpError(
       409,

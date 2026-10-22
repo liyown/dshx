@@ -8,8 +8,8 @@
  * fixtures.
  */
 
-import type { PluginObservationV1 } from "../../operations-v1.contracts";
-import { stableJson, type JsonRecord } from "../../json";
+import { canonicalJson, type PluginObservationV1 } from "@becomeopc/dshx-hub-contracts";
+import type { JsonRecord } from "../../json";
 
 export type SourceSummary = {
   kind: PluginObservationV1["source"]["kind"];
@@ -289,7 +289,7 @@ export function mergeProjection(
     };
     // A replay of the same read rewrites the same entry; only a real change
     // belongs in the diff.
-    if (stableJson(existingSource) !== stableJson(nextSource))
+    if (canonicalJson(existingSource) !== canonicalJson(nextSource))
       diff.push({
         path: `sources.${sourceKey(nextSource)}`,
         before: existingSource,
@@ -317,7 +317,7 @@ export function mergeProjection(
         before === undefined ? -Infinity : (current.lastObservedAt ?? -Infinity),
       );
       if (!wins) continue;
-      if (stableJson(before) !== stableJson(incoming))
+      if (canonicalJson(before) !== canonicalJson(incoming))
         diff.push({ path: `facts.${path}`, before, after: incoming, source: sourceProvenance });
       setAtPath(facts, path, incoming);
       provenance[path] = {
@@ -389,7 +389,7 @@ export function mergeProjection(
             };
           } else nextTarget["primary"] = false;
         }
-        if (stableJson(before) !== stableJson(nextTarget))
+        if (canonicalJson(before) !== canonicalJson(nextTarget))
           diff.push({
             path: `facts.${provenancePath}`,
             before,
@@ -431,7 +431,7 @@ export function mergeProjection(
           observationId: observation.observationId,
           observedAt: observation.observedAt,
         };
-        if (stableJson(detection) !== stableJson(nextDetection))
+        if (canonicalJson(detection) !== canonicalJson(nextDetection))
           diff.push({ path: "detection", before: detection, after: nextDetection });
         detection = nextDetection;
       }

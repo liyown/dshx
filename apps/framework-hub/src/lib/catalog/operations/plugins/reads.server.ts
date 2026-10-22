@@ -1,3 +1,4 @@
+import type { OpsPluginListQuery } from "@becomeopc/dshx-hub-contracts";
 /**
  * What the operations API reads back about plugins.
  *
@@ -14,7 +15,6 @@ import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { isWeakCuration, weakCurationSql } from "../../curation-policy";
 import { decodeCursor, encodeCursor } from "../../cursor";
 import type { JsonRecord } from "../../json";
-import type { OpsPluginListQuery } from "../../operations-v1.contracts";
 import { OperationHttpError, requireCursor } from "../../operations-v1.http";
 import type { SourceSummary } from "../observation/merge";
 import {

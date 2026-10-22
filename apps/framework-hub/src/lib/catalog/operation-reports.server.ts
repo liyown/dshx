@@ -1,10 +1,13 @@
 import { decodeCursor, encodeCursor } from "./cursor";
 import { digest } from "./digest";
-import type { OperationReportInput, PublicOperationReportQuery } from "./operations-v1.contracts";
 import { OperationHttpError, requireCursor } from "./operations-v1.http";
 import type { Database } from "@/lib/db/client";
 import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
+import type {
+  OperationReportInput,
+  PublicOperationReportQuery,
+} from "@becomeopc/dshx-hub-contracts";
 
 type ReportRow = {
   run_id: string;

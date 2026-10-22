@@ -6,7 +6,7 @@ import { z } from "zod";
 import { capabilities, readCliPackage } from "../src/capabilities.js";
 import { commandShapes } from "../src/command-registry.js";
 import {
-  curationContentSchema,
+  pluginCurationContentSchema,
   operationReportInputSchema,
 } from "../src/contracts.js";
 
@@ -46,7 +46,7 @@ describe("embedded CLI capabilities", () => {
       (entry) => entry.command === "plugin curate",
     );
     expect(command?.input?.schema).toEqual(
-      z.toJSONSchema(curationContentSchema, { io: "input" }),
+      z.toJSONSchema(pluginCurationContentSchema, { io: "input" }),
     );
     expect(command?.input?.schema).toMatchObject({
       type: "object",
@@ -62,7 +62,7 @@ describe("embedded CLI capabilities", () => {
       properties: {
         displayName: {
           type: "object",
-          required: ["zh", "en"],
+          required: ["en", "zh"],
           additionalProperties: false,
         },
       },

@@ -287,7 +287,7 @@ Pagination cursors have one format, in `cursor.ts`: base64url JSON described by 
 
 ## 2026-10-22: the operations API is a directory, not a 2,400-line module
 
-`apps/framework-hub/src/lib/catalog/operations-v1.server.ts` is gone. Its 2,440 lines became `apps/framework-hub/src/lib/catalog/operations/`, and the two policy modules named in the previous entry moved with it: `observation-merge.ts` is now `operations/observation/merge.ts`, and `lifecycle-policy.ts` is now `operations/plugins/policy.ts`. The two v1 *contract* modules (`operations-v1.contracts.ts`, `operations-v1.http.ts`) stay where they were — they describe the wire format, not the storage — so the directory name reads as "the operations domain" rather than a second API version.
+`apps/framework-hub/src/lib/catalog/operations-v1.server.ts` is gone. Its 2,440 lines became `apps/framework-hub/src/lib/catalog/operations/`, and the two policy modules named in the previous entry moved with it: `observation-merge.ts` is now `operations/observation/merge.ts`, and `lifecycle-policy.ts` is now `operations/plugins/policy.ts`. The two v1 _contract_ modules (`operations-v1.contracts.ts`, `operations-v1.http.ts`) stay where they were — they describe the wire format, not the storage — so the directory name reads as "the operations domain" rather than a second API version.
 
 Outside the directory, callers import `@/lib/catalog/operations` and nothing deeper; the barrel in `index.ts` is the only door, and `architecture-boundaries.test.ts` fails if a route or test reaches past it. Inside, dependencies point one way: `store` → `plugins/policy` → reads/curation/submissions/audit, with the observation modules depending on `store` only. That is what let the split stay mechanical: no module needed to know where another lives.
 
@@ -298,3 +298,26 @@ The three god functions are now compositions over named parts. `projectionStatem
 `apps/framework-hub/src/lib/catalog/digest.ts` is the catalog's only sha-256-to-hex spelling, over text or bytes; observation ids, install-target ids, the curation source hash, uploaded media, and operation-report payload hashes all call it, and a boundary test fails on a second `.toString(16).padStart(2, "0")` under `lib/catalog/`.
 
 No wire format, SQL text, statement order, or error code changed. The evidence is the existing suite rather than a new one: the 144 catalog tests, including the D1 integration suite that drives observations, curation, visibility, submissions, and audit through their adapters, pass unchanged.
+
+## 2026-10-22: the Hub wire contract is a package, not two copies
+
+The previous entry said `operations-v1.contracts.ts` stays in the app because it describes the wire format rather than the storage. It now has a package: `packages/hub-contracts` (`@becomeopc/dshx-hub-contracts`) holds `contracts.ts`, `install-target.ts`, `canonical-json.ts`, and `observation-id.ts`, and both sides of the wire import it. The Hub validates against it; the CLI produces against it; neither can drift from the other because there is nothing to drift from.
+
+Two copies had already drifted in four ways, each one a 422 or a false local pass after a successful run:
+
+- npm identities: the CLI's package-name pattern had no lowercase refinement, so `Fixture-Plugin` passed locally and the Hub rejected it.
+- GitHub `fullName`: the CLI required `[A-Za-z0-9_.-]` segments while the Hub accepts any non-space, non-slash pair, so the CLI refused repositories the Hub would take.
+- `subdirectory`: the Hub defaulted an omitted subdirectory to `""` and the CLI required the field, so a repository-root observation could not be produced at all.
+- install targets: the CLI deduplicated targets and stopped there, forwarding specs it could not vouch for and any number of primaries. Its own test asserted that forwarding, calling the server the owner of the rule; with one shared schema the producer applies the rule itself, which is what "the server owns it" was protecting.
+
+Curation had the same story one level down: the CLI accepted `categories: []` and `derivedFrom: []`, both of which the Hub refuses, and one ops-run test was building exactly that document.
+
+A **published** package is the answer rather than a private workspace dependency or a generated copy. The CLI compiles with `tsc` and publishes `dist`, so a `private: true` dependency would not exist when its consumers install it; and generation would leave two definitions, with a `--check` that detects drift after the fact instead of a module that cannot drift. The package therefore joins the release surface: `check-version-policy.mjs` and `check-preview-release.mjs` list it, `smoke-packages.mjs` imports it in isolation, and `hub-contracts:build` runs before anything that compiles against it. Both consumers also run it from `prebuild`/`pretypecheck`/`pretest` and from `prepare` on install, because a stale `dist` would let a consumer's tests pass against the old contract.
+
+`pluginObservationPayloadSchema` and `pluginObservationV1Schema` are one schema with two readings: the payload treats `observationId` as optional (the producer may send it and must not send a wrong one), and `safeExtend` narrows it to required for the stored form. The id itself is `observationIdInput` — the canonical text — plus each runtime's hash primitive, WebCrypto on the Worker and `node:crypto` in the CLI. The shared vector `68ad24…` is asserted from both ends: `packages/hub-contracts/test/observation-id.test.ts` computes it over the contract's text, and `operations/observation/expected-observation-id.test.ts` computes it through the server's `digest`.
+
+The CLI's `contracts.ts` shrank from 532 lines to about 90 and now holds only what is genuinely the CLI's: `sha256`, `observationIdFor`, `parsePluginObservation`, the media input (the wire metadata minus the fields the CLI derives from the file, expressed with `.omit().extend()`), and the list options (the wire query filters plus `all`). Its schemas are declarations, not definitions: `architecture-boundaries.test.ts` no longer names an install-target module inside the app, and `packages/hub-contracts/test/ownership.test.ts` fails if the CLI declares a second payload schema, a second canonical serializer, or its own id derivation. The identity schemas also lost their `operation*` spelling, which existed only in the app.
+
+The marketplace is not a third copy: it validates the public catalog response the Hub renders, not the observation payload. That response is a separate wire contract and stays a candidate of its own.
+
+`canonicalJson` is the Hub's only canonical serializer now; `catalog/json.ts` keeps `jsonRecord` and re-exports the type. The two `stableJson` copies in `lib/approvals/` deliberately do **not** move yet: they serialize persisted `input_hash` and state hashes, and the hand-rolled version keeps `undefined` keys that `canonicalJson` drops, so switching them changes stored hashes and needs its own migration. The boundary test is scoped to `lib/catalog/` for exactly that reason, and the approvals pair is what the next candidate (state machine) takes on.

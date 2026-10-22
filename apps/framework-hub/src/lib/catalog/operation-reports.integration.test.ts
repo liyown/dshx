@@ -1,3 +1,4 @@
+import { operationReportInputSchema } from "@becomeopc/dshx-hub-contracts";
 import { sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { getPlatformProxy } from "wrangler";
@@ -6,7 +7,6 @@ import { Route as ProtectedReportsRoute } from "@/routes/api/ops/v1/reports/inde
 import { createDatabase, type Database } from "@/lib/db/client";
 import { listIndexableSitemapLocales } from "@/lib/sitemap.repository.server";
 
-import { operationReportInputSchema } from "./operations-v1.contracts";
 import {
   getOperationReportDayForRun,
   getPublicOperationReportDay,

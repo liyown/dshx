@@ -1,9 +1,9 @@
+import { assessPrimaryTargets, type InstallTargetInput } from "@becomeopc/dshx-hub-contracts";
 import { sql } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
 import { describeError } from "@/lib/error-logging";
 
-import { assessPrimaryTargets, type InstallTargetInput } from "./install-target/policy";
 import { refreshPluginScores } from "./scores.server";
 
 /**

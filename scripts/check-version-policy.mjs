@@ -6,8 +6,14 @@ const packages = new Map([
   ['@becomeopc/dshx', 'packages/dshx/package.json'],
   ['create-dshx', 'packages/create-dshx/package.json'],
   ['@becomeopc/dshx-hub-cli', 'packages/framework-hub-cli/package.json'],
+  ['@becomeopc/dshx-hub-contracts', 'packages/hub-contracts/package.json'],
   ['@becomeopc/dshx-plugin-marketplace', 'packages/plugin-marketplace/package.json'],
 ])
+
+// The Hub wire contract and the CLI that speaks it version independently of the
+// DSH compatibility line, because they are released against a deployed Hub
+// rather than against a DSH runtime.
+const hubPackages = new Set(['@becomeopc/dshx-hub-cli', '@becomeopc/dshx-hub-contracts'])
 
 const versions = new Map()
 const errors = []
@@ -17,12 +23,10 @@ for (const [name, file] of packages) {
   const version = typeof manifest.version === 'string' ? manifest.version : ''
   versions.set(name, version)
   const isUnreleasedMarketplace = name === '@becomeopc/dshx-plugin-marketplace' && version === '0.0.0'
-  // The Hub CLI ships its own operations contract and versions independently of the
-  // DSH compatibility line; the DSH-facing packages must track 0.2.x.
-  const pattern = name === '@becomeopc/dshx-hub-cli' ? /^0\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/ : /^0\.2\.\d+(?:-[0-9A-Za-z.-]+)?$/
+  const pattern = hubPackages.has(name) ? /^0\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/ : /^0\.2\.\d+(?:-[0-9A-Za-z.-]+)?$/
   if (!isUnreleasedMarketplace && !pattern.test(version)) {
     errors.push(
-      name === '@becomeopc/dshx-hub-cli'
+      hubPackages.has(name)
         ? `${name} must declare a valid semver version; found ${JSON.stringify(version)} in ${file}.`
         : `${name} must stay on the 0.2.x DSH line; found ${JSON.stringify(version)} in ${file}.`,
     )

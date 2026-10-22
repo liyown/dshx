@@ -1,3 +1,8 @@
+import {
+  pluginObservationV1Schema,
+  type PluginCurationContent,
+  type PluginObservationV1,
+} from "@becomeopc/dshx-hub-contracts";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getPlatformProxy } from "wrangler";
@@ -17,11 +22,6 @@ import { isWeakCuration, weakCurationSql } from "./curation-policy";
 import { refreshInstallReadiness } from "./install-readiness.server";
 import { needsFor, needsPrefilterSql, riskSignals } from "./operations/plugins/policy";
 import type { SourceSummary } from "./operations/observation/merge";
-import {
-  pluginObservationV1Schema,
-  type PluginCurationContent,
-  type PluginObservationV1,
-} from "./operations-v1.contracts";
 import { uploadOperationMedia } from "./operations-v1.media.server";
 import { getCatalogPlugin, listCatalogMarketplace } from "./repository.server";
 import {

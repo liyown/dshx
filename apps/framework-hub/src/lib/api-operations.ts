@@ -1,3 +1,15 @@
+import {
+  observationBatchSchema,
+  operationAuditQuerySchema,
+  operationMediaMetadataSchema,
+  operationReportInputSchema,
+  opsPluginListQuerySchema,
+  pluginCurationRequestSchema,
+  pluginObservationV1Schema,
+  pluginVisibilityRequestSchema,
+  submissionListQuerySchema,
+  submissionResolutionSchema,
+} from "@becomeopc/dshx-hub-contracts";
 import { z, type ZodType } from "zod";
 
 import {
@@ -13,18 +25,6 @@ import {
   marketplaceListResponseSchema,
   pluginListQuerySchema,
 } from "./catalog/contracts";
-import {
-  observationBatchSchema,
-  operationAuditQuerySchema,
-  operationMediaMetadataSchema,
-  operationReportInputSchema,
-  opsPluginListQuerySchema,
-  pluginCurationRequestSchema,
-  pluginObservationV1Schema,
-  pluginVisibilityRequestSchema,
-  submissionListQuerySchema,
-  submissionResolutionSchema,
-} from "./catalog/operations-v1.contracts";
 
 export type ApiOperationTag = "Catalog" | "Operations" | "CLI authorization";
 export type ApiOperationMethod = "get" | "post" | "put" | "patch" | "delete";

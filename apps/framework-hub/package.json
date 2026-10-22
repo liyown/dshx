@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "pretest": "pnpm run --silent hub-contracts",
     "test": "pnpm db:migrate:local && vitest run --no-file-parallelism",
+    "pretypecheck": "pnpm run --silent hub-contracts",
     "typecheck": "tsc --noEmit",
+    "prebuild": "pnpm run --silent hub-contracts",
     "build": "vite build",
+    "hub-contracts": "pnpm --filter @becomeopc/dshx-hub-contracts build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "email:preview": "email dev --dir src/lib/email/previews",
@@ -29,6 +33,7 @@
     "rolldown": "1.2.1"
   },
   "dependencies": {
+    "@becomeopc/dshx-hub-contracts": "workspace:*",
     "@modelcontextprotocol/server": "2.3.1",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.11",

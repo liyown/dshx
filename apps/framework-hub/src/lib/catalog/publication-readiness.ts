@@ -1,4 +1,4 @@
-import { assessPrimaryTargets, type InstallTargetInput } from "./install-target/policy";
+import { assessPrimaryTargets, type InstallTargetInput } from "@becomeopc/dshx-hub-contracts";
 import { jsonRecord, type JsonRecord } from "./json";
 
 type SourceSummaryLike = {

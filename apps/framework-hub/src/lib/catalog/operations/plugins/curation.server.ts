@@ -1,3 +1,4 @@
+import { canonicalJson, type PluginCurationContent } from "@becomeopc/dshx-hub-contracts";
 /**
  * Curating and hiding a plugin: the two writes that decide what the public
  * catalog serves.
@@ -17,8 +18,7 @@ import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { buildPluginSeoDescription, buildPluginSeoTitle } from "../../content-quality";
 import { digest } from "../../digest";
 import { refreshPluginReadiness } from "../../install-readiness.server";
-import { stableJson, type JsonRecord } from "../../json";
-import type { PluginCurationContent } from "../../operations-v1.contracts";
+import type { JsonRecord } from "../../json";
 import { OperationHttpError } from "../../operations-v1.http";
 import { publicationRequirements } from "../../publication-readiness";
 import { refreshPluginScore } from "../../scores.server";
@@ -183,13 +183,13 @@ function curationRowStatement(write: CurationWrite): BatchItem<"sqlite">[] {
           derived_from_json=excluded.derived_from_json,updated_at=excluded.updated_at`,
         [
           plugin.id,
-          stableJson(content.displayName),
-          stableJson(content.shortDescription),
-          stableJson(content.overviewMarkdown),
+          canonicalJson(content.displayName),
+          canonicalJson(content.shortDescription),
+          canonicalJson(content.overviewMarkdown),
           content.sourceReadmeHash ?? null,
-          stableJson(content.categories),
-          stableJson(content.tags),
-          stableJson(content.derivedFrom),
+          canonicalJson(content.categories),
+          canonicalJson(content.tags),
+          canonicalJson(content.derivedFrom),
           now,
           plugin.id,
           operationId,
@@ -386,7 +386,7 @@ function curationAuditStatement(write: CurationWrite): BatchItem<"sqlite">[] {
           plugin.id,
           state.revision,
           nextRevision,
-          stableJson({ before, after: content }),
+          canonicalJson({ before, after: content }),
           now,
           plugin.id,
           operationId,
@@ -434,13 +434,13 @@ export async function curatePlugin(
   );
   if (
     hasStoredCuration &&
-    stableJson(before && { ...before, updatedAt: undefined }) === stableJson(content)
+    canonicalJson(before && { ...before, updatedAt: undefined }) === canonicalJson(content)
   )
     return { status: "unchanged", pluginId: plugin.id, revision: state.revision, content: before };
   const nextRevision = state.revision + 1;
   const now = Date.now();
   const operationId = crypto.randomUUID();
-  const sourceHash = await digest(stableJson(content));
+  const sourceHash = await digest(canonicalJson(content));
   const nextState =
     state.state === "published" ||
     publicationRequirements(
@@ -586,7 +586,7 @@ export async function setPluginVisibility(
           plugin.id,
           state.revision,
           nextRevision,
-          stableJson({ visibility, reason }),
+          canonicalJson({ visibility, reason }),
           now,
           plugin.id,
           operationId,

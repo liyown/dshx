@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { requireApiToken } from "@/lib/auth/tokens.server";
-import { submissionResolutionSchema } from "@/lib/catalog/operations-v1.contracts";
 import {
   operationFailure,
   operationRequestId,
@@ -10,6 +9,7 @@ import {
 } from "@/lib/catalog/operations-v1.http";
 import { resolveOpsSubmission } from "@/lib/catalog/operations";
 import { requireDatabase } from "@/lib/db/client";
+import { submissionResolutionSchema } from "@becomeopc/dshx-hub-contracts";
 
 export const Route = createFileRoute("/api/ops/v1/submissions/$id/resolution")({
   server: {

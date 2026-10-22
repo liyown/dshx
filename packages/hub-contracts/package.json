@@ -1,0 +1,59 @@
+{
+  "name": "@becomeopc/dshx-hub-contracts",
+  "version": "0.1.0-preview.0",
+  "description": "The DSHX Hub operations wire contract: observation payloads, install targets, and canonical ids, shared by the server that validates them and the CLI that produces them.",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "plugins",
+    "operations",
+    "catalog",
+    "contracts"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/liyown/dshx.git",
+    "directory": "packages/hub-contracts"
+  },
+  "bugs": {
+    "url": "https://github.com/liyown/dshx/issues"
+  },
+  "homepage": "https://dshx.io",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "prepare": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "prettier --check src test",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

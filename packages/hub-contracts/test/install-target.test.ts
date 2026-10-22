@@ -7,7 +7,7 @@ import {
   normalizeGithubFullName,
   parseInstallSpec,
   type InstallTargetInput,
-} from "./policy";
+} from "../src/index.js";
 
 const context = {
   packageName: "dsh-crosspost",

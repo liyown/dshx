@@ -12,6 +12,7 @@ const expected = new Map([
   ['@becomeopc/dshx', /^0\.2\.0-preview\.\d+$/],
   ['create-dshx', /^0\.2\.0-preview\.\d+$/],
   ['@becomeopc/dshx-hub-cli', /^0\.1\.3-preview\.\d+$/],
+  ['@becomeopc/dshx-hub-contracts', /^0\.1\.0-preview\.\d+$/],
   ['@becomeopc/dshx-plugin-marketplace', /^0\.2\.0-preview\.\d+$/],
 ])
 
@@ -19,6 +20,7 @@ const packageFiles = new Map([
   ['@becomeopc/dshx', 'packages/dshx/package.json'],
   ['create-dshx', 'packages/create-dshx/package.json'],
   ['@becomeopc/dshx-hub-cli', 'packages/framework-hub-cli/package.json'],
+  ['@becomeopc/dshx-hub-contracts', 'packages/hub-contracts/package.json'],
   ['@becomeopc/dshx-plugin-marketplace', 'packages/plugin-marketplace/package.json'],
 ])
 

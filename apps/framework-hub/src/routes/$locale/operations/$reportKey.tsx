@@ -13,13 +13,13 @@ import {
   formatOperationReportDate,
   formatOperationReportDayKey,
 } from "@/lib/catalog/operation-report-view";
-import {
-  operationReportDaySchema,
-  operationReportRunIdSchema,
-} from "@/lib/catalog/operations-v1.contracts";
 import { createTranslator, parseLocale, type MessageKey } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { buildSeoHead } from "@/lib/seo";
+import {
+  operationReportDaySchema,
+  operationReportRunIdSchema,
+} from "@becomeopc/dshx-hub-contracts";
 
 export const Route = createFileRoute("/$locale/operations/$reportKey")({
   loader: async ({ params }) => {

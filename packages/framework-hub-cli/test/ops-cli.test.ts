@@ -292,7 +292,7 @@ describe("scheduled operations CLI", () => {
         overviewMarkdown: { en: "Example", zh: "示例" },
         categories: ["tools"],
         tags: [],
-        derivedFrom: [],
+        derivedFrom: ["https://example.test/readme"],
       });
     })();
     const result = await invoke(

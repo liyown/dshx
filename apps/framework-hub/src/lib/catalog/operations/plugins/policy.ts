@@ -1,3 +1,4 @@
+import type { OpsPluginListQuery } from "@becomeopc/dshx-hub-contracts";
 /**
  * When a plugin is public, stale, or still needs work.
  *
@@ -13,7 +14,6 @@ import { satisfies, validRange } from "semver";
 import { weakCurationSql } from "../../curation-policy";
 import { jsonRecord, type JsonRecord } from "../../json";
 import type { SourceSummary } from "../observation/merge";
-import type { OpsPluginListQuery } from "../../operations-v1.contracts";
 
 export const SOURCE_STALE_MS = 30 * 86_400_000;
 

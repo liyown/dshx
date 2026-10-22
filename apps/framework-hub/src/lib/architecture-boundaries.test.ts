@@ -78,17 +78,31 @@ describe("Framework Hub architecture boundaries", () => {
     ).toEqual([]);
   });
 
-  it("keeps the install-target rule in its policy module", async () => {
+  it("keeps the install-target rule in the contracts package", async () => {
     const files = await sourceFiles();
-    // Whether a spec is safe to hand to a shell is one decision; a second
-    // copy in an adapter is how the ingest gate, the publication gate and the
-    // rendered command drift apart.
+    // Whether a spec is safe to hand to a shell is one decision. It lives in
+    // @becomeopc/dshx-hub-contracts, together with the payload shape that
+    // carries it, so the Hub and the CLI cannot disagree about it. A copy
+    // here is how the ingest gate, the publication gate and the rendered
+    // command drifted apart in the first place.
+    expect(
+      violations(files, ({ text }) => /charCodeAt\(0\)\s*<=\s*32|\\u0000-\\u0020/.test(text)),
+    ).toEqual([]);
+  });
+
+  it("keeps one canonical JSON spelling in the catalog", async () => {
+    const files = await sourceFiles();
+    // Every catalog hash, id and "did this change?" comparison is a string
+    // comparison over this serialization, so two spellings mean two answers
+    // the first time either changes. The approvals modules still carry their
+    // own copy because their hashes are persisted and need a migration of
+    // their own; see DECISIONS.md.
     expect(
       violations(
         files,
         ({ path, text }) =>
-          !path.startsWith("lib/catalog/install-target/") &&
-          /charCodeAt\(0\)\s*<=\s*32|\\u0000-\\u0020/.test(text),
+          path.startsWith("lib/catalog/") &&
+          /function (?:canonicalize|canonicalJson|stableJson)\s*\(/u.test(text),
       ),
     ).toEqual([]);
   });

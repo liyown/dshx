@@ -1,16 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import {
-  publicOperationReportDayQuerySchema,
-  publicOperationReportQuerySchema,
-  publicOperationReportRunQuerySchema,
-} from "./operations-v1.contracts";
-import {
   getOperationReportDayForRun,
   getPublicOperationReportDay,
 } from "./operation-report-detail.server";
 import { listPublicOperationReports } from "./operation-reports.server";
 import { requireDatabase } from "@/lib/db/client";
+import {
+  publicOperationReportDayQuerySchema,
+  publicOperationReportQuerySchema,
+  publicOperationReportRunQuerySchema,
+} from "@becomeopc/dshx-hub-contracts";
 
 export const loadPublicOperationReports = createServerFn({ method: "GET" })
   .validator(publicOperationReportQuerySchema)

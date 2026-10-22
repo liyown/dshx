@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { requireApiToken } from "@/lib/auth/tokens.server";
-import { opsPluginListQuerySchema } from "@/lib/catalog/operations-v1.contracts";
 import {
   operationFailure,
   operationSuccess,
@@ -9,6 +8,7 @@ import {
 } from "@/lib/catalog/operations-v1.http";
 import { listOpsPlugins } from "@/lib/catalog/operations";
 import { requireDatabase } from "@/lib/db/client";
+import { opsPluginListQuerySchema } from "@becomeopc/dshx-hub-contracts";
 
 function values(params: URLSearchParams, name: string) {
   const items = [

@@ -43,6 +43,9 @@
       // JSX uses the automatic runtime, so neither package appears in an import.
       "ignoreDependencies": ["@deepseek-ai/dsh", "react", "@types/react"],
     },
+    "packages/hub-contracts": {
+      "entry": ["src/index.ts"],
+    },
     "packages/plugin-marketplace": {
       "entry": [
         "dshx.config.ts",

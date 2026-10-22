@@ -1,3 +1,4 @@
+import type { OperationMediaMetadata } from "@becomeopc/dshx-hub-contracts";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { Database } from "@/lib/db/client";
@@ -5,7 +6,6 @@ import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
 
 import { digest } from "./digest";
-import type { OperationMediaMetadata } from "./operations-v1.contracts";
 import { OperationHttpError } from "./operations-v1.http";
 import { refreshPluginScore } from "./scores.server";
 

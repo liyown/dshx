@@ -1,13 +1,13 @@
 import { api, ApiError } from "./api.js";
 import {
-  curationContentSchema,
+  pluginCurationContentSchema,
   operationReportInputSchema,
   parsePluginObservation,
   pluginListOptionsSchema,
   submissionListOptionsSchema,
-  submissionResolutionInputSchema,
+  submissionResolutionSchema,
   type PluginObservationV1,
-  visibilityInputSchema,
+  pluginVisibilityRequestSchema,
 } from "./contracts.js";
 import { CliError, normalizedError } from "./errors.js";
 import {
@@ -412,7 +412,7 @@ export async function curatePlugin(
       repairHint: "Use the revision returned by plugin get.",
       path: "--if-revision",
     });
-  const content = curationContentSchema.parse(raw);
+  const content = pluginCurationContentSchema.parse(raw);
   return api(
     hub,
     `/api/ops/v1/plugins/${encodeURIComponent(pluginId)}/curation`,
@@ -432,7 +432,7 @@ export function setPluginVisibility(
   visibility: "hidden" | "visible",
   reason: string,
 ) {
-  const input = visibilityInputSchema.parse({ visibility, reason });
+  const input = pluginVisibilityRequestSchema.parse({ visibility, reason });
   return api(
     hub,
     `/api/ops/v1/plugins/${encodeURIComponent(pluginId)}/visibility`,
@@ -487,7 +487,7 @@ export function resolveSubmission(
       repairHint: "Provide a concise audit reason.",
       path: "--reason",
     });
-  const parsed = submissionResolutionInputSchema.parse(input);
+  const parsed = submissionResolutionSchema.parse(input);
   return api(
     hub,
     `/api/ops/v1/submissions/${encodeURIComponent(id)}/resolution`,

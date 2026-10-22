@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { publicOperationReportQuerySchema } from "@/lib/catalog/operations-v1.contracts";
 import { listPublicOperationReports } from "@/lib/catalog/operation-reports.server";
 import { requireDatabase } from "@/lib/db/client";
 import { jsonError } from "@/lib/http";
+import { publicOperationReportQuerySchema } from "@becomeopc/dshx-hub-contracts";
 
 export const Route = createFileRoute("/api/operations/reports/")({
   server: {

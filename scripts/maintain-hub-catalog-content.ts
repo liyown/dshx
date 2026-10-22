@@ -13,7 +13,7 @@ import {
   isLowInformationCatalogCopy,
   type CatalogLocale,
 } from '../apps/framework-hub/src/lib/catalog/content-quality.ts'
-import { buildPluginInstallCommand } from '../apps/framework-hub/src/lib/catalog/install-target.ts'
+import { buildPluginInstallCommand } from '../apps/framework-hub/src/lib/catalog/install-target/public.ts'
 import { curatedEnPluginLeads, curatedZhPluginLeads } from './hub-catalog-zh-curations.ts'
 
 type CatalogRow = {

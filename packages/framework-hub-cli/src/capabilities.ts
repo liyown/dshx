@@ -5,10 +5,10 @@ import { z } from "zod";
 import { commandShapes } from "./command-registry.js";
 import {
   canonicalJson,
-  curationContentSchema,
+  pluginCurationContentSchema,
   mediaInputSchema,
   operationReportInputSchema,
-  pluginObservationBaseSchema,
+  pluginObservationPayloadSchema,
   sha256,
 } from "./contracts.js";
 import { CliError } from "./errors.js";
@@ -59,12 +59,12 @@ const inputContracts = {
       "Identifiers and the completed stage for one item. Store a checkpoint after each completed action.",
   },
   "plugin upsert": {
-    schema: pluginObservationBaseSchema,
+    schema: pluginObservationPayloadSchema,
     description:
       "One PluginObservationV1. Arrays, { observations: [...] }, and a successful source inspect envelope are also accepted. Omit observationId to let the CLI derive it.",
   },
   "plugin curate": {
-    schema: curationContentSchema,
+    schema: pluginCurationContentSchema,
     description:
       "The complete bilingual curation document. Pass it directly, without a content wrapper.",
   },

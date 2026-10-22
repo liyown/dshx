@@ -1,3 +1,10 @@
+import {
+  canonicalJson,
+  observationIdInput,
+  pluginObservationV1Schema,
+  type ObservationIdentity,
+  type PluginObservationV1,
+} from "@becomeopc/dshx-hub-contracts";
 /**
  * Ingest: one observation in, one revisioned write out.
  *
@@ -16,12 +23,7 @@ import { parameterizedSql } from "@/lib/db/parameterized-sql";
 
 import { digest } from "../../digest";
 import { refreshPluginReadiness } from "../../install-readiness.server";
-import { jsonRecord, stableJson, type JsonRecord } from "../../json";
-import {
-  pluginObservationV1Schema,
-  type OperationIdentity,
-  type PluginObservationV1,
-} from "../../operations-v1.contracts";
+import { jsonRecord, type JsonRecord } from "../../json";
 import {
   OperationHttpError,
   serializeOperationError,
@@ -55,23 +57,15 @@ type ObservationWriteResult = {
   diff: FieldDiff[];
 };
 
-export function operationIdentityKey(identity: OperationIdentity): string {
+export function operationIdentityKey(identity: ObservationIdentity): string {
   return identity.kind === "npm"
     ? `npm:${identity.packageName}`
     : `github:${identity.repositoryId}:${identity.subdirectory}`;
 }
 
+/** The contract owns what the id is made of; the Worker owns the hash primitive. */
 export async function expectedObservationId(observation: PluginObservationV1): Promise<string> {
-  return digest(
-    stableJson({
-      identity: observation.identity,
-      source: {
-        url: observation.source.url,
-        ref: observation.source.ref ?? null,
-        fingerprint: observation.source.etag ?? observation.source.contentHash ?? null,
-      },
-    }),
-  );
+  return digest(observationIdInput(observation.identity, observation.source));
 }
 
 function slugify(value: string): string {
@@ -285,7 +279,7 @@ async function readObservation(binding: Database, observation: PluginObservation
   const storedObservation = previousPayload
     ? mergeStoredObservation(previousPayload, observation)
     : observation;
-  const payload = stableJson(storedObservation);
+  const payload = canonicalJson(storedObservation);
   const payloadHash = await digest(payload);
   return { identityKey, observedAt, existing: existingObservation, payload, payloadHash };
 }
@@ -481,10 +475,10 @@ function stateWriteStatement(write: ObservationWrite): BatchItem<"sqlite">[] {
             merged.state,
             afterRevision,
             operationId,
-            merged.detection ? stableJson(merged.detection) : null,
-            stableJson(merged.facts),
-            stableJson(merged.sources),
-            stableJson(merged.provenance),
+            merged.detection ? canonicalJson(merged.detection) : null,
+            canonicalJson(merged.facts),
+            canonicalJson(merged.sources),
+            canonicalJson(merged.provenance),
             merged.lastObservedAt,
             now,
             plugin.id,
@@ -507,10 +501,10 @@ function stateWriteStatement(write: ObservationWrite): BatchItem<"sqlite">[] {
             state.visibility,
             afterRevision,
             operationId,
-            merged.detection ? stableJson(merged.detection) : null,
-            stableJson(merged.facts),
-            stableJson(merged.sources),
-            stableJson(merged.provenance),
+            merged.detection ? canonicalJson(merged.detection) : null,
+            canonicalJson(merged.facts),
+            canonicalJson(merged.sources),
+            canonicalJson(merged.provenance),
             merged.lastObservedAt,
             now,
             now,
@@ -547,7 +541,7 @@ function identityStatement(write: ObservationWrite): BatchItem<"sqlite">[] {
             identityKey,
             plugin.id,
             observation.identity.kind,
-            stableJson(observation.identity),
+            canonicalJson(observation.identity),
             observedAt,
             now,
             plugin.id,
@@ -566,7 +560,7 @@ function identityStatement(write: ObservationWrite): BatchItem<"sqlite">[] {
              where plugin_id=? and last_operation_id=?
            )`,
           [
-            stableJson(observation.identity),
+            canonicalJson(observation.identity),
             observedAt,
             identityKey,
             plugin.id,
@@ -719,7 +713,7 @@ function auditStatement(write: ObservationWrite): BatchItem<"sqlite">[] {
           plugin.id,
           stateRow ? state.revision : null,
           afterRevision,
-          stableJson({ identity: identityKey, diff: merged.diff }),
+          canonicalJson({ identity: identityKey, diff: merged.diff }),
           now,
           plugin.id,
           operationId,

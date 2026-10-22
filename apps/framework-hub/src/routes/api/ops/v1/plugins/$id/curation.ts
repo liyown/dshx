@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { requireApiToken } from "@/lib/auth/tokens.server";
-import { pluginCurationRequestSchema } from "@/lib/catalog/operations-v1.contracts";
 import {
   operationFailure,
   operationRequestId,
@@ -11,6 +10,7 @@ import {
 import { curatePlugin } from "@/lib/catalog/operations";
 import { requireDatabase } from "@/lib/db/client";
 import { catalogChanged, publishCatalogChanged } from "@/lib/sitemap-cache";
+import { pluginCurationRequestSchema } from "@becomeopc/dshx-hub-contracts";
 
 export const Route = createFileRoute("/api/ops/v1/plugins/$id/curation")({
   server: {

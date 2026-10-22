@@ -1,4 +1,8 @@
-import { assessPrimaryTargets, assessTargetSpec, normalizeGithubFullName } from "./policy";
+import {
+  assessPrimaryTargets,
+  assessTargetSpec,
+  normalizeGithubFullName,
+} from "@becomeopc/dshx-hub-contracts";
 
 export type PublicInstallTarget = {
   kind: string;

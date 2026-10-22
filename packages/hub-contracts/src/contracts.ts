@@ -1,6 +1,21 @@
+/**
+ * The DSHX Hub operations wire contract.
+ *
+ * Everything an operations client may send or receive is defined here, once.
+ * The Hub validates against it; the CLI produces against it; a second copy in
+ * either place is how the two ended up disagreeing about npm package casing,
+ * GitHub full names, and whether an observation needs an install-target
+ * primary at all.
+ *
+ * Three things are deliberately *not* here: the database row shapes (the Hub
+ * owns those), the CLI's local input encodings (a file path where the wire
+ * wants a hash, flags where the wire wants a query string), and the public
+ * catalog response the marketplace reads. Those are adapters on this contract.
+ */
+
 import { z } from "zod";
 
-import { assessObservationTargets, type InstallTargetRejection } from "./install-target/policy";
+import { assessObservationTargets, type InstallTargetRejection } from "./install-target.js";
 
 function installTargetIssueMessage(reason: InstallTargetRejection): string {
   switch (reason) {
@@ -49,7 +64,7 @@ const canonicalRelativePath = z
     "path must be a canonical relative path",
   );
 
-export const operationIdentitySchema = z.discriminatedUnion("kind", [
+export const observationIdentitySchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("npm"),
@@ -74,12 +89,14 @@ export const operationIdentitySchema = z.discriminatedUnion("kind", [
         .trim()
         .regex(/^[^/\s]+\/[^/\s]+$/)
         .max(300),
+      // A repository root is the common case, so callers may omit the
+      // subdirectory; the default makes "omitted" and "root" hash identically.
       subdirectory: canonicalRelativePath.default(""),
     })
     .strict(),
 ]);
 
-export const operationSourceSchema = z
+export const observationSourceSchema = z
   .object({
     kind: z.enum(["npm", "github", "readme", "release", "manual"]),
     url: boundedUrl,
@@ -193,13 +210,21 @@ const metricFactsSchema = z
   })
   .strict();
 
-export const pluginObservationV1Schema = z
+/**
+ * What a producer sends: the observation itself.
+ *
+ * The id is *derived* from the payload, so a producer may send it, may omit it,
+ * and must not send a different one — checking that is the producer's job
+ * (`parsePluginObservation` in the CLI), and requiring it is the server's
+ * (`pluginObservationV1Schema` below). One schema, two readings.
+ */
+export const pluginObservationPayloadSchema = z
   .object({
     schemaVersion: z.literal(1),
-    observationId: sha256Hex,
+    observationId: sha256Hex.optional(),
     observedAt: isoDateTime,
-    identity: operationIdentitySchema,
-    source: operationSourceSchema,
+    identity: observationIdentitySchema,
+    source: observationSourceSchema,
     detection: z
       .object({
         signals: z.array(detectionSignalSchema).max(50),
@@ -288,6 +313,11 @@ export const pluginObservationV1Schema = z
         });
     }
   });
+
+/** The stored form: the payload plus the id derived from it. */
+export const pluginObservationV1Schema = pluginObservationPayloadSchema.safeExtend({
+  observationId: sha256Hex,
+});
 
 export const observationBatchSchema = z
   .object({
@@ -499,7 +529,9 @@ export const publicOperationReportRunQuerySchema = z
 
 export const operationDryRunQuerySchema = z.enum(["true", "false"]);
 
-export type OperationIdentity = z.infer<typeof operationIdentitySchema>;
+export type ObservationIdentity = z.infer<typeof observationIdentitySchema>;
+export type ObservationSource = z.infer<typeof observationSourceSchema>;
+export type PluginObservationPayload = z.infer<typeof pluginObservationPayloadSchema>;
 export type PluginObservationV1 = z.infer<typeof pluginObservationV1Schema>;
 export type PluginCurationContent = z.infer<typeof pluginCurationContentSchema>;
 export type OpsPluginListQuery = z.infer<typeof opsPluginListQuerySchema>;

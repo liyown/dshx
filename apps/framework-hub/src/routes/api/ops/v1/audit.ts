@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { requireApiToken } from "@/lib/auth/tokens.server";
-import { operationAuditQuerySchema } from "@/lib/catalog/operations-v1.contracts";
 import {
   operationFailure,
   operationSuccess,
@@ -10,6 +9,7 @@ import {
 import { auditOperations } from "@/lib/catalog/operations";
 import { requireDatabase } from "@/lib/db/client";
 import { requireBindings } from "@/lib/db/context";
+import { operationAuditQuerySchema } from "@becomeopc/dshx-hub-contracts";
 
 export const Route = createFileRoute("/api/ops/v1/audit")({
   server: {

@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { requireApiToken } from "@/lib/auth/tokens.server";
-import { operationReportInputSchema } from "@/lib/catalog/operations-v1.contracts";
 import {
   operationFailure,
   operationSuccess,
@@ -12,6 +11,7 @@ import {
   publishOperationReport,
 } from "@/lib/catalog/operation-reports.server";
 import { requireDatabase } from "@/lib/db/client";
+import { operationReportInputSchema } from "@becomeopc/dshx-hub-contracts";
 
 export const Route = createFileRoute("/api/ops/v1/reports/")({
   server: {

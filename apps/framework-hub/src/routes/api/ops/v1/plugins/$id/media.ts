@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { requireApiToken } from "@/lib/auth/tokens.server";
-import { operationMediaMetadataSchema } from "@/lib/catalog/operations-v1.contracts";
 import {
   OperationHttpError,
   operationFailure,
@@ -12,6 +11,7 @@ import {
 import { uploadOperationMedia } from "@/lib/catalog/operations-v1.media.server";
 import { requireDatabase } from "@/lib/db/client";
 import { requireBindings } from "@/lib/db/context";
+import { operationMediaMetadataSchema } from "@becomeopc/dshx-hub-contracts";
 
 export const Route = createFileRoute("/api/ops/v1/plugins/$id/media")({
   server: {

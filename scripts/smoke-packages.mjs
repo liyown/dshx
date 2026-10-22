@@ -27,6 +27,14 @@ const packages = [
     directory: 'packages/framework-hub-cli',
     bin: 'dshx-hub',
   },
+  // The contract the Hub and the CLI both validate against; it must import in
+  // isolation, because a consumer that only needs the schemas should not drag
+  // the CLI's runtime in with them.
+  {
+    name: '@becomeopc/dshx-hub-contracts',
+    directory: 'packages/hub-contracts',
+    imports: ['.'],
+  },
   // The marketplace root is a Host bundle and is loaded by the real Profile
   // smoke rather than executed in this provider-incomplete archive consumer.
   {
