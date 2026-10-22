@@ -1,11 +1,13 @@
 import type { BatchItem } from "drizzle-orm/batch";
 
-import type { OperationMediaMetadata } from "./operations-v1.contracts";
-import { refreshPluginScore } from "./scores.server";
-import { OperationHttpError } from "./operations-v1.http";
 import type { Database } from "@/lib/db/client";
 import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
+
+import { digest } from "./digest";
+import type { OperationMediaMetadata } from "./operations-v1.contracts";
+import { OperationHttpError } from "./operations-v1.http";
+import { refreshPluginScore } from "./scores.server";
 
 const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/avif"]);
 const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -109,11 +111,6 @@ function readDimensions(bytes: Uint8Array, type: string): { width: number; heigh
   return null;
 }
 
-async function sha256(bytes: ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 export async function uploadOperationMedia(
   binding: Database,
   bucket: R2Bucket | undefined,
@@ -187,7 +184,7 @@ export async function uploadOperationMedia(
     ),
   );
   if (!plugin) throw new OperationHttpError(404, "plugin_not_found", "Plugin not found", false);
-  const hash = await sha256(bytes);
+  const hash = await digest(bytes);
   if (metadata.sourceSha256 !== hash)
     throw new OperationHttpError(422, "media_hash_mismatch", "Media hash mismatch", false, {
       path: "metadata.sourceSha256",

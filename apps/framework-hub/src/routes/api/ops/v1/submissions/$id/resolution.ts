@@ -8,7 +8,7 @@ import {
   operationSuccess,
   readOperationJson,
 } from "@/lib/catalog/operations-v1.http";
-import { resolveOpsSubmission } from "@/lib/catalog/operations-v1.server";
+import { resolveOpsSubmission } from "@/lib/catalog/operations";
 import { requireDatabase } from "@/lib/db/client";
 
 export const Route = createFileRoute("/api/ops/v1/submissions/$id/resolution")({

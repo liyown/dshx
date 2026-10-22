@@ -7,7 +7,7 @@ import {
   operationSuccess,
   parseOperationInput,
 } from "@/lib/catalog/operations-v1.http";
-import { listOpsPlugins } from "@/lib/catalog/operations-v1.server";
+import { listOpsPlugins } from "@/lib/catalog/operations";
 import { requireDatabase } from "@/lib/db/client";
 
 function values(params: URLSearchParams, name: string) {

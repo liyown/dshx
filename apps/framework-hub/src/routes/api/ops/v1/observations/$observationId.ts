@@ -13,7 +13,7 @@ import {
   parseOperationInput,
   readOperationJson,
 } from "@/lib/catalog/operations-v1.http";
-import { upsertObservation } from "@/lib/catalog/operations-v1.server";
+import { upsertObservation } from "@/lib/catalog/operations";
 import { requireDatabase } from "@/lib/db/client";
 
 export const Route = createFileRoute("/api/ops/v1/observations/$observationId")({

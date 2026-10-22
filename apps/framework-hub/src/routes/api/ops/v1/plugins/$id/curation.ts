@@ -8,7 +8,7 @@ import {
   operationSuccess,
   readOperationJson,
 } from "@/lib/catalog/operations-v1.http";
-import { curatePlugin } from "@/lib/catalog/operations-v1.server";
+import { curatePlugin } from "@/lib/catalog/operations";
 import { requireDatabase } from "@/lib/db/client";
 import { catalogChanged, publishCatalogChanged } from "@/lib/sitemap-cache";
 

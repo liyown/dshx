@@ -8,7 +8,7 @@ import {
   operationSuccess,
   readOperationJson,
 } from "@/lib/catalog/operations-v1.http";
-import { upsertObservationBatch } from "@/lib/catalog/operations-v1.server";
+import { upsertObservationBatch } from "@/lib/catalog/operations";
 import { requireDatabase } from "@/lib/db/client";
 
 export const Route = createFileRoute("/api/ops/v1/observations:batch")({

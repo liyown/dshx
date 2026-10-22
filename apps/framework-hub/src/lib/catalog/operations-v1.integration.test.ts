@@ -15,8 +15,8 @@ import { parameterizedSql } from "@/lib/db/parameterized-sql";
 
 import { isWeakCuration, weakCurationSql } from "./curation-policy";
 import { refreshInstallReadiness } from "./install-readiness.server";
-import { needsFor, needsPrefilterSql, riskSignals } from "./lifecycle-policy";
-import type { SourceSummary } from "./observation-merge";
+import { needsFor, needsPrefilterSql, riskSignals } from "./operations/plugins/policy";
+import type { SourceSummary } from "./operations/observation/merge";
 import {
   pluginObservationV1Schema,
   type PluginCurationContent,
@@ -36,7 +36,7 @@ import {
   setPluginVisibility,
   upsertObservation,
   upsertObservationBatch,
-} from "./operations-v1.server";
+} from "./operations";
 
 function timestamp(minutesAgo: number) {
   return new Date(Date.now() - minutesAgo * 60_000).toISOString();

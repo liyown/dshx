@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { authenticateApiToken } from "@/lib/auth/tokens.server";
-import { getOpsStatus } from "@/lib/catalog/operations-v1.server";
+import { getOpsStatus } from "@/lib/catalog/operations";
 import {
   operationFailure,
   operationSuccess,

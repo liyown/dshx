@@ -127,7 +127,8 @@ describe("Framework Hub architecture boundaries", () => {
       violations(
         files,
         ({ path, text }) =>
-          path !== "lib/catalog/lifecycle-policy.ts" && /json_type\(o\.facts_json/u.test(text),
+          path !== "lib/catalog/operations/plugins/policy.ts" &&
+          /json_type\(o\.facts_json/u.test(text),
       ),
     ).toEqual([]);
   });
@@ -138,7 +139,47 @@ describe("Framework Hub architecture boundaries", () => {
       violations(
         files,
         ({ path, text }) =>
-          path !== "lib/catalog/observation-merge.ts" && /installTargets\.primary/u.test(text),
+          path !== "lib/catalog/operations/observation/merge.ts" &&
+          /installTargets\.primary/u.test(text),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps the operations API behind one entry point", async () => {
+    const files = await sourceFiles();
+    // The modules under `operations/` are free to move as long as nobody
+    // outside the directory reaches past the barrel that names them.
+    expect(
+      violations(
+        files,
+        ({ path, text }) =>
+          !path.startsWith("lib/catalog/operations/") &&
+          /from\s+["'][^"']*catalog\/operations\/(?!["'])/u.test(text),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps one sha-256 spelling in the catalog", async () => {
+    const files = await sourceFiles();
+    expect(
+      violations(
+        files,
+        ({ path, text }) =>
+          path.startsWith("lib/catalog/") &&
+          path !== "lib/catalog/digest.ts" &&
+          /\.toString\(16\)\.padStart\(2, "0"\)/u.test(text),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps the plugin row lookup in the operations store", async () => {
+    const files = await sourceFiles();
+    expect(
+      violations(
+        files,
+        ({ path, text }) =>
+          path !== "lib/catalog/operations/store.ts" &&
+          /from plugins where id=\? or slug=\?/u.test(text),
       ),
     ).toEqual([]);
   });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { pluginObservationV1Schema } from "./operations-v1.contracts";
-import { expectedObservationId } from "./operations-v1.server";
+import { expectedObservationId } from "./operations";
 
 const base = {
   schemaVersion: 1 as const,

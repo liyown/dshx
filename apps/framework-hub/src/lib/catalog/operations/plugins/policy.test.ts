@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { weakCurationSql } from "./curation-policy";
-import type { JsonRecord } from "./json";
+import { weakCurationSql } from "../../curation-policy";
+import type { JsonRecord } from "../../json";
 import {
   CURRENT_DSH_VERSION,
   README_RECHECK_MS,
@@ -12,8 +12,8 @@ import {
   readmeNeedsRecheck,
   riskSignals,
   sourceStale,
-} from "./lifecycle-policy";
-import type { SourceSummary } from "./observation-merge";
+} from "./policy";
+import type { SourceSummary } from "../observation/merge";
 
 const DAY = 86_400_000;
 const NOW = Date.parse("2026-10-22T12:00:00.000Z");

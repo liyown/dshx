@@ -8,8 +8,8 @@
  * fixtures.
  */
 
-import type { PluginObservationV1 } from "./operations-v1.contracts";
-import { stableJson, type JsonRecord } from "./json";
+import type { PluginObservationV1 } from "../../operations-v1.contracts";
+import { stableJson, type JsonRecord } from "../../json";
 
 export type SourceSummary = {
   kind: PluginObservationV1["source"]["kind"];

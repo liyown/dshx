@@ -1,4 +1,5 @@
 import { decodeCursor, encodeCursor } from "./cursor";
+import { digest } from "./digest";
 import type { OperationReportInput, PublicOperationReportQuery } from "./operations-v1.contracts";
 import { OperationHttpError, requireCursor } from "./operations-v1.http";
 import type { Database } from "@/lib/db/client";
@@ -25,11 +26,6 @@ function stablePayload(input: OperationReportInput) {
     outcome: input.outcome,
     body: { en: input.body.en, zh: input.body.zh },
   });
-}
-
-async function sha256(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function privateReport(row: ReportRow) {
@@ -60,7 +56,7 @@ export async function publishOperationReport(
   actorTokenId: string,
   input: OperationReportInput,
 ) {
-  const payloadHash = await sha256(stablePayload(input));
+  const payloadHash = await digest(stablePayload(input));
   const existing = await binding.get<{ payload_hash: string }>(
     parameterizedSql("select payload_hash from hub_operation_reports where run_id=?", [
       input.runId,
