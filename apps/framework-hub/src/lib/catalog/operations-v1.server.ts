@@ -5,6 +5,10 @@ import type { Database } from "@/lib/db/client";
 import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { buildPluginSeoDescription, buildPluginSeoTitle } from "./content-quality";
+import { isWeakCuration, weakCurationSql } from "./curation-policy";
+import { refreshPluginReadiness } from "./install-readiness.server";
+import { jsonRecord, type JsonRecord } from "./json";
+import { publicationRequirements } from "./publication-readiness";
 import { refreshPluginScore } from "./scores.server";
 
 import {
@@ -24,8 +28,6 @@ import {
 
 const SOURCE_STALE_MS = 30 * 86_400_000;
 const CURRENT_DSH_VERSION = "0.2.1-rc.2";
-
-type JsonRecord = Record<string, unknown>;
 
 type OperationalRow = {
   plugin_id: string;
@@ -111,17 +113,6 @@ function parseJson<T>(value: unknown, fallback: T): T {
   } catch {
     return fallback;
   }
-}
-
-function jsonRecord(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
-}
-
-function hasUnsafeInstallSpecCharacter(value: string): boolean {
-  return Array.from(value).some((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 32 || code === 127;
-  });
 }
 
 function canonicalize(value: unknown): unknown {
@@ -1190,85 +1181,6 @@ async function projectionStatements(
   return statements;
 }
 
-function publicationRequirements(
-  facts: JsonRecord,
-  sources: SourceSummary[],
-  curation: {
-    categories: string[];
-    derivedFrom: string[];
-    sourceReadmeHash?: string | undefined;
-  } | null,
-) {
-  const missing: string[] = [];
-  const packageFacts = jsonRecord(facts["package"]);
-  if (typeof packageFacts["name"] !== "string" || !packageFacts["name"].trim())
-    missing.push("name");
-  if (typeof packageFacts["version"] !== "string" || !packageFacts["version"].trim())
-    missing.push("version");
-  if (!sources.some((source) => source.availability === "available")) missing.push("source");
-  const publicSourceObserved = sources.some(
-    (source) => source.kind === "github" || source.kind === "npm",
-  );
-  const readme = jsonRecord(facts["readme"]);
-  if (
-    publicSourceObserved &&
-    !["available", "unavailable"].includes(String(readme["availability"]))
-  )
-    missing.push("readme");
-  const repository = jsonRecord(facts["repository"]);
-  const publisher = jsonRecord(facts["publisher"]);
-  if (
-    typeof repository["fullName"] === "string" &&
-    (typeof publisher["githubId"] !== "string" ||
-      typeof publisher["avatarUrl"] !== "string" ||
-      typeof publisher["profileUrl"] !== "string")
-  )
-    missing.push("publisher");
-  const targets = Array.isArray(facts["installTargets"])
-    ? (facts["installTargets"] as JsonRecord[])
-    : [];
-  const primaryTargets = targets.filter(
-    (target) => target["primary"] === true && target["available"] !== false,
-  );
-  if (primaryTargets.length !== 1) {
-    missing.push("primaryInstallTarget");
-  } else {
-    const target = primaryTargets[0]!;
-    const packageName = packageFacts["name"];
-    const version = packageFacts["version"];
-    const targetPackageName = target["packageName"] ?? packageName;
-    const targetVersion = target["version"] ?? version;
-    const exactNpm =
-      target["kind"] === "npm" &&
-      typeof packageName === "string" &&
-      typeof version === "string" &&
-      targetPackageName === packageName &&
-      targetVersion === version &&
-      target["spec"] === `${packageName}@${version}`;
-    const fullName = repository["fullName"];
-    const exactGitHub =
-      target["kind"] === "github" &&
-      typeof fullName === "string" &&
-      typeof target["spec"] === "string" &&
-      target["spec"].toLowerCase().startsWith(`github:${fullName.toLowerCase()}#`) &&
-      target["spec"].slice(target["spec"].lastIndexOf("#") + 1).length > 0 &&
-      !hasUnsafeInstallSpecCharacter(target["spec"]);
-    if (!exactNpm && !exactGitHub) missing.push("safePrimaryInstallTarget");
-  }
-  if (!curation) missing.push("content");
-  else {
-    if (!curation.categories.length) missing.push("category");
-    if (!curation.derivedFrom.length) missing.push("sourceCitation");
-    if (
-      readme["availability"] === "available" &&
-      typeof readme["contentHash"] === "string" &&
-      curation.sourceReadmeHash !== readme["contentHash"]
-    )
-      missing.push("readmeCuration");
-  }
-  return missing;
-}
-
 export async function upsertObservation(
   binding: Database,
   actorTokenId: string,
@@ -1758,10 +1670,12 @@ export async function upsertObservation(
     }
     throw error;
   }
-  // The observation rewrote the facts the catalog ranks on; refresh the
-  // precomputed scores for this plugin after the batch committed. A failure
-  // here does not fail the observation: the catalog falls back to the live
-  // formula for an unscored plugin.
+  // The observation rewrote the facts the catalog ranks on and the install
+  // targets it filters on; refresh both projections after the batch
+  // committed. Failures do not fail the observation: the catalog falls back
+  // to the live formula and treats a missing readiness row as "not ready".
+  // Readiness feeds the score, so it is recomputed first.
+  await refreshPluginReadiness(binding, plugin.id);
   await refreshPluginScore(binding, plugin.id);
   return {
     identity: identityKey,
@@ -1877,51 +1791,6 @@ function riskSignals(
     risks.add("metadata-incomplete");
   if (identityConflict) risks.add("identity-conflict");
   return [...risks].sort();
-}
-
-const genericShortDescriptions = new Set([
-  "a plugin",
-  "a plugin for deepseek harness",
-  "a plugin for dsh",
-  "deepseek harness plugin",
-  "dsh plugin",
-  "plugin for deepseek harness",
-  "plugin for dsh",
-  "todo",
-  "no description",
-]);
-
-// Keep these thresholds aligned with lowQualityCurationSql, which lets the
-// list prefilter reach the same rows before pagination.
-function isWeakCuration(
-  curation: {
-    readonly shortDescription?: Record<string, unknown>;
-    readonly overviewMarkdown?: Record<string, unknown>;
-  },
-  identity: { readonly slug: string; readonly name: string; readonly packageName: string | null },
-): boolean {
-  const en =
-    typeof curation.shortDescription?.["en"] === "string"
-      ? curation.shortDescription["en"].trim()
-      : "";
-  const zh =
-    typeof curation.shortDescription?.["zh"] === "string"
-      ? curation.shortDescription["zh"].trim()
-      : "";
-  const overview =
-    typeof curation.overviewMarkdown?.["en"] === "string"
-      ? curation.overviewMarkdown["en"].trim()
-      : "";
-  return (
-    en.length < 40 ||
-    zh.length < 12 ||
-    en === identity.slug ||
-    en === identity.name ||
-    (identity.packageName !== null && en === identity.packageName) ||
-    en.startsWith("@") ||
-    genericShortDescriptions.has(en.toLowerCase()) ||
-    overview.length < 400
-  );
 }
 
 // "unavailable" describes one observation, not the repository. The fetch can
@@ -2043,22 +1912,6 @@ function summarizePluginRow(row: OpsListRow) {
   };
 }
 
-// A curation row can exist and still be unusable as public copy: a package
-// name repeated as the description, a one-line overview, or a missing locale.
-// The same predicate drives both the list projection and the needs prefilter.
-const lowQualityCurationSql = `(
-  coalesce(length(trim(json_extract(c.short_description_json,'$.en'))),0) < 40
-  or coalesce(length(trim(json_extract(c.short_description_json,'$.zh'))),0) < 12
-  or trim(json_extract(c.short_description_json,'$.en')) in (p.slug,p.name,p.package_name)
-  or trim(json_extract(c.short_description_json,'$.en')) like '@%'
-  or lower(trim(json_extract(c.short_description_json,'$.en'))) in (
-    'a plugin','a plugin for deepseek harness','a plugin for dsh',
-    'deepseek harness plugin','dsh plugin','plugin for deepseek harness',
-    'plugin for dsh','todo','no description'
-  )
-  or coalesce(length(trim(json_extract(c.overview_markdown_json,'$.en'))),0) < 400
-)`;
-
 function pluginNeedsSqlPrefilter(needs: OpsPluginListQuery["needs"]) {
   if (!needs?.length) return { condition: "1=1", parameters: [] as unknown[] };
   const parameters: unknown[] = [];
@@ -2085,7 +1938,7 @@ function pluginNeedsSqlPrefilter(needs: OpsPluginListQuery["needs"]) {
             ))
         ))`;
       case "content":
-        return `(c.plugin_id is null or ${lowQualityCurationSql} or (
+        return `(c.plugin_id is null or ${weakCurationSql} or (
           json_extract(o.facts_json,'$.readme.availability')='available'
           and json_type(o.facts_json,'$.readme.contentHash')='text'
           and c.source_readme_hash is not json_extract(o.facts_json,'$.readme.contentHash')
@@ -2139,7 +1992,7 @@ async function scanPluginRows(
         o.created_at operational_created_at,o.updated_at,
         case when c.plugin_id is null then 0 else 1 end has_curation,
         c.source_readme_hash,
-        case when c.plugin_id is null then 0 when ${lowQualityCurationSql} then 1 else 0 end curation_low_quality,
+        case when c.plugin_id is null then 0 when ${weakCurationSql} then 1 else 0 end curation_low_quality,
         (select count(*) from plugin_localizations l where l.plugin_id=p.id and l.translation_status='ready') ready_locale_count,
         (select count(*) from plugin_install_targets t where t.plugin_id=p.id and t.status='unavailable') unavailable_target_count,
         case when conflicts.package_name is null then 0 else 1 end identity_conflict
@@ -2672,6 +2525,10 @@ export async function curatePlugin(
     throw new OperationHttpError(409, "revision_conflict", "Plugin changed during curation", true, {
       repairHint: "Run plugin get, merge the latest content, and retry.",
     });
+  // Curation is also the transition that publishes a fully curated plugin, so
+  // the projections the catalog reads have to be ready before the response.
+  await refreshPluginReadiness(binding, plugin.id);
+  await refreshPluginScore(binding, plugin.id);
   return {
     status: "updated",
     pluginId: plugin.id,
@@ -2799,7 +2656,9 @@ export async function setPluginVisibility(
         repairHint: "Run plugin get and retry the visibility change.",
       },
     );
-  // Restoring visibility can publish a plugin that was never scored while hidden.
+  // Restoring visibility can publish a plugin that was never scored or
+  // assessed for installability while hidden.
+  await refreshPluginReadiness(binding, plugin.id);
   await refreshPluginScore(binding, plugin.id);
   return { status: "updated", pluginId: plugin.id, visibility, reason, revision: nextRevision };
 }
@@ -2992,7 +2851,7 @@ export async function getOpsStatus(
       select o.state,o.visibility,o.facts_json,o.sources_json,
         case when c.plugin_id is null then 0 else 1 end has_curation,
         c.source_readme_hash,
-        case when c.plugin_id is null then 0 when ${lowQualityCurationSql} then 1 else 0 end curation_low_quality,
+        case when c.plugin_id is null then 0 when ${weakCurationSql} then 1 else 0 end curation_low_quality,
         coalesce(l.ready_locale_count,0) ready_locale_count,
         case when conflicts.package_name is null then 0 else 1 end identity_conflict
       from plugin_operational_state o

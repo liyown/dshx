@@ -1,5 +1,5 @@
 import type { Database } from "@/lib/db/client";
-import { buildPluginInstallCommand, selectInstallTarget } from "./catalog/install-target";
+import { buildPluginInstallCommand, selectInstallTarget } from "./catalog/install-target/public";
 import { getCatalogPlugin } from "./catalog/repository.server";
 import type { Locale } from "./i18n";
 import { renderPluginSocialCard } from "./social-card.server";

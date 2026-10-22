@@ -12,6 +12,7 @@ import {
   plugins,
   repositories,
 } from "@/lib/db/schema";
+import { refreshInstallReadiness } from "./install-readiness.server";
 import {
   getCatalogMarketplacePlugin,
   listCatalogDiscovery,
@@ -143,6 +144,12 @@ async function insertInstallTargets(db: Database, targets: InstallTargetFixture[
          ${target.version}, ${target.isPrimary ? 1 : 0}, ${target.status}, ${target.verifiedAt.getTime()})
     `);
   }
+  // Production only writes targets through the observation path, which
+  // refreshes the stored readiness verdict; a direct insert has to do the same
+  // or the catalog has no verdict to read.
+  await refreshInstallReadiness(db, {
+    pluginIds: targets.map((target) => target.pluginId),
+  });
 }
 
 async function collectMarketplaceSlugs(
@@ -444,10 +451,10 @@ describe("public catalog repository loaders", () => {
     }
   });
 
-  it("admits only a GitHub target pinned to the canonical repository latest stable tag", async () => {
+  it("admits a GitHub target only for the plugin's repository with a safe ref", async () => {
     const suffix = randomSuffix();
     const category = await insertCategory(db, suffix, "github-exact");
-    const records = ["exact", "mutable", "wrong-tag"].map((label) => ({
+    const records = ["tagged", "branch", "other-repo"].map((label) => ({
       label,
       repositoryId: crypto.randomUUID(),
       repositoryName: `${label}-${suffix}`,
@@ -502,7 +509,7 @@ describe("public catalog repository loaders", () => {
             ? `github:public-fixture/${records[index]!.repositoryName}#v1.0.0`
             : index === 1
               ? `github:public-fixture/${records[index]!.repositoryName}#main`
-              : `github:public-fixture/${records[index]!.repositoryName}#v0.9.0`,
+              : `github:public-fixture/another-${suffix}#main`,
         packageName: plugin.packageName,
         version: plugin.latestVersion,
         isPrimary: true,
@@ -518,7 +525,12 @@ describe("public catalog repository loaders", () => {
       sort: "latest",
       limit: 24,
     });
-    expect(page.items.map((item) => item.slug)).toEqual([fixtures[0]!.slug]);
+    // A branch is as installable as a tag; what matters is that the spec
+    // names this plugin's repository with a ref that is safe to pass to a
+    // shell.
+    expect(page.items.map((item) => item.slug).sort()).toEqual(
+      [fixtures[0]!.slug, fixtures[1]!.slug].sort(),
+    );
     await expect(getCatalogMarketplacePlugin(db, fixtures[0]!.slug, "en")).resolves.toMatchObject({
       repositoryUrl: `https://github.com/public-fixture/${records[0]!.repositoryName}`,
       releases: [
@@ -529,7 +541,9 @@ describe("public catalog repository loaders", () => {
         }),
       ],
     });
-    await expect(getCatalogMarketplacePlugin(db, fixtures[1]!.slug, "en")).resolves.toBeNull();
+    await expect(getCatalogMarketplacePlugin(db, fixtures[1]!.slug, "en")).resolves.toMatchObject({
+      id: fixtures[1]!.id,
+    });
     await expect(getCatalogMarketplacePlugin(db, fixtures[2]!.slug, "en")).resolves.toBeNull();
   });
 

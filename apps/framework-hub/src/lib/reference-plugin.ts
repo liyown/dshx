@@ -1,6 +1,6 @@
 import dshxPackage from "../../../../packages/dshx/package.json";
 import marketplacePackage from "../../../../packages/plugin-marketplace/package.json";
-import { buildPluginInstallCommand } from "./catalog/install-target";
+import { buildPluginInstallCommand } from "./catalog/install-target/public";
 
 export const DSHX_VERSION = dshxPackage.version;
 

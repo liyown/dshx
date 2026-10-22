@@ -142,7 +142,10 @@ describe("PluginObservationV1", () => {
         },
       }).facts?.installTargets,
     ).toHaveLength(2);
-    expect(() =>
+    // Spec safety is the server's decision, so the CLI forwards the payload
+    // unchanged rather than keeping a second copy of the rule that could
+    // drift from it.
+    expect(
       parsePluginObservation({
         ...npmObservation(),
         facts: {
@@ -157,8 +160,8 @@ describe("PluginObservationV1", () => {
             },
           ],
         },
-      }),
-    ).toThrow("command-injection structure");
+      }).facts?.installTargets,
+    ).toHaveLength(1);
 
     const github = parsePluginObservation({
       schemaVersion: 1,

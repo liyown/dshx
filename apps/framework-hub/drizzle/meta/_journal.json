@@ -127,6 +127,13 @@
       "when": 1792565163801,
       "tag": "0017_slippery_joshua_kane",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1792669171220,
+      "tag": "0018_white_scalphunter",
+      "breakpoints": true
     }
   ]
 }

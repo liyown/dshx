@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getPlatformProxy } from "wrangler";
 
@@ -10,6 +11,8 @@ import {
   pluginSubmissions,
 } from "@/lib/db/schema";
 
+import { isWeakCuration, weakCurationSql } from "./curation-policy";
+import { refreshInstallReadiness } from "./install-readiness.server";
 import {
   pluginObservationV1Schema,
   type PluginCurationContent,
@@ -101,6 +104,10 @@ describe("operations v1 atomic catalog model with local D1", () => {
       { categoryId, locale: "en", name: "Operations fixtures" },
       { categoryId, locale: "zh", name: "运营测试" },
     ]);
+    // The local D1 keeps published fixtures from earlier runs, so the first
+    // marketplace read would otherwise repair that backlog inside its test.
+    // A deploy does the same repair once, up front.
+    await refreshInstallReadiness(db);
   });
 
   afterAll(async () => proxy.dispose());
@@ -402,6 +409,96 @@ describe("operations v1 atomic catalog model with local D1", () => {
       status: "archived",
     });
     expect((await listCatalogMarketplace(db, marketplaceQuery)).items).toEqual([]);
+  });
+
+  it("applies the same weak-curation rule in SQL and TypeScript", async () => {
+    const packageName = `@ops/parity-${crypto.randomUUID()}`;
+    const created = await upsertObservation(
+      db,
+      actorTokenId,
+      crypto.randomUUID(),
+      await npmObservation(packageName, {
+        observedAt: timestamp(20),
+        facts: { package: { name: packageName, version: "1.0.0" } },
+      }),
+    );
+    const pluginId = created.pluginId!;
+    const plugin = await db.get<{ slug: string; name: string; package_name: string }>(
+      sql`select slug, name, package_name from plugins where id = ${pluginId}`,
+    );
+    const identity = {
+      slug: plugin!.slug,
+      name: plugin!.name,
+      packageName: plugin!.package_name,
+    };
+    const specific = "Publish one post to every network from a single DSH command.";
+    const cases = [
+      {
+        label: "specific copy",
+        en: specific,
+        zh: "用一条 DSH 命令同步到所有平台。",
+        overview: "x".repeat(500),
+        weak: false,
+      },
+      {
+        label: "generic phrase",
+        en: "A plugin for DSH",
+        zh: "一个插件",
+        overview: "x".repeat(500),
+        weak: true,
+      },
+      {
+        label: "short overview",
+        en: specific,
+        zh: "用一条 DSH 命令同步到所有平台。",
+        overview: "x",
+        weak: true,
+      },
+      {
+        label: "identity echo",
+        en: identity.packageName,
+        zh: "用一条 DSH 命令同步到所有平台。",
+        overview: "x".repeat(500),
+        weak: true,
+      },
+      {
+        label: "scoped package echo",
+        en: `@${"copy-".repeat(12)}`,
+        zh: "用一条 DSH 命令同步到所有平台。",
+        overview: "x".repeat(500),
+        weak: true,
+      },
+      { label: "short zh copy", en: specific, zh: "短", overview: "x".repeat(500), weak: true },
+    ];
+
+    for (const entry of cases) {
+      const copy = {
+        shortDescription: { en: entry.en, zh: entry.zh },
+        overviewMarkdown: { en: entry.overview },
+      };
+      await db.run(sql`
+        insert into plugin_curations(
+          plugin_id, display_name_json, short_description_json, overview_markdown_json, updated_at
+        ) values (
+          ${pluginId}, ${JSON.stringify({ en: "Parity", zh: "一致性" })},
+          ${JSON.stringify(copy.shortDescription)}, ${JSON.stringify(copy.overviewMarkdown)},
+          ${Date.now()}
+        )
+        on conflict(plugin_id) do update set
+          short_description_json = excluded.short_description_json,
+          overview_markdown_json = excluded.overview_markdown_json
+      `);
+      const row = await db.get<{ weak: number }>(sql`
+        select case when ${sql.raw(weakCurationSql)} then 1 else 0 end weak
+        from plugins p join plugin_curations c on c.plugin_id = p.id
+        where p.id = ${pluginId}
+      `);
+      expect({
+        label: entry.label,
+        ts: isWeakCuration(copy, identity),
+        sql: row?.weak === 1,
+      }).toEqual({ label: entry.label, ts: entry.weak, sql: entry.weak });
+    }
   });
 
   it("stores the original README and publisher avatar, then reopens content work on README changes", async () => {

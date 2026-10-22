@@ -264,3 +264,15 @@ Conversation registers through `ctx.uiConversation.events.register`, and Connect
 The verified baseline is a build of source tag `dsh-v0.2.1-rc.2`, not the npm artifact of the same version, which currently contains stale profile-boot code. The compatibility record stores `verificationSource: "source"`; the npm artifact remains experimental until upstream republishes it. The smoke harness accepts `--dsh-source`/`DSH_SOURCE_ROOT` and links the source CLI, and it requires the source checkout's Host/Client `lib` plus `pnpm run build:native-system`.
 
 DSH 0.2 has no first-party runtime Slots catalog. `inspect slots` reports `DSHX3204`; `add ui` accepts explicit `--slot`/`--provider` values, generates from the caller's registration fields, and emits a `DSHX6112` warning because the provider catalog cannot verify the result. The Host-owned bridge still exposes tools, services, events, and configs and does not use the seven local inspect-bridge commits from the development checkout.
+
+## 2026-10-22: install-target usability has one owner and one stored verdict
+
+`apps/framework-hub/src/lib/catalog/install-target/policy.ts` is the only module that decides whether an install target is usable. The ingest contract, the publication gate, the public selector, and the marketplace projection are adapters over it, and `architecture-boundaries.test.ts` fails if a control-character or spec-safety check appears anywhere else. The four earlier copies had already diverged on repository case, git-ref safety, and whether a GitHub target had to be pinned to the latest stable tag.
+
+The marketplace criterion is installability, not release bookkeeping: a GitHub target that names the plugin's own repository with a safe ref is admitted whether the ref is a tag or a branch, and npm still requires the exact current version so the rendered command installs what the page describes.
+
+Whether a plugin is installable is stored in `plugin_readiness` rather than derived inside ranking SQL. That table has one writer, `install-readiness.server.ts`; readers use the shared `installReadySql` fragment, the quality score adds its bonus from the stored row, and the self-heal that repairs missing rows also rescans scores so a repaired verdict cannot disagree with the score it feeds. Curation, observation, and visibility changes refresh the verdict before responding, because each of them can publish a plugin.
+
+## 2026-10-22: curated copy quality has one definition, in TypeScript and SQL
+
+Whether a curation is placeholder copy is decided in `apps/framework-hub/src/lib/catalog/curation-policy.ts`. The module exports the thresholds, the generic-description phrase list, a pure predicate for the ops detail, and a SQL twin for the list and status projections that must filter before pagination. The two adapters read the same constants rather than a comment asking a future editor to keep them aligned, and an integration test asserts both agree on the same fixtures. `architecture-boundaries.test.ts` fails if the phrase list appears anywhere else.

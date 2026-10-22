@@ -2,11 +2,12 @@ import { sql, type SQL } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
 import type { MarketplaceListQuery, PluginListQuery } from "./contracts";
+import { installReadySql } from "./install-readiness";
+import { ensureInstallReadiness } from "./install-readiness.server";
 import {
   ensurePluginScores,
   latestPublishedAt,
   localeQualityBonus,
-  marketplaceTargetEligibility,
   popularityRecencyScore,
   qualityRecencyScore,
   storedOrLivePopularity,
@@ -110,6 +111,7 @@ async function listCatalogPluginPage(
   marketplaceOnly: boolean,
 ) {
   ensurePluginScores(db);
+  if (marketplaceOnly) await ensureInstallReadiness(db);
   const cursor = decodeCursor(query.cursor);
   const currentPage = cursor?.[3] ?? 1;
   const search = query.q.trim();
@@ -150,7 +152,7 @@ async function listCatalogPluginPage(
     sql`p.status = 'published'`,
     sql`p.lifecycle_status in ('active', 'unmaintained')`,
   ];
-  if (marketplaceOnly) baseConditions.push(marketplaceTargetEligibility);
+  if (marketplaceOnly) baseConditions.push(installReadySql);
   if (query.category)
     baseConditions.push(sql`exists(
       select 1 from plugin_categories category_membership
@@ -546,13 +548,14 @@ export async function listCatalogMarketplace(db: Database, query: MarketplaceLis
 }
 
 export async function getCatalogMarketplacePlugin(db: Database, slug: string, locale: "en" | "zh") {
+  await ensureInstallReadiness(db);
   const detail = await getCatalogPlugin(db, slug, locale);
   if (!detail) return null;
   const eligible = await db.get<{ eligible: number }>(sql`
     select case when
       p.status = 'published'
       and p.lifecycle_status in ('active', 'unmaintained')
-      and ${marketplaceTargetEligibility}
+      and ${installReadySql}
       then 1 else 0 end eligible
     from plugins p where p.id = ${detail.id}
   `);

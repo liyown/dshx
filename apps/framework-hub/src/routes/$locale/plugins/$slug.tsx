@@ -11,7 +11,11 @@ import { PluginNavigationLink, pluginTransitionStyle } from "@/components/dshx/p
 import { useContentMotion } from "@/components/dshx/use-content-motion";
 import { useSpringIndicator } from "@/components/dshx/use-spring-indicator";
 import { loadCatalogDetail } from "@/lib/catalog/functions";
-import { buildPluginInstallCommand, selectInstallTarget } from "@/lib/catalog/install-target";
+import {
+  buildPluginInstallCommand,
+  selectInstallTarget,
+  selectPublicInstallTargets,
+} from "@/lib/catalog/install-target/public";
 import { cn } from "@/lib/utils";
 import { createTranslator, localizedPath, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
@@ -405,6 +409,14 @@ function OverviewPanel({
   locale: "en" | "zh";
 }) {
   const { t } = useI18n();
+  // Only targets the policy accepts may become a copyable command, and only
+  // those the catalog still offers. The primary target may be missing while
+  // an alternative is still valid.
+  const installTargets = selectPublicInstallTargets(
+    detail.installTargets,
+    detail.plugin.scope,
+    detail.repositoryUrl,
+  );
   return (
     <div className="space-y-8">
       <section>
@@ -425,29 +437,31 @@ function OverviewPanel({
           {detail.overviewMarkdown ?? detail.plugin.description}
         </PluginMarkdown>
       </section>
-      <section>
-        <h2 className="text-base font-medium">
-          {locale === "zh" ? "安装目标" : "Install targets"}
-        </h2>
-        <div className="mt-3 divide-y divide-ink-border overflow-hidden rounded-xl border border-ink-border bg-ink">
-          {detail.installTargets.map(
-            (target: { kind: string; spec: string; status: string; is_primary: number }) => (
-              <div
-                key={`${target.kind}:${target.spec}`}
-                className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-              >
-                <code className="min-w-0 font-mono text-xs break-words text-ink-foreground">
-                  {buildPluginInstallCommand(target.spec)}
-                </code>
-                <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
-                  {target.kind} · {target.status}
-                  {target.is_primary === 1 ? " · primary" : ""}
-                </span>
-              </div>
-            ),
-          )}
-        </div>
-      </section>
+      {installTargets.length ? (
+        <section>
+          <h2 className="text-base font-medium">
+            {locale === "zh" ? "安装目标" : "Install targets"}
+          </h2>
+          <div className="mt-3 divide-y divide-ink-border overflow-hidden rounded-xl border border-ink-border bg-ink">
+            {installTargets.map(
+              (target: { kind: string; spec: string; status: string; is_primary: number }) => (
+                <div
+                  key={`${target.kind}:${target.spec}`}
+                  className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                >
+                  <code className="min-w-0 font-mono text-xs break-words text-ink-foreground">
+                    {buildPluginInstallCommand(target.spec)}
+                  </code>
+                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
+                    {target.kind} · {target.status}
+                    {target.is_primary === 1 ? " · primary" : ""}
+                  </span>
+                </div>
+              ),
+            )}
+          </div>
+        </section>
+      ) : null}
       {detail.installNotesMarkdown ? (
         <section>
           <h2 className="text-base font-medium">

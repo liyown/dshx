@@ -77,4 +77,47 @@ describe("Framework Hub architecture boundaries", () => {
       ),
     ).toEqual([]);
   });
+
+  it("keeps the install-target rule in its policy module", async () => {
+    const files = await sourceFiles();
+    // Whether a spec is safe to hand to a shell is one decision; a second
+    // copy in an adapter is how the ingest gate, the publication gate and the
+    // rendered command drift apart.
+    expect(
+      violations(
+        files,
+        ({ path, text }) =>
+          !path.startsWith("lib/catalog/install-target/") &&
+          /charCodeAt\(0\)\s*<=\s*32|\\u0000-\\u0020/.test(text),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps the install readiness projection to one writer", async () => {
+    const files = await sourceFiles();
+    const allowed = [
+      "lib/db/schema.ts",
+      "lib/catalog/install-readiness.ts",
+      "lib/catalog/install-readiness.server.ts",
+    ];
+    expect(
+      violations(
+        files,
+        ({ path, text }) => !allowed.includes(path) && /plugin_readiness/.test(text),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps the curation quality rule in its policy module", async () => {
+    const files = await sourceFiles();
+    // The placeholder phrases are the tells of a copied rule. The SQL twin and
+    // the pure predicate must both read them from curation-policy.ts.
+    expect(
+      violations(
+        files,
+        ({ path, text }) =>
+          path !== "lib/catalog/curation-policy.ts" && /a plugin for deepseek harness/u.test(text),
+      ),
+    ).toEqual([]);
+  });
 });

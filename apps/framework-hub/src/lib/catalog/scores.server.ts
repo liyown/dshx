@@ -4,6 +4,8 @@ import { sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/lib/db/client";
 import { describeError } from "@/lib/error-logging";
 
+import { installReadySql } from "./install-readiness";
+
 /**
  * Catalog ranking is split into two halves:
  *
@@ -34,41 +36,6 @@ const SCORE_SELF_HEAL_INTERVAL_MS = 5 * 60_000;
 
 let lastScoreCheckAt = 0;
 
-export const marketplaceTargetEligibility = sql`(select count(*) from plugin_install_targets primary_target
-       where primary_target.plugin_id = p.id
-         and primary_target.is_primary = 1
-         and primary_target.status = 'active') = 1
-  and exists(select 1 from plugin_install_targets install_target
-             where install_target.plugin_id = p.id
-               and install_target.is_primary = 1
-               and install_target.status = 'active'
-               and install_target.package_name = p.package_name
-               and install_target.version = p.latest_version
-               and (
-                 (install_target.kind = 'npm'
-                  and install_target.spec = (p.package_name || '@' || p.latest_version))
-                 or
-                 (install_target.kind = 'github'
-                  and (select count(*) from plugin_releases exact_release
-                       where exact_release.plugin_id = p.id
-                         and exact_release.version = p.latest_version
-                         and exact_release.channel = 'stable'
-                         and exact_release.git_tag is not null
-                         and trim(exact_release.git_tag) != '') = 1
-                  and exists(select 1 from repositories exact_repository
-                             where exact_repository.id = p.primary_repository_id)
-                  and install_target.spec = (
-                    'github:' ||
-                    (select exact_repository.full_name from repositories exact_repository
-                     where exact_repository.id = p.primary_repository_id) ||
-                    '#' ||
-                    (select exact_release.git_tag from plugin_releases exact_release
-                     where exact_release.plugin_id = p.id
-                       and exact_release.version = p.latest_version
-                       and exact_release.channel = 'stable')
-                  ))
-               ))`;
-
 export const latestPublishedAt = sql`coalesce(
   (select release.published_at from plugin_releases release
    where release.plugin_id = p.id and release.version = p.latest_version
@@ -83,7 +50,7 @@ export const latestPublishedAt = sql`coalesce(
  */
 export function catalogQualityBase(): SQL {
   return sql`(
-    case when ${marketplaceTargetEligibility} then 15 else 0 end
+    case when ${installReadySql} then 15 else 0 end
     + case when p.verification_status = 'verified' then 5 else 0 end
     + case when p.repository_url is not null and trim(p.repository_url) != '' then 4 else 0 end
     + case when p.dshx_detected = 1 then 3 else 0 end

@@ -217,19 +217,12 @@ export const pluginObservationBaseSchema = z
         installTargets: z
           .array(installTargetSchema)
           .max(100)
+          // Spec safety is decided by the server, which owns the install
+          // target policy; the CLI only rejects a payload that is ambiguous
+          // on the wire.
           .superRefine((targets, context) => {
             const seen = new Set<string>();
             targets.forEach((target, index) => {
-              if (
-                /[\u0000-\u0020\u007f]/u.test(target.spec) ||
-                target.spec.startsWith("-")
-              )
-                context.addIssue({
-                  code: "custom",
-                  path: [index, "spec"],
-                  message:
-                    "install target spec contains a command-injection structure",
-                });
               const key = `${target.kind}\0${target.spec}\0${target.packagePath ?? ""}`;
               if (seen.has(key))
                 context.addIssue({

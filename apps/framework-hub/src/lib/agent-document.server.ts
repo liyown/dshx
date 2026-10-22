@@ -8,7 +8,7 @@ import { DOC_CHAPTERS, getDocsChapter, getDocsNavigation, isDocsSlug } from "./d
 import type { DocsBlock } from "./docs";
 import { createTranslator, isLocale, type Locale } from "./i18n";
 import { aboutCopy, examples, isLegalDocument, legalDocuments } from "./public-content";
-import { buildPluginInstallCommand, selectInstallTarget } from "./catalog/install-target";
+import { buildPluginInstallCommand, selectInstallTarget } from "./catalog/install-target/public";
 import {
   estimateMarkdownTokens,
   renderAgentDocument,

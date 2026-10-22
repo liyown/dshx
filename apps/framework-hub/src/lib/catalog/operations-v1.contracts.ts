@@ -1,5 +1,23 @@
 import { z } from "zod";
 
+import { assessObservationTargets, type InstallTargetRejection } from "./install-target/policy";
+
+function installTargetIssueMessage(reason: InstallTargetRejection): string {
+  switch (reason) {
+    case "unsafe-character":
+    case "unsafe-ref":
+      return "install target spec contains a command-injection structure";
+    case "duplicate-target":
+      return "install target kind, spec, and packagePath must be unique within one observation";
+    case "package-mismatch":
+      return "install target packageName must match the package fact";
+    case "repository-mismatch":
+      return "GitHub install target spec must match the identity repository";
+    default:
+      return "install target spec is not a supported npm or GitHub reference";
+  }
+}
+
 const boundedUrl = z
   .string()
   .url()
@@ -12,11 +30,6 @@ const isoDateTime = z.string().datetime({ offset: true });
 const dateOrDateTime = z.union([z.string().date(), isoDateTime]);
 const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/);
 const optionalText = (max: number) => z.string().trim().min(1).max(max).optional();
-const hasUnsafeInstallSpecCharacter = (value: string) =>
-  Array.from(value).some((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 32 || code === 127;
-  });
 const hasUnsupportedReportControl = (value: string) =>
   Array.from(value).some((character) => {
     const code = character.charCodeAt(0);
@@ -208,74 +221,40 @@ export const pluginObservationV1Schema = z
   .strict()
   .superRefine((observation, context) => {
     const installTargets = observation.facts?.installTargets ?? [];
-    const targetKeys = installTargets.map(
-      (target) => `${target.kind}\u0000${target.spec}\u0000${target.packagePath ?? ""}`,
+    const expectedPackageName =
+      observation.facts?.package?.name ??
+      (observation.identity.kind === "npm" ? observation.identity.packageName : undefined);
+    const expectedRepositoryFullName =
+      observation.identity.kind === "github" ? observation.identity.fullName : undefined;
+    const issues = assessObservationTargets(
+      installTargets.map((target) => ({
+        kind: target.kind,
+        spec: target.spec,
+        packageName: target.packageName ?? null,
+        version: target.version ?? null,
+        packagePath: target.packagePath ?? null,
+        primary: target.primary === true,
+        available: target.available !== false,
+      })),
+      { packageName: expectedPackageName, repositoryFullName: expectedRepositoryFullName },
     );
-    if (new Set(targetKeys).size !== targetKeys.length)
-      context.addIssue({
-        code: "custom",
-        path: ["facts", "installTargets"],
-        message: "install target kind, spec, and packagePath must be unique within one observation",
-      });
-    if (installTargets.filter((target) => target.primary === true).length > 1)
-      context.addIssue({
-        code: "custom",
-        path: ["facts", "installTargets"],
-        message: "an observation may declare at most one primary install target",
-      });
-    for (let index = 0; index < installTargets.length; index += 1) {
-      const target = installTargets[index]!;
-      if (hasUnsafeInstallSpecCharacter(target.spec) || target.spec.startsWith("-"))
+    for (const issue of issues) {
+      if (issue.index < 0) {
         context.addIssue({
           code: "custom",
-          path: ["facts", "installTargets", index, "spec"],
-          message: "install target spec contains a command-injection structure",
+          path: ["facts", "installTargets"],
+          message: "an observation may declare at most one primary install target",
         });
-      const factPackageName = observation.facts?.package?.name;
-      if (target.packageName && factPackageName && target.packageName !== factPackageName)
-        context.addIssue({
-          code: "custom",
-          path: ["facts", "installTargets", index, "packageName"],
-          message: "install target packageName must match the package fact",
-        });
-      if (target.kind === "npm") {
-        const packageName =
-          target.packageName ??
-          factPackageName ??
-          (observation.identity.kind === "npm" ? observation.identity.packageName : undefined);
-        if (
-          observation.identity.kind === "npm" &&
-          target.packageName &&
-          target.packageName !== observation.identity.packageName
-        )
-          context.addIssue({
-            code: "custom",
-            path: ["facts", "installTargets", index, "packageName"],
-            message: "npm install target packageName must match the npm identity",
-          });
-        if (
-          packageName &&
-          target.spec !== packageName &&
-          !target.spec.startsWith(`${packageName}@`)
-        )
-          context.addIssue({
-            code: "custom",
-            path: ["facts", "installTargets", index, "spec"],
-            message: "npm install target spec must reference packageName",
-          });
+        continue;
       }
-      if (target.kind === "github" && observation.identity.kind === "github") {
-        if (
-          !target.spec
-            .toLowerCase()
-            .startsWith(`github:${observation.identity.fullName.toLowerCase()}#`)
-        )
-          context.addIssue({
-            code: "custom",
-            path: ["facts", "installTargets", index, "spec"],
-            message: "GitHub install target spec must match the identity repository",
-          });
-      }
+      context.addIssue({
+        code: "custom",
+        path:
+          issue.reason === "duplicate-target" || issue.reason === "package-mismatch"
+            ? ["facts", "installTargets", issue.index, "packageName"]
+            : ["facts", "installTargets", issue.index, "spec"],
+        message: installTargetIssueMessage(issue.reason),
+      });
     }
     if (
       observation.identity.kind === "npm" &&

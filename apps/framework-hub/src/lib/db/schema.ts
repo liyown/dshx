@@ -694,6 +694,19 @@ export const pluginScores = sqliteTable(
   ],
 );
 
+/**
+ * Whether a published plugin currently has one install target the public page
+ * may render. Kept separate from `plugin_scores` because installability is not
+ * a ranking signal and because this table has exactly one writer.
+ */
+export const pluginReadiness = sqliteTable("plugin_readiness", {
+  pluginId: text("plugin_id")
+    .primaryKey()
+    .references(() => plugins.id, { onDelete: "cascade" }),
+  installReady: integer("install_ready").notNull().default(0),
+  computedAt: integer("computed_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 export const pluginMetricDaily = sqliteTable(
   "plugin_metric_daily",
   {
