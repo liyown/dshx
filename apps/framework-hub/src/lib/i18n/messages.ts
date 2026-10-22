@@ -209,6 +209,8 @@ const en = {
   "plugin.curatedOverviewDescription":
     "A bilingual explanation maintained by the operations Agent from the cited source material.",
   "plugin.originalReadme": "Original README",
+  "plugin.originalReadmeNote":
+    "Rendered as Markdown from the collected source file; raw HTML and non-HTTPS images are omitted. External links open in a new tab.",
   "plugin.openReadme": "Open source README",
   "plugin.readmeNotCollected": "This plugin has not been refreshed with README collection yet.",
   "plugin.readmeUnavailable": "The source did not expose a README when it was last inspected.",
@@ -475,6 +477,8 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     "plugin.curatedOverviewDescription":
       "运营 Agent 根据引用的公开来源维护，并随 README 变化重新整理。",
     "plugin.originalReadme": "原始 README",
+    "plugin.originalReadmeNote":
+      "按采集到的源文件以 Markdown 渲染；原始 HTML 与非 HTTPS 图片会被略过，外部链接在新的标签页打开。",
     "plugin.openReadme": "打开来源 README",
     "plugin.readmeNotCollected": "该插件尚未经过包含 README 采集的新运营流程。",
     "plugin.readmeUnavailable": "最近一次检查时，公开来源未提供 README。",

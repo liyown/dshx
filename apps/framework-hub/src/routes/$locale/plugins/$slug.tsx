@@ -6,6 +6,7 @@ import { Container, Chip, ButtonLink, SectionLabel } from "@/components/dshx/pri
 import { PluginCommunityActions } from "@/components/community/plugin-actions";
 import { ReplyDialog, ReportDialog } from "@/components/community/community-dialogs";
 import { PluginGlyph, PublisherIdentity } from "@/components/dshx/plugin-card";
+import { PluginMarkdown } from "@/components/dshx/plugin-markdown";
 import { PluginNavigationLink, pluginTransitionStyle } from "@/components/dshx/plugin-navigation";
 import { useContentMotion } from "@/components/dshx/use-content-motion";
 import { useSpringIndicator } from "@/components/dshx/use-spring-indicator";
@@ -243,30 +244,33 @@ function PluginDetail() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 md:flex-nowrap md:justify-end">
             {install ? (
               <button
                 type="button"
+                title={install}
                 onClick={() => {
                   void navigator.clipboard?.writeText(install);
                   setCopied(true);
                   setTimeout(() => setCopied(false), 1600);
                 }}
-                className="inline-flex h-10 items-center gap-3 rounded-[10px] border border-ink-border bg-ink px-3.5 font-mono text-[12.5px] text-ink-foreground transition-colors hover:border-ink-accent/60"
+                className="inline-flex h-10 min-w-0 max-w-full items-center gap-2.5 rounded-[10px] border border-ink-border bg-ink px-3.5 font-mono text-[12.5px] text-ink-foreground transition-colors hover:border-ink-accent/60"
               >
-                <span className="text-ink-accent">$</span>
-                {install}
-                <span className={cn("text-[11px]", copied ? "text-ok" : "text-ink-muted")}>
+                <span aria-hidden="true" className="shrink-0 text-ink-accent">
+                  $
+                </span>
+                <span className="min-w-0 truncate">{install}</span>
+                <span className={cn("shrink-0 text-[11px]", copied ? "text-ok" : "text-ink-muted")}>
                   {copied ? t("plugin.copied") : t("plugin.copy")}
                 </span>
               </button>
             ) : (
-              <span className="inline-flex h-10 items-center rounded-[10px] border border-border px-3.5 font-mono text-[12px] text-muted-foreground">
+              <span className="inline-flex h-10 min-w-0 items-center rounded-[10px] border border-border px-3.5 font-mono text-[12px] text-muted-foreground">
                 {t("plugin.installUnavailable")}
               </span>
             )}
             {repositoryUrl ? (
-              <ButtonLink href={repositoryUrl.href} variant="outline">
+              <ButtonLink href={repositoryUrl.href} variant="outline" className="shrink-0">
                 {t("plugin.openGithub")}
               </ButtonLink>
             ) : null}
@@ -417,12 +421,9 @@ function OverviewPanel({
             {locale}
           </span>
         </div>
-        <div
-          dir="auto"
-          className="mt-5 max-w-[75ch] whitespace-pre-wrap text-[15px] leading-7 text-muted-foreground"
-        >
+        <PluginMarkdown className="mt-5">
           {detail.overviewMarkdown ?? detail.plugin.description}
-        </div>
+        </PluginMarkdown>
       </section>
       <section>
         <h2 className="text-base font-medium">
@@ -433,12 +434,12 @@ function OverviewPanel({
             (target: { kind: string; spec: string; status: string; is_primary: number }) => (
               <div
                 key={`${target.kind}:${target.spec}`}
-                className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
               >
-                <code className="font-mono text-xs text-ink-foreground">
+                <code className="min-w-0 font-mono text-xs break-words text-ink-foreground">
                   {buildPluginInstallCommand(target.spec)}
                 </code>
-                <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
+                <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
                   {target.kind} · {target.status}
                   {target.is_primary === 1 ? " · primary" : ""}
                 </span>
@@ -452,9 +453,7 @@ function OverviewPanel({
           <h2 className="text-base font-medium">
             {locale === "zh" ? "安装说明" : "Install notes"}
           </h2>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-            {detail.installNotesMarkdown}
-          </p>
+          <PluginMarkdown className="mt-3">{detail.installNotesMarkdown}</PluginMarkdown>
         </section>
       ) : null}
       {detail.capabilities.length ? (
@@ -525,12 +524,12 @@ function ReadmePanel({
           </a>
         ) : null}
       </div>
-      <pre
-        dir="auto"
-        className="mt-6 max-w-[75ch] whitespace-pre-wrap break-words font-mono text-[12.5px] leading-6 text-muted-foreground"
-      >
+      <p className="mt-4 max-w-[75ch] text-[12.5px] leading-6 text-muted-foreground">
+        {t("plugin.originalReadmeNote")}
+      </p>
+      <PluginMarkdown anchors className="mt-4">
         {content}
-      </pre>
+      </PluginMarkdown>
       {truncated ? (
         <p className="mt-4 text-[12.5px] leading-6 text-muted-foreground">
           {locale === "zh"

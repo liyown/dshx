@@ -100,17 +100,29 @@ describe("public catalog surfaces", () => {
     expect(markdown).not.toContain("rehype-raw");
   });
 
-  it("separates localized curation from the escaped original README", () => {
+  it("renders the curated overview and the source README as safe Markdown", () => {
     const detail = readFileSync(
       new URL("../../routes/$locale/plugins/$slug.tsx", import.meta.url),
+      "utf8",
+    );
+    const markdown = readFileSync(
+      new URL("../../components/dshx/plugin-markdown.tsx", import.meta.url),
       "utf8",
     );
     expect(detail).toContain('section === "readme"');
     expect(detail).toContain("hidden={active !== section}");
     expect(detail).toContain("detail.sourceReadme");
+    expect(detail).toContain("detail.overviewMarkdown");
     expect(detail).toContain("plugin.curatedOverview");
-    expect(detail).toContain("<pre");
+    expect(detail).toContain("<PluginMarkdown");
     expect(detail).toContain('timeZone: "UTC"');
-    expect(detail).not.toMatch(/dangerouslySetInnerHTML|ReactMarkdown|marked\(/);
+    expect(detail).not.toMatch(/dangerouslySetInnerHTML|marked\(/);
+    // The source README is untrusted third-party text: Markdown only, never
+    // raw HTML, and images restricted to HTTPS.
+    expect(markdown).toContain("ReactMarkdown");
+    expect(markdown).toContain("remarkGfm");
+    expect(markdown).not.toContain("rehype-raw");
+    expect(markdown).not.toContain("dangerouslySetInnerHTML");
+    expect(markdown).toMatch(/safeImageSource\s*=\s*\/\^https:/u);
   });
 });
