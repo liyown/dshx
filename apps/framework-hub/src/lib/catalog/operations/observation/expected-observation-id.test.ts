@@ -1,7 +1,6 @@
 import { pluginObservationV1Schema } from "@becomeopc/dshx-hub-contracts";
 import { describe, expect, it } from "vitest";
 
-
 import { expectedObservationId } from "../index";
 
 /**

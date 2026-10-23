@@ -92,7 +92,9 @@ export function MarkdownReport({ children, className }: { children: string; clas
 const textComponents: Components = {
   ...components,
   p: ({ children }) => (
-    <p className="text-[15px] leading-8 text-muted-foreground [overflow-wrap:anywhere]">{children}</p>
+    <p className="text-[15px] leading-8 text-muted-foreground [overflow-wrap:anywhere]">
+      {children}
+    </p>
   ),
   table: ({ children }) => (
     <div className="mt-2 overflow-x-auto">
