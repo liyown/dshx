@@ -37,7 +37,16 @@ pnpm dev
 
 # Build and preview the Worker with its local D1 binding
 pnpm cf:preview
+
+# Unit tests plus every integration suite, in parallel
+pnpm test
 ```
+
+Integration suites do not read the database `pnpm dev` uses. `pnpm test` first
+applies `drizzle/` to `.wrangler/test-template`, and each suite copies that
+migration-only template into `.wrangler/test-state/<file>` before booting
+Miniflare, so files can run at the same time and one suite never sees another's
+rows. Run `pnpm db:migrate:test` on its own when a new migration lands.
 
 `GET /api/health` performs a real `select 1` through Drizzle and returns `503`
 when the `DB` binding is absent or unreachable. Public catalog pages and

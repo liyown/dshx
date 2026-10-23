@@ -1,17 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getPlatformProxy } from "wrangler";
 
+import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
 import { createAuth } from "./auth.server";
 
 describe("Better Auth account adapter with local D1", () => {
-  let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
+  let proxy: LocalD1Proxy;
 
   beforeAll(async () => {
-    proxy = await getPlatformProxy<Env>({
-      configPath: "wrangler.jsonc",
-      persist: true,
-      remoteBindings: false,
-    });
+    ({ proxy } = await startLocalD1(import.meta.url));
   });
 
   afterAll(async () => proxy.dispose());

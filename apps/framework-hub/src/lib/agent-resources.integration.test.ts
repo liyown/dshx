@@ -1,10 +1,9 @@
-import { inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getPlatformProxy } from "wrangler";
 
+import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
 import { sha256 } from "@/lib/auth/tokens.server";
-import { createDatabase, type Database } from "@/lib/db/client";
-import { agentResources, apiTokens, authUsers, userProfiles } from "@/lib/db/schema";
+import type { Database } from "@/lib/db/client";
+import { apiTokens, authUsers, userProfiles } from "@/lib/db/schema";
 import {
   AGENT_RESOURCE_DEFINITIONS,
   clearAgentResource,
@@ -27,37 +26,22 @@ function base64(bytes: Uint8Array): string {
 }
 
 describe("agent resources and authenticated bundle", () => {
-  let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
+  let proxy: LocalD1Proxy;
   let db: Database;
   let context: unknown;
   const key = crypto.getRandomValues(new Uint8Array(32));
-  const userIds: string[] = [];
 
   beforeAll(async () => {
-    proxy = await getPlatformProxy<Env>({
-      configPath: "wrangler.jsonc",
-      persist: true,
-      remoteBindings: false,
-    });
-    db = createDatabase(proxy.env.DB);
+    ({ proxy, db } = await startLocalD1(import.meta.url));
     context = {
       cloudflare: { ...proxy.env, AGENT_RESOURCE_KEY: base64(key) },
     };
   });
 
-  afterAll(async () => {
-    await db.delete(agentResources);
-    if (userIds.length) {
-      await db.delete(apiTokens).where(inArray(apiTokens.userId, userIds));
-      await db.delete(userProfiles).where(inArray(userProfiles.userId, userIds));
-      await db.delete(authUsers).where(inArray(authUsers.id, userIds));
-    }
-    await proxy.dispose();
-  });
+  afterAll(async () => proxy.dispose());
 
   async function user(role: "admin" | "operator") {
     const id = crypto.randomUUID();
-    userIds.push(id);
     await db.insert(authUsers).values({ id, name: role, email: `${id}@example.test` });
     await db.insert(userProfiles).values({
       userId: id,

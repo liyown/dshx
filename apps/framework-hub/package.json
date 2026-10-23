@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite dev",
     "pretest": "pnpm run --silent hub-contracts",
-    "test": "pnpm db:migrate:local && vitest run --no-file-parallelism",
+    "test": "pnpm db:migrate:test && vitest run",
     "pretypecheck": "pnpm run --silent hub-contracts",
     "typecheck": "tsc --noEmit",
     "prebuild": "pnpm run --silent hub-contracts",
@@ -22,6 +22,7 @@
     "deploy:worker": "wrangler deploy",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply dshx-framework-hub --local",
+    "db:migrate:test": "wrangler d1 migrations apply dshx-framework-hub --local --persist-to .wrangler/test-template",
     "db:migrate:preview": "wrangler d1 migrations apply dshx-framework-hub --local --config wrangler.jsonc --persist-to .wrangler/preview-state",
     "db:seed:preview": "wrangler d1 execute dshx-framework-hub --local --config wrangler.jsonc --persist-to .wrangler/preview-state --file seed/dev.sql",
     "db:migrate:remote": "wrangler d1 migrations apply dshx-framework-hub --remote",

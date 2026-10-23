@@ -1,7 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getPlatformProxy } from "wrangler";
 
+import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
 import { sha256 } from "@/lib/auth/tokens.server";
 import {
   createBlogPost,
@@ -9,11 +9,10 @@ import {
   listBlogPosts,
   updateBlogPost,
 } from "@/lib/blog.repository.server";
-import { createDatabase, type Database } from "@/lib/db/client";
+import type { Database } from "@/lib/db/client";
 import {
   apiTokens,
   authUsers,
-  blogPosts,
   categories,
   categoryLocalizations,
   plugins,
@@ -36,16 +35,11 @@ type Handler = (input: {
 }) => Promise<Response>;
 
 describe("blog and featured editorial data with local D1", () => {
-  let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
+  let proxy: LocalD1Proxy;
   let db: Database;
-  const postSlugs: string[] = [];
-  const pluginIds: string[] = [];
-  const categoryIds: string[] = [];
-  const users: string[] = [];
 
   function fixture(relatedPluginSlugs: string[] = []) {
     const slug = `test-blog-${crypto.randomUUID()}`;
-    postSlugs.push(slug);
     return blogInput(slug, relatedPluginSlugs);
   }
 
@@ -53,7 +47,6 @@ describe("blog and featured editorial data with local D1", () => {
     const suffix = crypto.randomUUID().replaceAll("-", "").slice(0, 10);
     const id = `blog-plugin-${label}-${suffix}`;
     const slug = `blog-plugin-${label}-${suffix}`;
-    pluginIds.push(id);
     await db.insert(plugins).values({
       id,
       slug,
@@ -75,7 +68,6 @@ describe("blog and featured editorial data with local D1", () => {
     const suffix = crypto.randomUUID().replaceAll("-", "").slice(0, 10);
     const id = `blog-category-${suffix}`;
     const slug = `blog-category-${suffix}`;
-    categoryIds.push(id);
     await db.insert(categories).values({ id, slug, sortOrder: 999 });
     await db.insert(categoryLocalizations).values([
       { categoryId: id, locale: "en", name: `Fixture ${label(suffix)}` },
@@ -89,21 +81,10 @@ describe("blog and featured editorial data with local D1", () => {
   }
 
   beforeAll(async () => {
-    proxy = await getPlatformProxy<Env>({
-      configPath: "wrangler.jsonc",
-      persist: true,
-      remoteBindings: false,
-    });
-    db = createDatabase(proxy.env.DB);
+    ({ proxy, db } = await startLocalD1(import.meta.url));
   });
 
-  afterAll(async () => {
-    if (postSlugs.length) await db.delete(blogPosts).where(inArray(blogPosts.slug, postSlugs));
-    if (categoryIds.length) await db.delete(categories).where(inArray(categories.id, categoryIds));
-    if (pluginIds.length) await db.delete(plugins).where(inArray(plugins.id, pluginIds));
-    if (users.length) await db.delete(authUsers).where(inArray(authUsers.id, users));
-    await proxy.dispose();
-  });
+  afterAll(async () => proxy.dispose());
 
   it("keeps drafts out of public reads, publishes immediately, and links related plugins", async () => {
     const plugin = await insertPlugin("lifecycle");
@@ -191,7 +172,6 @@ describe("blog and featured editorial data with local D1", () => {
       expect(response.status).toBe(401);
     }
     const userId = crypto.randomUUID();
-    users.push(userId);
     await db
       .insert(authUsers)
       .values({ id: userId, name: "Blog operator", email: `${userId}@example.test` });

@@ -2,7 +2,7 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig(({ mode, isPreview }) => ({
   envPrefix: ["VITE_", "GOOGLE_SITE_VERIFICATION", "BING_SITE_VERIFICATION"],
@@ -27,4 +27,29 @@ export default defineConfig(({ mode, isPreview }) => ({
     tailwindcss(),
     react(),
   ],
+  test: {
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          include: ["src/**/*.test.{ts,tsx}"],
+          exclude: ["**/*.integration.test.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "integration",
+          include: ["src/**/*.integration.test.ts"],
+          // Each suite boots Miniflare and migrates nothing — it copies a
+          // migrated template — but the first query on a cold database still
+          // takes seconds under load. The default 5s turned that into a flake;
+          // a real hang still surfaces long before anyone waits for it.
+          testTimeout: 30_000,
+          hookTimeout: 30_000,
+        },
+      },
+    ],
+  },
 }));

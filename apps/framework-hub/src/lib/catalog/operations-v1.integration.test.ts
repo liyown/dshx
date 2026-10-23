@@ -5,8 +5,8 @@ import {
 } from "@becomeopc/dshx-hub-contracts";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getPlatformProxy } from "wrangler";
 
+import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
 import { createDatabase, type Database } from "@/lib/db/client";
 import {
   apiTokens,
@@ -69,7 +69,7 @@ function curation(label: string, category: string): PluginCurationContent {
 }
 
 describe("operations v1 atomic catalog model with local D1", () => {
-  let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
+  let proxy: LocalD1Proxy;
   let binding: D1Database;
   let db: Database;
   let actorUserId: string;
@@ -77,13 +77,8 @@ describe("operations v1 atomic catalog model with local D1", () => {
   let categorySlug: string;
 
   beforeAll(async () => {
-    proxy = await getPlatformProxy<Env>({
-      configPath: "wrangler.jsonc",
-      persist: true,
-      remoteBindings: false,
-    });
+    ({ proxy, db } = await startLocalD1(import.meta.url));
     binding = proxy.env.DB;
-    db = createDatabase(binding);
     const actorId = crypto.randomUUID();
     actorUserId = actorId;
     actorTokenId = crypto.randomUUID();

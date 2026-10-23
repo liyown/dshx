@@ -1,8 +1,8 @@
-import { inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getPlatformProxy } from "wrangler";
-import { createDatabase, type Database } from "@/lib/db/client";
-import { apiTokens, authUsers, changelogEntries, userProfiles } from "@/lib/db/schema";
+
+import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
+import type { Database } from "@/lib/db/client";
+import { apiTokens, authUsers, userProfiles } from "@/lib/db/schema";
 import { sha256 } from "@/lib/auth/tokens.server";
 import {
   createChangelog,
@@ -22,29 +22,16 @@ type Handler = (input: {
 }) => Promise<Response>;
 
 describe("changelog lifecycle with local D1", () => {
-  let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
+  let proxy: LocalD1Proxy;
   let db: Database;
-  const slugs: string[] = [];
-  const users: string[] = [];
   function fixture() {
     const slug = `test-changelog-${crypto.randomUUID()}`;
-    slugs.push(slug);
     return changelogInput(slug);
   }
   beforeAll(async () => {
-    proxy = await getPlatformProxy<Env>({
-      configPath: "wrangler.jsonc",
-      persist: true,
-      remoteBindings: false,
-    });
-    db = createDatabase(proxy.env.DB);
+    ({ proxy, db } = await startLocalD1(import.meta.url));
   });
-  afterAll(async () => {
-    if (slugs.length)
-      await db.delete(changelogEntries).where(inArray(changelogEntries.slug, slugs));
-    if (users.length) await db.delete(authUsers).where(inArray(authUsers.id, users));
-    await proxy.dispose();
-  });
+  afterAll(async () => proxy.dispose());
 
   it("persists drafts, publishes and edits without rebuilding, and withdraws from public reads and sitemap", async () => {
     const input = fixture();
@@ -126,7 +113,6 @@ describe("changelog lifecycle with local D1", () => {
       expect(response.status).toBe(401);
     }
     const userId = crypto.randomUUID();
-    users.push(userId);
     await db
       .insert(authUsers)
       .values({ id: userId, name: "Changelog operator", email: `${userId}@example.test` });

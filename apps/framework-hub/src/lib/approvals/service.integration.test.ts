@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getPlatformProxy } from "wrangler";
 
 import {
   claimAgentEffect,
@@ -10,21 +9,18 @@ import {
   retryApprovedEffect,
   reviseApproval,
 } from "./service.server";
+
+import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
 import { approvalCreateSchema } from "./contracts";
 import { createDatabase, type Database } from "@/lib/db/client";
 import { apiTokens, authUsers, userProfiles } from "@/lib/db/schema";
 
 describe("approval ledger and registered effects with local D1", () => {
-  let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
+  let proxy: LocalD1Proxy;
   let db: Database;
 
   beforeAll(async () => {
-    proxy = await getPlatformProxy<Env>({
-      configPath: "wrangler.jsonc",
-      persist: true,
-      remoteBindings: false,
-    });
-    db = createDatabase(proxy.env.DB);
+    ({ proxy, db } = await startLocalD1(import.meta.url));
   });
 
   afterAll(async () => proxy.dispose());

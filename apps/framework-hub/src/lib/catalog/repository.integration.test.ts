@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getPlatformProxy } from "wrangler";
 
-import { createDatabase, type Database } from "@/lib/db/client";
+import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
+import type { Database } from "@/lib/db/client";
 import {
   categories,
   categoryLocalizations,
@@ -179,16 +179,11 @@ async function collectMarketplaceSlugs(
 }
 
 describe("public catalog repository loaders", () => {
-  let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
+  let proxy: LocalD1Proxy;
   let db: Database;
 
   beforeAll(async () => {
-    proxy = await getPlatformProxy<Env>({
-      configPath: "wrangler.jsonc",
-      persist: true,
-      remoteBindings: false,
-    });
-    db = createDatabase(proxy.env.DB);
+    ({ proxy, db } = await startLocalD1(import.meta.url));
   });
 
   afterAll(async () => {

@@ -1,21 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getPlatformProxy } from "wrangler";
 
+import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
 import { exchangeCliToken, pkceChallenge, revokeToken } from "./cli.server";
 import { randomToken, requireApiToken, sha256 } from "./tokens.server";
-import { createDatabase, type Database } from "@/lib/db/client";
+import type { Database } from "@/lib/db/client";
 import { authUsers, cliAuthorizations, userProfiles } from "@/lib/db/schema";
 
 describe("revocable CLI tokens with local D1", () => {
-  let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
+  let proxy: LocalD1Proxy;
   let db: Database;
   beforeAll(async () => {
-    proxy = await getPlatformProxy<Env>({
-      configPath: "wrangler.jsonc",
-      persist: true,
-      remoteBindings: false,
-    });
-    db = createDatabase(proxy.env.DB);
+    ({ proxy, db } = await startLocalD1(import.meta.url));
   });
   afterAll(async () => proxy.dispose());
 

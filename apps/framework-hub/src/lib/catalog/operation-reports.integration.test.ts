@@ -1,10 +1,10 @@
 import { operationReportInputSchema } from "@becomeopc/dshx-hub-contracts";
 import { sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { getPlatformProxy } from "wrangler";
 
+import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
 import { Route as ProtectedReportsRoute } from "@/routes/api/ops/v1/reports/index";
-import { createDatabase, type Database } from "@/lib/db/client";
+import type { Database } from "@/lib/db/client";
 import { listIndexableSitemapLocales } from "@/lib/sitemap.repository.server";
 
 import {
@@ -32,19 +32,14 @@ function report(overrides: Record<string, unknown> = {}) {
 }
 
 describe("immutable Hub operations reports with local D1", () => {
-  let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
+  let proxy: LocalD1Proxy;
   let binding: D1Database;
   let db: Database;
   const createdPluginIds: string[] = [];
 
   beforeAll(async () => {
-    proxy = await getPlatformProxy<Env>({
-      configPath: "wrangler.jsonc",
-      persist: true,
-      remoteBindings: false,
-    });
+    ({ proxy, db } = await startLocalD1(import.meta.url));
     binding = proxy.env.DB;
-    db = createDatabase(binding);
   });
 
   beforeEach(async () => {

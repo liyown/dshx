@@ -1,22 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getPlatformProxy } from "wrangler";
 
+import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
 import { anonymousSubmissionKey, createSubmission } from "./marketplace.server";
-import { createDatabase, type Database } from "@/lib/db/client";
+import type { Database } from "@/lib/db/client";
 
 describe("account-free plugin submissions with local D1", () => {
-  let proxy: Awaited<ReturnType<typeof getPlatformProxy<Env>>>;
+  let proxy: LocalD1Proxy;
   let binding: D1Database;
   let db: Database;
 
   beforeAll(async () => {
-    proxy = await getPlatformProxy<Env>({
-      configPath: "wrangler.jsonc",
-      persist: true,
-      remoteBindings: false,
-    });
+    ({ proxy, db } = await startLocalD1(import.meta.url));
     binding = proxy.env.DB;
-    db = createDatabase(binding);
   });
 
   afterAll(async () => proxy.dispose());
