@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { operationReportDayKey } from "./operation-report-day";
 import {
   formatOperationReportDate,
   formatOperationReportDayKey,
   isOperationReportIndexable,
   isOperationReportMerged,
-  operationReportDayKey,
   operationReportDescription,
   operationReportExcerpt,
   operationReportPlainText,

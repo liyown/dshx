@@ -1,6 +1,6 @@
 import { intlLocale, type Locale } from "@/lib/i18n";
 
-export const OPERATIONS_TIME_ZONE = "Asia/Shanghai";
+import { OPERATIONS_TIME_ZONE } from "./operation-report-day";
 
 // Reports below this length are mostly blocked or skipped-run notes. They stay
 // public and linkable, but are kept out of the index and the sitemap so the
@@ -15,21 +15,6 @@ export const OPERATION_REPORT_EARLIER_LIMIT = 20;
 // with this comment, so the Hub can show it as the complete daily document
 // instead of displaying the earlier runs again.
 export const OPERATION_REPORT_MERGE_MARKER = "<!-- daily-report:merged -->";
-
-const dayKeyFormatter = new Intl.DateTimeFormat("en-CA", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  timeZone: OPERATIONS_TIME_ZONE,
-});
-
-/** The public daily report key, e.g. 2026-10-21, in Asia/Shanghai. */
-export function operationReportDayKey(value: string | number) {
-  const parts = dayKeyFormatter.formatToParts(new Date(value));
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((entry) => entry.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
 
 export function isOperationReportMerged(body: string) {
   return body.includes(OPERATION_REPORT_MERGE_MARKER);

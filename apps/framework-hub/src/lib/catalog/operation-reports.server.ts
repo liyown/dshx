@@ -1,5 +1,6 @@
 import { decodeCursor, encodeCursor } from "./cursor";
 import { digest } from "./digest";
+import { OPERATION_REPORT_DAY_SQL } from "./operation-report-day";
 import { OperationHttpError, requireCursor } from "./operations-v1.http";
 import type { Database } from "@/lib/db/client";
 import { runDrizzleBatch } from "@/lib/db/batch";
@@ -158,9 +159,9 @@ export async function listPublicOperationReports(
     parameterizedSql(
       `with ranked as (
         select run_id,started_at,completed_at,outcome,body_en,body_zh,
-          date(completed_at/1000,'unixepoch','+8 hours') day,
+          ${OPERATION_REPORT_DAY_SQL} day,
           row_number() over (
-            partition by date(completed_at/1000,'unixepoch','+8 hours')
+            partition by ${OPERATION_REPORT_DAY_SQL}
             order by completed_at desc,run_id desc
           ) rn
         from hub_operation_reports

@@ -225,6 +225,16 @@ describe("Framework Hub architecture boundaries", () => {
     ).toEqual([]);
   });
 
+  it("keeps the operations report day boundary in one module", async () => {
+    const files = await sourceFiles();
+    expect(
+      violations(
+        files,
+        ({ path, text }) => path !== "lib/catalog/operation-report-day.ts" && /\+8 hours/u.test(text),
+      ),
+    ).toEqual([]);
+  });
+
   it("keeps the plugin row lookup in the operations store", async () => {
     const files = await sourceFiles();
     expect(

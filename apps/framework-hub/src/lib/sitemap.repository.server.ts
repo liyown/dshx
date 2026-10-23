@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 
+import { operationReportDaySql } from "@/lib/catalog/operation-report-day";
 import {
   OPERATION_REPORT_EARLIER_LIMIT,
   OPERATION_REPORT_INDEX_MIN_CHARS,
@@ -94,13 +95,13 @@ function operationReportRows(value?: string) {
   // decides. The earlier list is capped in the page UI.
   return sql`
     with ranked as (
-      select date(completed_at/1000,'unixepoch','+8 hours') day,
+      select ${operationReportDaySql} day,
         completed_at,
         run_id,
         body_en,
         body_zh,
         row_number() over (
-          partition by date(completed_at/1000,'unixepoch','+8 hours')
+          partition by ${operationReportDaySql}
           order by completed_at desc,run_id desc
         ) rn
       from hub_operation_reports

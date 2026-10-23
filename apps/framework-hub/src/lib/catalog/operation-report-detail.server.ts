@@ -3,6 +3,7 @@ import type { CatalogCard } from "@/lib/catalog/types";
 import type { Database } from "@/lib/db/client";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
 
+import { OPERATION_REPORT_DAY_SQL } from "./operation-report-day";
 import { OPERATION_REPORT_EARLIER_LIMIT, isOperationReportMerged } from "./operation-report-view";
 
 // The CLI keeps run checkpoints locally, so the Hub only learns a runId when
@@ -115,9 +116,9 @@ async function neighborDay(binding: Database, day: string, direction: "newer" | 
   const ordering = direction === "newer" ? "asc" : "desc";
   const row = await binding.get<{ day: string }>(
     parameterizedSql(
-      `select distinct date(completed_at/1000,'unixepoch','+8 hours') day
+      `select distinct ${OPERATION_REPORT_DAY_SQL} day
        from hub_operation_reports
-       where date(completed_at/1000,'unixepoch','+8 hours') ${comparison} ?
+       where ${OPERATION_REPORT_DAY_SQL} ${comparison} ?
        order by day ${ordering} limit 1`,
       [day],
     ),
@@ -128,7 +129,7 @@ async function neighborDay(binding: Database, day: string, direction: "newer" | 
 export async function getOperationReportDayForRun(binding: Database, runId: string) {
   const row = await binding.get<{ day: string }>(
     parameterizedSql(
-      `select date(completed_at/1000,'unixepoch','+8 hours') day
+      `select ${OPERATION_REPORT_DAY_SQL} day
        from hub_operation_reports where run_id=?`,
       [runId],
     ),
@@ -145,7 +146,7 @@ export async function getPublicOperationReportDay(
     parameterizedSql(
       `select run_id,started_at,completed_at,outcome,body_en,body_zh,actor_token_id,created_at
        from hub_operation_reports
-       where date(completed_at/1000,'unixepoch','+8 hours')=?
+       where ${OPERATION_REPORT_DAY_SQL}=?
        order by completed_at asc,run_id asc`,
       [day],
     ),
