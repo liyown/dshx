@@ -1,48 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
-
-import { requireApiToken } from "@/lib/auth/tokens.server";
-import {
-  operationFailure,
-  operationSuccess,
-  parseOperationInput,
-} from "@/lib/catalog/operations-v1.http";
-import { listOpsSubmissions } from "@/lib/catalog/operations";
-import { requireDatabase } from "@/lib/db/client";
 import { submissionListQuerySchema } from "@becomeopc/dshx-hub-contracts";
 
-function statuses(params: URLSearchParams) {
-  const values = [
-    ...new Set(
-      params
-        .getAll("status")
-        .flatMap((value) => value.split(","))
-        .map((value) => value.trim())
-        .filter(Boolean),
-    ),
-  ];
-  return values.length ? values : undefined;
-}
+import { listQuery, tokenRoute } from "@/lib/api/route";
+import { listOpsSubmissions } from "@/lib/catalog/operations";
 
 export const Route = createFileRoute("/api/ops/v1/submissions/")({
   server: {
     handlers: {
-      GET: async ({ request, context }) => {
-        try {
-          await requireApiToken(requireDatabase(context), request, "catalog:write");
-          const params = new URL(request.url).searchParams;
-          const query = parseOperationInput(submissionListQuerySchema, {
-            status: statuses(params),
+      GET: tokenRoute(
+        {
+          envelope: "operation",
+          query: (params) => ({
+            status: listQuery(params, "status"),
             limit: params.has("limit") ? Number(params.get("limit")) : undefined,
             cursor: params.get("cursor") ?? undefined,
-          });
-          return operationSuccess(
-            request,
-            await listOpsSubmissions(requireDatabase(context), query),
-          );
-        } catch (error) {
-          return operationFailure(request, error);
-        }
-      },
+          }),
+          querySchema: submissionListQuerySchema,
+        },
+        ({ db, query }) => listOpsSubmissions(db, query),
+      ),
     },
   },
 });

@@ -1,50 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { requireSession } from "@/lib/auth/auth.server";
+import { sessionRoute } from "@/lib/api/route";
 import { submissionCreateSchema } from "@/lib/community/contracts";
-import { requireCommunityWrite } from "@/lib/community/guard.server";
 import { createSubmission, listSubmissions } from "@/lib/community/marketplace.server";
-import { requireDatabase } from "@/lib/db/client";
-import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/me/submissions/")({
   server: {
     handlers: {
-      GET: async ({ request, context }) => {
-        try {
-          const auth = await requireSession(request, context);
-          return Response.json(
-            await listSubmissions(requireDatabase(context), auth.session.user.id),
-          );
-        } catch (error) {
-          return jsonError(error);
-        }
-      },
-      POST: async ({ request, context }) => {
-        try {
-          const auth = await requireSession(request, context);
-          const input = await readJson(request, submissionCreateSchema);
-          await requireCommunityWrite(
-            request,
-            context,
-            auth.db,
-            auth.session.user.id,
-            "submission.create",
-            input.turnstileToken,
-          );
-          return Response.json(
-            await createSubmission(requireDatabase(context), {
-              userId: auth.session.user.id,
-              submitterKey: `user:${auth.session.user.id}`,
-              repositoryUrl: input.repositoryUrl,
-              idempotencyKey: input.idempotencyKey,
-            }),
-            { status: 201 },
-          );
-        } catch (error) {
-          return jsonError(error);
-        }
-      },
+      GET: sessionRoute({}, ({ db, session }) => listSubmissions(db, session.user.id)),
+      POST: sessionRoute(
+        { body: submissionCreateSchema, community: "submission.create", status: 201 },
+        ({ db, session, input }) =>
+          createSubmission(db, {
+            userId: session.user.id,
+            submitterKey: `user:${session.user.id}`,
+            repositoryUrl: input.repositoryUrl,
+            idempotencyKey: input.idempotencyKey,
+          }),
+      ),
     },
   },
 });

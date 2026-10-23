@@ -237,6 +237,32 @@ describe("Framework Hub architecture boundaries", () => {
     ).toEqual([]);
   });
 
+  it("keeps every API handler behind the route module", async () => {
+    const files = (await sourceFiles()).filter(({ path }) => path.startsWith("routes/api/"));
+    // Authentication order, body validation, the query contract and the
+    // response envelope are one decision each, and `lib/api/route.ts` is where
+    // they live. These six files answer a protocol rather than the API.
+    const protocolAdapters = [
+      "routes/api/auth/$.ts",
+      "routes/api/cli/authorizations/$id/approve.ts",
+      "routes/api/config.ts",
+      "routes/api/github-stars.ts",
+      "routes/api/health.ts",
+      "routes/api/media/$id.ts",
+    ];
+    const primitives =
+      /\b(?:jsonError|readJson|readOperationJson|operationSuccess|operationFailure|requireSession|requireAdminSession|requireSameOrigin|requireApiToken|requireAdminApiToken|requireCommunityWrite)\b/u;
+    expect(
+      violations(
+        files.filter(({ path }) => !protocolAdapters.includes(path)),
+        ({ text }) => primitives.test(text) || !/from\s+["']@\/lib\/api\/route["']/u.test(text),
+      ),
+    ).toEqual([]);
+    expect(files.filter(({ path }) => protocolAdapters.includes(path)).length).toBe(
+      protocolAdapters.length,
+    );
+  });
+
   it("keeps the curation quality rule in its policy module", async () => {
     const files = await sourceFiles();
     // The placeholder phrases are the tells of a copied rule. The SQL twin and

@@ -1,23 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 
+import { publicRoute } from "@/lib/api/route";
 import { listPluginReviews } from "@/lib/community/review-replies.application.server";
-import { requireDatabase } from "@/lib/db/client";
-import { jsonError } from "@/lib/http";
+
+const reviewsQuery = z.object({
+  cursor: z.coerce
+    .number()
+    .int()
+    .finite()
+    .default(() => Date.now() + 1),
+  limit: z.coerce
+    .number()
+    .int()
+    .finite()
+    .default(20)
+    .transform((value) => Math.min(Math.max(value, 1), 50)),
+});
 
 export const Route = createFileRoute("/api/plugins/$slug/reviews")({
   server: {
     handlers: {
-      GET: async ({ request, context, params }) => {
-        try {
-          const db = requireDatabase(context);
-          const url = new URL(request.url);
-          const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 20), 1), 50);
-          const cursor = Number(url.searchParams.get("cursor") ?? Date.now() + 1);
-          return Response.json(await listPluginReviews(db, { slug: params.slug, cursor, limit }));
-        } catch (error) {
-          return jsonError(error);
-        }
-      },
+      GET: publicRoute({ querySchema: reviewsQuery }, ({ db, params, query }) =>
+        listPluginReviews(db, { slug: params.slug, cursor: query.cursor, limit: query.limit }),
+      ),
     },
   },
 });

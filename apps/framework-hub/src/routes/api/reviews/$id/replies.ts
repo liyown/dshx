@@ -1,36 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { requireSession } from "@/lib/auth/auth.server";
+import { sessionRoute } from "@/lib/api/route";
 import { replyCreateSchema } from "@/lib/catalog/contracts";
-import { requireCommunityWrite } from "@/lib/community/guard.server";
 import { createReviewReply } from "@/lib/community/review-replies.application.server";
-import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/reviews/$id/replies")({
   server: {
     handlers: {
-      POST: async ({ request, context, params }) => {
-        try {
-          const { session, db } = await requireSession(request, context);
-          const input = await readJson(request, replyCreateSchema);
-          await requireCommunityWrite(
-            request,
-            context,
-            db,
-            session.user.id,
-            "reply",
-            input.turnstileToken,
-          );
+      POST: sessionRoute(
+        { body: replyCreateSchema, community: "reply" },
+        async ({ db, session, params, input }) => {
+          // Repeating an idempotent reply returns the existing one, so only a new reply is a creation.
           const result = await createReviewReply(db, {
             ...input,
             reviewId: params.id,
             userId: session.user.id,
           });
           return Response.json(result.reply, { status: result.created ? 201 : 200 });
-        } catch (error) {
-          return jsonError(error);
-        }
-      },
+        },
+      ),
     },
   },
 });

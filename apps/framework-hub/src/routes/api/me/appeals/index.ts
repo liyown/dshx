@@ -1,43 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { requireSession } from "@/lib/auth/auth.server";
+import { sessionRoute } from "@/lib/api/route";
 import { appealCreateSchema } from "@/lib/community/contracts";
-import { requireCommunityWrite } from "@/lib/community/guard.server";
 import { createAppeal, listAppeals } from "@/lib/community/marketplace.server";
-import { requireDatabase } from "@/lib/db/client";
-import { jsonError, readJson } from "@/lib/http";
 
 export const Route = createFileRoute("/api/me/appeals/")({
   server: {
     handlers: {
-      GET: async ({ request, context }) => {
-        try {
-          const auth = await requireSession(request, context);
-          return Response.json(await listAppeals(requireDatabase(context), auth.session.user.id));
-        } catch (error) {
-          return jsonError(error);
-        }
-      },
-      POST: async ({ request, context }) => {
-        try {
-          const auth = await requireSession(request, context);
-          const input = await readJson(request, appealCreateSchema);
-          await requireCommunityWrite(
-            request,
-            context,
-            auth.db,
-            auth.session.user.id,
-            "appeal.create",
-            input.turnstileToken,
-          );
-          return Response.json(
-            await createAppeal(requireDatabase(context), auth.session.user.id, input),
-            { status: 201 },
-          );
-        } catch (error) {
-          return jsonError(error);
-        }
-      },
+      GET: sessionRoute({}, ({ db, session }) => listAppeals(db, session.user.id)),
+      POST: sessionRoute(
+        { body: appealCreateSchema, community: "appeal.create", status: 201 },
+        ({ db, session, input }) => createAppeal(db, session.user.id, input),
+      ),
     },
   },
 });

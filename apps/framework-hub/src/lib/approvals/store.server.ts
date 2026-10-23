@@ -349,7 +349,12 @@ export function requesterNotification(
 /** The administration queue: open work first, critical before high, oldest first. */
 export async function approvalList(
   binding: Database,
-  options: { status?: string | null; kind?: string | null; risk?: string | null; limit?: number },
+  options: {
+    status?: string | null | undefined;
+    kind?: string | null | undefined;
+    risk?: string | null | undefined;
+    limit?: number | undefined;
+  },
 ) {
   const clauses: string[] = [];
   const values: unknown[] = [];

@@ -14,10 +14,15 @@ export type OperationErrorBody = {
   details?: Record<string, unknown> | unknown[];
 };
 
-export class OperationHttpError extends Error {
+/**
+ * An Operations API failure: an HttpError that also says whether a retry can
+ * help and how the caller should repair its input. Extending HttpError means an
+ * admin route can let one through and still get the right status and code.
+ */
+export class OperationHttpError extends HttpError {
   constructor(
-    readonly status: number,
-    readonly code: string,
+    status: number,
+    code: string,
     message: string,
     readonly retryable = false,
     readonly options: {
@@ -26,7 +31,7 @@ export class OperationHttpError extends Error {
       details?: Record<string, unknown> | unknown[];
     } = {},
   ) {
-    super(message);
+    super(status, message, code, options.details);
     this.name = "OperationHttpError";
   }
 }

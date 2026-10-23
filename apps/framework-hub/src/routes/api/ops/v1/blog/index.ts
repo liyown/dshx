@@ -1,38 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { createBlogForOperations, listBlogForOperations } from "@/lib/blog-operations.server";
-import {
-  operationFailure,
-  operationRequestId,
-  operationSuccess,
-} from "@/lib/catalog/operations-v1.http";
-import { requireDatabase } from "@/lib/db/client";
+import { tokenRoute } from "@/lib/api/route";
+import { listBlogArticles, writeBlogArticle } from "@/lib/blog.application.server";
+import { createBlogPostSchema } from "@/lib/blog.contracts";
+import { invalidateBlogSitemap } from "@/lib/sitemap-invalidation.server";
+
+const noStore = { "cache-control": "no-store" };
 
 export const Route = createFileRoute("/api/ops/v1/blog/")({
   server: {
     handlers: {
-      GET: async ({ request, context }) => {
-        const requestId = operationRequestId(request);
-        try {
-          const result = await listBlogForOperations(requireDatabase(context), request);
-          const response = operationSuccess(request, result, { requestId, status: 200 });
-          response.headers.set("cache-control", "no-store");
-          return response;
-        } catch (error) {
-          return operationFailure(request, error, requestId);
-        }
-      },
-      POST: async ({ request, context }) => {
-        const requestId = operationRequestId(request);
-        try {
-          const result = await createBlogForOperations(requireDatabase(context), request);
-          const response = operationSuccess(request, result, { requestId, status: 201 });
-          response.headers.set("cache-control", "no-store");
-          return response;
-        } catch (error) {
-          return operationFailure(request, error, requestId);
-        }
-      },
+      GET: tokenRoute({ envelope: "operation", headers: noStore }, ({ db }) =>
+        listBlogArticles(db),
+      ),
+      POST: tokenRoute(
+        { envelope: "operation", body: createBlogPostSchema, status: 201, headers: noStore },
+        async ({ request, db, token, input }) => {
+          const article = await writeBlogArticle(db, token.id, input);
+          invalidateBlogSitemap(request);
+          return article;
+        },
+      ),
     },
   },
 });

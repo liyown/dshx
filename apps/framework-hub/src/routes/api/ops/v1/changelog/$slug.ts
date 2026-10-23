@@ -1,48 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { requireDatabase } from "@/lib/db/client";
-import {
-  operationFailure,
-  operationRequestId,
-  operationSuccess,
-} from "@/lib/catalog/operations-v1.http";
-import {
-  getChangelogForOperations,
-  updateChangelogForOperations,
-} from "@/lib/changelog-operations.server";
+
+import { tokenRoute } from "@/lib/api/route";
+import { editChangelogEntry, readChangelogEntry } from "@/lib/changelog.application.server";
+import { updateChangelogSchema } from "@/lib/changelog.contracts";
+import { invalidateChangelogSitemap } from "@/lib/sitemap-invalidation.server";
+
+const noStore = { "cache-control": "no-store" };
 
 export const Route = createFileRoute("/api/ops/v1/changelog/$slug")({
   server: {
     handlers: {
-      GET: async ({ request, context, params }) => {
-        const requestId = operationRequestId(request);
-        try {
-          const result = await getChangelogForOperations(
-            requireDatabase(context),
-            request,
-            params.slug,
-          );
-          const response = operationSuccess(request, result, { requestId, status: 200 });
-          response.headers.set("cache-control", "no-store");
-          return response;
-        } catch (error) {
-          return operationFailure(request, error, requestId);
-        }
-      },
-      PUT: async ({ request, context, params }) => {
-        const requestId = operationRequestId(request);
-        try {
-          const result = await updateChangelogForOperations(
-            requireDatabase(context),
-            request,
-            params.slug,
-          );
-          const response = operationSuccess(request, result, { requestId, status: 200 });
-          response.headers.set("cache-control", "no-store");
-          return response;
-        } catch (error) {
-          return operationFailure(request, error, requestId);
-        }
-      },
+      GET: tokenRoute({ envelope: "operation", headers: noStore }, ({ db, params }) =>
+        readChangelogEntry(db, params.slug),
+      ),
+      PUT: tokenRoute(
+        { envelope: "operation", body: updateChangelogSchema, status: 200, headers: noStore },
+        async ({ request, db, token, params, input }) => {
+          const entry = await editChangelogEntry(db, token.id, params.slug, input);
+          invalidateChangelogSitemap(request);
+          return entry;
+        },
+      ),
     },
   },
 });

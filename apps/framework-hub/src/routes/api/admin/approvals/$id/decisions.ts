@@ -1,45 +1,35 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { adminRoute } from "@/lib/api/route";
 import { approvalDecisionSchema } from "@/lib/approvals/contracts";
 import { decideApproval } from "@/lib/approvals/service.server";
-import { requireAdminSession, requireSameOrigin } from "@/lib/auth/auth.server";
-import { requireDatabase } from "@/lib/db/client";
 import { scheduleCriticalApprovalEmail } from "@/lib/email/delivery.server";
-import { HttpError, jsonError, readJson } from "@/lib/http";
+import { HttpError } from "@/lib/http";
 import { catalogChanged, publishCatalogChanged } from "@/lib/sitemap-cache";
 
 export const Route = createFileRoute("/api/admin/approvals/$id/decisions")({
   server: {
     handlers: {
-      POST: async ({ request, context, params }) => {
-        try {
-          requireSameOrigin(request, context);
-          const admin = await requireAdminSession(request, context);
-          const input = await readJson(request, approvalDecisionSchema);
-          const result = await decideApproval(
-            requireDatabase(context),
-            params.id,
-            admin.session.user.id,
-            input,
-          );
-          if (input.action === "approve") publishCatalogChanged(catalogChanged(request));
-          scheduleCriticalApprovalEmail(
-            context,
-            params.id,
-            input.action === "request_changes"
-              ? "approval.changes_requested"
-              : input.action === "reject"
-                ? "approval.rejected"
-                : "approval.approved",
-          );
-          return Response.json(result);
-        } catch (error) {
-          if (error instanceof HttpError && error.code === "approval_effect_failed") {
-            scheduleCriticalApprovalEmail(context, params.id, "approval.effect_failed");
+      POST: adminRoute(
+        { body: approvalDecisionSchema },
+        async ({ request, context, db, params, session, input }) => {
+          try {
+            const result = await decideApproval(db, params.id, session.user.id, input);
+            if (input.action === "approve") publishCatalogChanged(catalogChanged(request));
+            scheduleCriticalApprovalEmail(context, params.id, decisionEmail(input.action));
+            return result;
+          } catch (error) {
+            if (error instanceof HttpError && error.code === "approval_effect_failed")
+              scheduleCriticalApprovalEmail(context, params.id, "approval.effect_failed");
+            throw error;
           }
-          return jsonError(error);
-        }
-      },
+        },
+      ),
     },
   },
 });
+
+function decisionEmail(action: string) {
+  if (action === "request_changes") return "approval.changes_requested";
+  return action === "reject" ? "approval.rejected" : "approval.approved";
+}

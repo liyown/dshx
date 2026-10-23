@@ -1,10 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { requireApiToken } from "@/lib/auth/tokens.server";
+import { tokenRoute } from "@/lib/api/route";
 import { refreshInstallReadiness } from "@/lib/catalog/install-readiness.server";
-import { operationFailure, operationSuccess } from "@/lib/catalog/operations-v1.http";
 import { refreshPluginScores } from "@/lib/catalog/scores.server";
-import { requireDatabase } from "@/lib/db/client";
 
 /**
  * Recomputes the catalog ranking signals and install readiness for every
@@ -17,18 +15,12 @@ import { requireDatabase } from "@/lib/db/client";
 export const Route = createFileRoute("/api/ops/v1/catalog-scores")({
   server: {
     handlers: {
-      POST: async ({ request, context }) => {
-        try {
-          const db = requireDatabase(context);
-          await requireApiToken(db, request, "catalog:write");
-          // Readiness feeds the quality score, so it is recomputed first.
-          await refreshInstallReadiness(db);
-          await refreshPluginScores(db);
-          return operationSuccess(request, { refreshed: "all" });
-        } catch (error) {
-          return operationFailure(request, error);
-        }
-      },
+      POST: tokenRoute({ envelope: "operation" }, async ({ db }) => {
+        // Readiness feeds the quality score, so it is recomputed first.
+        await refreshInstallReadiness(db);
+        await refreshPluginScores(db);
+        return { refreshed: "all" };
+      }),
     },
   },
 });

@@ -59,7 +59,8 @@ import type { Database } from "@/lib/db/client";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { HttpError, uuid } from "@/lib/http";
 
-type TokenActor = {
+/** The requester of an approval: the API token that asked and the role behind it. */
+export type TokenActor = {
   token: { id: string; userId: string };
   profile: { role: string };
 };
@@ -260,7 +261,12 @@ export async function createUserApproval(
 
 export async function listApprovals(
   binding: Database,
-  options: { status?: string | null; kind?: string | null; risk?: string | null; limit?: number },
+  options: {
+    status?: string | null | undefined;
+    kind?: string | null | undefined;
+    risk?: string | null | undefined;
+    limit?: number | undefined;
+  },
 ) {
   return approvalList(binding, options);
 }

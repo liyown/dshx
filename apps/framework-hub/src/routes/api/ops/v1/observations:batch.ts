@@ -1,39 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
-
-import { requireApiToken } from "@/lib/auth/tokens.server";
-import {
-  operationFailure,
-  operationRequestId,
-  operationSuccess,
-  readOperationJson,
-} from "@/lib/catalog/operations-v1.http";
-import { upsertObservationBatch } from "@/lib/catalog/operations";
-import { requireDatabase } from "@/lib/db/client";
 import { observationBatchSchema } from "@becomeopc/dshx-hub-contracts";
+
+import { tokenRoute } from "@/lib/api/route";
+import { upsertObservationBatch } from "@/lib/catalog/operations";
+import { operationRequestId } from "@/lib/catalog/operations-v1.http";
 
 export const Route = createFileRoute("/api/ops/v1/observations:batch")({
   server: {
     handlers: {
-      POST: async ({ request, context }) => {
-        const requestId = operationRequestId(request);
-        try {
-          const actor = await requireApiToken(requireDatabase(context), request, "catalog:write");
-          const input = await readOperationJson(request, observationBatchSchema);
-          return operationSuccess(
-            request,
-            await upsertObservationBatch(
-              requireDatabase(context),
-              actor.token.id,
-              requestId,
-              input.observations,
-              input.dryRun,
-            ),
-            { requestId },
-          );
-        } catch (error) {
-          return operationFailure(request, error, requestId);
-        }
-      },
+      POST: tokenRoute(
+        { envelope: "operation", body: observationBatchSchema },
+        ({ request, db, token, input }) =>
+          upsertObservationBatch(
+            db,
+            token.id,
+            operationRequestId(request),
+            input.observations,
+            input.dryRun,
+          ),
+      ),
     },
   },
 });

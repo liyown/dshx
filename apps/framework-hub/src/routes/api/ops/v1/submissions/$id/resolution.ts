@@ -1,39 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-
-import { requireApiToken } from "@/lib/auth/tokens.server";
-import {
-  operationFailure,
-  operationRequestId,
-  operationSuccess,
-  readOperationJson,
-} from "@/lib/catalog/operations-v1.http";
-import { resolveOpsSubmission } from "@/lib/catalog/operations";
-import { requireDatabase } from "@/lib/db/client";
 import { submissionResolutionSchema } from "@becomeopc/dshx-hub-contracts";
+
+import { tokenRoute } from "@/lib/api/route";
+import { resolveOpsSubmission } from "@/lib/catalog/operations";
+import { operationRequestId } from "@/lib/catalog/operations-v1.http";
 
 export const Route = createFileRoute("/api/ops/v1/submissions/$id/resolution")({
   server: {
     handlers: {
-      PUT: async ({ request, context, params }) => {
-        const requestId = operationRequestId(request);
-        try {
-          const actor = await requireApiToken(requireDatabase(context), request, "catalog:write");
-          const input = await readOperationJson(request, submissionResolutionSchema);
-          return operationSuccess(
-            request,
-            await resolveOpsSubmission(
-              requireDatabase(context),
-              actor.token.id,
-              requestId,
-              params.id,
-              input,
-            ),
-            { requestId },
-          );
-        } catch (error) {
-          return operationFailure(request, error, requestId);
-        }
-      },
+      PUT: tokenRoute(
+        { envelope: "operation", body: submissionResolutionSchema },
+        ({ request, db, token, params, input }) =>
+          resolveOpsSubmission(db, token.id, operationRequestId(request), params.id, input),
+      ),
     },
   },
 });

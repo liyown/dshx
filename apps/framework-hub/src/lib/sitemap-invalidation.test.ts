@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { invalidateBlogSitemap } from "./blog-cache.server";
+import { invalidateBlogSitemap } from "./sitemap-invalidation.server";
 import { SITEMAP_FRESH_CACHE_PATH, SITEMAP_STALE_CACHE_PATH } from "./sitemap-cache";
 
 describe("blog sitemap invalidation", () => {

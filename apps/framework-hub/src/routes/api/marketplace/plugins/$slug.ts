@@ -1,34 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { localeQuery, publicRoute } from "@/lib/api/route";
 import { readMarketplacePlugin } from "@/lib/catalog/application.server";
-import { marketplaceDetailResponseSchema, pluginListQuerySchema } from "@/lib/catalog/contracts";
-import { requireDatabase } from "@/lib/db/client";
-import { jsonError } from "@/lib/http";
+import { marketplaceDetailResponseSchema } from "@/lib/catalog/contracts";
+import { HttpError } from "@/lib/http";
 
 export const Route = createFileRoute("/api/marketplace/plugins/$slug")({
   server: {
     handlers: {
-      GET: async ({ request, context, params }) => {
-        try {
+      GET: publicRoute({ ...localeQuery }, async ({ request, db, params, query }) => {
+        const result = await readMarketplacePlugin(db, params.slug, query.locale);
+        if (!result) throw new HttpError(404, "Plugin not found", "not_found");
+        if (result.redirectSlug) {
           const url = new URL(request.url);
-          const { locale } = pluginListQuerySchema.parse({
-            locale: url.searchParams.get("locale") ?? undefined,
-          });
-          const result = await readMarketplacePlugin(requireDatabase(context), params.slug, locale);
-          if (!result)
-            return Response.json(
-              { error: { code: "not_found", message: "Plugin not found" } },
-              { status: 404 },
-            );
-          if (result.redirectSlug) {
-            url.pathname = `/api/marketplace/plugins/${result.redirectSlug}`;
-            return Response.redirect(url, 308);
-          }
-          return Response.json(marketplaceDetailResponseSchema.parse(result));
-        } catch (error) {
-          return jsonError(error);
+          url.pathname = `/api/marketplace/plugins/${result.redirectSlug}`;
+          return Response.redirect(url, 308);
         }
-      },
+        return marketplaceDetailResponseSchema.parse(result);
+      }),
     },
   },
 });

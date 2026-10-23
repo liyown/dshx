@@ -31,6 +31,23 @@ export const pluginListQuerySchema = z.object({
   limit: z.number().int().min(1).max(50).default(24),
 });
 
+/**
+ * Shapes the discovery / marketplace list search parameters into the object the
+ * list schemas validate. Absent parameters stay undefined so the schema defaults
+ * apply; a present but non-numeric `limit` reaches the schema as NaN and fails
+ * there instead of leaking into the query.
+ */
+export function catalogListQueryParams(params: URLSearchParams) {
+  return {
+    locale: params.get("locale") ?? undefined,
+    q: params.get("q") ?? undefined,
+    category: params.get("category") ?? undefined,
+    sort: params.get("sort") ?? undefined,
+    cursor: params.get("cursor") ?? undefined,
+    limit: params.has("limit") ? Number(params.get("limit")) : undefined,
+  };
+}
+
 export const marketplaceSortValues = ["stars", "downloads", "latest"] as const;
 
 /** Public installable-marketplace query. Discovery keeps its broader legacy sort contract. */

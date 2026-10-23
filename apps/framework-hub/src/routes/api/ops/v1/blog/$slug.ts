@@ -1,42 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { getBlogForOperations, updateBlogForOperations } from "@/lib/blog-operations.server";
-import {
-  operationFailure,
-  operationRequestId,
-  operationSuccess,
-} from "@/lib/catalog/operations-v1.http";
-import { requireDatabase } from "@/lib/db/client";
+import { tokenRoute } from "@/lib/api/route";
+import { editBlogArticle, readBlogArticle } from "@/lib/blog.application.server";
+import { updateBlogPostSchema } from "@/lib/blog.contracts";
+import { invalidateBlogSitemap } from "@/lib/sitemap-invalidation.server";
+
+const noStore = { "cache-control": "no-store" };
 
 export const Route = createFileRoute("/api/ops/v1/blog/$slug")({
   server: {
     handlers: {
-      GET: async ({ request, context, params }) => {
-        const requestId = operationRequestId(request);
-        try {
-          const result = await getBlogForOperations(requireDatabase(context), request, params.slug);
-          const response = operationSuccess(request, result, { requestId, status: 200 });
-          response.headers.set("cache-control", "no-store");
-          return response;
-        } catch (error) {
-          return operationFailure(request, error, requestId);
-        }
-      },
-      PUT: async ({ request, context, params }) => {
-        const requestId = operationRequestId(request);
-        try {
-          const result = await updateBlogForOperations(
-            requireDatabase(context),
-            request,
-            params.slug,
-          );
-          const response = operationSuccess(request, result, { requestId, status: 200 });
-          response.headers.set("cache-control", "no-store");
-          return response;
-        } catch (error) {
-          return operationFailure(request, error, requestId);
-        }
-      },
+      GET: tokenRoute({ envelope: "operation", headers: noStore }, ({ db, params }) =>
+        readBlogArticle(db, params.slug),
+      ),
+      PUT: tokenRoute(
+        { envelope: "operation", body: updateBlogPostSchema, status: 200, headers: noStore },
+        async ({ request, db, token, params, input }) => {
+          const article = await editBlogArticle(db, token.id, params.slug, input);
+          invalidateBlogSitemap(request);
+          return article;
+        },
+      ),
     },
   },
 });

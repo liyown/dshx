@@ -1,40 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { requireDatabase } from "@/lib/db/client";
-import {
-  operationFailure,
-  operationRequestId,
-  operationSuccess,
-} from "@/lib/catalog/operations-v1.http";
-import {
-  listChangelogForOperations,
-  createChangelogForOperations,
-} from "@/lib/changelog-operations.server";
+
+import { tokenRoute } from "@/lib/api/route";
+import { listChangelogEntries, writeChangelogEntry } from "@/lib/changelog.application.server";
+import { createChangelogSchema } from "@/lib/changelog.contracts";
+import { invalidateChangelogSitemap } from "@/lib/sitemap-invalidation.server";
+
+const noStore = { "cache-control": "no-store" };
 
 export const Route = createFileRoute("/api/ops/v1/changelog/")({
   server: {
     handlers: {
-      GET: async ({ request, context }) => {
-        const requestId = operationRequestId(request);
-        try {
-          const result = await listChangelogForOperations(requireDatabase(context), request);
-          const response = operationSuccess(request, result, { requestId, status: 200 });
-          response.headers.set("cache-control", "no-store");
-          return response;
-        } catch (error) {
-          return operationFailure(request, error, requestId);
-        }
-      },
-      POST: async ({ request, context }) => {
-        const requestId = operationRequestId(request);
-        try {
-          const result = await createChangelogForOperations(requireDatabase(context), request);
-          const response = operationSuccess(request, result, { requestId, status: 201 });
-          response.headers.set("cache-control", "no-store");
-          return response;
-        } catch (error) {
-          return operationFailure(request, error, requestId);
-        }
-      },
+      GET: tokenRoute({ envelope: "operation", headers: noStore }, ({ db }) =>
+        listChangelogEntries(db),
+      ),
+      POST: tokenRoute(
+        { envelope: "operation", body: createChangelogSchema, status: 201, headers: noStore },
+        async ({ request, db, token, input }) => {
+          const entry = await writeChangelogEntry(db, token.id, input);
+          invalidateChangelogSitemap(request);
+          return entry;
+        },
+      ),
     },
   },
 });

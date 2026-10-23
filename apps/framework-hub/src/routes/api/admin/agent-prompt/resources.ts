@@ -6,8 +6,9 @@ import {
   listAgentResourceStatus,
   saveAgentResource,
 } from "@/lib/agent-resources.server";
-import { requireAdminSession, requireSameOrigin } from "@/lib/auth/auth.server";
-import { jsonError, readJson } from "@/lib/http";
+import { adminRoute } from "@/lib/api/route";
+
+const noStore = { "cache-control": "no-store" };
 
 const resourceInput = z
   .object({
@@ -34,21 +35,14 @@ const resourceInput = z
 export const Route = createFileRoute("/api/admin/agent-prompt/resources")({
   server: {
     handlers: {
-      PUT: async ({ request, context }) => {
-        try {
-          const { db, session } = await requireAdminSession(request, context);
-          requireSameOrigin(request, context);
-          const input = await readJson(request, resourceInput);
+      PUT: adminRoute(
+        { body: resourceInput, headers: noStore },
+        async ({ context, db, session, input }) => {
           if (input.clear === true) await clearAgentResource(db, input.key);
           else await saveAgentResource(db, context, input.key, input.value ?? "", session.user.id);
-          return Response.json(
-            { resources: await listAgentResourceStatus(db) },
-            { headers: { "cache-control": "no-store" } },
-          );
-        } catch (error) {
-          return jsonError(error);
-        }
-      },
+          return { resources: await listAgentResourceStatus(db) };
+        },
+      ),
     },
   },
 });

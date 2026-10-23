@@ -1,30 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { adminBlogError, createBlogForAdmin, listBlogForAdmin } from "@/lib/blog-admin.server";
+import { adminRoute } from "@/lib/api/route";
+import { createAdminBlogArticle, listBlogArticles } from "@/lib/blog.application.server";
+import { createBlogPostSchema } from "@/lib/blog.contracts";
+import { invalidateBlogSitemap } from "@/lib/sitemap-invalidation.server";
+
+const noStore = { "cache-control": "no-store" };
 
 export const Route = createFileRoute("/api/admin/blog/")({
   server: {
     handlers: {
-      GET: async ({ request, context }) => {
-        try {
-          return Response.json(await listBlogForAdmin(request, context), {
-            headers: { "cache-control": "no-store" },
-          });
-        } catch (error) {
-          return adminBlogError(error);
-        }
-      },
-      POST: async ({ request, context }) => {
-        try {
-          const post = await createBlogForAdmin(request, context);
-          return Response.json(post, {
-            status: 201,
-            headers: { "cache-control": "no-store" },
-          });
-        } catch (error) {
-          return adminBlogError(error);
-        }
-      },
+      GET: adminRoute({ headers: noStore }, ({ db }) => listBlogArticles(db)),
+      POST: adminRoute(
+        { body: createBlogPostSchema, status: 201, headers: noStore },
+        async ({ request, db, input }) => {
+          const article = await createAdminBlogArticle(db, input);
+          invalidateBlogSitemap(request);
+          return article;
+        },
+      ),
     },
   },
 });

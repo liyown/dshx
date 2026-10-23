@@ -31,6 +31,14 @@ export const approvalEffectSchema = z.object({
   input: jsonRecord,
 });
 
+/** The admin ledger filters. `limit` is the only one that needs a numeric contract. */
+export const approvalListQuerySchema = z.object({
+  status: z.string().max(64).nullish(),
+  kind: z.string().max(64).nullish(),
+  risk: z.string().max(64).nullish(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+
 export const approvalCreateSchema = z.object({
   kind: approvalKindSchema,
   risk: z.enum(["high", "critical"]),

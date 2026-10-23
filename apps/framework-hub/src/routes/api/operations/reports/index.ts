@@ -1,26 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
-
-import { listPublicOperationReports } from "@/lib/catalog/operation-reports.server";
-import { requireDatabase } from "@/lib/db/client";
-import { jsonError } from "@/lib/http";
 import { publicOperationReportQuerySchema } from "@becomeopc/dshx-hub-contracts";
+
+import { publicRoute } from "@/lib/api/route";
+import { listPublicOperationReports } from "@/lib/catalog/operation-reports.server";
 
 export const Route = createFileRoute("/api/operations/reports/")({
   server: {
     handlers: {
-      GET: async ({ request, context }) => {
-        try {
-          const params = new URL(request.url).searchParams;
-          const query = publicOperationReportQuerySchema.parse({
+      GET: publicRoute(
+        {
+          query: (params) => ({
             locale: params.get("locale") ?? undefined,
             limit: params.has("limit") ? Number(params.get("limit")) : undefined,
             cursor: params.get("cursor") ?? undefined,
-          });
-          return Response.json(await listPublicOperationReports(requireDatabase(context), query));
-        } catch (error) {
-          return jsonError(error);
-        }
-      },
+          }),
+          querySchema: publicOperationReportQuerySchema,
+        },
+        ({ db, query }) => listPublicOperationReports(db, query),
+      ),
     },
   },
 });

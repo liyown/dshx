@@ -1,38 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
-
-import { requireApiToken } from "@/lib/auth/tokens.server";
-import {
-  operationFailure,
-  operationSuccess,
-  parseOperationInput,
-} from "@/lib/catalog/operations-v1.http";
-import { auditOperations } from "@/lib/catalog/operations";
-import { requireDatabase } from "@/lib/db/client";
-import { requireBindings } from "@/lib/db/context";
 import { operationAuditQuerySchema } from "@becomeopc/dshx-hub-contracts";
+
+import { tokenRoute } from "@/lib/api/route";
+import { auditOperations } from "@/lib/catalog/operations";
+import { requireBindings } from "@/lib/db/context";
 
 export const Route = createFileRoute("/api/ops/v1/audit")({
   server: {
     handlers: {
-      GET: async ({ request, context }) => {
-        try {
-          await requireApiToken(requireDatabase(context), request, "catalog:write");
-          const params = new URL(request.url).searchParams;
-          const query = parseOperationInput(operationAuditQuerySchema, {
-            scope: params.get("scope") ?? undefined,
-          });
-          return operationSuccess(
-            request,
-            await auditOperations(
-              requireDatabase(context),
-              requireBindings(context).PLUGIN_MEDIA,
-              query.scope,
-            ),
-          );
-        } catch (error) {
-          return operationFailure(request, error);
-        }
-      },
+      GET: tokenRoute(
+        {
+          envelope: "operation",
+          query: (params) => ({ scope: params.get("scope") ?? undefined }),
+          querySchema: operationAuditQuerySchema,
+        },
+        ({ db, context, query }) =>
+          auditOperations(db, requireBindings(context).PLUGIN_MEDIA, query.scope),
+      ),
     },
   },
 });

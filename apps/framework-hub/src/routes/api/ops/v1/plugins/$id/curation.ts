@@ -1,39 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
-
-import { requireApiToken } from "@/lib/auth/tokens.server";
-import {
-  operationFailure,
-  operationRequestId,
-  operationSuccess,
-  readOperationJson,
-} from "@/lib/catalog/operations-v1.http";
-import { curatePlugin } from "@/lib/catalog/operations";
-import { requireDatabase } from "@/lib/db/client";
-import { catalogChanged, publishCatalogChanged } from "@/lib/sitemap-cache";
 import { pluginCurationRequestSchema } from "@becomeopc/dshx-hub-contracts";
+
+import { tokenRoute } from "@/lib/api/route";
+import { curatePlugin } from "@/lib/catalog/operations";
+import { operationRequestId } from "@/lib/catalog/operations-v1.http";
+import { catalogChanged, publishCatalogChanged } from "@/lib/sitemap-cache";
 
 export const Route = createFileRoute("/api/ops/v1/plugins/$id/curation")({
   server: {
     handlers: {
-      PATCH: async ({ request, context, params }) => {
-        const requestId = operationRequestId(request);
-        try {
-          const actor = await requireApiToken(requireDatabase(context), request, "catalog:write");
-          const input = await readOperationJson(request, pluginCurationRequestSchema);
+      PATCH: tokenRoute(
+        { envelope: "operation", body: pluginCurationRequestSchema },
+        async ({ request, db, token, params, input }) => {
           const result = await curatePlugin(
-            requireDatabase(context),
-            actor.token.id,
-            requestId,
+            db,
+            token.id,
+            operationRequestId(request),
             params.id,
             input.content,
             input.ifRevision,
           );
           publishCatalogChanged(catalogChanged(request));
-          return operationSuccess(request, result, { requestId });
-        } catch (error) {
-          return operationFailure(request, error, requestId);
-        }
-      },
+          return result;
+        },
+      ),
     },
   },
 });
