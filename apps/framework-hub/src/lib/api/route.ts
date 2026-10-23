@@ -69,8 +69,6 @@ export interface RouteSpec<TInput = void, TQuery = void, TResponse = unknown> {
   readonly status?: number;
   /** Headers every response from this endpoint carries, failures included. */
   readonly headers?: Readonly<Record<string, string>>;
-  /** Reject cross-origin browsers before anything else runs. Admin routes do this for every unsafe method. */
-  readonly sameOrigin?: boolean;
 }
 
 export interface SessionSpec<TInput = void, TQuery = void, TResponse = unknown> extends RouteSpec<
@@ -181,13 +179,26 @@ export function withMeta<T>(value: T, meta: RouteMeta): T {
 const DEFAULT_SCOPE = "catalog:write";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+/**
+ * Whether this request may write at all.
+ *
+ * A browser attaches `Origin` to every unsafe method, so a request that names
+ * another origin is one a page made on the visitor's behalf, carrying their
+ * cookie. Every constructor that admits a browser credential runs this before
+ * the body is read; no route opts in or out, because the rule is the same for
+ * all of them.
+ */
+function requireOwnOrigin(request: Request, context: unknown): void {
+  if (!SAFE_METHODS.has(request.method)) requireSameOrigin(request, context);
+}
+
 export function publicRoute<TInput = void, TQuery = void, TResponse = unknown>(
   spec: RouteSpec<TInput, TQuery, TResponse>,
   run: PublicRun<TInput, TQuery, NoInfer<TResponse>>,
 ): RouteHandler {
   return async (args) => {
     try {
-      if (spec.sameOrigin === true) requireSameOrigin(args.request, args.context);
+      requireOwnOrigin(args.request, args.context);
       const input = await readBody(args.request, spec);
       const query = readQuery(spec, args.request);
       return await respond(args, spec, () =>
@@ -205,7 +216,7 @@ export function sessionRoute<TInput = void, TQuery = void, TResponse = unknown>(
 ): RouteHandler {
   return async (args) => {
     try {
-      if (spec.sameOrigin === true) requireSameOrigin(args.request, args.context);
+      requireOwnOrigin(args.request, args.context);
       const actor = await requireSession(args.request, args.context);
       const input = await readBody(args.request, spec);
       if (spec.community !== undefined)
@@ -231,8 +242,7 @@ export function adminRoute<TInput = void, TQuery = void, TResponse = unknown>(
 ): RouteHandler {
   return async (args) => {
     try {
-      // Admin reads carry no Origin header, so only unsafe methods are checked.
-      if (!SAFE_METHODS.has(args.request.method)) requireSameOrigin(args.request, args.context);
+      requireOwnOrigin(args.request, args.context);
       const actor: AdminActor = await requireAdminSession(args.request, args.context);
       const input = await readBody(args.request, spec);
       const query = readQuery(spec, args.request);

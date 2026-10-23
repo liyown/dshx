@@ -46,9 +46,10 @@ describe("public catalog surfaces", () => {
     );
     expect(endpoint).toContain("getOptionalSession");
     expect(endpoint).toContain("verifyTurnstileToken");
-    // The same-origin check is the route module's, declared on the endpoint;
-    // the session stays optional so an anonymous visitor can still submit.
-    expect(endpoint).toContain("sameOrigin: true");
+    // The constructor refuses cross-origin writes, so the endpoint cannot
+    // forget to; the session stays optional so a visitor can still submit.
+    expect(endpoint).toContain("publicRoute(");
+    expect(endpoint).not.toContain("sameOrigin");
     expect(endpoint).not.toMatch(/requireSession\s*\(/);
   });
 

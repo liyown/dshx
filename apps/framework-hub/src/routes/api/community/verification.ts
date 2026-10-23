@@ -31,7 +31,6 @@ export const Route = createFileRoute("/api/community/verification")({
       POST: sessionRoute(
         {
           body: verificationSchema,
-          sameOrigin: true,
           headers: noStore,
           response: communityVerificationSchema,
         },

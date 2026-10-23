@@ -86,6 +86,41 @@ describe("sessionRoute", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("checks the origin of a write before the session or the body", async () => {
+    mocks.requireSameOrigin.mockReset();
+    mocks.requireSameOrigin.mockImplementationOnce(() => {
+      throw new HttpError(403, "Cross-origin writes are forbidden", "invalid_origin");
+    });
+    mocks.requireSession.mockClear();
+    mocks.requireCommunityWrite.mockClear();
+    const run = vi.fn();
+
+    const response = await call(
+      sessionRoute({ body, community: "review" }, run),
+      json({ turnstileToken: "turnstile", name: "title" }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(mocks.requireSameOrigin).toHaveBeenCalledTimes(1);
+    expect(mocks.requireSession).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    mocks.requireSameOrigin.mockReset();
+  });
+
+  it("reads need no origin header", async () => {
+    mocks.requireSession.mockResolvedValue(actor);
+    mocks.requireSameOrigin.mockClear();
+    const run = vi.fn(() => ({ id: "user-1" }));
+
+    const response = await call(
+      sessionRoute({}, run),
+      new Request("https://dshx.io/api/test", { method: "GET" }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.requireSameOrigin).not.toHaveBeenCalled();
+  });
+
   it("renders the session failure in the api envelope", async () => {
     mocks.requireSession.mockRejectedValue(new HttpError(401, "Sign in with GitHub first", "unauthorized"));
 
@@ -250,6 +285,19 @@ describe("publicRoute", () => {
     const response = await call(handler, new Request("https://dshx.io/api/test?locale=zh"));
 
     await expect(response.json()).resolves.toEqual({ locale: "zh" });
+  });
+
+  it("refuses a cross-origin write before the body is read", async () => {
+    mocks.requireSameOrigin.mockImplementationOnce(() => {
+      throw new HttpError(403, "Cross-origin writes are forbidden", "invalid_origin");
+    });
+    const run = vi.fn();
+
+    const response = await call(publicRoute({ body }, run), json({ turnstileToken: "t", name: "x" }));
+
+    expect(response.status).toBe(403);
+    expect(run).not.toHaveBeenCalled();
+    mocks.requireSameOrigin.mockReset();
   });
 
   it("passes a Response through untouched", async () => {

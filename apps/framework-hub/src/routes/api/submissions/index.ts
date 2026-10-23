@@ -11,11 +11,11 @@ export const Route = createFileRoute("/api/submissions/")({
   server: {
     handlers: {
       // Public and anonymous: a signed-in submitter is attributed, a signed-out one is
-      // keyed by address and must pass Turnstile.
+      // keyed by address and must pass Turnstile. The constructor already refuses
+      // cross-origin writes.
       POST: publicRoute(
         {
           body: submissionCreateSchema,
-          sameOrigin: true,
           status: 201,
           headers: { "cache-control": "no-store" },
           response: submissionSchema,
