@@ -1,6 +1,5 @@
+import { createTranslator } from "@/lib/i18n";
 import type { BlogBlock, BlogSection } from "@/lib/blog.contracts";
-
-const OVERVIEW_TITLES = { en: "Overview", zh: "概述" } as const;
 
 function sectionId(title: string, index: number, used: Set<string>): string {
   const base =
@@ -28,7 +27,7 @@ export function parseBlogBody(body: string, locale: "en" | "zh"): BlogSection[] 
   const lines = body.replaceAll("\r\n", "\n").split("\n");
   const sections: Array<{ title: string; blocks: BlogBlock[] }> = [];
   let current: { title: string; blocks: BlogBlock[] } = {
-    title: OVERVIEW_TITLES[locale],
+    title: createTranslator(locale)("admin.overviewTitle"),
     blocks: [],
   };
   let paragraph: string[] = [];
@@ -186,7 +185,5 @@ export function serializeBlogBody(sections: readonly BlogSection[]): string {
 }
 
 export function blogBodyHelp(locale: "en" | "zh"): string {
-  return locale === "zh"
-    ? "支持段落、## 小节标题、- 列表、> 引用、``` 代码块，以及 ![说明](https://… “图注”) 图片。正文按当前填写的语言保存。"
-    : 'Supports paragraphs, ## section headings, - lists, > quotes, ``` code fences, and ![alt](https://… "caption") images. Body text is stored for the current language.';
+  return createTranslator(locale)("admin.blogBodyHelp");
 }

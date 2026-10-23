@@ -1,25 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import { getDshxDeveloperPrompt } from "@/lib/agent-prompt";
+import { createTranslator } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { cn } from "@/lib/utils";
-
-const copy = {
-  en: {
-    idle: "Copy development prompt",
-    copied: "Copied. Paste it into your Agent",
-    failed: "Copy failed. Try again",
-    title:
-      "Copy a prompt for your Agent to install the current DSHX development Skill, read the API guide, and distinguish offline checks from a real DeepSeek Harness smoke test.",
-  },
-  zh: {
-    idle: "复制开发 Prompt",
-    copied: "已复制，粘贴给 Agent",
-    failed: "复制失败，请重试",
-    title:
-      "复制一段 Prompt，让 Agent 安装当前 DSHX 开发 Skill、读取 API 指引，并区分离线检查与真实 DeepSeek Harness smoke test。",
-  },
-} as const;
 
 type CopyState = "idle" | "copied" | "failed";
 
@@ -46,7 +30,7 @@ export function CopyAgentPrompt({
   const { locale } = useI18n();
   const [state, setState] = useState<CopyState>("idle");
   const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const messages = copy[locale];
+  const t = createTranslator(locale);
 
   useEffect(
     () => () => {
@@ -68,13 +52,18 @@ export function CopyAgentPrompt({
     resetTimer.current = setTimeout(() => setState("idle"), 2400);
   };
 
-  const label =
-    state === "copied" ? messages.copied : state === "failed" ? messages.failed : messages.idle;
+  const label = t(
+    state === "copied"
+      ? "docs.copyPrompt.copied"
+      : state === "failed"
+        ? "docs.copyPrompt.failed"
+        : "docs.copyPrompt.idle",
+  );
 
   return (
     <button
       type="button"
-      title={messages.title}
+      title={t("docs.copyPrompt.title")}
       onClick={() => void handleCopy()}
       className={cn(
         "inline-flex h-10 items-center justify-center gap-2 rounded-[10px] px-4 text-[13.5px] font-medium transition-colors duration-150",

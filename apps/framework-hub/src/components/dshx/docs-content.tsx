@@ -12,51 +12,10 @@ import {
   type DocsBlock,
   type DocsSlug,
 } from "@/lib/docs";
+import { createTranslator } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 
 import { DocsLayout } from "./docs-layout";
-
-const overviewCopy = {
-  en: {
-    eyebrow: "API documentation",
-    title: "DSHX API reference",
-    intro:
-      "Choose a public module to see its exported functions, signatures, parameters, return values, examples, automatic wiring, and errors.",
-    quickstart: "Quick start",
-    quickstartBody:
-      "The initializer creates the conventional Host and Client entries, installs dependencies, and prepares the official DeepSeek Harness development loop.",
-    ready: "host ready · client watching · DeepSeek Harness opened",
-    chapters: "API modules and guides",
-    chaptersBody:
-      "Host, Client, Settings, Typed API, Conversation, compiler, CLI, and compatibility are documented separately.",
-    open: "Open reference",
-    experimental: "Experimental",
-    next: "New project",
-    nextBody:
-      "Create the starter project, then use the reference for the modules imported by your plugin.",
-  },
-  zh: {
-    eyebrow: "API 文档",
-    title: "DSHX API 参考",
-    intro: "按公开模块查看导出函数、签名、参数、返回值、完整示例、自动接线与错误。",
-    quickstart: "快速开始",
-    quickstartBody:
-      "初始化器会创建标准 Host 与 Client 入口、安装依赖，并准备官方 DeepSeek Harness 开发循环。",
-    ready: "Host 就绪 · Client 监听中 · DeepSeek Harness 已打开",
-    chapters: "API 模块与指南",
-    chaptersBody:
-      "Host、Client、Settings、类型化 API、Conversation、Compiler、CLI 与兼容性分别说明。",
-    open: "打开参考",
-    experimental: "实验性",
-    next: "新建项目",
-    nextBody: "先创建 starter project，再按插件实际 import 的模块查阅 API。",
-  },
-} as const;
-
-const pagerCopy = {
-  en: { previous: "Previous", next: "Next", index: "All chapters" },
-  zh: { previous: "上一章", next: "下一章", index: "全部章节" },
-} as const;
 
 function ApiRows({ rows }: { rows: Extract<DocsBlock, { kind: "api" }>["rows"] }) {
   return (
@@ -120,11 +79,11 @@ function ChapterPager({ slug }: { slug: DocsSlug }) {
   const index = DOC_SLUGS.indexOf(slug);
   const previous = index > 0 ? DOC_SLUGS[index - 1] : undefined;
   const next = index < DOC_SLUGS.length - 1 ? DOC_SLUGS[index + 1] : undefined;
-  const copy = pagerCopy[locale];
+  const t = createTranslator(locale);
 
   return (
     <nav
-      aria-label={copy.index}
+      aria-label={t("docs.pager.index")}
       className="mt-16 grid gap-3 border-t border-border pt-8 sm:grid-cols-2"
     >
       {previous === undefined ? (
@@ -133,7 +92,7 @@ function ChapterPager({ slug }: { slug: DocsSlug }) {
           params={{ locale }}
           className="rounded-xl border border-border p-4 text-[13px] text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground"
         >
-          ← {copy.index}
+          ← {t("docs.pager.index")}
         </Link>
       ) : (
         <Link
@@ -142,7 +101,7 @@ function ChapterPager({ slug }: { slug: DocsSlug }) {
           className="rounded-xl border border-border p-4 transition-colors hover:border-border-strong"
         >
           <span className="block font-mono text-[9px] tracking-[0.12em] text-muted-foreground uppercase">
-            {copy.previous}
+            {t("docs.pager.previous")}
           </span>
           <span className="mt-1 block text-[13.5px] font-medium">
             ← {getDocsChapter(previous).copy[locale].navigation}
@@ -155,7 +114,7 @@ function ChapterPager({ slug }: { slug: DocsSlug }) {
           params={{ locale }}
           className="rounded-xl border border-border p-4 text-right text-[13px] text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground"
         >
-          {copy.index} →
+          {t("docs.pager.index")} →
         </Link>
       ) : (
         <Link
@@ -164,7 +123,7 @@ function ChapterPager({ slug }: { slug: DocsSlug }) {
           className="rounded-xl border border-border p-4 text-right transition-colors hover:border-border-strong"
         >
           <span className="block font-mono text-[9px] tracking-[0.12em] text-muted-foreground uppercase">
-            {copy.next}
+            {t("docs.pager.next")}
           </span>
           <span className="mt-1 block text-[13.5px] font-medium">
             {getDocsChapter(next).copy[locale].navigation} →
@@ -179,6 +138,7 @@ export function DocsChapter({ slug }: { slug: DocsSlug }) {
   const { locale } = useI18n();
   const definition = getDocsChapter(slug);
   const chapter = definition.copy[locale];
+  const t = createTranslator(locale);
   const showVerification = ["architecture", "publishing", "troubleshooting"].includes(slug);
 
   return (
@@ -210,10 +170,10 @@ export function DocsChapter({ slug }: { slug: DocsSlug }) {
 
         {showVerification ? (
           <section id="verification" className="docs-section scroll-mt-24">
-            <div className="docs-api-label">{locale === "zh" ? "验证" : "verification"}</div>
-            <h2>{locale === "zh" ? "来源与最后验证" : "Sources and last verification"}</h2>
+            <div className="docs-api-label">{t("docs.verification.label")}</div>
+            <h2>{t("docs.verification.title")}</h2>
             <p>
-              {locale === "zh" ? "最后验证日期：" : "Last verified: "}
+              {t("docs.verification.lastVerified")}
               <time dateTime={definition.lastVerified}>{definition.lastVerified}</time>
             </p>
             <ul className="mt-6 max-w-[46rem] space-y-3 text-[14px] leading-6 text-muted-foreground">
@@ -240,7 +200,7 @@ export function DocsChapter({ slug }: { slug: DocsSlug }) {
 
 export function DocsOverview() {
   const { locale } = useI18n();
-  const copy = overviewCopy[locale];
+  const t = createTranslator(locale);
   const groups = getDocsNavigation(locale);
 
   useEffect(() => {
@@ -258,20 +218,20 @@ export function DocsOverview() {
       <article>
         <header id="overview" className="scroll-mt-24 border-b border-border pb-10 md:pb-12">
           <div className="font-mono text-[10.5px] tracking-[0.14em] text-accent uppercase">
-            {copy.eyebrow}
+            {t("docs.overview.eyebrow")}
           </div>
           <h1 className="text-balance-tight mt-4 max-w-[13ch] text-[clamp(2.5rem,6vw,4.5rem)] leading-[0.98] font-medium">
-            {copy.title}
+            {t("docs.overview.title")}
           </h1>
           <p className="mt-6 max-w-[44rem] text-[16px] leading-7 text-muted-foreground md:text-[17px]">
-            {copy.intro}
+            {t("docs.overview.intro")}
           </p>
           <CopyAgentPrompt className="mt-7" />
         </header>
 
         <section className="docs-section pt-10 md:pt-12">
-          <h2>{copy.quickstart}</h2>
-          <p>{copy.quickstartBody}</p>
+          <h2>{t("docs.overview.quickstart")}</h2>
+          <p>{t("docs.overview.quickstartBody")}</p>
           <Terminal
             className="mt-6"
             title="terminal"
@@ -279,14 +239,14 @@ export function DocsOverview() {
               { text: "pnpm create dshx my-plugin", kind: "cmd" },
               { text: "cd my-plugin", kind: "cmd" },
               { text: "pnpm dev", kind: "cmd" },
-              { text: copy.ready, kind: "ok" },
+              { text: t("docs.overview.ready"), kind: "ok" },
             ]}
           />
         </section>
 
         <section className="docs-section">
-          <h2>{copy.chapters}</h2>
-          <p>{copy.chaptersBody}</p>
+          <h2>{t("docs.overview.chapters")}</h2>
+          <p>{t("docs.overview.chaptersBody")}</p>
           <div className="mt-8 space-y-9">
             {groups.map((group) => (
               <div key={group.id}>
@@ -311,7 +271,7 @@ export function DocsOverview() {
                           </span>
                           {item.experimental ? (
                             <span className="rounded border border-accent/30 px-1.5 py-0.5 font-mono text-[8.5px] text-accent">
-                              {copy.experimental}
+                              {t("docs.overview.experimental")}
                             </span>
                           ) : null}
                         </div>
@@ -322,7 +282,8 @@ export function DocsOverview() {
                           {chapter.description}
                         </p>
                         <span className="mt-5 block text-[12px] font-medium text-foreground">
-                          {copy.open} <span className="text-accent transition-transform">→</span>
+                          {t("docs.overview.open")}{" "}
+                          <span className="text-accent transition-transform">→</span>
                         </span>
                       </Link>
                     );
@@ -334,9 +295,9 @@ export function DocsOverview() {
         </section>
 
         <section className="mt-16 rounded-xl border border-border bg-surface/90 p-6 backdrop-blur-sm md:p-8">
-          <h2 className="text-[22px] font-medium tracking-tight">{copy.next}</h2>
+          <h2 className="text-[22px] font-medium tracking-tight">{t("docs.overview.next")}</h2>
           <p className="mt-3 max-w-2xl text-[14px] leading-6 text-muted-foreground">
-            {copy.nextBody}
+            {t("docs.overview.nextBody")}
           </p>
           <Link
             to="/$locale/docs/$slug"

@@ -3,25 +3,9 @@ import { useState, type ReactNode } from "react";
 
 import { Container } from "@/components/dshx/primitives";
 import { getDocsChapter, getDocsNavigation, type DocsSlug } from "@/lib/docs";
+import { createTranslator } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { cn } from "@/lib/utils";
-
-const shellCopy = {
-  en: {
-    home: "Documentation home",
-    mobile: "Documentation navigation",
-    version: "DSHX 0.2",
-    experimental: "experimental",
-    onPage: "On this chapter",
-  },
-  zh: {
-    home: "文档首页",
-    mobile: "文档导航",
-    version: "DSHX 0.2",
-    experimental: "实验性",
-    onPage: "本章目录",
-  },
-} as const;
 
 function DocsNavigation({
   activeSlug,
@@ -32,12 +16,12 @@ function DocsNavigation({
 }) {
   const { locale } = useI18n();
   const groups = getDocsNavigation(locale);
-  const copy = shellCopy[locale];
+  const t = createTranslator(locale);
   const activeChapter =
     activeSlug === undefined ? undefined : getDocsChapter(activeSlug).copy[locale];
 
   return (
-    <nav aria-label={copy.mobile} className="space-y-7">
+    <nav aria-label={t("docs.shell.mobile")} className="space-y-7">
       <div>
         <Link
           to="/$locale/docs"
@@ -50,7 +34,7 @@ function DocsNavigation({
               : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
-          {copy.home}
+          {t("docs.shell.home")}
         </Link>
       </div>
 
@@ -77,7 +61,7 @@ function DocsNavigation({
                   <span>{item.label}</span>
                   {item.experimental ? (
                     <span className="font-mono text-[8.5px] tracking-tight text-accent">
-                      {copy.experimental}
+                      {t("docs.shell.experimental")}
                     </span>
                   ) : null}
                 </Link>
@@ -85,7 +69,7 @@ function DocsNavigation({
                 {activeSlug === item.slug && activeChapter !== undefined ? (
                   <div className="ml-3 space-y-0.5 border-l border-border/70 py-1.5">
                     <div className="px-3 pb-1 font-mono text-[8.5px] tracking-[0.1em] text-muted-foreground uppercase">
-                      {copy.onPage}
+                      {t("docs.shell.onPage")}
                     </div>
                     {activeChapter.sections.map((section) => (
                       <a
@@ -117,7 +101,7 @@ export function DocsLayout({
 }) {
   const { locale } = useI18n();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const copy = shellCopy[locale];
+  const t = createTranslator(locale);
 
   return (
     <main className="docs-page">
@@ -129,7 +113,7 @@ export function DocsLayout({
         >
           <summary className="cursor-pointer list-none text-[13px] font-medium">
             <span className="flex items-center justify-between">
-              {copy.mobile}
+              {t("docs.shell.mobile")}
               <span aria-hidden className="font-mono text-muted-foreground">
                 {mobileNavOpen ? "−" : "+"}
               </span>
@@ -147,7 +131,7 @@ export function DocsLayout({
                 DSHX Docs
               </Link>
               <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[9.5px] text-muted-foreground">
-                {copy.version}
+                {t("docs.shell.version")}
               </span>
             </div>
             <DocsNavigation activeSlug={activeSlug} />

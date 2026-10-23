@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Container, Wordmark, XMark, ButtonLink } from "./primitives";
 import { cn } from "@/lib/utils";
 import { localizedPath } from "@/lib/i18n";
+import { otherLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { MobileSessionLink, SessionLink } from "@/components/community/auth-controls";
 import { GitHubStarLink } from "./github-star-link";
@@ -68,7 +69,8 @@ export function Nav() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const alternateLocale = locale === "en" ? "zh" : "en";
+  const alternateLocale = otherLocale(locale);
+  const alternateLabel = alternateLocale === "zh" ? "nav.switchToChinese" : "nav.switchToEnglish";
   const alternatePath = localizedPath(alternateLocale, location.pathname);
 
   return (
@@ -104,7 +106,7 @@ export function Nav() {
             aria-label={t("nav.language")}
             className="hidden rounded-md border border-border px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground sm:block"
           >
-            {locale === "en" ? t("nav.switchToChinese") : t("nav.switchToEnglish")}
+            {t(alternateLabel)}
           </Link>
           <button
             onClick={() => setOpen((value) => !value)}
@@ -146,7 +148,7 @@ export function Nav() {
               onClick={() => setOpen(false)}
               className="py-2.5 text-[14px] text-muted-foreground"
             >
-              {locale === "en" ? t("nav.switchToChinese") : t("nav.switchToEnglish")}
+              {t(alternateLabel)}
             </Link>
             <div className="py-2.5">
               <MobileSessionLink locale={locale} />

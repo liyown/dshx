@@ -94,14 +94,9 @@ function staticDocument(pathname: string, locale: Locale): AgentDocument | null 
   }
   if (pathname === `/${locale}/docs`) {
     const navigation = getDocsNavigation(locale);
-    const title = locale === "zh" ? "DSHX API 参考" : "DSHX API Reference";
-    const description =
-      locale === "zh"
-        ? "DSHX Host、Client、Settings、类型化 API、Compiler、CLI 与兼容性参考。"
-        : "Reference for DSHX Host, Client, Settings, typed APIs, compiler, CLI, and compatibility.";
     return {
-      title,
-      description,
+      title: t("document.apiReference.title"),
+      description: t("document.apiReference.description"),
       canonical: canonical(pathname),
       locale,
       sections: navigation.map((group) => ({
@@ -171,10 +166,7 @@ function staticDocument(pathname: string, locale: Locale): AgentDocument | null 
   if (pathname === `/${locale}/examples`) {
     return {
       title: t("examples.title"),
-      description:
-        locale === "zh"
-          ? "DSHX 插件的完整、聚焦示例。"
-          : "Focused DSHX plugin examples with complete source.",
+      description: t("document.examplesDescription"),
       canonical: canonical(pathname),
       locale,
       sections: examples.map((example) => ({
@@ -199,7 +191,7 @@ function staticDocument(pathname: string, locale: Locale): AgentDocument | null 
         title,
         blocks: [{ kind: "paragraph", text: body }],
       })),
-      references: [{ label: "Security contact", url: "mailto:security@dshx.io" }],
+      references: [{ label: t("document.securityContact"), url: "mailto:security@dshx.io" }],
     };
   }
   return null;
@@ -264,32 +256,29 @@ async function dynamicDocument(
     );
     const install = target ? buildPluginInstallCommand(target.spec) : null;
     return {
-      title:
-        locale === "zh"
-          ? `${plugin.name} DeepSeek Harness 插件`
-          : `${plugin.name} DeepSeek Harness Plugin`,
+      title: t("plugin.documentTitle", { name: plugin.name }),
       description: detail.seoDescription,
       canonical: canonical(pathname),
       locale,
       sections: [
         {
-          title: locale === "zh" ? "安装与兼容性" : "Installation and compatibility",
+          title: t("plugin.installAndCompatibility"),
           blocks: [
             {
               kind: "table",
               headers: [t("document.fact"), t("document.value")],
               rows: [
-                [locale === "zh" ? "版本" : "Version", plugin.version],
-                [locale === "zh" ? "兼容性" : "Compatibility", plugin.compat],
-                [locale === "zh" ? "许可证" : "License", detail.license ?? "Unavailable"],
-                [locale === "zh" ? "维护者" : "Maintainer", plugin.author],
+                [t("plugin.version"), plugin.version],
+                [t("plugin.compatibility"), plugin.compat],
+                [t("plugin.license"), detail.license ?? t("plugin.unavailable")],
+                [t("plugin.maintainer"), plugin.author],
               ],
             },
             ...(install ? [{ kind: "code" as const, language: "console", code: install }] : []),
           ],
         },
         {
-          title: locale === "zh" ? "概览" : "Overview",
+          title: t("plugin.overview"),
           blocks: [{ kind: "paragraph", text: detail.overviewMarkdown ?? plugin.description }],
         },
         ...(detail.sourceReadme?.content
@@ -306,11 +295,11 @@ async function dynamicDocument(
             ]
           : []),
         {
-          title: locale === "zh" ? "发布与依赖" : "Releases and dependencies",
+          title: t("plugin.releasesAndDependencies"),
           blocks: [
             {
               kind: "table",
-              headers: ["Version", "Channel", "Compatibility"],
+              headers: [t("plugin.version"), t("plugin.channel"), t("plugin.compatibility")],
               rows: detail.releases.map((release) => [
                 release.version,
                 release.channel,
@@ -328,9 +317,11 @@ async function dynamicDocument(
         },
       ],
       references: [
-        ...(detail.repositoryUrl ? [{ label: "Repository", url: detail.repositoryUrl }] : []),
+        ...(detail.repositoryUrl
+          ? [{ label: t("plugin.repository"), url: detail.repositoryUrl }]
+          : []),
         ...(detail.sourceReadme
-          ? [{ label: "Source README", url: detail.sourceReadme.sourceUrl }]
+          ? [{ label: t("document.sourceReadme"), url: detail.sourceReadme.sourceUrl }]
           : []),
       ],
       structuredData: [
@@ -357,11 +348,8 @@ async function dynamicDocument(
     const category = page.categories.find((item) => item.slug === slug);
     if (!category || page.items.length < 3) return null;
     return {
-      title: locale === "zh" ? `${category.name} 插件` : `${category.name} plugins`,
-      description:
-        locale === "zh"
-          ? `已验证的 ${category.name} DeepSeek Harness 插件。`
-          : `Verified DeepSeek Harness plugins in ${category.name}.`,
+      title: t("document.categoryTitle", { name: category.name }),
+      description: t("document.categoryDescription", { name: category.name }),
       canonical: canonical(pathname),
       locale,
       sections: [
@@ -394,7 +382,9 @@ async function dynamicDocument(
       return null;
     const name = String(publisher["localized_name"] ?? login);
     const description = String(
-      publisher["seo_description"] ?? publisher["localized_bio"] ?? "DSHX plugin publisher",
+      publisher["seo_description"] ??
+        publisher["localized_bio"] ??
+        t("document.publisherDescription"),
     );
     return {
       title: `${name} · DSHX Hub`,
@@ -403,7 +393,7 @@ async function dynamicDocument(
       locale,
       sections: [
         {
-          title: locale === "zh" ? "发布的插件" : "Published plugins",
+          title: t("profile.publishedPlugins"),
           blocks: [
             {
               kind: "list",
@@ -439,7 +429,7 @@ async function dynamicDocument(
         title: `${report.day} · ${report.outcome}`,
         blocks: [
           { kind: "paragraph", text: operationReportPlainText(report.body) },
-          { kind: "paragraph", text: `Runs: ${report.runCount}` },
+          { kind: "paragraph", text: t("document.runs", { count: report.runCount }) },
         ],
       })),
     };

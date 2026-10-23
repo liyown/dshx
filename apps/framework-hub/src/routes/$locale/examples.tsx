@@ -11,10 +11,7 @@ export const Route = createFileRoute("/$locale/examples")({
     const locale = parseLocale(params.locale);
     const t = createTranslator(locale);
     const title = t("examples.title") + " — DSHX";
-    const description =
-      locale === "zh"
-        ? "查看使用 React Slot、Host Tool、类型化 Host–Client API 与 Runtime Hook 构建的 DSHX 插件示例。"
-        : "Explore DSHX plugin examples for React Slots, Host tools, typed Host–Client APIs, and runtime hooks.";
+    const description = t("examples.seoDescription");
     return buildSeoHead({
       locale,
       path: `/${locale}/examples`,

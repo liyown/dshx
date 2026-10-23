@@ -1,3 +1,5 @@
+import { createTranslator } from "@/lib/i18n";
+
 export type CatalogLocale = "en" | "zh";
 
 const lowInformationCopyPatterns = [
@@ -75,8 +77,7 @@ export function improveShortDescription(
 }
 
 export function buildPluginSeoTitle(displayName: string, locale: CatalogLocale): string {
-  const suffix =
-    locale === "zh" ? " – DeepSeek Harness 插件 | DSHX" : " – DeepSeek Harness Plugin | DSHX";
+  const suffix = createTranslator(locale)("catalog.seoTitleSuffix");
   const maximum = locale === "en" ? 68 : 64;
   const available = maximum - suffix.length;
   return `${truncateCatalogCopy(displayName, available, locale)}${suffix}`;
@@ -85,12 +86,7 @@ export function buildPluginSeoTitle(displayName: string, locale: CatalogLocale):
 export function buildPluginSeoDescription(description: string, locale: CatalogLocale): string {
   const normalized = normalizeCopy(description);
   const ecosystem = /\b(?:DSH|DeepSeek Harness)\b/iu.test(normalized);
-  const suffix =
-    locale === "zh" && !ecosystem
-      ? " DeepSeek Harness 插件。"
-      : locale === "en" && !ecosystem
-        ? " A DeepSeek Harness plugin."
-        : "";
+  const suffix = ecosystem ? "" : createTranslator(locale)("catalog.seoDescriptionSuffix");
   const maximum = locale === "en" ? 160 : 96;
   const body = truncateCatalogCopy(normalized, maximum - suffix.length - 1, locale);
   return `${trimTrailingFragment(body)}${suffix}`;
@@ -108,21 +104,12 @@ export function buildPluginOverview(input: {
     6_500,
     input.locale,
   );
-  if (input.locale === "zh") {
-    const installation = input.installCommand
-      ? `安装：使用 ${input.installCommand} 将插件添加到 DeepSeek Harness 默认的 web profile。`
-      : "安装：当前没有可用的主安装目标，请先查看上游文档。";
-    const provenance = input.hasReadme
-      ? "来源与风险：本概述整理自插件的公开 README。安装前请阅读原始文档并审查源码；DSHX 仅整理公开来源声明，未独立验证安全性、兼容性或可运行性。"
-      : "来源与风险：本概述仅依据当前可用的公开元数据。安装前请审查上游源码；DSHX 未独立验证安全性、兼容性或可运行性。";
-    return [lead, installation, provenance].join("\n\n");
-  }
-
+  const t = createTranslator(input.locale);
   const installation = input.installCommand
-    ? `Installation: run ${input.installCommand} to add the plugin to DeepSeek Harness's default web profile.`
-    : "Installation: no active primary install target is currently available; consult the upstream documentation first.";
-  const provenance = input.hasReadme
-    ? "Source and risk: this overview is derived from the plugin's public README. Read the original documentation and review the source before installation; DSHX catalogs public source claims and has not independently verified security, compatibility, or operability."
-    : "Source and risk: this overview uses the currently available public metadata only. Review the upstream source before installation; DSHX has not independently verified security, compatibility, or operability.";
+    ? t("catalog.overviewInstall", { command: input.installCommand })
+    : t("catalog.overviewInstallMissing");
+  const provenance = t(
+    input.hasReadme ? "catalog.overviewSourceReadme" : "catalog.overviewSourceMetadata",
+  );
   return [lead, installation, provenance].join("\n\n");
 }

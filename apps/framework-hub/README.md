@@ -283,10 +283,15 @@ The Hub uses URL-prefixed locales:
 - /zh
 
 The root URL negotiates the initial locale from Accept-Language; an explicit locale
-in the URL always wins. Shared UI copy is kept in the typed locale catalog under
-`src/lib/i18n`. Plugin localizations are stored independently in D1; missing
-locale content may fall back for readers but is marked `noindex` and excluded
-from that locale's Sitemap and hreflang declarations.
+in the URL always wins. All interface copy is kept in the typed message tables under
+`src/lib/i18n/messages` — one key space, split by surface — and components read it
+through `createTranslator`, so a locale is decided once at the edge. Documents
+(API chapters, legal texts, articles) keep their own prose next to the document;
+`architecture-boundaries.test.ts` fails the build when a locale branch or a local
+bilingual copy table appears outside that seam. Plugin localizations are stored
+independently in D1; missing locale content may fall back for readers but is
+marked `noindex` and excluded from that locale's Sitemap and hreflang
+declarations.
 
 BRAND MOTIF — THE X
 

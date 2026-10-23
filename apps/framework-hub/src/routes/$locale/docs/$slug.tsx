@@ -2,7 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { DocsChapter } from "@/components/dshx/docs-content";
 import { getDocsChapter, isDocsSlug } from "@/lib/docs";
-import { parseLocale, languageTag } from "@/lib/i18n";
+import { createTranslator, languageTag, parseLocale } from "@/lib/i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/docs/$slug")({
@@ -15,15 +15,12 @@ export const Route = createFileRoute("/$locale/docs/$slug")({
     const slug = loaderData?.slug ?? (isDocsSlug(params.slug) ? params.slug : "getting-started");
     const chapter = getDocsChapter(slug).copy[locale];
     const definition = getDocsChapter(slug);
+    const t = createTranslator(locale);
     const title =
       slug === "getting-started"
-        ? locale === "zh"
-          ? "使用 DSHX 创建 DeepSeek Harness 插件"
-          : "Create a DeepSeek Harness Plugin with DSHX"
+        ? t("docs.pageTitle.gettingStarted")
         : slug === "compatibility"
-          ? locale === "zh"
-            ? "DSHX 与 DeepSeek Harness 版本兼容性"
-            : "DSHX Compatibility with DeepSeek Harness Versions"
+          ? t("docs.pageTitle.compatibility")
           : `${chapter.title} · DSHX docs`;
     const path = `/${locale}/docs/${slug}`;
     return buildSeoHead({

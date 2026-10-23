@@ -78,6 +78,18 @@ describe("Framework Hub architecture boundaries", () => {
     ).toEqual([]);
   });
 
+  it("keeps interface copy in the message tables, not in locale branches", async () => {
+    const files = (await sourceFiles()).filter(
+      ({ path }) => !path.startsWith("lib/i18n/") && !path.startsWith("lib/docs/"),
+    );
+    const localeBranch = /(?<![\w.])locale\s*[!=]==?\s*["'](?:en|zh)["']\s*\?\s*["'`]/;
+    const localCopyTable =
+      /(?:const|let)\s+\w*(?:[Cc]opy|[Mm]essages)\s*(?::[^=\n]+)?=\s*\{\s*(?:en|zh)\s*:/;
+    expect(
+      violations(files, ({ text }) => localeBranch.test(text) || localCopyTable.test(text)),
+    ).toEqual([]);
+  });
+
   it("keeps the install-target rule in the contracts package", async () => {
     const files = await sourceFiles();
     // Whether a spec is safe to hand to a shell is one decision. It lives in

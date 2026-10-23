@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
-import { localizedPath } from "@/lib/i18n";
+import { createTranslator, localizedPath } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { cn } from "@/lib/utils";
 import { useHydratedReducedMotion } from "./use-hydrated-reduced-motion";
@@ -50,6 +50,7 @@ export function PluginNavigationLink({
   children?: ReactNode;
 }) {
   const { locale } = useI18n();
+  const t = createTranslator(locale);
   const reducedMotion = useHydratedReducedMotion();
   const href = localizedPath(locale, `/plugins/${slug}`);
   const isLoading = useRouterState({
@@ -72,7 +73,7 @@ export function PluginNavigationLink({
       {isLoading ? (
         <span className="plugin-navigation-status" role="status">
           <LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />
-          <span>{locale === "zh" ? "正在打开插件…" : "Opening plugin…"}</span>
+          <span>{t("common.openingPlugin")}</span>
         </span>
       ) : null}
     </>

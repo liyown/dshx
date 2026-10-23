@@ -18,6 +18,7 @@ import {
 } from "@/lib/catalog/install-target/public";
 import { cn } from "@/lib/utils";
 import { createTranslator, localizedPath, parseLocale, intlLocale } from "@/lib/i18n";
+import type { Translate } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import {
   breadcrumbList,
@@ -104,7 +105,7 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
           p.name,
           loaderData.seoDescription,
         ),
-        alt: locale === "zh" ? `${p.name} 插件卡片` : `${p.name} plugin card`,
+        alt: t("plugin.cardAlt", { name: p.name }),
         width: 1200,
         height: 630,
         type: "image/png",
@@ -302,7 +303,7 @@ function PluginDetail() {
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {sectionLabel(s, locale)}
+                  {sectionLabel(s, t)}
                   {active === s && (
                     <span
                       ref={indicatorRef}
@@ -389,16 +390,16 @@ function PluginDetail() {
   );
 }
 
-function sectionLabel(section: DetailSection, locale: "en" | "zh") {
+function sectionLabel(section: DetailSection, t: Translate) {
   const labels = {
-    overview: ["Overview", "概览"],
-    readme: ["README", "README"],
-    releases: ["Releases", "版本"],
-    dependencies: ["Dependencies", "依赖"],
-    media: ["Media", "媒体"],
-    reviews: ["Reviews", "评价"],
+    overview: "plugin.overview",
+    readme: "plugin.readme",
+    releases: "plugin.section.releases",
+    dependencies: "plugin.dependencies",
+    media: "plugin.section.media",
+    reviews: "plugin.section.reviews",
   } as const;
-  return labels[section][locale === "zh" ? 1 : 0];
+  return t(labels[section]);
 }
 
 function OverviewPanel({
@@ -439,9 +440,7 @@ function OverviewPanel({
       </section>
       {installTargets.length ? (
         <section>
-          <h2 className="text-base font-medium">
-            {locale === "zh" ? "安装目标" : "Install targets"}
-          </h2>
+          <h2 className="text-base font-medium">{t("plugin.installTargets")}</h2>
           <div className="mt-3 divide-y divide-ink-border overflow-hidden rounded-xl border border-ink-border bg-ink">
             {installTargets.map(
               (target: { kind: string; spec: string; status: string; is_primary: number }) => (
@@ -454,7 +453,7 @@ function OverviewPanel({
                   </code>
                   <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
                     {target.kind} · {target.status}
-                    {target.is_primary === 1 ? " · primary" : ""}
+                    {target.is_primary === 1 ? ` · ${t("plugin.primaryTarget")}` : ""}
                   </span>
                 </div>
               ),
@@ -464,15 +463,13 @@ function OverviewPanel({
       ) : null}
       {detail.installNotesMarkdown ? (
         <section>
-          <h2 className="text-base font-medium">
-            {locale === "zh" ? "安装说明" : "Install notes"}
-          </h2>
+          <h2 className="text-base font-medium">{t("plugin.installNotes")}</h2>
           <PluginMarkdown className="mt-3">{detail.installNotesMarkdown}</PluginMarkdown>
         </section>
       ) : null}
       {detail.capabilities.length ? (
         <section>
-          <h2 className="text-base font-medium">{locale === "zh" ? "能力" : "Capabilities"}</h2>
+          <h2 className="text-base font-medium">{t("plugin.capabilities")}</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             {detail.capabilities.map((capability: { kind: string; identifier: string }) => (
               <Chip key={`${capability.kind}:${capability.identifier}`}>
@@ -546,9 +543,7 @@ function ReadmePanel({
       </PluginMarkdown>
       {truncated ? (
         <p className="mt-4 text-[12.5px] leading-6 text-muted-foreground">
-          {locale === "zh"
-            ? "为控制页面体积，这里展示 README 的前 64 KiB；完整原文请使用上方来源链接。"
-            : "To keep the page bounded, this view shows the first 64 KiB of the README. Use the source link above for the complete document."}
+          {t("plugin.readmeTruncated")}
         </p>
       ) : null}
     </section>
@@ -739,6 +734,7 @@ function reviewReplies(value: ReviewItem["replies"]) {
 }
 
 function ReviewsPanel({ slug, locale }: { slug: string; locale: "en" | "zh" }) {
+  const t = createTranslator(locale);
   const queryClient = useQueryClient();
   const path = `/api/plugins/${encodeURIComponent(slug)}/reviews?limit=50`;
   const query = useQuery({
@@ -754,12 +750,8 @@ function ReviewsPanel({ slug, locale }: { slug: string; locale: "en" | "zh" }) {
     return () => window.removeEventListener("dshx:reviews-changed", changed);
   }, [path, queryClient, slug]);
   const items = query.data?.items ?? (query.isError ? [] : null);
-  if (!items)
-    return <EmptyPanel>{locale === "zh" ? "正在读取评价…" : "Loading reviews…"}</EmptyPanel>;
-  if (!items.length)
-    return (
-      <EmptyPanel>{locale === "zh" ? "还没有公开评价。" : "No public reviews yet."}</EmptyPanel>
-    );
+  if (!items) return <EmptyPanel>{t("plugin.reviewsLoading")}</EmptyPanel>;
+  if (!items.length) return <EmptyPanel>{t("plugin.reviewsEmpty")}</EmptyPanel>;
   return (
     <div className="divide-y divide-border border-y border-border">
       {items.map((review) => {

@@ -1,4 +1,4 @@
-import type { Locale } from "@/lib/i18n";
+import { createTranslator, type Locale } from "@/lib/i18n";
 import { socialCardPattern, truncateSocialText } from "./social-card-data";
 
 export const SOCIAL_CARD_WIDTH = 1200;
@@ -28,6 +28,36 @@ export const SOCIAL_CARD_TOKENS = {
 
 const sans = "Inter Tight, Noto Sans SC";
 const mono = "JetBrains Mono, Noto Sans SC";
+
+/**
+ * Text budgets and display sizes per script. These are typography metrics, not
+ * copy: Chinese sets tighter and reads in fewer characters at the same size.
+ */
+const textMetrics: Record<
+  Locale,
+  {
+    readonly homeDescription: number;
+    readonly homeTitle: number;
+    readonly homeTitleSize: number;
+    readonly homeLetterSpacing: string;
+    readonly pluginDescription: number;
+  }
+> = {
+  en: {
+    homeDescription: 142,
+    homeTitle: 58,
+    homeTitleSize: 58,
+    homeLetterSpacing: "-0.045em",
+    pluginDescription: 148,
+  },
+  zh: {
+    homeDescription: 82,
+    homeTitle: 52,
+    homeTitleSize: 55,
+    homeLetterSpacing: "-0.035em",
+    pluginDescription: 88,
+  },
+};
 
 export type HomeSocialCardInput = {
   readonly locale: Locale;
@@ -286,7 +316,7 @@ function HomeRuntimePanel() {
 
 function PluginInstallPanel({ input }: { input: PluginSocialCardInput }) {
   const pattern = socialCardPattern(input.slug);
-  const fallback = input.locale === "zh" ? "暂无已验证安装目标" : "No verified install target";
+  const fallback = createTranslator(input.locale)("social.noInstallTarget");
   return (
     <div
       style={{
@@ -425,13 +455,12 @@ function CardFooter({ locale, detail }: { locale: Locale; detail: string }) {
 }
 
 export function HomeSocialCard(input: HomeSocialCardInput) {
-  const description = truncateSocialText(input.description, input.locale === "zh" ? 82 : 142);
+  const t = createTranslator(input.locale);
+  const metrics = textMetrics[input.locale];
+  const description = truncateSocialText(input.description, metrics.homeDescription);
   return (
     <PaperFrame>
-      <CardHeader
-        locale={input.locale}
-        label={input.locale === "zh" ? "插件框架" : "PLUGIN FRAMEWORK"}
-      />
+      <CardHeader locale={input.locale} label={t("social.frameworkLabel")} />
       <div
         style={{
           display: "flex",
@@ -470,13 +499,13 @@ export function HomeSocialCard(input: HomeSocialCardInput) {
               display: "flex",
               marginTop: 25,
               fontFamily: sans,
-              fontSize: input.locale === "zh" ? 55 : 58,
+              fontSize: metrics.homeTitleSize,
               fontWeight: 500,
-              letterSpacing: input.locale === "zh" ? "-0.035em" : "-0.045em",
+              letterSpacing: metrics.homeLetterSpacing,
               lineHeight: 1.04,
             }}
           >
-            {truncateSocialText(input.title, input.locale === "zh" ? 52 : 58)}
+            {truncateSocialText(input.title, metrics.homeTitle)}
           </div>
           <div
             style={{
@@ -522,22 +551,16 @@ export function HomeSocialCard(input: HomeSocialCardInput) {
 }
 
 export function PluginSocialCard(input: PluginSocialCardInput) {
+  const t = createTranslator(input.locale);
   const titleSize = input.name.length > 42 ? 43 : input.name.length > 28 ? 50 : 58;
-  const description = truncateSocialText(input.description, input.locale === "zh" ? 88 : 148);
-  const badge =
-    input.badge === "official"
-      ? input.locale === "zh"
-        ? "官方插件"
-        : "OFFICIAL PLUGIN"
-      : input.locale === "zh"
-        ? "社区插件"
-        : "COMMUNITY PLUGIN";
+  const description = truncateSocialText(
+    input.description,
+    textMetrics[input.locale].pluginDescription,
+  );
+  const badge = input.badge === "official" ? t("social.officialBadge") : t("social.communityBadge");
   return (
     <PaperFrame>
-      <CardHeader
-        locale={input.locale}
-        label={input.locale === "zh" ? "插件档案" : "PLUGIN RECORD"}
-      />
+      <CardHeader locale={input.locale} label={t("social.recordLabel")} />
       <div
         style={{
           display: "flex",

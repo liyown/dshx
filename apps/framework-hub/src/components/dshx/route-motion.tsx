@@ -2,6 +2,7 @@ import { useRouter, useRouterState } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { animateContent, navigationViewTransition } from "@/lib/navigation-motion";
+import { createTranslator } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { useHydratedReducedMotion } from "./use-hydrated-reduced-motion";
 
@@ -49,12 +50,13 @@ export function RouteMotion({ children }: { children: ReactNode }) {
 
 export function NavigationProgress() {
   const { locale } = useI18n();
+  const t = createTranslator(locale);
   const pending = useRouterState({ select: (state) => state.isLoading });
   if (!pending) return null;
   return (
     <div className="navigation-progress" role="status">
       <LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />
-      <span>{locale === "zh" ? "正在加载…" : "Loading…"}</span>
+      <span>{t("common.loading")}</span>
     </div>
   );
 }

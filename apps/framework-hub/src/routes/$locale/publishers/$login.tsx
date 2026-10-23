@@ -8,7 +8,7 @@ import {
 import { PublisherFollowButton } from "@/components/community/community-dialogs";
 import { Container, SectionLabel } from "@/components/dshx/primitives";
 import { loadPublicPublisher } from "@/lib/community/functions";
-import { parseLocale, languageTag } from "@/lib/i18n";
+import { createTranslator, languageTag, parseLocale } from "@/lib/i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternatesForLocales, publicUrl } from "@/lib/seo";
 import { loadIndexableSitemapLocales } from "@/lib/sitemap.functions";
 
@@ -37,9 +37,10 @@ export const Route = createFileRoute("/$locale/publishers/$login")({
   head: ({ loaderData, params }) => {
     const locale = parseLocale(params.locale);
     const publisher = loaderData?.publisher;
+    const t = createTranslator(locale);
     const title = publisher?.seo_title ?? publisher?.localized_name ?? "Publisher";
     const description =
-      publisher?.seo_description ?? publisher?.localized_bio ?? "DSHX plugin publisher";
+      publisher?.seo_description ?? publisher?.localized_bio ?? t("document.publisherDescription");
     const login = publisher?.login ?? params.login;
     const path = `/${locale}/publishers/${login}`;
     const indexableLocales = loaderData?.indexableLocales ?? [];
@@ -82,6 +83,7 @@ export const Route = createFileRoute("/$locale/publishers/$login")({
 function PublisherPage() {
   const { publisher, plugins } = Route.useLoaderData();
   const locale = parseLocale(Route.useParams().locale);
+  const t = createTranslator(locale);
   return (
     <main>
       <Container className="py-16 md:py-24">
@@ -93,13 +95,11 @@ function PublisherPage() {
         />
         <PublisherFollowButton publisherId={publisher.id} />
         <section className="mt-12">
-          <SectionLabel index="01">
-            {locale === "zh" ? "发布的插件" : "Published plugins"}
-          </SectionLabel>
+          <SectionLabel index="01">{t("profile.publishedPlugins")}</SectionLabel>
           <div className="mt-5">
             <PublicPluginList
               plugins={plugins as PublicPlugin[]}
-              empty={locale === "zh" ? "暂无公开插件。" : "No public plugins yet."}
+              empty={t("profile.publishedPluginsEmpty")}
             />
           </div>
         </section>

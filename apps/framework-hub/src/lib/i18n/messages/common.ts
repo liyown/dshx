@@ -306,6 +306,41 @@ const en = {
   "home.handled.maps": "Source maps",
   "document.fact": "Fact",
   "document.value": "Value",
+  "common.loading": "Loading…",
+  "common.openingPlugin": "Opening plugin…",
+  "examples.seoDescription":
+    "Explore DSHX plugin examples for React Slots, Host tools, typed Host–Client APIs, and runtime hooks.",
+  "plugin.section.releases": "Releases",
+  "plugin.section.media": "Media",
+  "plugin.section.reviews": "Reviews",
+  "plugin.cardAlt": "{name} plugin card",
+  "plugin.installTargets": "Install targets",
+  "plugin.installNotes": "Install notes",
+  "plugin.capabilities": "Capabilities",
+  "plugin.primaryTarget": "primary",
+  "plugin.version": "Version",
+  "plugin.maintainer": "Maintainer",
+  "plugin.channel": "Channel",
+  "plugin.installAndCompatibility": "Installation and compatibility",
+  "plugin.releasesAndDependencies": "Releases and dependencies",
+  "plugin.documentTitle": "{name} DeepSeek Harness Plugin",
+  "plugin.readmeTruncated":
+    "To keep the page bounded, this view shows the first 64 KiB of the README. Use the source link above for the complete document.",
+  "plugin.reviewsLoading": "Loading reviews…",
+  "plugin.reviewsEmpty": "No public reviews yet.",
+  "admin.overviewTitle": "Overview",
+  "admin.blogBodyHelp":
+    'Supports paragraphs, ## section headings, - lists, > quotes, ``` code fences, and ![alt](https://… "caption") images. Body text is stored for the current language.',
+  "document.apiReference.title": "DSHX API Reference",
+  "document.apiReference.description":
+    "Reference for DSHX Host, Client, Settings, typed APIs, compiler, CLI, and compatibility.",
+  "document.examplesDescription": "Focused DSHX plugin examples with complete source.",
+  "document.categoryTitle": "{name} plugins",
+  "document.categoryDescription": "Verified DeepSeek Harness plugins in {name}.",
+  "document.publisherDescription": "DSHX plugin publisher",
+  "document.runs": "Runs: {count}",
+  "document.sourceReadme": "Source README",
+  "document.securityContact": "Security contact",
 } as const;
 
 const zh: Record<keyof typeof en, string> = {
@@ -598,6 +633,41 @@ const zh: Record<keyof typeof en, string> = {
   "home.handled.maps": "Source Map",
   "document.fact": "事实",
   "document.value": "取值",
+  "common.loading": "正在加载…",
+  "common.openingPlugin": "正在打开插件…",
+  "examples.seoDescription":
+    "查看使用 React Slot、Host Tool、类型化 Host–Client API 与 Runtime Hook 构建的 DSHX 插件示例。",
+  "plugin.section.releases": "版本",
+  "plugin.section.media": "媒体",
+  "plugin.section.reviews": "评价",
+  "plugin.cardAlt": "{name} 插件卡片",
+  "plugin.installTargets": "安装目标",
+  "plugin.installNotes": "安装说明",
+  "plugin.capabilities": "能力",
+  "plugin.primaryTarget": "主安装目标",
+  "plugin.version": "版本",
+  "plugin.maintainer": "维护者",
+  "plugin.channel": "通道",
+  "plugin.installAndCompatibility": "安装与兼容性",
+  "plugin.releasesAndDependencies": "发布与依赖",
+  "plugin.documentTitle": "{name} DeepSeek Harness 插件",
+  "plugin.readmeTruncated":
+    "为控制页面体积，这里展示 README 的前 64 KiB；完整原文请使用上方来源链接。",
+  "plugin.reviewsLoading": "正在读取评价…",
+  "plugin.reviewsEmpty": "还没有公开评价。",
+  "admin.overviewTitle": "概述",
+  "admin.blogBodyHelp":
+    "支持段落、## 小节标题、- 列表、> 引用、``` 代码块，以及 ![说明](https://… “图注”) 图片。正文按当前填写的语言保存。",
+  "document.apiReference.title": "DSHX API 参考",
+  "document.apiReference.description":
+    "DSHX Host、Client、Settings、类型化 API、Compiler、CLI 与兼容性参考。",
+  "document.examplesDescription": "DSHX 插件的完整、聚焦示例。",
+  "document.categoryTitle": "{name} 插件",
+  "document.categoryDescription": "已验证的 {name} DeepSeek Harness 插件。",
+  "document.publisherDescription": "DSHX 插件发布者",
+  "document.runs": "运行：{count}",
+  "document.sourceReadme": "源 README",
+  "document.securityContact": "安全联系",
 };
 
 export const commonMessages = { en, zh };

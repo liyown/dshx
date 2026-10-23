@@ -10,7 +10,7 @@ import {
   type CliAuthorizationReason,
   type CliAuthorizationStatus,
 } from "@/lib/auth/cli-page";
-import { parseLocale, type Locale } from "@/lib/i18n";
+import { createTranslator, parseLocale, type Locale } from "@/lib/i18n";
 
 type PageCopy = {
   label: string;
@@ -20,184 +20,55 @@ type PageCopy = {
   terminal: { text: string; kind?: "cmd" | "out" | "ok" | "dim" | "accent" }[];
 };
 
-const baseCopy = {
-  zh: {
-    connecting: {
-      label: "正在连接 GitHub",
-      title: "完成 CLI 授权",
-      description: "即将前往 GitHub 验证身份。完成后会自动回到这里，并把运营凭证交给本机 CLI。",
-      statusLabel: "等待浏览器确认",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "browser      GitHub OAuth", kind: "dim" },
-        { text: "callback     loopback only", kind: "dim" },
-        { text: "status       waiting", kind: "accent" },
-      ],
-    },
-    success: {
-      label: "授权完成",
-      title: "CLI 已安全连接",
-      description: "运营凭证已经写入系统钥匙串。现在可以关闭此页面，回到终端继续操作。",
-      statusLabel: "已连接",
-      terminal: [
-        { text: "dshx-hub auth status", kind: "cmd" },
-        { text: "status       connected", kind: "ok" },
-        { text: "storage      system keychain", kind: "dim" },
-        { text: "next         return to terminal", kind: "accent" },
-      ],
-    },
-  },
-  en: {
-    connecting: {
-      label: "Connecting to GitHub",
-      title: "Complete CLI authorization",
-      description:
-        "You are about to verify your identity with GitHub. When complete, the browser will return here and hand the operator credential to your local CLI.",
-      statusLabel: "Waiting for browser confirmation",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "browser      GitHub OAuth", kind: "dim" },
-        { text: "callback     loopback only", kind: "dim" },
-        { text: "status       waiting", kind: "accent" },
-      ],
-    },
-    success: {
-      label: "Authorization complete",
-      title: "CLI connected securely",
-      description:
-        "The operator credential is now stored in your system keychain. You can close this page and return to the terminal.",
-      statusLabel: "Connected",
-      terminal: [
-        { text: "dshx-hub auth status", kind: "cmd" },
-        { text: "status       connected", kind: "ok" },
-        { text: "storage      system keychain", kind: "dim" },
-        { text: "next         return to terminal", kind: "accent" },
-      ],
-    },
-  },
-} satisfies Record<Locale, Record<"connecting" | "success", PageCopy>>;
+type CliPageState = Exclude<CliAuthorizationStatus, "error"> | CliAuthorizationReason | "unknown";
 
-const errorCopy: Record<Locale, Record<CliAuthorizationReason | "unknown", PageCopy>> = {
-  zh: {
-    expired: {
-      label: "请求已失效",
-      title: "这次授权没有完成",
-      description: "授权链接已经过期或状态不匹配。没有凭证写入本机，请回到终端重新发起登录。",
-      statusLabel: "未连接",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "status       not connected", kind: "dim" },
-        { text: "recovery     run login again", kind: "accent" },
-      ],
-    },
-    incomplete: {
-      label: "响应不完整",
-      title: "这次授权没有完成",
-      description: "浏览器没有收到完整的授权结果。没有凭证写入本机，请回到终端重新发起登录。",
-      statusLabel: "未连接",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "status       incomplete", kind: "dim" },
-        { text: "recovery     run login again", kind: "accent" },
-      ],
-    },
-    exchange: {
-      label: "凭证未保存",
-      title: "这次授权没有完成",
-      description: "Hub 无法把运营凭证安全保存到系统钥匙串。请回到终端查看错误，然后重新登录。",
-      statusLabel: "未连接",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "status       exchange failed", kind: "dim" },
-        { text: "recovery     check terminal", kind: "accent" },
-      ],
-    },
-    server: {
-      label: "服务暂时不可用",
-      title: "这次授权没有完成",
-      description: "Hub 暂时无法完成授权。没有凭证写入本机，请稍后回到终端重试。",
-      statusLabel: "未连接",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "status       unavailable", kind: "dim" },
-        { text: "recovery     retry later", kind: "accent" },
-      ],
-    },
-    unknown: {
-      label: "授权未完成",
-      title: "这次授权没有完成",
-      description: "没有凭证写入本机。请回到终端重新运行登录命令。",
-      statusLabel: "未连接",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "status       not connected", kind: "dim" },
-        { text: "recovery     run login again", kind: "accent" },
-      ],
-    },
-  },
-  en: {
-    expired: {
-      label: "Request expired",
-      title: "Authorization did not complete",
-      description:
-        "The authorization link expired or its state did not match. No credential was stored; return to the terminal and start sign-in again.",
-      statusLabel: "Not connected",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "status       not connected", kind: "dim" },
-        { text: "recovery     run login again", kind: "accent" },
-      ],
-    },
-    incomplete: {
-      label: "Incomplete response",
-      title: "Authorization did not complete",
-      description:
-        "The browser did not receive a complete authorization result. No credential was stored; return to the terminal and start sign-in again.",
-      statusLabel: "Not connected",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "status       incomplete", kind: "dim" },
-        { text: "recovery     run login again", kind: "accent" },
-      ],
-    },
-    exchange: {
-      label: "Credential not stored",
-      title: "Authorization did not complete",
-      description:
-        "Hub could not store the operator credential in your system keychain. Check the terminal error, then start sign-in again.",
-      statusLabel: "Not connected",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "status       exchange failed", kind: "dim" },
-        { text: "recovery     check terminal", kind: "accent" },
-      ],
-    },
-    server: {
-      label: "Service unavailable",
-      title: "Authorization did not complete",
-      description:
-        "Hub could not complete authorization right now. No credential was stored; return to the terminal and retry later.",
-      statusLabel: "Not connected",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "status       unavailable", kind: "dim" },
-        { text: "recovery     retry later", kind: "accent" },
-      ],
-    },
-    unknown: {
-      label: "Authorization incomplete",
-      title: "Authorization did not complete",
-      description:
-        "No credential was stored. Return to the terminal and run the sign-in command again.",
-      statusLabel: "Not connected",
-      terminal: [
-        { text: "dshx-hub auth login", kind: "cmd" },
-        { text: "status       not connected", kind: "dim" },
-        { text: "recovery     run login again", kind: "accent" },
-      ],
-    },
-  },
+/**
+ * What each state prints in the terminal mock. The lines are fixed output of
+ * the CLI, not interface copy: they are the same in every locale.
+ */
+const terminalLines: Record<CliPageState, PageCopy["terminal"]> = {
+  connecting: [
+    { text: "dshx-hub auth login", kind: "cmd" },
+    { text: "browser      GitHub OAuth", kind: "dim" },
+    { text: "callback     loopback only", kind: "dim" },
+    { text: "status       waiting", kind: "accent" },
+  ],
+  success: [
+    { text: "dshx-hub auth status", kind: "cmd" },
+    { text: "status       connected", kind: "ok" },
+    { text: "storage      system keychain", kind: "dim" },
+    { text: "next         return to terminal", kind: "accent" },
+  ],
+  expired: [
+    { text: "dshx-hub auth login", kind: "cmd" },
+    { text: "status       not connected", kind: "dim" },
+    { text: "recovery     run login again", kind: "accent" },
+  ],
+  incomplete: [
+    { text: "dshx-hub auth login", kind: "cmd" },
+    { text: "status       incomplete", kind: "dim" },
+    { text: "recovery     run login again", kind: "accent" },
+  ],
+  exchange: [
+    { text: "dshx-hub auth login", kind: "cmd" },
+    { text: "status       exchange failed", kind: "dim" },
+    { text: "recovery     check terminal", kind: "accent" },
+  ],
+  server: [
+    { text: "dshx-hub auth login", kind: "cmd" },
+    { text: "status       unavailable", kind: "dim" },
+    { text: "recovery     retry later", kind: "accent" },
+  ],
+  unknown: [
+    { text: "dshx-hub auth login", kind: "cmd" },
+    { text: "status       not connected", kind: "dim" },
+    { text: "recovery     run login again", kind: "accent" },
+  ],
 };
+
+function pageState(status: CliAuthorizationStatus, reason?: CliAuthorizationReason): CliPageState {
+  return status === "error" ? (reason ?? "unknown") : status;
+}
 
 export const Route = createFileRoute("/$locale/auth/cli")({
   validateSearch: normalizeCliAuthorizationSearch,
@@ -221,8 +92,15 @@ function getCopy(
   status: CliAuthorizationStatus,
   reason?: CliAuthorizationReason,
 ): PageCopy {
-  if (status === "error") return errorCopy[locale][reason ?? "unknown"];
-  return baseCopy[locale][status];
+  const state = pageState(status, reason);
+  const t = createTranslator(locale);
+  return {
+    label: t(`auth.cli.${state}.label`),
+    title: t(`auth.cli.${state}.title`),
+    description: t(`auth.cli.${state}.description`),
+    statusLabel: t(`auth.cli.${state}.statusLabel`),
+    terminal: terminalLines[state],
+  };
 }
 
 function CliAuthorizationPage() {
@@ -233,8 +111,9 @@ function CliAuthorizationPage() {
   const [redirecting, setRedirecting] = useState(false);
   const started = useRef(false);
   const effectiveStatus = redirectFailed ? "error" : search.status;
+  const t = createTranslator(locale);
   const copy = redirectFailed
-    ? errorCopy[locale].server
+    ? getCopy(locale, "error", "server")
     : getCopy(locale, search.status, search.reason);
 
   const startGitHubLogin = useCallback(async () => {
@@ -276,7 +155,7 @@ function CliAuthorizationPage() {
       <Container className="flex min-h-[calc(100svh-3.5rem)] flex-col py-12 md:py-20 [@media(max-height:600px)]:py-6">
         <div className="flex items-center gap-3 border-b border-border pb-4 font-mono text-[11px] tracking-[0.12em] text-muted-foreground uppercase">
           <ShieldCheck className="size-4 text-accent" aria-hidden="true" />
-          <span>CLI authorization</span>
+          <span>{t("auth.cli.label")}</span>
           <span className="ml-auto hidden text-[10px] normal-case tracking-normal sm:block">
             dshx.io / loopback
           </span>
@@ -320,12 +199,12 @@ function CliAuthorizationPage() {
                 disabled={redirecting}
               >
                 <Github data-icon="inline-start" aria-hidden="true" />
-                {locale === "zh" ? "重新连接 GitHub" : "Reconnect GitHub"}
+                {t("auth.cli.reconnect")}
               </Button>
             ) : null}
           </section>
 
-          <Terminal title="dshx-hub — authorization" lines={copy.terminal} className="w-full" />
+          <Terminal title={t("auth.cli.terminalTitle")} lines={copy.terminal} className="w-full" />
         </div>
 
         <div className="grid gap-5 border-t border-border pt-5 text-[13px] text-muted-foreground sm:grid-cols-[1fr_auto] sm:items-center">
@@ -342,11 +221,7 @@ function CliAuthorizationPage() {
             />
             <span>{copy.statusLabel}</span>
           </div>
-          <p>
-            {locale === "zh"
-              ? "Hub 运营凭证与 GitHub API 凭证相互独立。"
-              : "Hub operator credentials remain separate from GitHub API credentials."}
-          </p>
+          <p>{t("auth.cli.separationNote")}</p>
         </div>
       </Container>
     </main>

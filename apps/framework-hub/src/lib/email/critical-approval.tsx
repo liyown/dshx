@@ -4,6 +4,8 @@
 import { render } from "@react-email/render";
 import type { CSSProperties } from "react";
 
+import { createTranslator, type Locale, type Translate } from "@/lib/i18n";
+
 import {
   EmailButton,
   EmailEvidence,
@@ -20,7 +22,7 @@ export type CriticalApprovalEmailStatus =
   "approved" | "rejected" | "changes_requested" | "effect_failed";
 
 export type CriticalApprovalEmailProps = {
-  locale: "en" | "zh";
+  locale: Locale;
   approvalId: string;
   title: string;
   status: CriticalApprovalEmailStatus;
@@ -30,133 +32,82 @@ export type CriticalApprovalEmailProps = {
   actionUrl: string;
 };
 
+/** The status's key segment; tones are presentation and stay in this module. */
+const statusSlugs = {
+  approved: "approved",
+  rejected: "rejected",
+  changes_requested: "changesRequested",
+  effect_failed: "effectFailed",
+} as const;
+
+type StatusSlug = (typeof statusSlugs)[keyof typeof statusSlugs];
+
+const statusTones: Record<CriticalApprovalEmailStatus, EmailStatusTone> = {
+  approved: "success",
+  rejected: "danger",
+  changes_requested: "warning",
+  effect_failed: "danger",
+};
+
+const executionSlugs = {
+  succeeded: "succeeded",
+  awaiting_agent: "awaitingAgent",
+  failed: "failed",
+} as const;
+
+function executionValue(t: Translate, effectStatus: string): string {
+  const slug = executionSlugs[effectStatus as keyof typeof executionSlugs];
+  return t(
+    slug === undefined
+      ? "email.approval.executionValue.other"
+      : `email.approval.executionValue.${slug}`,
+  );
+}
+
 type StatusCopy = {
-  subject: (title: string) => string;
+  slug: StatusSlug;
+  subject: string;
   label: string;
   heading: string;
-  description: (props: CriticalApprovalEmailProps) => string;
+  description: string;
   tone: EmailStatusTone;
 };
 
-const copy = {
-  en: {
-    preheader: "Your DSHX Hub approval has been updated.",
-    request: "Item",
-    status: "Status",
-    execution: "Progress",
-    approvalId: "Reference",
-    reason: "Note",
-    open: "View details",
-    executionValues: {
-      succeeded: "Completed",
-      awaiting_agent: "Waiting to be processed",
-      failed: "Failed",
-      other: "Not processed",
-    },
-    footer:
-      "You received this email because this approval is linked to your DSHX Hub account. This address does not accept replies.",
-    statuses: {
-      approved: {
-        subject: (title: string) => `Approved: ${title}`,
-        label: "Approved",
-        heading: "Approval passed",
-        description: (props: CriticalApprovalEmailProps) =>
-          props.executionMode === "agent"
-            ? "The request was approved and is waiting to be processed."
-            : "The requested change has been completed.",
-        tone: "success",
-      },
-      rejected: {
-        subject: (title: string) => `Not approved: ${title}`,
-        label: "Rejected",
-        heading: "Approval not passed",
-        description: () => "No changes were made. You can view the reason below.",
-        tone: "danger",
-      },
-      changes_requested: {
-        subject: (title: string) => `More information needed: ${title}`,
-        label: "More information needed",
-        heading: "Please add more information",
-        description: () => "Update the request based on the note below, then submit it again.",
-        tone: "warning",
-      },
-      effect_failed: {
-        subject: (title: string) => `Could not complete: ${title}`,
-        label: "Could not complete",
-        heading: "The approved change could not be completed",
-        description: () =>
-          "No retry has started. An administrator can review the issue and try again.",
-        tone: "danger",
-      },
-    } satisfies Record<CriticalApprovalEmailStatus, StatusCopy>,
-  },
-  zh: {
-    preheader: "你的 DSHX Hub 审批有新进展。",
-    request: "事项",
-    status: "当前状态",
-    execution: "处理进度",
-    approvalId: "记录编号",
-    reason: "说明",
-    open: "查看详情",
-    executionValues: {
-      succeeded: "已完成",
-      awaiting_agent: "等待处理",
-      failed: "执行失败",
-      other: "尚未处理",
-    },
-    footer: "这项审批与你的 DSHX Hub 账号有关，因此你收到了这封邮件。本邮箱不接收回复。",
-    statuses: {
-      approved: {
-        subject: (title: string) => `审批通过：${title}`,
-        label: "审批通过",
-        heading: "审批已通过",
-        description: (props: CriticalApprovalEmailProps) =>
-          props.executionMode === "agent"
-            ? "申请已经通过，目前正在等待处理。"
-            : "申请的变更已经完成。",
-        tone: "success",
-      },
-      rejected: {
-        subject: (title: string) => `审批未通过：${title}`,
-        label: "未通过",
-        heading: "审批未通过",
-        description: () => "本次没有产生变更，你可以在下方查看原因。",
-        tone: "danger",
-      },
-      changes_requested: {
-        subject: (title: string) => `需要补充信息：${title}`,
-        label: "需要补充信息",
-        heading: "请补充相关信息",
-        description: () => "请根据下方说明更新申请，然后重新提交。",
-        tone: "warning",
-      },
-      effect_failed: {
-        subject: (title: string) => `处理失败：${title}`,
-        label: "处理失败",
-        heading: "审批后的操作没有完成",
-        description: () => "系统还没有重试。管理员可以查看问题并重新处理。",
-        tone: "danger",
-      },
-    } satisfies Record<CriticalApprovalEmailStatus, StatusCopy>,
-  },
-} as const;
+function statusCopy(t: Translate, props: CriticalApprovalEmailProps): StatusCopy {
+  const slug = statusSlugs[props.status];
+  const descriptions: Record<CriticalApprovalEmailStatus, string> = {
+    approved: t(
+      props.executionMode === "agent"
+        ? "email.approval.approved.descriptionAgent"
+        : "email.approval.approved.descriptionDone",
+    ),
+    rejected: t("email.approval.rejected.description"),
+    changes_requested: t("email.approval.changesRequested.description"),
+    effect_failed: t("email.approval.effectFailed.description"),
+  };
+  return {
+    slug,
+    subject: t(`email.approval.${slug}.subject`, { title: props.title }),
+    label: t(`email.approval.${slug}.label`),
+    heading: t(`email.approval.${slug}.heading`),
+    description: descriptions[props.status],
+    tone: statusTones[props.status],
+  };
+}
 
 export function CriticalApprovalEmail(props: CriticalApprovalEmailProps) {
-  const messages = copy[props.locale];
-  const status = messages.statuses[props.status];
-  const execution =
-    messages.executionValues[
-      props.effectStatus as keyof Omit<typeof messages.executionValues, "other">
-    ] ?? messages.executionValues.other;
+  const t = createTranslator(props.locale);
+  const status = statusCopy(t, props);
+  const execution = executionValue(t, props.effectStatus);
 
   return (
-    <EmailShell lang={props.locale} preheader={messages.preheader}>
+    <EmailShell lang={props.locale} preheader={t("email.approval.preheader")}>
       <EmailHeader />
       <main>
         <div style={{ padding: "36px 0 0" }}>
           <EmailStatus label={status.label} tone={status.tone} />
           <h1 style={headingStyle}>{status.heading}</h1>
-          <p style={introStyle}>{status.description(props)}</p>
+          <p style={introStyle}>{status.description}</p>
         </div>
 
         <table
@@ -167,47 +118,44 @@ export function CriticalApprovalEmail(props: CriticalApprovalEmailProps) {
           style={{ marginTop: "26px" }}
         >
           <tbody>
-            <EmailFactRow label={messages.request} value={props.title} />
-            <EmailFactRow label={messages.status} value={status.label} />
-            <EmailFactRow label={messages.execution} value={execution} />
+            <EmailFactRow label={t("email.approval.request")} value={props.title} />
+            <EmailFactRow label={t("email.approval.status")} value={status.label} />
+            <EmailFactRow label={t("email.approval.execution")} value={execution} />
           </tbody>
         </table>
 
         <EmailEvidence
-          label={messages.approvalId}
+          label={t("email.approval.approvalId")}
           approvalId={props.approvalId}
-          reasonLabel={messages.reason}
+          reasonLabel={t("email.approval.reason")}
           reason={props.reason}
         />
-        <EmailButton href={props.actionUrl}>{messages.open}</EmailButton>
+        <EmailButton href={props.actionUrl}>{t("email.approval.open")}</EmailButton>
       </main>
-      <EmailFooter>{messages.footer}</EmailFooter>
+      <EmailFooter>{t("email.approval.footer")}</EmailFooter>
     </EmailShell>
   );
 }
 
 export async function renderCriticalApprovalEmail(props: CriticalApprovalEmailProps) {
+  const t = createTranslator(props.locale);
+  const status = statusCopy(t, props);
+  const execution = executionValue(t, props.effectStatus);
   const element = <CriticalApprovalEmail {...props} />;
-  const messages = copy[props.locale];
-  const status = messages.statuses[props.status];
-  const execution =
-    messages.executionValues[
-      props.effectStatus as keyof Omit<typeof messages.executionValues, "other">
-    ] ?? messages.executionValues.other;
   const text = [
-    messages.preheader,
+    t("email.approval.preheader"),
     status.heading,
-    status.description(props),
-    `${messages.request}: ${props.title}`,
-    `${messages.status}: ${status.label}`,
-    `${messages.execution}: ${execution}`,
-    `${messages.approvalId}: ${props.approvalId}`,
-    ...(props.reason ? [`${messages.reason}: ${props.reason}`] : []),
-    `${messages.open}: ${props.actionUrl}`,
-    messages.footer,
+    status.description,
+    `${t("email.approval.request")}: ${props.title}`,
+    `${t("email.approval.status")}: ${status.label}`,
+    `${t("email.approval.execution")}: ${execution}`,
+    `${t("email.approval.approvalId")}: ${props.approvalId}`,
+    ...(props.reason ? [`${t("email.approval.reason")}: ${props.reason}`] : []),
+    `${t("email.approval.open")}: ${props.actionUrl}`,
+    t("email.approval.footer"),
   ].join("\n\n");
   return {
-    subject: status.subject(props.title),
+    subject: status.subject,
     html: await render(element),
     text,
   };

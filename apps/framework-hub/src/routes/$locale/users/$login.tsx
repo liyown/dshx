@@ -8,7 +8,7 @@ import {
 import { UserSafetyActions } from "@/components/community/community-dialogs";
 import { Container, SectionLabel } from "@/components/dshx/primitives";
 import { loadPublicUser } from "@/lib/community/functions";
-import { parseLocale } from "@/lib/i18n";
+import { createTranslator, parseLocale } from "@/lib/i18n";
 
 export const Route = createFileRoute("/$locale/users/$login")({
   loader: async ({ params }) => {
@@ -30,6 +30,7 @@ export const Route = createFileRoute("/$locale/users/$login")({
 function PublicUserPage() {
   const user = Route.useLoaderData();
   const locale = parseLocale(Route.useParams().locale);
+  const t = createTranslator(locale);
   const contributions = user.contributions;
   return (
     <main>
@@ -43,9 +44,9 @@ function PublicUserPage() {
         <UserSafetyActions userId={user.id} />
         <div className="grid gap-8 border-b border-border py-8 sm:grid-cols-3">
           {[
-            [locale === "zh" ? "维护插件" : "Maintained", contributions["maintained_plugins"] ?? 0],
-            [locale === "zh" ? "评价" : "Reviews", contributions["reviews"] ?? 0],
-            [locale === "zh" ? "回复" : "Replies", contributions["replies"] ?? 0],
+            [t("profile.maintained"), contributions["maintained_plugins"] ?? 0],
+            [t("profile.reviews"), contributions["reviews"] ?? 0],
+            [t("profile.replies"), contributions["replies"] ?? 0],
           ].map(([label, value]) => (
             <div key={String(label)}>
               <div className="font-mono text-3xl">{value}</div>
@@ -54,31 +55,25 @@ function PublicUserPage() {
           ))}
         </div>
         <section className="mt-12">
-          <SectionLabel index="01">
-            {locale === "zh" ? "已认领插件" : "Claimed plugins"}
-          </SectionLabel>
+          <SectionLabel index="01">{t("profile.claimedPlugins")}</SectionLabel>
           <div className="mt-5">
             <PublicPluginList
               plugins={user.plugins as PublicPlugin[]}
-              empty={locale === "zh" ? "尚未认领公开插件。" : "No public claimed plugins yet."}
+              empty={t("profile.claimedPluginsEmpty")}
             />
           </div>
         </section>
         <section className="mt-14">
-          <SectionLabel index="02">
-            {locale === "zh" ? "公开收藏" : "Public bookmarks"}
-          </SectionLabel>
+          <SectionLabel index="02">{t("profile.publicBookmarks")}</SectionLabel>
           <div className="mt-5">
             <PublicPluginList
               plugins={user.bookmarks as PublicPlugin[]}
-              empty={locale === "zh" ? "尚无公开收藏。" : "No public bookmarks yet."}
+              empty={t("profile.publicBookmarksEmpty")}
             />
           </div>
         </section>
         <section className="mt-14">
-          <SectionLabel index="03">
-            {locale === "zh" ? "公开收藏夹" : "Public collections"}
-          </SectionLabel>
+          <SectionLabel index="03">{t("profile.publicCollections")}</SectionLabel>
           <div className="mt-5 divide-y divide-border border-y border-border">
             {user.collections.map((collection) => (
               <Link
@@ -89,7 +84,7 @@ function PublicUserPage() {
               >
                 <span className="font-medium">{collection.name}</span>
                 <span className="font-mono text-xs text-muted-foreground">
-                  {collection.plugin_count} plugins
+                  {t("profile.collectionPluginCount", { count: collection.plugin_count })}
                 </span>
               </Link>
             ))}
