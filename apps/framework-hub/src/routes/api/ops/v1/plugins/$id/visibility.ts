@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { pluginVisibilityRequestSchema } from "@becomeopc/dshx-hub-contracts";
 
-import { tokenRoute } from "@/lib/api/route";
+import { v1PluginOperations } from "@/lib/api/operations/v1-plugins";
 import { setPluginVisibility } from "@/lib/catalog/operations";
 import { operationRequestId } from "@/lib/catalog/operations-v1.http";
 import { catalogChanged, publishCatalogChanged } from "@/lib/sitemap-cache";
@@ -9,8 +8,7 @@ import { catalogChanged, publishCatalogChanged } from "@/lib/sitemap-cache";
 export const Route = createFileRoute("/api/ops/v1/plugins/$id/visibility")({
   server: {
     handlers: {
-      PUT: tokenRoute(
-        { envelope: "operation", body: pluginVisibilityRequestSchema },
+      PUT: v1PluginOperations.setPluginVisibility.route(
         async ({ request, db, token, params, input }) => {
           const result = await setPluginVisibility(
             db,

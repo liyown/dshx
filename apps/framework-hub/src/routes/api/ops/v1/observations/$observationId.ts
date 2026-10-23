@@ -1,10 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  operationDryRunQuerySchema,
-  pluginObservationV1Schema,
-} from "@becomeopc/dshx-hub-contracts";
+import { operationDryRunQuerySchema } from "@becomeopc/dshx-hub-contracts";
 
-import { tokenRoute, withMeta } from "@/lib/api/route";
+import { v1PluginOperations } from "@/lib/api/operations/v1-plugins";
+import { withMeta } from "@/lib/api/route";
 import { upsertObservation } from "@/lib/catalog/operations";
 import {
   OperationHttpError,
@@ -15,8 +13,7 @@ import {
 export const Route = createFileRoute("/api/ops/v1/observations/$observationId")({
   server: {
     handlers: {
-      PUT: tokenRoute(
-        { envelope: "operation", body: pluginObservationV1Schema },
+      PUT: v1PluginOperations.upsertObservation.route(
         async ({ request, db, token, params, input }) => {
           if (params.observationId !== input.observationId)
             throw new OperationHttpError(

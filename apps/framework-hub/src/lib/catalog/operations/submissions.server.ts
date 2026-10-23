@@ -18,7 +18,54 @@ import { OperationHttpError, requireCursor } from "../operations-v1.http";
 import { getOpsPlugin } from "./plugins/reads.server";
 import { findPlugin, parseJson } from "./store";
 
-export async function listOpsSubmissions(binding: Database, query: SubmissionListQuery) {
+/** The statuses the submissions table stores, in the contract's order. */
+export type OpsSubmissionStatus =
+  "queued" | "discovered" | "qualified" | "rejected" | "published" | "resolved";
+
+/**
+ * What both submission endpoints answer with. The query is untyped SQL, so its
+ * columns are named once here: a row spread into the response would type as
+ * `Record<string, unknown>` and force the published response schema to describe
+ * nothing.
+ */
+export type OpsSubmission = {
+  id: string;
+  userId: string | null;
+  repositoryUrl: string;
+  repositoryFullName: string;
+  status: OpsSubmissionStatus;
+  sourceHash: string | null;
+  resolution: SubmissionResolution | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * A resolution lands once. Repeating the same one reports `unchanged` instead of
+ * failing, and carries the stored resolution — which a legacy row may lack.
+ */
+export type SubmissionResolutionResult =
+  | { status: "unchanged"; id: string; resolution: SubmissionResolution | null }
+  | { status: "updated"; id: string; resolution: SubmissionResolution; resolvedAt: string };
+
+function projectSubmission(row: Record<string, unknown>): OpsSubmission {
+  return {
+    id: String(row["id"]),
+    userId: row["userId"] == null ? null : String(row["userId"]),
+    repositoryUrl: String(row["repositoryUrl"]),
+    repositoryFullName: String(row["repositoryFullName"]),
+    status: String(row["status"]) as OpsSubmissionStatus,
+    sourceHash: row["sourceHash"] == null ? null : String(row["sourceHash"]),
+    resolution: parseJson<SubmissionResolution | null>(row["resolution"], null),
+    createdAt: new Date(Number(row["createdAt"])).toISOString(),
+    updatedAt: new Date(Number(row["updatedAt"])).toISOString(),
+  };
+}
+
+export async function listOpsSubmissions(
+  binding: Database,
+  query: SubmissionListQuery,
+): Promise<{ items: OpsSubmission[]; nextCursor: string | null }> {
   const cursor = requireCursor(decodeCursor(query.cursor, ["timestamp", "text"]));
   const statuses = query.status ?? [];
   const statusClause = statuses.length ? `status in (${statuses.map(() => "?").join(",")})` : "1=1";
@@ -42,15 +89,7 @@ export async function listOpsSubmissions(binding: Database, query: SubmissionLis
     ),
   );
   const rows = result;
-  const page: Array<Record<string, unknown> & { id: string; createdAt: string }> = rows
-    .slice(0, query.limit)
-    .map((row) => ({
-      ...row,
-      id: String(row["id"]),
-      resolution: parseJson(row["resolution"], null),
-      createdAt: new Date(Number(row["createdAt"])).toISOString(),
-      updatedAt: new Date(Number(row["updatedAt"])).toISOString(),
-    }));
+  const page = rows.slice(0, query.limit).map(projectSubmission);
   const last = page.at(-1);
   return {
     items: page,
@@ -61,7 +100,7 @@ export async function listOpsSubmissions(binding: Database, query: SubmissionLis
   };
 }
 
-export async function getOpsSubmission(binding: Database, id: string) {
+export async function getOpsSubmission(binding: Database, id: string): Promise<OpsSubmission> {
   const row = await binding.get<Record<string, unknown>>(
     parameterizedSql(
       `select id,user_id userId,repository_url repositoryUrl,
@@ -74,12 +113,7 @@ export async function getOpsSubmission(binding: Database, id: string) {
   );
   if (!row)
     throw new OperationHttpError(404, "submission_not_found", "Submission not found", false);
-  return {
-    ...row,
-    resolution: parseJson(row["resolution"], null),
-    createdAt: new Date(Number(row["createdAt"])).toISOString(),
-    updatedAt: new Date(Number(row["updatedAt"])).toISOString(),
-  };
+  return projectSubmission(row);
 }
 
 export async function resolveOpsSubmission(
@@ -88,9 +122,9 @@ export async function resolveOpsSubmission(
   requestId: string,
   id: string,
   resolution: SubmissionResolution,
-) {
+): Promise<SubmissionResolutionResult> {
   const current = await getOpsSubmission(binding, id);
-  const existingResolution = current["resolution"];
+  const existingResolution = current.resolution;
   if (existingResolution) {
     if (canonicalJson(existingResolution) === canonicalJson(resolution))
       return { status: "unchanged", id, resolution: existingResolution };
@@ -161,8 +195,8 @@ export async function resolveOpsSubmission(
   ]);
   if (!result[0]?.meta.changes) {
     const winner = await getOpsSubmission(binding, id);
-    if (canonicalJson(winner["resolution"]) === canonicalJson(resolution))
-      return { status: "unchanged", id, resolution: winner["resolution"] };
+    if (canonicalJson(winner.resolution) === canonicalJson(resolution))
+      return { status: "unchanged", id, resolution: winner.resolution };
     throw new OperationHttpError(
       409,
       "submission_resolved",

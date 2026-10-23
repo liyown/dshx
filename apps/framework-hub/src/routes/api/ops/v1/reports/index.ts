@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { operationReportInputSchema } from "@becomeopc/dshx-hub-contracts";
 
-import { tokenRoute, withMeta } from "@/lib/api/route";
+import { v1ReportOperations } from "@/lib/api/operations/v1-reports";
+import { withMeta } from "@/lib/api/route";
 import {
   latestOperationReport,
   publishOperationReport,
@@ -10,14 +10,13 @@ import {
 export const Route = createFileRoute("/api/ops/v1/reports/")({
   server: {
     handlers: {
-      GET: tokenRoute({ envelope: "operation" }, ({ db }) => latestOperationReport(db)),
-      POST: tokenRoute(
-        { envelope: "operation", body: operationReportInputSchema },
-        async ({ db, token, input }) => {
-          const result = await publishOperationReport(db, token.id, input);
-          return withMeta(result, { status: result.status === "created" ? 201 : 200 });
-        },
+      GET: v1ReportOperations.getLatestOperationsReport.route(({ db }) =>
+        latestOperationReport(db),
       ),
+      POST: v1ReportOperations.publishOperationsReport.route(async ({ db, token, input }) => {
+        const result = await publishOperationReport(db, token.id, input);
+        return withMeta(result, { status: result.status === "created" ? 201 : 200 });
+      }),
     },
   },
 });

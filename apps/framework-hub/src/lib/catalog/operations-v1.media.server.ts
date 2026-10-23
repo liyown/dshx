@@ -111,6 +111,33 @@ function readDimensions(bytes: Uint8Array, type: string): { width: number; heigh
   return null;
 }
 
+/**
+ * A stored media row, or the replay answer for one whose object and metadata
+ * already matched. The replay only reports what it repaired, so the two shapes
+ * stay distinct instead of pretending a no-op wrote anything.
+ */
+export type MediaUploadResult =
+  | {
+      status: "unchanged";
+      id: string;
+      key: string;
+      sha256: string;
+      revision: number;
+      repairedObject: boolean;
+    }
+  | {
+      status: "created" | "updated";
+      id: string;
+      key: string;
+      sha256: string;
+      contentType: string;
+      width: number;
+      height: number;
+      byteSize: number;
+      deduplicatedObject: boolean;
+      revision: number;
+    };
+
 export async function uploadOperationMedia(
   binding: Database,
   bucket: R2Bucket | undefined,
@@ -119,7 +146,7 @@ export async function uploadOperationMedia(
   pluginId: string,
   file: File,
   metadata: OperationMediaMetadata,
-) {
+): Promise<MediaUploadResult> {
   if (!bucket)
     throw new OperationHttpError(
       503,

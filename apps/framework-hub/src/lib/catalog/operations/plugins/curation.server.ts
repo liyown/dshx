@@ -416,6 +416,21 @@ function curationWriteStatements(write: CurationWrite): {
   return { statements, stateWriteIndex };
 }
 
+/** What a curation write answers: the copy it kept, and the revision that describes it. */
+export type CurationResult =
+  | {
+      status: "unchanged";
+      pluginId: string;
+      revision: number;
+      content: Awaited<ReturnType<typeof readCuration>>;
+    }
+  | {
+      status: "updated";
+      pluginId: string;
+      revision: number;
+      content: PluginCurationContent & { updatedAt: string };
+    };
+
 export async function curatePlugin(
   binding: Database,
   actorTokenId: string,
@@ -423,7 +438,7 @@ export async function curatePlugin(
   idOrSlug: string,
   content: PluginCurationContent,
   ifRevision?: number,
-) {
+): Promise<CurationResult> {
   const { plugin, existingState, state } = await loadCurationTarget(binding, idOrSlug, ifRevision);
   const categoryIds = await readCategoryIds(binding, content);
   const before = await readCuration(binding, plugin.id);
@@ -487,6 +502,17 @@ export async function curatePlugin(
   };
 }
 
+/** Whether hiding or restoring moved the plugin, and the revision it landed on. */
+export type VisibilityResult =
+  | { status: "unchanged"; pluginId: string; visibility: "hidden" | "visible"; revision: number }
+  | {
+      status: "updated";
+      pluginId: string;
+      visibility: "hidden" | "visible";
+      reason: string;
+      revision: number;
+    };
+
 export async function setPluginVisibility(
   binding: Database,
   actorTokenId: string,
@@ -494,7 +520,7 @@ export async function setPluginVisibility(
   idOrSlug: string,
   visibility: "hidden" | "visible",
   reason: string,
-) {
+): Promise<VisibilityResult> {
   const plugin = await findPlugin(binding, idOrSlug);
   if (!plugin) throw new OperationHttpError(404, "plugin_not_found", "Plugin not found", false);
   const existingState = await findOperationalState(binding, plugin);

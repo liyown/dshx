@@ -34,7 +34,34 @@ const TAG_DESCRIPTIONS: Readonly<Record<ApiOperationTag, string>> = {
   Catalog: "Read-only public DeepSeek Harness plugin discovery.",
   Operations:
     "Atomic catalog maintenance operations. All endpoints except status require a bearer token with catalog:write scope.",
+  Approvals:
+    "Approval requests, revisions and agent effect claims. Requires a bearer token with approvals:write scope.",
+  Moderation:
+    "Moderation queue, moderation actions and user role changes. Requires a moderator or administrator token.",
   "CLI authorization": "Browser-assisted authorization and token lifecycle for the DSHX Hub CLI.",
+};
+
+/** The prose each tag's section carries in api-docs.md, after its description. */
+const TAG_NOTES: Readonly<Record<ApiOperationTag, string>> = {
+  Catalog:
+    "It does not require authentication. Pagination cursors are opaque and must not be constructed by clients.",
+  Operations:
+    "Except for the status endpoint, send an HTTP Bearer token with the catalog:write scope. Mutations are independently retryable and may return 409 for revision conflicts or 422 for domain contract failures.",
+  Approvals:
+    "Approval requests are queued rather than applied: a high-risk or critical decision waits for a human, and the agent that submitted it claims and completes the effect.",
+  Moderation:
+    "Access changes and restores are approval-gated; the remaining actions apply immediately.",
+  "CLI authorization":
+    "Use the registration and exchange endpoints documented in auth.md. Do not automate the human GitHub approval step.",
+};
+
+/** The headings of api-docs.md, in the order the document lists them. */
+const TAG_HEADINGS: Readonly<Record<ApiOperationTag, string>> = {
+  Catalog: "Catalog API",
+  Operations: "Operations API",
+  Approvals: "Approvals API",
+  Moderation: "Moderation API",
+  "CLI authorization": "CLI Authorization",
 };
 
 const ERROR_RESPONSE_NAMES = {
@@ -44,6 +71,7 @@ const ERROR_RESPONSE_NAMES = {
   404: "NotFound",
   409: "Conflict",
   422: "Unprocessable",
+  503: "ServiceUnavailable",
 } as const;
 
 const ERROR_RESPONSE_DESCRIPTIONS = {
@@ -53,6 +81,7 @@ const ERROR_RESPONSE_DESCRIPTIONS = {
   NotFound: "The requested resource does not exist.",
   Conflict: "The request conflicts with the current resource revision.",
   Unprocessable: "The JSON is valid but fails a domain contract.",
+  ServiceUnavailable: "A dependency the endpoint needs is unavailable.",
 } as const;
 
 function normalizeOrigin(origin: string): string {
@@ -247,31 +276,20 @@ function operationLine(operation: ApiOperationDefinition): string {
   return `- \`${operation.method.toUpperCase()} ${operation.path}\` — ${operation.summary}.`;
 }
 
-function operationSection(tag: ApiOperationTag, extra: string): string {
+function operationSection(tag: ApiOperationTag): string {
   const lines = operationsForTag(tag).map(operationLine).join("\n");
-  return `## ${tag === "CLI authorization" ? "CLI Authorization" : `${tag} API`}\n\n${TAG_DESCRIPTIONS[tag]} ${extra}\n\n${lines}`;
+  const heading = TAG_HEADINGS[tag];
+  return `## ${heading}\n\n${TAG_DESCRIPTIONS[tag]} ${TAG_NOTES[tag]}\n\n${lines}`;
 }
 
 export function buildApiDocs(origin: string): string {
   const site = normalizeOrigin(origin);
+  const tags = Object.keys(TAG_DESCRIPTIONS) as ApiOperationTag[];
   return `# DSHX Hub API
 
 The DSHX Hub exposes public catalog discovery, authenticated atomic operations, and browser-assisted CLI authorization. The machine-readable OpenAPI 3.1 description is available at ${site}/openapi.json.
 
-${operationSection(
-  "Catalog",
-  "It does not require authentication. Pagination cursors are opaque and must not be constructed by clients.",
-)}
-
-${operationSection(
-  "Operations",
-  "Except for the status endpoint, send an HTTP Bearer token with the catalog:write scope. Mutations are independently retryable and may return 409 for revision conflicts or 422 for domain contract failures.",
-)}
-
-${operationSection(
-  "CLI authorization",
-  "Use the registration and exchange endpoints documented in auth.md. Do not automate the human GitHub approval step.",
-)}
+${tags.map(operationSection).join("\n\n")}
 
 ## Discovery
 

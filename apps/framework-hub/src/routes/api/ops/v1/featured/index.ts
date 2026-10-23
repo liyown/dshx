@@ -1,16 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { tokenRoute } from "@/lib/api/route";
+import { v1ContentOperations } from "@/lib/api/operations/v1-content";
 import { readFeaturedPicks } from "@/lib/featured.application.server";
-
-const noStore = { "cache-control": "no-store" };
 
 export const Route = createFileRoute("/api/ops/v1/featured/")({
   server: {
     handlers: {
-      GET: tokenRoute({ envelope: "operation", headers: noStore }, ({ db }) =>
-        readFeaturedPicks(db),
-      ),
+      GET: v1ContentOperations.listFeaturedShelves.route(({ db }) => readFeaturedPicks(db)),
     },
   },
 });

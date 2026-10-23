@@ -29,6 +29,8 @@ export const README_RECHECK_MS = 14 * 86_400_000;
 export const CURRENT_DSH_VERSION = "0.2.1-rc.2";
 
 export type PluginNeed = NonNullable<OpsPluginListQuery["needs"]>[number];
+/** The closed vocabulary a projection may report, so the API contract can name it. */
+export type PluginRisk = NonNullable<OpsPluginListQuery["risk"]>[number];
 
 export function sourceStale(sources: readonly SourceSummary[], now = Date.now()): boolean {
   return (
@@ -72,8 +74,8 @@ export function riskSignals(
     unavailableTargetCount = 0,
     now = Date.now(),
   }: RiskSignalContext,
-): string[] {
-  const risks = new Set<string>(["runtime-not-verified"]);
+): PluginRisk[] {
+  const risks = new Set<PluginRisk>(["runtime-not-verified"]);
   const compatibility = jsonRecord(facts["compatibility"]);
   const declared =
     typeof compatibility["declaredRange"] === "string" ? compatibility["declaredRange"].trim() : "";

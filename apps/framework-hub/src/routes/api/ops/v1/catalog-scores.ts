@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { tokenRoute } from "@/lib/api/route";
+import { v1PluginOperations } from "@/lib/api/operations/v1-plugins";
 import { refreshInstallReadiness } from "@/lib/catalog/install-readiness.server";
 import { refreshPluginScores } from "@/lib/catalog/scores.server";
 
@@ -15,7 +15,7 @@ import { refreshPluginScores } from "@/lib/catalog/scores.server";
 export const Route = createFileRoute("/api/ops/v1/catalog-scores")({
   server: {
     handlers: {
-      POST: tokenRoute({ envelope: "operation" }, async ({ db }) => {
+      POST: v1PluginOperations.refreshCatalogScores.route(async ({ db }) => {
         // Readiness feeds the quality score, so it is recomputed first.
         await refreshInstallReadiness(db);
         await refreshPluginScores(db);

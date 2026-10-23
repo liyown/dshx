@@ -37,6 +37,14 @@ export async function editChangelogEntry(
 }
 
 function entryView(record: NonNullable<Awaited<ReturnType<typeof getChangelog>>>) {
-  const { contentJson, ...fields } = record;
-  return { ...fields, content: contentJson };
+  // The stored timestamps are Date objects; the API publishes the ISO strings
+  // the listing already answers with, so the response contract describes what
+  // a client actually receives.
+  const { contentJson, createdAt, updatedAt, ...fields } = record;
+  return {
+    ...fields,
+    createdAt: createdAt.toISOString(),
+    updatedAt: updatedAt.toISOString(),
+    content: contentJson,
+  };
 }

@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { operationMediaMetadataSchema } from "@becomeopc/dshx-hub-contracts";
 
-import { tokenRoute, withMeta } from "@/lib/api/route";
+import { v1PluginOperations } from "@/lib/api/operations/v1-plugins";
+import { withMeta } from "@/lib/api/route";
 import { uploadOperationMedia } from "@/lib/catalog/operations-v1.media.server";
 import {
   OperationHttpError,
@@ -13,8 +14,7 @@ import { requireBindings } from "@/lib/db/context";
 export const Route = createFileRoute("/api/ops/v1/plugins/$id/media")({
   server: {
     handlers: {
-      POST: tokenRoute(
-        { envelope: "operation" },
+      POST: v1PluginOperations.uploadPluginMedia.route(
         async ({ request, context, db, params, token }) => {
           const { file, metadata } = await readMediaForm(request);
           const data = await uploadOperationMedia(

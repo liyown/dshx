@@ -12,7 +12,7 @@ import {
   readOperationJson,
 } from "@/lib/catalog/operations-v1.http";
 import { requireCommunityWrite } from "@/lib/community/guard.server";
-import { requireDatabase } from "@/lib/db/client";
+import { DatabaseUnavailableError, requireDatabase } from "@/lib/db/client";
 import { HttpError, jsonError, readJson } from "@/lib/http";
 
 /**
@@ -65,6 +65,12 @@ export interface RouteSpec<TInput = void, TQuery = void, TResponse = unknown> {
    * it too, which is where drift would otherwise start.
    */
   readonly response?: ZodType<TResponse>;
+  /**
+   * Request media type. A multipart endpoint reads its own form: the bytes
+   * belong to the handler, so the constructor does not parse `body` for it.
+   * The body contract still describes the form for the API document.
+   */
+  readonly contentType?: "application/json" | "multipart/form-data";
   /** Which response envelope this endpoint speaks. Defaults to `api`. */
   readonly envelope?: Envelope;
   /** Success status. Defaults to 200. */
@@ -111,11 +117,11 @@ type Answer<TResponse> = TResponse | Response;
 
 type Run<TArgs, TResult> = (args: TArgs) => TResult | Promise<TResult>;
 
-type SessionRun<TInput, TQuery, TResponse> = Run<
+export type SessionRun<TInput, TQuery, TResponse> = Run<
   RouteArgs & SessionActor & { readonly input: TInput; readonly query: TQuery },
   Answer<TResponse>
 >;
-type TokenRun<TInput, TQuery, TResponse> = Run<
+export type TokenRun<TInput, TQuery, TResponse> = Run<
   RouteArgs &
     TokenActor & {
       readonly db: Awaited<ReturnType<typeof requireDatabase>>;
@@ -124,7 +130,7 @@ type TokenRun<TInput, TQuery, TResponse> = Run<
     },
   Answer<TResponse>
 >;
-type PublicRun<TInput, TQuery, TResponse> = Run<
+export type PublicRun<TInput, TQuery, TResponse> = Run<
   RouteArgs & {
     readonly db: ReturnType<typeof requireDatabase>;
     readonly input: TInput;
@@ -182,6 +188,25 @@ const DEFAULT_SCOPE = "catalog:write";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**
+ * The endpoint's database, or the answer it owes when the deployment has none.
+ *
+ * A missing binding is a deployment fault, not a bug in the handler, and every
+ * endpoint that needs storage should say so the same way. Translating it here
+ * keeps that a 503 in both envelopes instead of the 500 a bare exception
+ * becomes — which is what a health probe reads as a crash rather than as an
+ * unconfigured deployment.
+ */
+function database(context: unknown) {
+  try {
+    return requireDatabase(context);
+  } catch (error) {
+    if (error instanceof DatabaseUnavailableError)
+      throw new HttpError(503, "The catalog database is not available", "database_unavailable");
+    throw error;
+  }
+}
+
+/**
  * Whether this request may write at all.
  *
  * A browser attaches `Origin` to every unsafe method, so a request that names
@@ -204,7 +229,7 @@ export function publicRoute<TInput = void, TQuery = void, TResponse = unknown>(
       const input = await readBody(args.request, spec);
       const query = readQuery(spec, args.request);
       return await respond(args, spec, () =>
-        run({ ...args, db: requireDatabase(args.context), input, query }),
+        run({ ...args, db: database(args.context), input, query }),
       );
     } catch (error) {
       return fail(args.request, error, spec);
@@ -261,7 +286,7 @@ export function tokenRoute<TInput = void, TQuery = void, TResponse = unknown>(
 ): RouteHandler {
   return async (args) => {
     try {
-      const db = requireDatabase(args.context);
+      const db = database(args.context);
       const actor: TokenActor =
         spec.scope === null
           ? await authenticateApiToken(db, args.request)
@@ -349,6 +374,7 @@ async function readBody<TInput, TQuery>(
   spec: RouteSpec<TInput, TQuery>,
 ): Promise<TInput> {
   if (spec.body === undefined) return undefined as TInput;
+  if (spec.contentType === "multipart/form-data") return undefined as TInput;
   return spec.envelope === "operation"
     ? await readOperationJson(request, spec.body)
     : await readJson(request, spec.body);

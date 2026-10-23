@@ -1,15 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { DatabaseUnavailableError, requireDatabase } from "@/lib/db/client";
+import { catalogOperations } from "@/lib/api/operations/catalog";
 import { requireBindings } from "@/lib/db/context";
 import { inspectDatabaseHealth } from "@/lib/health.application.server";
 
 export const Route = createFileRoute("/api/health")({
   server: {
     handlers: {
-      GET: async ({ context }) => {
+      /**
+       * A probe answers its own bodies, including the 503 ones, so this handler
+       * returns Response objects instead of the endpoint's JSON envelope.
+       *
+       * The declaration's route requires the database before the handler runs, so
+       * a deployment without a D1 binding is answered there, not here; what is
+       * left to probe is the query behind it and the media bucket beside it.
+       */
+      GET: catalogOperations.getHubHealth.route(async ({ context, db }) => {
         try {
-          const db = requireDatabase(context);
           const bindings = requireBindings(context);
           const database = await inspectDatabaseHealth(db);
           const r2Ready = Boolean(bindings.PLUGIN_MEDIA);
@@ -28,18 +35,6 @@ export const Route = createFileRoute("/api/health")({
             { status: status === "ok" ? 200 : 503 },
           );
         } catch (error) {
-          if (error instanceof DatabaseUnavailableError) {
-            return Response.json(
-              {
-                status: "unavailable",
-                database: "cloudflare-d1",
-                orm: "drizzle",
-                message: error.message,
-              },
-              { status: 503 },
-            );
-          }
-
           console.error(error);
           return Response.json(
             {
@@ -50,7 +45,7 @@ export const Route = createFileRoute("/api/health")({
             { status: 503 },
           );
         }
-      },
+      }),
     },
   },
 });

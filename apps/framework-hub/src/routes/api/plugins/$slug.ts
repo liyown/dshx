@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { localeQuery, publicRoute } from "@/lib/api/route";
+import { catalogOperations } from "@/lib/api/operations/catalog";
 import { readCatalogPlugin } from "@/lib/catalog/application.server";
 import { HttpError } from "@/lib/http";
 
 export const Route = createFileRoute("/api/plugins/$slug")({
   server: {
     handlers: {
-      GET: publicRoute({ ...localeQuery }, async ({ request, db, params, query }) => {
+      GET: catalogOperations.getCatalogPlugin.route(async ({ request, db, params, query }) => {
         const result = await readCatalogPlugin(db, params.slug, query.locale);
         if (!result) throw new HttpError(404, "Plugin not found", "not_found");
         if (result.redirectSlug) {

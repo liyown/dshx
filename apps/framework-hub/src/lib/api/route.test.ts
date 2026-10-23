@@ -24,7 +24,9 @@ vi.mock("@/lib/auth/tokens.server", () => ({
   requireApiToken: mocks.requireApiToken,
   authenticateApiToken: mocks.authenticateApiToken,
 }));
-vi.mock("@/lib/community/guard.server", () => ({ requireCommunityWrite: mocks.requireCommunityWrite }));
+vi.mock("@/lib/community/guard.server", () => ({
+  requireCommunityWrite: mocks.requireCommunityWrite,
+}));
 vi.mock("@/lib/db/client", () => ({ requireDatabase: mocks.requireDatabase }));
 
 const { adminRoute, publicRoute, sessionRoute, tokenRoute, withMeta } = await import("./route");
@@ -72,7 +74,10 @@ describe("sessionRoute", () => {
       "turnstile",
     );
     expect(run).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { turnstileToken: "turnstile", name: "title" }, db: actor.db }),
+      expect.objectContaining({
+        input: { turnstileToken: "turnstile", name: "title" },
+        db: actor.db,
+      }),
     );
   });
 
@@ -81,7 +86,10 @@ describe("sessionRoute", () => {
     mocks.requireCommunityWrite.mockClear();
     const run = vi.fn();
 
-    const response = await call(sessionRoute({ body, community: "review" }, run), json({ name: "" }));
+    const response = await call(
+      sessionRoute({ body, community: "review" }, run),
+      json({ name: "" }),
+    );
 
     expect(response.status).toBe(422);
     expect(mocks.requireCommunityWrite).not.toHaveBeenCalled();
@@ -124,9 +132,14 @@ describe("sessionRoute", () => {
   });
 
   it("renders the session failure in the api envelope", async () => {
-    mocks.requireSession.mockRejectedValue(new HttpError(401, "Sign in with GitHub first", "unauthorized"));
+    mocks.requireSession.mockRejectedValue(
+      new HttpError(401, "Sign in with GitHub first", "unauthorized"),
+    );
 
-    const response = await call(sessionRoute({ body }, () => ({})), json({ turnstileToken: "", name: "x" }));
+    const response = await call(
+      sessionRoute({ body }, () => ({})),
+      json({ turnstileToken: "", name: "x" }),
+    );
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({
@@ -142,7 +155,10 @@ describe("adminRoute", () => {
     });
     mocks.requireAdminSession.mockClear();
 
-    const response = await call(adminRoute({}, () => ({})), json({}, "POST"));
+    const response = await call(
+      adminRoute({}, () => ({})),
+      json({}, "POST"),
+    );
 
     expect(response.status).toBe(403);
     expect(mocks.requireAdminSession).not.toHaveBeenCalled();
@@ -152,7 +168,10 @@ describe("adminRoute", () => {
     mocks.requireSameOrigin.mockClear();
     mocks.requireAdminSession.mockResolvedValue(actor);
 
-    const response = await call(adminRoute({}, () => ({ ok: true })), new Request("https://dshx.io/api/admin/x"));
+    const response = await call(
+      adminRoute({}, () => ({ ok: true })),
+      new Request("https://dshx.io/api/admin/x"),
+    );
 
     expect(response.status).toBe(200);
     expect(mocks.requireSameOrigin).not.toHaveBeenCalled();
@@ -171,7 +190,11 @@ describe("tokenRoute", () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: { code: "admin_required" } });
-    expect(mocks.requireApiToken).toHaveBeenCalledWith({ database: true }, expect.any(Request), "catalog:write");
+    expect(mocks.requireApiToken).toHaveBeenCalledWith(
+      { database: true },
+      expect.any(Request),
+      "catalog:write",
+    );
     expect(run).not.toHaveBeenCalled();
   });
 
@@ -229,7 +252,10 @@ describe("tokenRoute", () => {
 
   it("accepts any token when the endpoint declares no scope", async () => {
     mocks.requireApiToken.mockClear();
-    mocks.authenticateApiToken.mockResolvedValue({ token: { id: "t1" }, profile: { role: "admin" } });
+    mocks.authenticateApiToken.mockResolvedValue({
+      token: { id: "t1" },
+      profile: { role: "admin" },
+    });
 
     const response = await call(
       tokenRoute({ scope: null, role: "admin" }, () => ({ bundled: true })),
@@ -238,7 +264,10 @@ describe("tokenRoute", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.requireApiToken).not.toHaveBeenCalled();
-    expect(mocks.authenticateApiToken).toHaveBeenCalledWith({ database: true }, expect.any(Request));
+    expect(mocks.authenticateApiToken).toHaveBeenCalledWith(
+      { database: true },
+      expect.any(Request),
+    );
   });
 });
 
@@ -265,7 +294,9 @@ describe("endpoint response metadata", () => {
   });
 
   it("carries the endpoint's headers on both success and failure", async () => {
-    mocks.requireApiToken.mockRejectedValue(new HttpError(401, "Token is invalid or expired", "invalid_token"));
+    mocks.requireApiToken.mockRejectedValue(
+      new HttpError(401, "Token is invalid or expired", "invalid_token"),
+    );
     const headers = { "cache-control": "no-store", "x-robots-tag": "noindex" };
 
     const failure = await call(
@@ -318,7 +349,10 @@ describe("publicRoute", () => {
     });
     const run = vi.fn();
 
-    const response = await call(publicRoute({ body }, run), json({ turnstileToken: "t", name: "x" }));
+    const response = await call(
+      publicRoute({ body }, run),
+      json({ turnstileToken: "t", name: "x" }),
+    );
 
     expect(response.status).toBe(403);
     expect(run).not.toHaveBeenCalled();

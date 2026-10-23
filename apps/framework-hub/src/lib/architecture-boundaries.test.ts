@@ -2,6 +2,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { API_OPERATION_DEFINITIONS } from "./api-operations";
+
 const sourceRoot = join(process.cwd(), "src");
 const allowedNativeD1Adapter = "lib/db/batch.ts";
 
@@ -263,10 +265,15 @@ describe("Framework Hub architecture boundaries", () => {
     ];
     const primitives =
       /\b(?:jsonError|readJson|readOperationJson|operationSuccess|operationFailure|requireSession|requireAdminSession|requireSameOrigin|requireApiToken|requireAdminApiToken|requireCommunityWrite)\b/u;
+    // A route either builds its handler from the endpoint's declaration, which
+    // carries the same guarantees, or from `lib/api/route.ts` directly. What it
+    // may not do is hand-roll one of those decisions itself.
     expect(
       violations(
         files.filter(({ path }) => !protocolAdapters.includes(path)),
-        ({ text }) => primitives.test(text) || !/from\s+["']@\/lib\/api\/route["']/u.test(text),
+        ({ text }) =>
+          primitives.test(text) ||
+          !/from\s+["']@\/lib\/api\/(?:route|operation|operations\/)[^"']*["']/u.test(text),
       ),
     ).toEqual([]);
     expect(files.filter(({ path }) => protocolAdapters.includes(path)).length).toBe(
@@ -304,6 +311,50 @@ describe("Framework Hub architecture boundaries", () => {
       .filter(({ text }) => !/from\s+["']@\/lib\/[^"']*contracts["']/u.test(text))
       .map(({ path }) => path);
     expect(apiCallsWithoutContract).toEqual([]);
+  });
+
+  it("keeps the published API and the routes that serve it the same list", async () => {
+    // An endpoint is declared once, and its route module consumes that
+    // declaration. The registry could not be checked against the routes
+    // before, which is how four families fell out of the published API while
+    // still being served. Both directions are asserted: every declaration has
+    // a route that serves it, and every route in the published families comes
+    // from a declaration.
+    const files = await sourceFiles();
+    const byPath = new Map(files.map((file) => [file.path, file.text]));
+    const missingRoutes: string[] = [];
+
+    for (const operation of API_OPERATION_DEFINITIONS) {
+      // The declaration names the path as the document spells it, under `/api`;
+      // the router writes its own tree under `routes/`, so `{slug}` becomes `$slug`.
+      const routePath = operation.path.replaceAll(/\{([^}]+)\}/gu, "$$$1");
+      const candidates = [`routes${routePath}.ts`, `routes${routePath}/index.ts`];
+      const routeFile = candidates.find((candidate) => byPath.has(candidate));
+      const text = routeFile === undefined ? undefined : byPath.get(routeFile);
+      // The router's `$slug` carries a regex anchor; escape the path so it
+      // matches literally.
+      const literalPath = routePath.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+      const declaresPath = new RegExp(`createFileRoute\\("${literalPath}/?"\\)`, "u").test(
+        text ?? "",
+      );
+      const consumesDeclaration = (text ?? "").includes(`.${operation.operationId}.route(`);
+      if (routeFile === undefined || !declaresPath || !consumesDeclaration)
+        missingRoutes.push(`${operation.operationId} ${operation.method} ${operation.path}`);
+    }
+    expect(missingRoutes).toEqual([]);
+
+    // The approval page is HTML and the auth callback is better-auth's router;
+    // both answer a protocol rather than the API.
+    const protocolAdapters = ["routes/api/cli/authorizations/$id/approve.ts"];
+    const undeclaredRoutes = files
+      .filter(
+        ({ path }) =>
+          (path.startsWith("routes/api/ops/") || path.startsWith("routes/api/cli/")) &&
+          !protocolAdapters.includes(path),
+      )
+      .filter(({ text }) => !text.includes(".route("))
+      .map(({ path }) => path);
+    expect(undeclaredRoutes).toEqual([]);
   });
 
   it("keeps the human-verification write protocol in one module", async () => {

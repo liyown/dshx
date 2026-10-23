@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { z } from "zod";
 
-import { tokenRoute } from "@/lib/api/route";
+import { adminOperations } from "@/lib/api/operations/admin";
 import type { ApprovalCreateInput } from "@/lib/approvals/contracts";
 import { createApproval, type TokenActor } from "@/lib/approvals/service.server";
 import { moderationActionSchema } from "@/lib/catalog/contracts";
@@ -16,8 +16,7 @@ const gatedActions = ["restore", "unrestrict", "ban", "unban"] as const;
 export const Route = createFileRoute("/api/ops/moderation/actions")({
   server: {
     handlers: {
-      POST: tokenRoute(
-        { scope: "moderation:write", role: "moderator", body: moderationActionSchema },
+      POST: adminOperations.applyModerationAction.route(
         async ({ request, db, token, profile, input }) => {
           if (!(gatedActions as readonly string[]).includes(input.action))
             return Response.json(await applyModerationAction(db, token.id, input), { status: 201 });

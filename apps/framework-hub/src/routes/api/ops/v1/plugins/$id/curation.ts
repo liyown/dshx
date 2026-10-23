@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { pluginCurationRequestSchema } from "@becomeopc/dshx-hub-contracts";
 
-import { tokenRoute } from "@/lib/api/route";
+import { v1PluginOperations } from "@/lib/api/operations/v1-plugins";
 import { curatePlugin } from "@/lib/catalog/operations";
 import { operationRequestId } from "@/lib/catalog/operations-v1.http";
 import { catalogChanged, publishCatalogChanged } from "@/lib/sitemap-cache";
@@ -9,8 +8,7 @@ import { catalogChanged, publishCatalogChanged } from "@/lib/sitemap-cache";
 export const Route = createFileRoute("/api/ops/v1/plugins/$id/curation")({
   server: {
     handlers: {
-      PATCH: tokenRoute(
-        { envelope: "operation", body: pluginCurationRequestSchema },
+      PATCH: v1PluginOperations.curatePlugin.route(
         async ({ request, db, token, params, input }) => {
           const result = await curatePlugin(
             db,

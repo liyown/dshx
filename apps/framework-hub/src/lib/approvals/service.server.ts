@@ -673,6 +673,8 @@ export async function claimAgentEffect(
   };
 }
 
+// The return type is explicit so the outcome reaches the API document as the
+// two statuses it can be; inferred, the literal would widen to `string`.
 export async function completeAgentEffect(
   binding: Database,
   id: string,
@@ -683,7 +685,7 @@ export async function completeAgentEffect(
     output?: unknown;
     error?: string | null | undefined;
   },
-) {
+): Promise<{ approvalId: string; status: "succeeded" | "failed"; duplicate: boolean }> {
   const request = await requestRow(binding, id);
   const effect = await effectRow(binding, id);
   const leaseMatches =

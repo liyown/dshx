@@ -1,20 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { tokenRoute } from "@/lib/api/route";
+import { v1ContentOperations } from "@/lib/api/operations/v1-content";
 import { editChangelogEntry, readChangelogEntry } from "@/lib/changelog.application.server";
-import { updateChangelogSchema } from "@/lib/changelog.contracts";
 import { invalidateChangelogSitemap } from "@/lib/sitemap-invalidation.server";
-
-const noStore = { "cache-control": "no-store" };
 
 export const Route = createFileRoute("/api/ops/v1/changelog/$slug")({
   server: {
     handlers: {
-      GET: tokenRoute({ envelope: "operation", headers: noStore }, ({ db, params }) =>
+      GET: v1ContentOperations.getChangelogEntry.route(({ db, params }) =>
         readChangelogEntry(db, params.slug),
       ),
-      PUT: tokenRoute(
-        { envelope: "operation", body: updateChangelogSchema, status: 200, headers: noStore },
+      PUT: v1ContentOperations.updateChangelogEntry.route(
         async ({ request, db, token, params, input }) => {
           const entry = await editChangelogEntry(db, token.id, params.slug, input);
           invalidateChangelogSitemap(request);
