@@ -4,6 +4,17 @@ export { createHookScaffold } from './hook.js'
 export { createCommandScaffold } from './command.js'
 export { applyFilePlan, insideProject, readOptionalFile, renderFileDiff, rollbackFilePlan } from './common.js'
 export type { FilePlan } from './common.js'
+export { scaffoldContribution } from './generator.js'
+export type {
+  ContributionEntry,
+  ContributionFileSystem,
+  ContributionMessages,
+  ContributionOutcome,
+  ContributionRequest,
+  ContributionTarget,
+  Registration,
+  ScaffoldMessage,
+} from './generator.js'
 export type { AddUiDependencies, AddUiOptions, AddUiResult, ScaffoldFileSystem } from './ui.js'
 export type { AddToolDependencies, AddToolOptions, AddToolResult } from './tool.js'
 export type { AddHookDependencies, AddHookOptions, AddHookResult } from './hook.js'

@@ -738,16 +738,33 @@ async function runAddUi(args: CliArgs, options: CliRunOptions, project: Resolved
   return result.diagnostics.some(item => item.severity === 'error') ? 1 : 0
 }
 
-function toolSummary(project: ResolvedDshxConfig, result: AddToolResult): Record<string, unknown> {
-  return {
-    project: projectSummary(project),
-    name: result.name,
-    changedFiles: result.changedFiles,
-    generatedFiles: result.generatedFiles,
-    diagnostics: result.diagnostics,
-    dryRun: result.dryRun,
-    ...(result.diff === undefined ? {} : { diff: result.diff }),
-  }
+/** What every contribution command reports, whatever it generated. */
+interface ContributionRun {
+  readonly changedFiles: readonly string[]
+  readonly generatedFiles: readonly string[]
+  readonly diagnostics: readonly DshxDiagnostic[]
+  readonly dryRun: boolean
+  readonly diff?: string
+}
+
+interface ContributionRequest {
+  readonly project: ResolvedDshxConfig
+  readonly value: string
+  readonly args: CliArgs
+  readonly runtime: CliRuntime
+}
+
+/**
+ * The one thing `add tool`, `add command` and `add hook` each supply: what to
+ * ask for, what to print when it is missing, and how to generate it.
+ */
+interface ContributionKind {
+  readonly label: string
+  readonly prompt: string
+  readonly key: 'name' | 'event'
+  readonly value: (args: CliArgs) => string | undefined
+  readonly missing: { readonly code: string; readonly message: string; readonly hint: string }
+  readonly generate: (request: ContributionRequest) => Promise<ContributionRun>
 }
 
 async function promptLine(io: CliIO, question: string): Promise<string> {
@@ -755,124 +772,10 @@ async function promptLine(io: CliIO, question: string): Promise<string> {
   return isCancel(answer) ? '' : answer
 }
 
-async function runAddTool(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
-  const io = options.io ?? defaultIO()
-  const runtime = options.runtime ?? {}
-  let name = args.name
-  if (name === undefined && io.stdin.isTTY && !args.json) name = (await promptLine(io, 'Tool name: ')).trim()
-  if (name === undefined || name === '') {
-    const item = {
-      code: 'DSHX6201',
-      severity: 'error' as const,
-      message: 'A Tool name is required.',
-      file: project.packageFile,
-      hint: 'Pass --name <name>, or run in a TTY and enter a Tool name.',
-    }
-    if (args.json)
-      write(
-        io.stdout,
-        `${JSON.stringify({ project: projectSummary(project), name: null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`,
-      )
-    else printDiagnostic(io, item)
-    return 2
-  }
-  const toolOptions: AddToolOptions = {
-    project,
-    name,
-    ...(args.description === undefined ? {} : { description: args.description }),
-    ...(args.file === undefined ? {} : { file: args.file }),
-    dryRun: args.dryRun,
-  }
-  let result: AddToolResult
-  try {
-    result =
-      runtime.addTool === undefined
-        ? await createToolScaffold(toolOptions, { ...(runtime.checkManifest === undefined ? {} : { checkManifest: runtime.checkManifest }) })
-        : await runtime.addTool(toolOptions)
-  } catch (error) {
-    const item = diagnosticFromError(error, project.packageFile)
-    if (args.json)
-      write(
-        io.stdout,
-        `${JSON.stringify({ project: projectSummary(project), name, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`,
-      )
-    else printDiagnostic(io, item)
-    if (args.verbose) printVerboseCause(io, error)
-    return 1
-  }
-  if (args.json) write(io.stdout, `${JSON.stringify(toolSummary(project, result), null, 2)}\n`)
-  else {
-    for (const item of result.diagnostics) printDiagnostic(io, item)
-    if (!result.diagnostics.some(item => item.severity === 'error')) {
-      write(io.stdout, `${result.dryRun ? 'Planned' : 'Generated'} Tool ${result.name}\n`)
-      for (const file of result.changedFiles) write(io.stdout, `  ${file}\n`)
-      if (result.diff !== undefined) write(io.stdout, result.diff)
-    }
-  }
-  return result.diagnostics.some(item => item.severity === 'error') ? 1 : 0
-}
-
-async function runAddCommand(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
-  const io = options.io ?? defaultIO()
-  const runtime = options.runtime ?? {}
-  let name = args.name
-  if (name === undefined && io.stdin.isTTY && !args.json) name = (await promptLine(io, 'Command name: ')).trim()
-  if (name === undefined || name === '') {
-    const item = {
-      code: 'DSHX6501',
-      severity: 'error' as const,
-      message: 'A Command name is required.',
-      file: project.packageFile,
-      hint: 'Pass --name <name>, or run in a TTY and enter a Command name.',
-    }
-    if (args.json)
-      write(
-        io.stdout,
-        `${JSON.stringify({ project: projectSummary(project), name: null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`,
-      )
-    else printDiagnostic(io, item)
-    return 2
-  }
-  const commandOptions: AddCommandOptions = {
-    project,
-    name,
-    ...(args.description === undefined ? {} : { description: args.description }),
-    ...(args.file === undefined ? {} : { file: args.file }),
-    dryRun: args.dryRun,
-  }
-  let result: AddCommandResult
-  try {
-    result =
-      runtime.addCommand === undefined
-        ? await createCommandScaffold(commandOptions, { ...(runtime.checkManifest === undefined ? {} : { checkManifest: runtime.checkManifest }) })
-        : await runtime.addCommand(commandOptions)
-  } catch (error) {
-    const item = diagnosticFromError(error, project.packageFile)
-    if (args.json)
-      write(
-        io.stdout,
-        `${JSON.stringify({ project: projectSummary(project), name, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`,
-      )
-    else printDiagnostic(io, item)
-    if (args.verbose) printVerboseCause(io, error)
-    return 1
-  }
-  if (args.json) write(io.stdout, `${JSON.stringify(toolSummary(project, result), null, 2)}\n`)
-  else {
-    for (const item of result.diagnostics) printDiagnostic(io, item)
-    if (!result.diagnostics.some(item => item.severity === 'error')) {
-      write(io.stdout, `${result.dryRun ? 'Planned' : 'Generated'} Command ${result.name}\n`)
-      for (const file of result.changedFiles) write(io.stdout, `  ${file}\n`)
-      if (result.diff !== undefined) write(io.stdout, result.diff)
-    }
-  }
-  return result.diagnostics.some(item => item.severity === 'error') ? 1 : 0
-}
-
-function hookSummary(project: ResolvedDshxConfig, result: AddHookResult): Record<string, unknown> {
+function contributionSummary(project: ResolvedDshxConfig, key: 'name' | 'event', value: string, result: ContributionRun): Record<string, unknown> {
   return {
     project: projectSummary(project),
-    event: result.event,
+    [key]: value,
     changedFiles: result.changedFiles,
     generatedFiles: result.generatedFiles,
     diagnostics: result.diagnostics,
@@ -881,55 +784,115 @@ function hookSummary(project: ResolvedDshxConfig, result: AddHookResult): Record
   }
 }
 
-async function runAddHook(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig): Promise<number> {
+function generatorDependencies(runtime: CliRuntime): { checkManifest?: typeof checkProjectManifest } {
+  return runtime.checkManifest === undefined ? {} : { checkManifest: runtime.checkManifest }
+}
+
+const contributionKinds: Record<'tool' | 'command' | 'hook', ContributionKind> = {
+  tool: {
+    label: 'Tool',
+    prompt: 'Tool name: ',
+    key: 'name',
+    value: args => args.name,
+    missing: {
+      code: 'DSHX6201',
+      message: 'A Tool name is required.',
+      hint: 'Pass --name <name>, or run in a TTY and enter a Tool name.',
+    },
+    async generate({ project, value, args, runtime }) {
+      const options: AddToolOptions = {
+        project,
+        name: value,
+        ...(args.description === undefined ? {} : { description: args.description }),
+        ...(args.file === undefined ? {} : { file: args.file }),
+        dryRun: args.dryRun,
+      }
+      return runtime.addTool === undefined ? await createToolScaffold(options, generatorDependencies(runtime)) : await runtime.addTool(options)
+    },
+  },
+  command: {
+    label: 'Command',
+    prompt: 'Command name: ',
+    key: 'name',
+    value: args => args.name,
+    missing: {
+      code: 'DSHX6501',
+      message: 'A Command name is required.',
+      hint: 'Pass --name <name>, or run in a TTY and enter a Command name.',
+    },
+    async generate({ project, value, args, runtime }) {
+      const options: AddCommandOptions = {
+        project,
+        name: value,
+        ...(args.description === undefined ? {} : { description: args.description }),
+        ...(args.file === undefined ? {} : { file: args.file }),
+        dryRun: args.dryRun,
+      }
+      return runtime.addCommand === undefined ? await createCommandScaffold(options, generatorDependencies(runtime)) : await runtime.addCommand(options)
+    },
+  },
+  hook: {
+    label: 'Hook',
+    prompt: 'Hook event: ',
+    key: 'event',
+    value: args => args.event,
+    missing: {
+      code: 'DSHX6301',
+      message: 'A Hook event is required.',
+      hint: 'Pass --event <event.name>, or run in a TTY and enter a Hook event.',
+    },
+    async generate({ project, value, args, runtime }) {
+      const options: AddHookOptions = {
+        project,
+        event: value,
+        ...(args.file === undefined ? {} : { file: args.file }),
+        dryRun: args.dryRun,
+      }
+      return runtime.addHook === undefined ? await createHookScaffold(options, generatorDependencies(runtime)) : await runtime.addHook(options)
+    },
+  },
+}
+
+async function runAddContribution(args: CliArgs, options: CliRunOptions, project: ResolvedDshxConfig, kind: ContributionKind): Promise<number> {
   const io = options.io ?? defaultIO()
   const runtime = options.runtime ?? {}
-  let event = args.event
-  if (event === undefined && io.stdin.isTTY && !args.json) event = (await promptLine(io, 'Hook event: ')).trim()
-  if (event === undefined || event === '') {
+  let value = kind.value(args)
+  if (value === undefined && io.stdin.isTTY && !args.json) value = (await promptLine(io, kind.prompt)).trim()
+  if (value === undefined || value === '') {
     const item = {
-      code: 'DSHX6301',
+      code: kind.missing.code,
       severity: 'error' as const,
-      message: 'A Hook event is required.',
+      message: kind.missing.message,
       file: project.packageFile,
-      hint: 'Pass --event <event.name>, or run in a TTY and enter a Hook event.',
+      hint: kind.missing.hint,
     }
     if (args.json)
       write(
         io.stdout,
-        `${JSON.stringify({ project: projectSummary(project), event: null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`,
+        `${JSON.stringify({ project: projectSummary(project), [kind.key]: null, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`,
       )
     else printDiagnostic(io, item)
     return 2
   }
-  const hookOptions: AddHookOptions = {
-    project,
-    event,
-    ...(args.file === undefined ? {} : { file: args.file }),
-    dryRun: args.dryRun,
-  }
-  let result: AddHookResult
+  let result: ContributionRun
   try {
-    result =
-      runtime.addHook === undefined
-        ? await createHookScaffold(hookOptions, { ...(runtime.checkManifest === undefined ? {} : { checkManifest: runtime.checkManifest }) })
-        : await runtime.addHook(hookOptions)
+    result = await kind.generate({ project, value, args, runtime })
   } catch (error) {
     const item = diagnosticFromError(error, project.packageFile)
     if (args.json)
       write(
         io.stdout,
-        `${JSON.stringify({ project: projectSummary(project), event, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`,
+        `${JSON.stringify({ project: projectSummary(project), [kind.key]: value, changedFiles: [], generatedFiles: [], diagnostics: [item], dryRun: args.dryRun }, null, 2)}\n`,
       )
     else printDiagnostic(io, item)
     if (args.verbose) printVerboseCause(io, error)
     return 1
   }
-  if (args.json) write(io.stdout, `${JSON.stringify(hookSummary(project, result), null, 2)}\n`)
+  if (args.json) write(io.stdout, `${JSON.stringify(contributionSummary(project, kind.key, value, result), null, 2)}\n`)
   else {
     for (const item of result.diagnostics) printDiagnostic(io, item)
     if (!result.diagnostics.some(item => item.severity === 'error')) {
-      write(io.stdout, `${result.dryRun ? 'Planned' : 'Generated'} Hook ${result.event}\n`)
+      write(io.stdout, `${result.dryRun ? 'Planned' : 'Generated'} ${kind.label} ${value}\n`)
       for (const file of result.changedFiles) write(io.stdout, `  ${file}\n`)
       if (result.diff !== undefined) write(io.stdout, result.diff)
     }
@@ -1067,10 +1030,8 @@ export async function runCli(argv: readonly string[], options: CliRunOptions = {
     if (args.command === 'check') return await runCheck(args, options, project)
     if (args.command === 'inspect') return await runInspect(args, options, project)
     if (args.command === 'add') {
-      if (args.addTarget === 'tool') return await runAddTool(args, options, project)
-      if (args.addTarget === 'command') return await runAddCommand(args, options, project)
-      if (args.addTarget === 'hook') return await runAddHook(args, options, project)
-      return await runAddUi(args, options, project)
+      if (args.addTarget === undefined || args.addTarget === 'ui') return await runAddUi(args, options, project)
+      return await runAddContribution(args, options, project, contributionKinds[args.addTarget])
     }
     return await runDev(args, options, project)
   } catch (error) {
