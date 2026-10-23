@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
-import { anonymousSubmissionKey, createSubmission } from "./marketplace.server";
+import { anonymousSubmissionKey, createSubmission } from "./submissions.server";
 import type { Database } from "@/lib/db/client";
 
 describe("account-free plugin submissions with local D1", () => {

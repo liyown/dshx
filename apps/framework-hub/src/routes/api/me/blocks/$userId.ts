@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { sessionRoute } from "@/lib/api/route";
 import { relationshipWriteSchema, userBlockResultSchema } from "@/lib/community/contracts";
-import { setUserBlock } from "@/lib/community/marketplace.server";
+import { setUserBlock } from "@/lib/community/membership.server";
 
 export const Route = createFileRoute("/api/me/blocks/$userId")({
   server: {

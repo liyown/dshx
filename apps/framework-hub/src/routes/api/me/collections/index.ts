@@ -6,7 +6,7 @@ import {
   collectionDetailSchema,
   collectionsPageSchema,
 } from "@/lib/community/contracts";
-import { createCollection, listCollections } from "@/lib/community/marketplace.server";
+import { createCollection, listCollections } from "@/lib/community/collections.server";
 
 export const Route = createFileRoute("/api/me/collections/")({
   server: {

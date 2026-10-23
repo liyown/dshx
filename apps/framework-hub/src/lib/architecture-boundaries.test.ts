@@ -381,6 +381,24 @@ describe("Framework Hub architecture boundaries", () => {
     ).toEqual([]);
   });
 
+  it("keeps community enforcement in one write path", async () => {
+    // Hiding content, restoring it, banning or restricting a member: the state
+    // change and its ledger entry both come from `community/enforcement.server.ts`.
+    // An operator's decision and an approved effect differ in who decided, not
+    // in what the decision writes — two copies of that SQL is how a transition
+    // gets fixed on one path and missed on the other.
+    const files = (await sourceFiles()).filter(
+      ({ path }) => path !== "lib/community/enforcement.server.ts",
+    );
+    expect(
+      violations(files, ({ text }) =>
+        /insert into user_restrictions|update user_profiles set status=|insert into moderation_actions/u.test(
+          text,
+        ),
+      ),
+    ).toEqual([]);
+  });
+
   it("keeps the human-verification write protocol in one module", async () => {
     // A verified write is a token, a challenge to remount, a key that survives
     // a retry, and a session check. The copies had drifted: only one kept its

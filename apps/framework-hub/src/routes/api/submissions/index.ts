@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { publicRoute } from "@/lib/api/route";
 import { getOptionalSession } from "@/lib/auth/auth.server";
 import { submissionCreateSchema, submissionSchema } from "@/lib/community/contracts";
-import { anonymousSubmissionKey, createSubmission } from "@/lib/community/marketplace.server";
+import { anonymousSubmissionKey, createSubmission } from "@/lib/community/submissions.server";
 import { verifyTurnstileToken } from "@/lib/community/verification.server";
 import { requireBindings } from "@/lib/db/context";
 

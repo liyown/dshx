@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { sessionRoute } from "@/lib/api/route";
 import { appealCreateSchema, appealSchema, appealsPageSchema } from "@/lib/community/contracts";
-import { createAppeal, listAppeals } from "@/lib/community/marketplace.server";
+import { createAppeal, listAppeals } from "@/lib/community/moderation.server";
 
 export const Route = createFileRoute("/api/me/appeals/")({
   server: {

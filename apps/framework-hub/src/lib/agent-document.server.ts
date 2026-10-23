@@ -1,7 +1,7 @@
 import { getCatalogPlugin, listCatalogDiscovery } from "./catalog/repository.server";
 import { operationReportPlainText } from "./catalog/operation-report-view";
 import { listPublicOperationReports } from "./catalog/operation-reports.server";
-import { getPublicPublisher } from "./community/marketplace.server";
+import { getPublicPublisher } from "./community/membership.server";
 import { createDatabase } from "./db/client";
 import type { AppRequestContext } from "./db/context";
 import { isIndexable } from "./public-pages.server";

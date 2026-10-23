@@ -1,11 +1,19 @@
 import type { z } from "zod";
 import type { BatchItem } from "drizzle-orm/batch";
 
+import type { ApprovalCreateInput } from "@/lib/approvals/contracts";
+import { createUserApproval } from "@/lib/approvals/service.server";
 import type { moderationActionSchema } from "@/lib/catalog/contracts";
 import type { Database } from "@/lib/db/client";
 import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { HttpError, uuid } from "@/lib/http";
+import { sanitizeUserText, type AppealRow } from "./contracts";
+import {
+  contentStatusStatements,
+  moderationRecordStatement,
+  userAccessStatements,
+} from "./enforcement.server";
 
 type ModerationInput = z.infer<typeof moderationActionSchema>;
 
@@ -207,6 +215,51 @@ function validateAutomaticPolicy(input: ModerationInput, now: number) {
   }
 }
 
+/**
+ * The state change an operator's direct decision makes.
+ *
+ * A reversal that a person must approve — restoring content, lifting or
+ * imposing an access change — never arrives here: the route turns it into an
+ * approval instead, and the effect applies it through the same statements.
+ */
+function enforcementStatements(
+  binding: Database,
+  input: ModerationInput,
+  actorId: string,
+  now: number,
+): BatchItem<"sqlite">[] {
+  if (input.targetType === "review" || input.targetType === "reply") {
+    if (input.action !== "hide" && input.action !== "restore") return [];
+    return contentStatusStatements(
+      binding,
+      input.targetType,
+      input.targetId,
+      input.action === "hide" ? "hidden" : "published",
+      now,
+    );
+  }
+  if (
+    input.targetType === "user" &&
+    (input.action === "ban" ||
+      input.action === "restrict" ||
+      input.action === "unban" ||
+      input.action === "unrestrict")
+  ) {
+    return userAccessStatements(
+      binding,
+      {
+        userId: input.targetId,
+        access: input.action,
+        reason: input.reason,
+        expiresAt: input.expiresAt ? Date.parse(input.expiresAt) : null,
+        actor: { type: "api_token", id: actorId },
+      },
+      now,
+    );
+  }
+  return [];
+}
+
 export async function applyModerationAction(
   binding: Database,
   actorId: string,
@@ -225,73 +278,7 @@ export async function applyModerationAction(
   const now = Date.now();
   validateAutomaticPolicy(input, now);
   const actionId = uuid();
-  const statements: BatchItem<"sqlite">[] = [];
-  if (input.targetType === "review" && ["hide", "restore"].includes(input.action)) {
-    statements.push(
-      binding.run(
-        parameterizedSql("update plugin_reviews set status=?,updated_at=? where id=?", [
-          input.action === "hide" ? "hidden" : "published",
-          now,
-          input.targetId,
-        ]),
-      ),
-    );
-  }
-  if (input.targetType === "reply" && ["hide", "restore"].includes(input.action)) {
-    statements.push(
-      binding.run(
-        parameterizedSql("update review_replies set status=?,updated_at=? where id=?", [
-          input.action === "hide" ? "hidden" : "published",
-          now,
-          input.targetId,
-        ]),
-      ),
-    );
-  }
-  if (input.targetType === "user" && ["restrict", "ban"].includes(input.action)) {
-    statements.push(
-      binding.run(
-        parameterizedSql(
-          `insert into user_restrictions(
-            id,user_id,kind,reason,starts_at,expires_at,created_by_actor_type,created_by_actor_id
-          ) values(?,?,?,?,?,?,?,?)`,
-          [
-            uuid(),
-            input.targetId,
-            input.action === "ban" ? "ban" : "write",
-            input.reason,
-            now,
-            Date.parse(input.expiresAt!),
-            "api_token",
-            actorId,
-          ],
-        ),
-      ),
-      binding.run(
-        parameterizedSql("update user_profiles set status=?,updated_at=? where user_id=?", [
-          input.action === "ban" ? "banned" : "restricted",
-          now,
-          input.targetId,
-        ]),
-      ),
-    );
-  }
-  if (input.targetType === "user" && ["unrestrict", "unban"].includes(input.action)) {
-    statements.push(
-      binding.run(
-        parameterizedSql(
-          "update user_restrictions set revoked_at=? where user_id=? and revoked_at is null",
-          [now, input.targetId],
-        ),
-      ),
-      binding.run(
-        parameterizedSql("update user_profiles set status='active',updated_at=? where user_id=?", [
-          now,
-          input.targetId,
-        ]),
-      ),
-    );
-  }
+  const statements: BatchItem<"sqlite">[] = enforcementStatements(binding, input, actorId, now);
 
   if (input.reportIds.length > 0) {
     const placeholders = input.reportIds.map(() => "?").join(",");
@@ -312,26 +299,17 @@ export async function applyModerationAction(
     confidence: input.confidence ?? null,
     policyVersion: input.policyVersion ?? null,
   };
-  statements.push(
-    binding.run(
-      parameterizedSql(
-        `insert into moderation_actions(
-          id,actor_type,actor_id,action,target_type,target_id,reason,metadata_json,created_at
-        ) values(?,?,?,?,?,?,?,?,?)`,
-        [
-          actionId,
-          "api_token",
-          actorId,
-          input.action,
-          input.targetType,
-          input.targetId,
-          input.reason,
-          JSON.stringify(metadata),
-          now,
-        ],
-      ),
-    ),
-  );
+  const record = moderationRecordStatement(binding, {
+    id: actionId,
+    actor: { type: "api_token", id: actorId },
+    action: input.action,
+    targetType: input.targetType,
+    targetId: input.targetId,
+    reason: input.reason,
+    metadata,
+    now,
+  });
+  statements.push(record);
 
   await runDrizzleBatch(binding, statements);
   return {
@@ -345,4 +323,170 @@ export async function applyModerationAction(
     metadata,
     createdAt: new Date(now).toISOString(),
   };
+}
+
+/** An appeal always carries the status of the approval its decision waits on. */
+const appealSelect = `select a.*,r.status approval_status,r.effect_status
+  from moderation_appeals a left join approval_requests r on r.id=a.approval_request_id`;
+
+/**
+ * The approval effect that imposes a gated enforcement decision.
+ *
+ * An operator asking for approval to restore content or change access, and a
+ * member appealing a decision, describe the same effects. Both build them here,
+ * in the shapes the approvals workflow runs, so a direct decision and an
+ * appealed one cannot drift into two meanings of "restore".
+ */
+export function enforcementEffect(input: {
+  readonly action: "restore" | "ban" | "unban" | "unrestrict";
+  readonly target: { readonly type: "review" | "reply" | "user"; readonly id: string };
+  readonly reason: string;
+}): ApprovalCreateInput["effect"] {
+  if (input.action === "restore")
+    return {
+      kind: "restore_content",
+      executionMode: "server",
+      input: { targetType: input.target.type, targetId: input.target.id },
+    };
+  return {
+    kind: "set_user_access",
+    executionMode: "server",
+    input: { userId: input.target.id, action: input.action, reason: input.reason },
+  };
+}
+
+export async function listAppeals(binding: Database, userId: string) {
+  const result = await binding.all<AppealRow>(
+    parameterizedSql(`${appealSelect} where a.user_id=? order by a.created_at desc`, [userId]),
+  );
+  return { items: result };
+}
+
+/**
+ * An appeal is a member asking for a reversal of a decision about them.
+ *
+ * It never changes state itself: it opens an approval whose effect is the
+ * reversal, and the approval decides. The ownership check is what makes that
+ * safe — only the member a decision was made against may appeal it.
+ */
+export async function createAppeal(
+  binding: Database,
+  userId: string,
+  input: { moderationActionId: string; statement: string; idempotencyKey: string },
+) {
+  const existing = await binding.get<AppealRow>(
+    parameterizedSql(`${appealSelect} where a.user_id=? and a.idempotency_key=?`, [
+      userId,
+      input.idempotencyKey,
+    ]),
+  );
+  if (existing) return existing;
+  const action = await binding.get<Record<string, unknown>>(
+    parameterizedSql("select * from moderation_actions where id=?", [input.moderationActionId]),
+  );
+  if (!action)
+    throw new HttpError(404, "Moderation action not found", "moderation_action_not_found");
+  const targetType = String(action["target_type"]);
+  const targetId = String(action["target_id"]);
+  const actionName = String(action["action"]);
+  let owned = targetType === "user" && targetId === userId;
+  if (targetType === "review") {
+    owned = Boolean(
+      await binding.get(
+        parameterizedSql("select id from plugin_reviews where id=? and user_id=?", [
+          targetId,
+          userId,
+        ]),
+      ),
+    );
+  }
+  if (targetType === "reply") {
+    owned = Boolean(
+      await binding.get(
+        parameterizedSql("select id from review_replies where id=? and user_id=?", [
+          targetId,
+          userId,
+        ]),
+      ),
+    );
+  }
+  if (!owned) throw new HttpError(403, "This moderation action is not yours", "appeal_forbidden");
+
+  const statement = sanitizeUserText(input.statement);
+  if (!statement)
+    throw new HttpError(422, "An appeal needs a statement", "invalid_appeal_statement");
+  const appealId = uuid();
+  let approval: Omit<ApprovalCreateInput, "idempotencyKey">;
+  if (actionName === "hide" && (targetType === "review" || targetType === "reply")) {
+    approval = {
+      kind: "appeal_resolution",
+      risk: "high",
+      subjectType: targetType,
+      subjectId: targetId,
+      title: `Appeal to restore ${targetType}`,
+      summary: statement,
+      evidence: {
+        appealId,
+        moderationActionId: input.moderationActionId,
+        statement: input.statement,
+      },
+      effect: enforcementEffect({
+        action: "restore",
+        target: { type: targetType, id: targetId },
+        reason: "Approved moderation appeal",
+      }),
+      preconditions: { status: "hidden" },
+      policyVersion: "dshx-community-1",
+    };
+  } else if (["restrict", "ban"].includes(actionName) && targetType === "user") {
+    const banned = actionName === "ban";
+    approval = {
+      kind: "appeal_resolution",
+      risk: "critical",
+      subjectType: "user",
+      subjectId: userId,
+      title: `Appeal ${actionName} decision`,
+      summary: statement,
+      evidence: {
+        appealId,
+        moderationActionId: input.moderationActionId,
+        statement: input.statement,
+      },
+      effect: enforcementEffect({
+        action: banned ? "unban" : "unrestrict",
+        target: { type: "user", id: userId },
+        reason: "Approved moderation appeal",
+      }),
+      preconditions: { status: banned ? "banned" : "restricted" },
+      policyVersion: "dshx-community-1",
+    };
+  } else {
+    throw new HttpError(409, "This moderation action cannot be appealed", "appeal_not_supported");
+  }
+  const approvalResult = await createUserApproval(binding, userId, {
+    ...approval,
+    idempotencyKey: `appeal:${userId}:${input.idempotencyKey}`,
+  });
+  await binding.run(
+    parameterizedSql(
+      `insert into moderation_appeals(
+        id,user_id,moderation_action_id,statement,status,idempotency_key,approval_request_id,created_at
+       ) values(?,?,?,?,?,?,?,?)`,
+      [
+        appealId,
+        userId,
+        input.moderationActionId,
+        statement,
+        "pending",
+        input.idempotencyKey,
+        approvalResult.id,
+        Date.now(),
+      ],
+    ),
+  );
+  const appeal = await binding.get<AppealRow>(
+    parameterizedSql(`${appealSelect} where a.id=?`, [appealId]),
+  );
+  if (!appeal) throw new HttpError(500, "Appeal could not be read back", "appeal_read_failed");
+  return appeal;
 }

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { sessionRoute } from "@/lib/api/route";
 import { accountDeleteSchema, accountDeletionSchema } from "@/lib/community/contracts";
-import { anonymizeAccount } from "@/lib/community/marketplace.server";
+import { anonymizeAccount } from "@/lib/community/membership.server";
 
 export const Route = createFileRoute("/api/me/account")({
   server: {

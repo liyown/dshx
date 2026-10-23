@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireDatabase } from "@/lib/db/client";
-import { getCollection, getPublicPublisher, getPublicUser } from "./marketplace.server";
+import { getCollection } from "./collections.server";
+import { getPublicPublisher, getPublicUser } from "./membership.server";
 
 export type PublicPluginData = {
   slug: string;

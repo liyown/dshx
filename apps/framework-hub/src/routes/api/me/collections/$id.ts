@@ -11,7 +11,7 @@ import {
   deleteCollection,
   getCollection,
   updateCollection,
-} from "@/lib/community/marketplace.server";
+} from "@/lib/community/collections.server";
 
 export const Route = createFileRoute("/api/me/collections/$id")({
   server: {

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { sessionRoute } from "@/lib/api/route";
 import { profileSchema, profileUpdateSchema } from "@/lib/community/contracts";
-import { getMe, updateProfile } from "@/lib/community/marketplace.server";
+import { getMe, updateProfile } from "@/lib/community/membership.server";
 
 export const Route = createFileRoute("/api/me/profile")({
   server: {

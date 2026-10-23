@@ -6,7 +6,7 @@ import {
   submissionSchema,
   submissionsPageSchema,
 } from "@/lib/community/contracts";
-import { createSubmission, listSubmissions } from "@/lib/community/marketplace.server";
+import { createSubmission, listSubmissions } from "@/lib/community/submissions.server";
 
 export const Route = createFileRoute("/api/me/submissions/")({
   server: {

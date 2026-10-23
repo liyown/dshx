@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { catalogOperations } from "@/lib/api/operations/catalog";
-import { getPublicPublisher } from "@/lib/community/marketplace.server";
+import { getPublicPublisher } from "@/lib/community/membership.server";
 
 export const Route = createFileRoute("/api/publishers/$login")({
   server: {

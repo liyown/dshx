@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { sessionRoute } from "@/lib/api/route";
 import { publisherFollowResultSchema, relationshipWriteSchema } from "@/lib/community/contracts";
-import { setPublisherFollow } from "@/lib/community/marketplace.server";
+import { setPublisherFollow } from "@/lib/community/membership.server";
 
 export const Route = createFileRoute("/api/me/publishers/$publisherId/follow")({
   server: {

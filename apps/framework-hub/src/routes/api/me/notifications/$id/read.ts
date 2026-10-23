@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { sessionRoute } from "@/lib/api/route";
 import { notificationReadResultSchema, notificationReadSchema } from "@/lib/community/contracts";
-import { readNotification } from "@/lib/community/marketplace.server";
+import { readNotification } from "@/lib/community/notifications.server";
 
 export const Route = createFileRoute("/api/me/notifications/$id/read")({
   server: {

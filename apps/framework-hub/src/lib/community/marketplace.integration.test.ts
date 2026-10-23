@@ -2,21 +2,22 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
 import {
-  anonymizeAccount,
-  createAppeal,
   createCollection,
   getCollection,
-  getMe,
-  listAppeals,
   listCollections,
-  listNotifications,
-  listRelationships,
-  listSubmissions,
   setCollectionPlugin,
+  updateCollection,
+} from "./collections.server";
+import {
+  anonymizeAccount,
+  getMe,
+  listRelationships,
   setPluginRelationship,
   setUserBlock,
-  updateCollection,
-} from "./marketplace.server";
+} from "./membership.server";
+import { createAppeal, listAppeals } from "./moderation.server";
+import { listNotifications } from "./notifications.server";
+import { listSubmissions } from "./submissions.server";
 import {
   appealsPageSchema,
   collectionDetailSchema,

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { sessionRoute } from "@/lib/api/route";
 import { collectionDetailSchema, relationshipWriteSchema } from "@/lib/community/contracts";
-import { setCollectionPlugin } from "@/lib/community/marketplace.server";
+import { setCollectionPlugin } from "@/lib/community/collections.server";
 
 export const Route = createFileRoute("/api/me/collections/$id/plugins/$pluginId")({
   server: {
