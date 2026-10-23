@@ -1,43 +1,18 @@
-export const aboutCopy = {
-  en: {
-    title: "About DSHX",
-    description:
-      "DSHX is an open-source DeepSeek Harness plugin marketplace and the build-time TypeScript, React, and Vite toolchain behind it. Official DeepSeek Harness and Cordis services retain runtime ownership.",
-    eyebrow: "Open-source marketplace & framework",
-    boundary: "Framework boundary",
-    boundaryBody:
-      "DSHX provides typed authoring helpers, bounded builds, diagnostics, templates, Profile-aware development, and the DSHX Hub. It does not replace the official Agent, Session, Tool, Slot, transport, persistence, HMR, or disposal runtime.",
-    evidence: "Verifiable sources",
-    evidenceBody:
-      "Source code, issues, releases, compatibility declarations, tests, and contribution history are public on GitHub. Published packages carry canonical repository and license metadata on npm.",
-    facts: [
-      ["License", "MIT"],
-      ["Primary language", "TypeScript"],
-      ["Runtime", "DeepSeek Harness / Cordis"],
-      ["Package", "@becomeopc/dshx"],
-      ["Last verified", "2026-08-28"],
-    ],
-  },
-  zh: {
-    title: "关于 DSHX",
-    description:
-      "DSHX 是开源的 DeepSeek Harness 插件市场，也是开发这些插件所用的构建期 TypeScript、React 与 Vite 工具链；Runtime 仍由官方 DeepSeek Harness 与 Cordis 服务负责。",
-    eyebrow: "开源市场与框架",
-    boundary: "框架边界",
-    boundaryBody:
-      "DSHX 提供类型化开发辅助、受约束的构建、诊断、模板、Profile 感知开发流程和 DSHX Hub。它不会替代官方 Agent、Session、Tool、Slot、Transport、持久化、HMR 或 Dispose Runtime。",
-    evidence: "可验证来源",
-    evidenceBody:
-      "源码、Issue、Release、兼容性声明、测试和贡献记录公开保存在 GitHub；发布到 npm 的包使用规范仓库与许可证元数据。",
-    facts: [
-      ["许可证", "MIT"],
-      ["主要语言", "TypeScript"],
-      ["Runtime", "DeepSeek Harness / Cordis"],
-      ["包", "@becomeopc/dshx"],
-      ["最后验证", "2026-08-28"],
-    ],
-  },
-} as const;
+import type { MessageKey } from "@/lib/i18n";
+
+/**
+ * The fact table on the about page. The labels are copy — they come from
+ * `about.fact.*` — while the values are claims about the project and stay
+ * here next to the rest of its metadata.
+ */
+export const aboutFacts: ReadonlyArray<{ readonly labelKey: MessageKey; readonly value: string }> =
+  [
+    { labelKey: "about.fact.license", value: "MIT" },
+    { labelKey: "about.fact.language", value: "TypeScript" },
+    { labelKey: "about.fact.runtime", value: "DeepSeek Harness / Cordis" },
+    { labelKey: "about.fact.package", value: "@becomeopc/dshx" },
+    { labelKey: "about.fact.verified", value: "2026-08-28" },
+  ];
 
 export const examples = [
   {

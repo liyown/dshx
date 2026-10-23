@@ -4,10 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { PublicPageHeader } from "@/components/community/public-list";
 import { PluginCard } from "@/components/dshx/plugin-card";
 import { ButtonLink, Container } from "@/components/dshx/primitives";
-import { featuredCopy } from "@/lib/featured";
 import { loadFeatured } from "@/lib/featured.functions";
 import { buildFeaturedHead } from "@/lib/featured-seo";
-import { parseLocale } from "@/lib/i18n";
+import { createTranslator, parseLocale, type Translate } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/$locale/featured")({
@@ -16,9 +15,14 @@ export const Route = createFileRoute("/$locale/featured")({
   component: FeaturedPage,
 });
 
+/** A shelf's plugin count reads differently for one and for many. */
+function pluginCount(t: Translate, count: number): string {
+  return t(count === 1 ? "featured.pluginCountOne" : "featured.pluginCountMany", { count });
+}
+
 function FeaturedPage() {
   const locale = parseLocale(Route.useParams().locale);
-  const copy = featuredCopy[locale];
+  const t = createTranslator(locale);
   const sections = Route.useLoaderData();
   const [activeSlug, setActiveSlug] = useState(sections[0]?.slug ?? "");
   const [atFooter, setAtFooter] = useState(false);
@@ -74,25 +78,27 @@ function FeaturedPage() {
     <main>
       <Container className="py-16 md:py-24 min-[1440px]:mr-[calc(50%-590px-6rem)] min-[1440px]:ml-[calc(50%-590px+6rem)]">
         <PublicPageHeader
-          eyebrow={copy.eyebrow}
-          title={copy.title}
-          description={copy.description}
+          eyebrow={t("featured.eyebrow")}
+          title={t("featured.title")}
+          description={t("featured.description")}
         />
         <p className="mt-5 max-w-3xl border-l border-border pl-3 text-[12px] leading-6 text-muted-foreground">
-          {copy.editorialNote}
+          {t("featured.editorialNote")}
         </p>
 
         {sections.length === 0 ? (
           <div className="border-b border-border py-16">
-            <p className="max-w-2xl text-[15px] leading-7 text-muted-foreground">{copy.empty}</p>
+            <p className="max-w-2xl text-[15px] leading-7 text-muted-foreground">
+              {t("featured.empty")}
+            </p>
             <ButtonLink to="/plugins" variant="outline" className="mt-6">
-              {copy.browseAll}
+              {t("featured.browseAll")}
             </ButtonLink>
           </div>
         ) : (
           <>
             <nav
-              aria-label={copy.jumpTo}
+              aria-label={t("featured.jumpTo")}
               className="mt-8 flex gap-5 overflow-x-auto [scrollbar-width:none] min-[1440px]:hidden [&::-webkit-scrollbar]:hidden"
             >
               {sections.map((section) => (
@@ -129,7 +135,7 @@ function FeaturedPage() {
                   id="featured-categories"
                   className="shrink-0 pb-3 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground"
                 >
-                  {copy.categories}
+                  {t("featured.categories")}
                 </p>
                 <ul
                   ref={railRef}
@@ -191,13 +197,13 @@ function FeaturedPage() {
                       ) : null}
                     </div>
                     <div className="flex items-center gap-5 text-[12px] text-muted-foreground">
-                      <span className="font-mono">{copy.pluginCount(section.plugins.length)}</span>
+                      <span className="font-mono">{pluginCount(t, section.plugins.length)}</span>
                       <Link
                         to="/$locale/categories/$slug"
                         params={{ locale, slug: section.slug }}
                         className="min-h-10 inline-flex items-center rounded-sm text-accent transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
                       >
-                        {copy.browseCategory}
+                        {t("featured.browseCategory")}
                       </Link>
                     </div>
                   </div>

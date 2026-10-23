@@ -7,7 +7,7 @@ import type { AppRequestContext } from "./db/context";
 import { DOC_CHAPTERS, getDocsChapter, getDocsNavigation, isDocsSlug } from "./docs";
 import type { DocsBlock } from "./docs";
 import { createTranslator, isLocale, type Locale } from "./i18n";
-import { aboutCopy, examples, isLegalDocument, legalDocuments } from "./public-content";
+import { aboutFacts, examples, isLegalDocument, legalDocuments } from "./public-content";
 import { buildPluginInstallCommand, selectInstallTarget } from "./catalog/install-target/public";
 import {
   estimateMarkdownTokens,
@@ -139,20 +139,26 @@ function staticDocument(pathname: string, locale: Locale): AgentDocument | null 
     };
   }
   if (pathname === `/${locale}/about`) {
-    const content = aboutCopy[locale];
     return {
-      title: content.title,
-      description: content.description,
+      title: t("about.title"),
+      description: t("about.description"),
       canonical: canonical(pathname),
       locale,
       lastVerified: "2026-08-28",
       sections: [
-        { title: content.boundary, blocks: [{ kind: "paragraph", text: content.boundaryBody }] },
         {
-          title: content.evidence,
+          title: t("about.boundary"),
+          blocks: [{ kind: "paragraph", text: t("about.boundaryBody") }],
+        },
+        {
+          title: t("about.evidence"),
           blocks: [
-            { kind: "paragraph", text: content.evidenceBody },
-            { kind: "table", headers: ["Fact", "Value"], rows: content.facts },
+            { kind: "paragraph", text: t("about.evidenceBody") },
+            {
+              kind: "table",
+              headers: [t("document.fact"), t("document.value")],
+              rows: aboutFacts.map(({ labelKey, value }) => [t(labelKey), value]),
+            },
           ],
         },
       ],
@@ -271,7 +277,7 @@ async function dynamicDocument(
           blocks: [
             {
               kind: "table",
-              headers: ["Fact", "Value"],
+              headers: [t("document.fact"), t("document.value")],
               rows: [
                 [locale === "zh" ? "版本" : "Version", plugin.version],
                 [locale === "zh" ? "兼容性" : "Compatibility", plugin.compat],

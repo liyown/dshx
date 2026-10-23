@@ -3,10 +3,9 @@ import { ArrowUpRight } from "lucide-react";
 
 import { PublicPageHeader } from "@/components/community/public-list";
 import { Chip, Container } from "@/components/dshx/primitives";
-import { changelogCopy } from "@/lib/changelog";
 import { loadChangelog } from "@/lib/changelog.functions";
 import { buildChangelogListHead } from "@/lib/changelog-seo";
-import { formatDate, parseLocale } from "@/lib/i18n";
+import { createTranslator, formatDate, parseLocale } from "@/lib/i18n";
 
 export const Route = createFileRoute("/$locale/changelog/")({
   loader: () => loadChangelog(),
@@ -17,24 +16,20 @@ export const Route = createFileRoute("/$locale/changelog/")({
 
 function ChangelogPage() {
   const locale = parseLocale(Route.useParams().locale);
-  const copy = changelogCopy[locale];
+  const t = createTranslator(locale);
   const changelogEntries = Route.useLoaderData();
 
   return (
     <main>
       <Container className="py-16 md:py-24">
         <PublicPageHeader
-          eyebrow={copy.eyebrow}
-          title={copy.title}
-          description={copy.description}
+          eyebrow={t("changelog.eyebrow")}
+          title={t("changelog.title")}
+          description={t("changelog.description")}
         />
 
         {changelogEntries.length === 0 ? (
-          <p className="py-12 text-sm text-muted-foreground">
-            {locale === "zh"
-              ? "还没有发布更新，稍后再来看看。"
-              : "No updates have been published yet. Check back soon."}
-          </p>
+          <p className="py-12 text-sm text-muted-foreground">{t("changelog.empty")}</p>
         ) : null}
         <ol className="divide-y divide-border">
           {changelogEntries.map((entry, index) => (
@@ -46,7 +41,7 @@ function ChangelogPage() {
                   </time>
                   <span className="font-mono text-[12px]">v{entry.version}</span>
                   {index === 0 ? (
-                    <span className="text-[12px] text-accent">{copy.latest}</span>
+                    <span className="text-[12px] text-accent">{t("changelog.latest")}</span>
                   ) : null}
                 </div>
                 <div className="min-w-0">
@@ -55,7 +50,7 @@ function ChangelogPage() {
                       {entry.product}
                     </span>
                     <Chip tone={entry.channel === "preview" ? "accent" : "neutral"}>
-                      {copy[entry.channel]}
+                      {t(`changelog.${entry.channel}`)}
                     </Chip>
                   </div>
                   <h2 className="max-w-3xl text-balance text-[clamp(1.5rem,3vw,2rem)] font-medium leading-snug tracking-[-0.025em]">
@@ -73,10 +68,10 @@ function ChangelogPage() {
                   <Link
                     to="/$locale/changelog/$slug"
                     params={{ locale, slug: entry.slug }}
-                    aria-label={`${copy.read}: ${entry.copy[locale].title}`}
+                    aria-label={`${t("changelog.read")}: ${entry.copy[locale].title}`}
                     className="mt-6 inline-flex min-h-10 items-center gap-2 rounded-sm text-[13px] font-medium text-accent transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
                   >
-                    {copy.read}
+                    {t("changelog.read")}
                     <ArrowUpRight className="size-4" aria-hidden="true" />
                   </Link>
                 </div>

@@ -3,12 +3,11 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import { PluginCard } from "@/components/dshx/plugin-card";
 import { Container } from "@/components/dshx/primitives";
-import { blogCopy } from "@/lib/blog";
 import type { BlogBlock } from "@/lib/blog.contracts";
 import { blogSlugSchema } from "@/lib/blog.contracts";
 import { buildBlogArticleHead } from "@/lib/blog-seo";
 import { loadBlogDetail } from "@/lib/blog.functions";
-import { formatDate, parseLocale } from "@/lib/i18n";
+import { createTranslator, formatDate, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { buildSeoHead } from "@/lib/seo";
 
@@ -23,13 +22,14 @@ export const Route = createFileRoute("/$locale/blog/$slug")({
   },
   head: ({ params, loaderData }) => {
     const locale = parseLocale(params.locale);
+    const t = createTranslator(locale);
     const post = loaderData?.post;
     if (post) return buildBlogArticleHead(locale, post);
     return buildSeoHead({
       locale,
       path: `/${locale}/blog/${encodeURIComponent(params.slug)}`,
-      title: `${blogCopy[locale].notFound} · DSHX`,
-      description: blogCopy[locale].notFoundDescription,
+      title: `${t("blog.notFound")} · DSHX`,
+      description: t("blog.notFoundDescription"),
       robots: "noindex,follow",
       image: false,
     });
@@ -40,14 +40,14 @@ export const Route = createFileRoute("/$locale/blog/$slug")({
 
 function BlogNotFound() {
   const { locale } = useI18n();
-  const copy = blogCopy[locale];
+  const t = createTranslator(locale);
   return (
     <main>
       <Container className="py-24 md:py-32">
         <p className="font-mono text-sm text-accent">404</p>
-        <h1 className="mt-4 text-3xl font-medium tracking-tight">{copy.notFound}</h1>
+        <h1 className="mt-4 text-3xl font-medium tracking-tight">{t("blog.notFound")}</h1>
         <p className="mt-4 max-w-xl text-[15px] leading-7 text-muted-foreground">
-          {copy.notFoundDescription}
+          {t("blog.notFoundDescription")}
         </p>
         <Link
           to="/$locale/blog"
@@ -55,7 +55,7 @@ function BlogNotFound() {
           className="mt-6 inline-flex min-h-10 items-center gap-2 rounded-sm text-sm text-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
-          {copy.back}
+          {t("blog.back")}
         </Link>
       </Container>
     </main>
@@ -124,27 +124,27 @@ function BlogBlockView({ block }: { block: BlogBlock }) {
 function BlogArticlePage() {
   const locale = parseLocale(Route.useParams().locale);
   const { post, content, related, newer, older } = Route.useLoaderData();
-  const copy = blogCopy[locale];
+  const t = createTranslator(locale);
   const article = post.copy[locale];
 
   return (
     <main>
       <Container className="py-10 md:py-16">
-        <nav aria-label={copy.title}>
+        <nav aria-label={t("blog.title")}>
           <Link
             to="/$locale/blog"
             params={{ locale }}
             className="inline-flex min-h-10 items-center gap-2 rounded-sm text-[13px] text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            {copy.back}
+            {t("blog.back")}
           </Link>
         </nav>
 
         <article className="mt-8 md:mt-12">
           <header className="border-b border-border pb-10 md:pb-12">
             <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-accent">
-              {copy.eyebrow}
+              {t("blog.eyebrow")}
             </p>
             <h1 className="mt-5 max-w-4xl text-balance text-[clamp(2rem,4.5vw,3.5rem)] font-medium leading-[1.15] tracking-[-0.04em]">
               {article.title}
@@ -154,7 +154,7 @@ function BlogArticlePage() {
             </p>
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-4 text-[12px]">
               <div>
-                <dt className="text-muted-foreground">{copy.published}</dt>
+                <dt className="text-muted-foreground">{t("blog.published")}</dt>
                 <dd className="mt-1.5">
                   <time dateTime={post.publishedAt}>
                     {formatDate(post.publishedAt, locale, "long")}
@@ -163,7 +163,7 @@ function BlogArticlePage() {
               </div>
               {post.updatedAt.slice(0, 10) !== post.publishedAt ? (
                 <div>
-                  <dt className="text-muted-foreground">{copy.updated}</dt>
+                  <dt className="text-muted-foreground">{t("blog.updated")}</dt>
                   <dd className="mt-1.5">
                     <time dateTime={post.updatedAt}>
                       {formatDate(post.updatedAt, locale, "long")}
@@ -200,11 +200,11 @@ function BlogArticlePage() {
             </div>
             <aside className="hidden lg:block">
               <nav
-                aria-label={copy.onThisPage}
+                aria-label={t("blog.onThisPage")}
                 className="sticky top-24 border-l border-border pl-6"
               >
                 <p className="mb-4 font-mono text-[11px] text-muted-foreground">
-                  {copy.onThisPage}
+                  {t("blog.onThisPage")}
                 </p>
                 <ul className="space-y-4">
                   {content.sections.map((section) => (
@@ -227,10 +227,10 @@ function BlogArticlePage() {
           <section className="mt-16 border-t border-border pt-10" aria-labelledby="related-plugins">
             <div className="mb-6">
               <h2 id="related-plugins" className="text-[18px] font-medium">
-                {copy.relatedPlugins}
+                {t("blog.relatedPlugins")}
               </h2>
               <p className="mt-2 text-[13px] text-muted-foreground">
-                {copy.relatedPluginsDescription}
+                {t("blog.relatedPluginsDescription")}
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -242,7 +242,7 @@ function BlogArticlePage() {
         ) : null}
 
         <nav
-          aria-label={copy.navigation}
+          aria-label={t("blog.navigation")}
           className="mt-16 grid gap-8 border-t border-border pt-8 sm:grid-cols-2"
         >
           {newer ? (
@@ -253,7 +253,7 @@ function BlogArticlePage() {
             >
               <span className="flex items-center gap-2 text-[12px] text-muted-foreground">
                 <ArrowLeft className="size-3.5" aria-hidden="true" />
-                {copy.newer}
+                {t("blog.newer")}
               </span>
               <span className="mt-3 block text-[15px] leading-6 group-hover:text-accent">
                 {newer.copy[locale].title}
@@ -269,7 +269,7 @@ function BlogArticlePage() {
               className="group rounded-sm sm:text-right focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
             >
               <span className="flex items-center gap-2 text-[12px] text-muted-foreground sm:justify-end">
-                {copy.older}
+                {t("blog.older")}
                 <ArrowRight className="size-3.5" aria-hidden="true" />
               </span>
               <span className="mt-3 block text-[15px] leading-6 group-hover:text-accent">

@@ -1,24 +1,23 @@
 import type { FeaturedSection } from "@/lib/featured.repository.server";
-import { featuredCopy } from "@/lib/featured";
-import { languageTag, type Locale } from "@/lib/i18n";
+import { createTranslator, languageTag, type Locale } from "@/lib/i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternates, publicUrl } from "@/lib/seo";
 
 export function buildFeaturedHead(locale: Locale, sections: readonly FeaturedSection[]) {
-  const copy = featuredCopy[locale];
+  const t = createTranslator(locale);
   const path = `/${locale}/featured`;
   const plugins = sections.flatMap((section) => section.plugins);
   return buildSeoHead({
     locale,
     path,
-    title: `${copy.title} · DSHX`,
-    description: copy.description,
+    title: `${t("featured.title")} · DSHX`,
+    description: t("featured.description"),
     alternates: localizedAlternates("/featured"),
     structuredData: [
       {
         "@type": "CollectionPage",
         "@id": publicUrl(path) + "#page",
-        name: copy.title,
-        description: copy.description,
+        name: t("featured.title"),
+        description: t("featured.description"),
         url: publicUrl(path),
         inLanguage: languageTag(locale),
         mainEntity: {
@@ -34,7 +33,7 @@ export function buildFeaturedHead(locale: Locale, sections: readonly FeaturedSec
       },
       breadcrumbList([
         { name: "DSHX", path: `/${locale}` },
-        { name: copy.title, path },
+        { name: t("featured.title"), path },
       ]),
     ],
   });

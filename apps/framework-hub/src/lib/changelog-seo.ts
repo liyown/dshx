@@ -1,5 +1,5 @@
-import { changelogCopy, type ChangelogEntry } from "@/lib/changelog";
-import { languageTag, type Locale } from "@/lib/i18n";
+import type { ChangelogEntry } from "@/lib/changelog";
+import { createTranslator, languageTag, type Locale } from "@/lib/i18n";
 import {
   breadcrumbList,
   buildSeoHead,
@@ -19,20 +19,20 @@ export function buildChangelogListHead(
   locale: Locale,
   changelogEntries: readonly ChangelogEntry[],
 ) {
-  const copy = changelogCopy[locale];
+  const t = createTranslator(locale);
   const path = `/${locale}/changelog`;
   return buildSeoHead({
     locale,
     path,
-    title: `${copy.title} · DSHX`,
-    description: copy.description,
+    title: `${t("changelog.title")} · DSHX`,
+    description: t("changelog.description"),
     alternates: localizedAlternates("/changelog"),
     structuredData: [
       {
         "@type": "CollectionPage",
         "@id": publicUrl(path) + "#page",
-        name: copy.title,
-        description: copy.description,
+        name: t("changelog.title"),
+        description: t("changelog.description"),
         url: publicUrl(path),
         inLanguage: languageTag(locale),
         mainEntity: {
@@ -49,13 +49,14 @@ export function buildChangelogListHead(
       },
       breadcrumbList([
         { name: "DSHX", path: `/${locale}` },
-        { name: copy.title, path },
+        { name: t("changelog.title"), path },
       ]),
     ],
   });
 }
 
 export function buildChangelogArticleHead(locale: Locale, entry: ChangelogEntry) {
+  const t = createTranslator(locale);
   const copy = entry.copy[locale];
   const path = `/${locale}/changelog/${entry.slug}`;
   const modified = entry.updatedAt ?? entry.publishedAt;
@@ -85,7 +86,7 @@ export function buildChangelogArticleHead(locale: Locale, entry: ChangelogEntry)
       },
       breadcrumbList([
         { name: "DSHX", path: `/${locale}` },
-        { name: changelogCopy[locale].title, path: `/${locale}/changelog` },
+        { name: t("changelog.title"), path: `/${locale}/changelog` },
         { name: copy.title, path },
       ]),
     ],
@@ -93,7 +94,7 @@ export function buildChangelogArticleHead(locale: Locale, entry: ChangelogEntry)
   head.meta.push(
     { property: "article:published_time", content: entry.publishedAt },
     { property: "article:modified_time", content: modified },
-    { property: "article:section", content: changelogCopy[locale].title },
+    { property: "article:section", content: t("changelog.title") },
   );
   return head;
 }

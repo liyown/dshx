@@ -3,10 +3,9 @@ import { ArrowUpRight } from "lucide-react";
 
 import { PublicPageHeader } from "@/components/community/public-list";
 import { Container } from "@/components/dshx/primitives";
-import { blogCopy } from "@/lib/blog";
 import { buildBlogListHead } from "@/lib/blog-seo";
 import { loadBlog } from "@/lib/blog.functions";
-import { formatDate, parseLocale } from "@/lib/i18n";
+import { createTranslator, formatDate, parseLocale } from "@/lib/i18n";
 
 export const Route = createFileRoute("/$locale/blog/")({
   loader: () => loadBlog(),
@@ -16,20 +15,20 @@ export const Route = createFileRoute("/$locale/blog/")({
 
 function BlogIndexPage() {
   const locale = parseLocale(Route.useParams().locale);
-  const copy = blogCopy[locale];
+  const t = createTranslator(locale);
   const posts = Route.useLoaderData();
 
   return (
     <main>
       <Container className="py-16 md:py-24">
         <PublicPageHeader
-          eyebrow={copy.eyebrow}
-          title={copy.title}
-          description={copy.description}
+          eyebrow={t("blog.eyebrow")}
+          title={t("blog.title")}
+          description={t("blog.description")}
         />
 
         {posts.length === 0 ? (
-          <p className="py-12 text-sm text-muted-foreground">{copy.empty}</p>
+          <p className="py-12 text-sm text-muted-foreground">{t("blog.empty")}</p>
         ) : (
           <ol className="divide-y divide-border">
             {posts.map((post, index) => (
@@ -40,7 +39,7 @@ function BlogIndexPage() {
                       {formatDate(post.publishedAt, locale, "long")}
                     </time>
                     {index === 0 ? (
-                      <span className="text-[12px] text-accent">{copy.latest}</span>
+                      <span className="text-[12px] text-accent">{t("blog.latest")}</span>
                     ) : null}
                   </div>
                   <div className="min-w-0">
@@ -59,10 +58,10 @@ function BlogIndexPage() {
                     <Link
                       to="/$locale/blog/$slug"
                       params={{ locale, slug: post.slug }}
-                      aria-label={`${copy.read}: ${post.copy[locale].title}`}
+                      aria-label={`${t("blog.read")}: ${post.copy[locale].title}`}
                       className="mt-6 inline-flex min-h-10 items-center gap-2 rounded-sm text-[13px] font-medium text-accent transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
                     >
-                      {copy.read}
+                      {t("blog.read")}
                       <ArrowUpRight className="size-4" aria-hidden="true" />
                     </Link>
                   </div>

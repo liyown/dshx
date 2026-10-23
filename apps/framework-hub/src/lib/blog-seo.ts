@@ -1,5 +1,5 @@
-import { blogCopy, type BlogPostSummary } from "@/lib/blog";
-import { languageTag, type Locale } from "@/lib/i18n";
+import type { BlogPostSummary } from "@/lib/blog";
+import { createTranslator, languageTag, type Locale } from "@/lib/i18n";
 import {
   breadcrumbList,
   buildSeoHead,
@@ -16,20 +16,20 @@ const organization = {
 };
 
 export function buildBlogListHead(locale: Locale, posts: readonly BlogPostSummary[]) {
-  const copy = blogCopy[locale];
+  const t = createTranslator(locale);
   const path = `/${locale}/blog`;
   return buildSeoHead({
     locale,
     path,
-    title: `${copy.title} · DSHX`,
-    description: copy.description,
+    title: `${t("blog.title")} · DSHX`,
+    description: t("blog.description"),
     alternates: localizedAlternates("/blog"),
     structuredData: [
       {
         "@type": "CollectionPage",
         "@id": publicUrl(path) + "#page",
-        name: copy.title,
-        description: copy.description,
+        name: t("blog.title"),
+        description: t("blog.description"),
         url: publicUrl(path),
         inLanguage: languageTag(locale),
         mainEntity: {
@@ -46,13 +46,14 @@ export function buildBlogListHead(locale: Locale, posts: readonly BlogPostSummar
       },
       breadcrumbList([
         { name: "DSHX", path: `/${locale}` },
-        { name: copy.title, path },
+        { name: t("blog.title"), path },
       ]),
     ],
   });
 }
 
 export function buildBlogArticleHead(locale: Locale, post: BlogPostSummary) {
+  const t = createTranslator(locale);
   const copy = post.copy[locale];
   const path = `/${locale}/blog/${post.slug}`;
   const modified = post.updatedAt;
@@ -85,7 +86,7 @@ export function buildBlogArticleHead(locale: Locale, post: BlogPostSummary) {
       },
       breadcrumbList([
         { name: "DSHX", path: `/${locale}` },
-        { name: blogCopy[locale].title, path: `/${locale}/blog` },
+        { name: t("blog.title"), path: `/${locale}/blog` },
         { name: copy.title, path },
       ]),
     ],
@@ -93,7 +94,7 @@ export function buildBlogArticleHead(locale: Locale, post: BlogPostSummary) {
   head.meta.push(
     { property: "article:published_time", content: post.publishedAt },
     { property: "article:modified_time", content: modified },
-    { property: "article:section", content: blogCopy[locale].title },
+    { property: "article:section", content: t("blog.title") },
   );
   return head;
 }

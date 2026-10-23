@@ -3,11 +3,10 @@ import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
 
 import { MarkdownText } from "@/components/dshx/markdown-report";
 import { Chip, Container } from "@/components/dshx/primitives";
-import { changelogCopy } from "@/lib/changelog";
 import { loadChangelogDetail } from "@/lib/changelog.functions";
 import { changelogSlugSchema } from "@/lib/changelog.contracts";
 import { buildChangelogArticleHead } from "@/lib/changelog-seo";
-import { formatDate, parseLocale } from "@/lib/i18n";
+import { createTranslator, formatDate, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { buildSeoHead } from "@/lib/seo";
 
@@ -22,13 +21,14 @@ export const Route = createFileRoute("/$locale/changelog/$slug")({
   },
   head: ({ params, loaderData }) => {
     const locale = parseLocale(params.locale);
+    const t = createTranslator(locale);
     const entry = loaderData?.entry;
     if (entry) return buildChangelogArticleHead(locale, entry);
     return buildSeoHead({
       locale,
       path: `/${locale}/changelog/${encodeURIComponent(params.slug)}`,
-      title: `${changelogCopy[locale].notFound} · DSHX`,
-      description: changelogCopy[locale].notFoundDescription,
+      title: `${t("changelog.notFound")} · DSHX`,
+      description: t("changelog.notFoundDescription"),
       robots: "noindex,follow",
       image: false,
     });
@@ -39,14 +39,14 @@ export const Route = createFileRoute("/$locale/changelog/$slug")({
 
 function ChangelogNotFound() {
   const { locale } = useI18n();
-  const copy = changelogCopy[locale];
+  const t = createTranslator(locale);
   return (
     <main>
       <Container className="py-24 md:py-32">
         <p className="font-mono text-sm text-accent">404</p>
-        <h1 className="mt-4 text-3xl font-medium tracking-tight">{copy.notFound}</h1>
+        <h1 className="mt-4 text-3xl font-medium tracking-tight">{t("changelog.notFound")}</h1>
         <p className="mt-4 max-w-xl text-[15px] leading-7 text-muted-foreground">
-          {copy.notFoundDescription}
+          {t("changelog.notFoundDescription")}
         </p>
         <Link
           to="/$locale/changelog"
@@ -54,7 +54,7 @@ function ChangelogNotFound() {
           className="mt-6 inline-flex min-h-10 items-center gap-2 rounded-sm text-sm text-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
-          {copy.back}
+          {t("changelog.back")}
         </Link>
       </Container>
     </main>
@@ -65,20 +65,20 @@ function ChangelogArticlePage() {
   const router = useRouter();
   const locale = parseLocale(Route.useParams().locale);
   const { entry, content, newer, older } = Route.useLoaderData();
-  const copy = changelogCopy[locale];
+  const t = createTranslator(locale);
   const article = entry.copy[locale];
 
   return (
     <main>
       <Container className="py-10 md:py-16">
-        <nav aria-label={copy.title}>
+        <nav aria-label={t("changelog.title")}>
           <Link
             to="/$locale/changelog"
             params={{ locale }}
             className="inline-flex min-h-10 items-center gap-2 rounded-sm text-[13px] text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            {copy.back}
+            {t("changelog.back")}
           </Link>
         </nav>
 
@@ -87,7 +87,7 @@ function ChangelogArticlePage() {
             <div className="mb-6 flex flex-wrap items-center gap-3">
               <span className="font-mono text-[12px] text-muted-foreground">{entry.product}</span>
               <Chip tone={entry.channel === "preview" ? "accent" : "neutral"}>
-                {copy[entry.channel]}
+                {t(`changelog.${entry.channel}`)}
               </Chip>
             </div>
             <h1 className="max-w-4xl text-balance text-[clamp(2rem,4.5vw,3.5rem)] font-medium leading-[1.2] tracking-[-0.04em]">
@@ -98,7 +98,7 @@ function ChangelogArticlePage() {
             </p>
             <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-4 text-[12px]">
               <div>
-                <dt className="text-muted-foreground">{copy.published}</dt>
+                <dt className="text-muted-foreground">{t("changelog.published")}</dt>
                 <dd className="mt-1.5">
                   <time dateTime={entry.publishedAt}>
                     {formatDate(entry.publishedAt, locale, "long")}
@@ -106,12 +106,12 @@ function ChangelogArticlePage() {
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">{copy.version}</dt>
+                <dt className="text-muted-foreground">{t("changelog.version")}</dt>
                 <dd className="mt-1.5 font-mono">{entry.version}</dd>
               </div>
               {entry.updatedAt && entry.updatedAt.slice(0, 10) !== entry.publishedAt ? (
                 <div>
-                  <dt className="text-muted-foreground">{copy.updated}</dt>
+                  <dt className="text-muted-foreground">{t("changelog.updated")}</dt>
                   <dd className="mt-1.5">
                     <time dateTime={entry.updatedAt}>
                       {formatDate(entry.updatedAt, locale, "long")}
@@ -147,7 +147,7 @@ function ChangelogArticlePage() {
               ))}
               <section className="border-t border-border pt-8" aria-labelledby="release-links">
                 <h2 id="release-links" className="mb-4 text-[15px] font-medium">
-                  {copy.sources}
+                  {t("changelog.sources")}
                 </h2>
                 <ul className="space-y-3">
                   {content.links.map((link) => {
@@ -185,11 +185,11 @@ function ChangelogArticlePage() {
             </div>
             <aside className="hidden lg:block">
               <nav
-                aria-label={copy.onThisPage}
+                aria-label={t("changelog.onThisPage")}
                 className="sticky top-24 border-l border-border pl-6"
               >
                 <p className="mb-4 font-mono text-[11px] text-muted-foreground">
-                  {copy.onThisPage}
+                  {t("changelog.onThisPage")}
                 </p>
                 <ul className="space-y-4">
                   {content.sections.map((section) => (
@@ -209,7 +209,7 @@ function ChangelogArticlePage() {
         </article>
 
         <nav
-          aria-label={copy.navigation}
+          aria-label={t("changelog.navigation")}
           className="mt-16 grid gap-8 border-t border-border pt-8 sm:grid-cols-2"
         >
           {newer ? (
@@ -220,7 +220,7 @@ function ChangelogArticlePage() {
             >
               <span className="flex items-center gap-2 text-[12px] text-muted-foreground">
                 <ArrowLeft className="size-3.5" aria-hidden="true" />
-                {copy.newer}
+                {t("changelog.newer")}
               </span>
               <span className="mt-3 block text-[15px] leading-6 group-hover:text-accent">
                 {newer.copy[locale].title}
@@ -236,7 +236,7 @@ function ChangelogArticlePage() {
               className="group rounded-sm sm:text-right focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
             >
               <span className="flex items-center gap-2 text-[12px] text-muted-foreground sm:justify-end">
-                {copy.older}
+                {t("changelog.older")}
                 <ArrowRight className="size-3.5" aria-hidden="true" />
               </span>
               <span className="mt-3 block text-[15px] leading-6 group-hover:text-accent">
