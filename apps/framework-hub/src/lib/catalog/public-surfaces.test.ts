@@ -37,7 +37,8 @@ describe("public catalog surfaces", () => {
       "utf8",
     );
     expect(page).toContain("PluginSubmissionDialog");
-    expect(dialog).toContain('apiRequest("/api/submissions"');
+    // The write protocol owns the request; the dialog names the endpoint.
+    expect(dialog).toContain('path: () => "/api/submissions"');
     expect(dialog).toContain('mode="direct"');
     expect(dialog).not.toMatch(/authClient|useSession|account\/submissions/);
     const endpoint = readFileSync(
