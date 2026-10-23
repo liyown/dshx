@@ -20,12 +20,14 @@ Run `pnpm --filter @becomeopc/dshx-plugin-marketplace dev` to start the real DSH
 
 ## Install
 
-The Preview package is installed into the Profile that should own the marketplace:
+Install the `preview` tag into the Profile that should own the marketplace:
 
 ```sh
 dsh plugin --profile web add @becomeopc/dshx-plugin-marketplace@preview
 dsh --profile web
 ```
+
+**Always pin the tag** — `@preview`, or an exact version such as `@0.2.0-preview.0`. The bare package name resolves to npm `latest`, which still points at `0.1.0-preview.0`: that earlier line's `peerDependencies` require DSH `< 0.2`, so a bare-name install on a current host resolves to an incompatible build. npm does not let a `latest` tag be deleted, and this Preview line is never published to `latest`, so the tag moves only when the first stable release reassigns it. Catalogues and indexes that generate an install command from the package should generate this one.
 
 For an unpublished workspace build, run `pnpm --filter @becomeopc/dshx-plugin-marketplace pack`, then pass the emitted `.tgz` path to the same `dsh plugin --profile web add` command.
 

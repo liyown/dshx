@@ -35,9 +35,10 @@ pnpm create dshx@preview my-plugin --template showcase --style tailwind
 
 [`@becomeopc/dshx-plugin-marketplace`](./packages/plugin-marketplace/README.md) 是仓库内的正式自举参考插件。它以普通 DSH bundle 接入「设置 → 插件 → 插件市场」，并完整串联 `defineHost`、`defineSettings`、`defineApi`、`defineClient`、`defineLocale`、`defineSlot`、Standard Schema 校验、`useApiQuery`、CSS Modules、Profile 安装和 Client HMR。
 
-使用真实 DSH 开发 Profile 运行：
+装进 DSH Profile（保留 `@preview` 标签——直接写包名仍会解析到旧的、只支持 DSH `< 0.2` 的版本），或用真实 DSH 开发 Profile 运行：
 
 ```bash
+dsh plugin --profile web add @becomeopc/dshx-plugin-marketplace@preview
 pnpm --filter @becomeopc/dshx-plugin-marketplace dev
 ```
 

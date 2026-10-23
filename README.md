@@ -35,9 +35,10 @@ Templates are `starter | showcase`; styles are `css-modules | tailwind | none`. 
 
 [`@becomeopc/dshx-plugin-marketplace`](./packages/plugin-marketplace/README.md) is the workspace's official self-hosting reference plugin. It mounts **Settings → Plugins → Marketplace** as an ordinary DSH bundle and exercises `defineHost`, `defineSettings`, `defineApi`, `defineClient`, `defineLocale`, `defineSlot`, Standard Schema validation, `useApiQuery`, CSS Modules, Profile-aware installation, and Client HMR together.
 
-Run its real DSH development Profile with:
+Install it into a DSH Profile (keep the `@preview` tag — the bare package name still resolves to the older, DSH `< 0.2` build), or run its real DSH development Profile:
 
 ```bash
+dsh plugin --profile web add @becomeopc/dshx-plugin-marketplace@preview
 pnpm --filter @becomeopc/dshx-plugin-marketplace dev
 ```
 
