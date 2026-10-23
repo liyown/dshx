@@ -2,7 +2,6 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, RotateCcw } from "lucide-react";
 import { useState } from "react";
-import { z } from "zod";
 
 import { ApprovalDecisionDialog } from "@/components/admin/approval-decision-dialog";
 import {
@@ -16,20 +15,9 @@ import {
 } from "@/components/admin/approval-ui";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { approvalDetailSchema } from "@/lib/approvals/contracts";
 import { hasAdminAccess } from "@/lib/auth/functions";
 import { apiKeys, apiRequest } from "@/lib/api-client";
-
-const approvalDetailSchema = z
-  .object({
-    request: z.looseObject({}),
-    current: z.looseObject({}),
-    effect: z.looseObject({}),
-    versions: z.array(z.looseObject({})),
-    decisions: z.array(z.looseObject({})),
-    events: z.array(z.looseObject({})),
-    attempts: z.array(z.looseObject({})),
-  })
-  .transform((value) => value as unknown as ApprovalDetail);
 
 export const Route = createFileRoute("/admin/approvals/$id")({
   loader: async () => {

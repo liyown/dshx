@@ -1,7 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { sessionRoute } from "@/lib/api/route";
-import { communityDeleteSchema, reviewUpsertSchema } from "@/lib/catalog/contracts";
+import {
+  communityDeleteSchema,
+  pluginReviewSchema,
+  reviewUpsertSchema,
+} from "@/lib/catalog/contracts";
 import { sanitizeUserText } from "@/lib/community/contracts";
 import { refreshReviewMetrics } from "@/lib/community/metrics.server";
 import {
@@ -15,7 +19,7 @@ export const Route = createFileRoute("/api/plugins/$slug/review")({
   server: {
     handlers: {
       PUT: sessionRoute(
-        { body: reviewUpsertSchema, community: "review" },
+        { body: reviewUpsertSchema, community: "review", response: pluginReviewSchema },
         async ({ db, session, params, input }) => {
           const plugin = await requireReviewablePlugin(db, params.slug, session.user.id);
           const review = await upsertPluginReview(db, {
@@ -32,7 +36,7 @@ export const Route = createFileRoute("/api/plugins/$slug/review")({
         },
       ),
       DELETE: sessionRoute(
-        { body: communityDeleteSchema, community: "review-delete" },
+        { body: communityDeleteSchema, community: "review-delete", response: pluginReviewSchema },
         async ({ db, session, params }) => {
           const plugin = await requireReviewablePlugin(db, params.slug, session.user.id);
           const review = await softDeletePluginReview(db, plugin.id, session.user.id);

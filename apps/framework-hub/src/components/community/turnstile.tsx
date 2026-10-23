@@ -1,9 +1,10 @@
 import { CircleCheck, LoaderCircle } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { z } from "zod";
 
 import { apiKeys, apiRequest } from "@/lib/api-client";
+import { communityVerificationSchema } from "@/lib/community/contracts";
+import { publicConfigSchema } from "@/lib/config.contracts";
 import { useI18n } from "@/lib/i18n/use-i18n";
 
 declare global {
@@ -25,13 +26,6 @@ declare global {
 
 let scriptPromise: Promise<void> | null = null;
 const verificationEvent = "dshx:human-verification";
-const turnstileConfigSchema = z.object({ turnstileSiteKey: z.string().nullable() });
-const verificationSchema = z.object({
-  verified: z.boolean(),
-  expiresAt: z.string().nullable(),
-});
-const verificationResultSchema = z.object({ expiresAt: z.string() });
-
 function broadcastVerification(expiresAt: string | null) {
   window.dispatchEvent(new CustomEvent(verificationEvent, { detail: { expiresAt } }));
 }
@@ -86,17 +80,21 @@ export function Turnstile({
   const bootstrapQuery = useQuery({
     queryKey: [...apiKeys.endpoint("/api/config"), "turnstile", mode],
     queryFn: async ({ signal }) => {
-      const config = await apiRequest("/api/config", turnstileConfigSchema, { signal });
+      const config = await apiRequest("/api/config", publicConfigSchema, { signal });
       if (mode === "direct") return { config, verification: null };
-      const verification = await apiRequest("/api/community/verification", verificationSchema, {
-        signal,
-      });
+      const verification = await apiRequest(
+        "/api/community/verification",
+        communityVerificationSchema,
+        {
+          signal,
+        },
+      );
       return { config, verification };
     },
   });
   const { mutateAsync: verifySession } = useMutation({
     mutationFn: (turnstileToken: string) =>
-      apiRequest("/api/community/verification", verificationResultSchema, {
+      apiRequest("/api/community/verification", communityVerificationSchema, {
         method: "POST",
         json: { turnstileToken },
       }),

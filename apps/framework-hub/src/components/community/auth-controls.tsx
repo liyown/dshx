@@ -1,15 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { LogIn } from "lucide-react";
-import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
+import { publicSessionSchema, type PublicSession } from "@/lib/auth/session.contracts";
+import { publicConfigSchema } from "@/lib/config.contracts";
 import { useHydrated } from "@/lib/use-hydrated";
 import { apiKeys, apiRequest } from "@/lib/api-client";
-
-type PublicSession = { user: { name: string } };
-const publicSessionSchema = z.object({ user: z.object({ name: z.string() }) }).nullable();
-const publicConfigSchema = z.object({ githubAuthConfigured: z.boolean().optional() });
 
 function usePublicSession() {
   return useQuery<PublicSession | null>({

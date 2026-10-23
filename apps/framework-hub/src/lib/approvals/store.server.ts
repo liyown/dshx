@@ -16,7 +16,7 @@ import type { Database } from "@/lib/db/client";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { HttpError, uuid } from "@/lib/http";
 
-import type { ApprovalEffectKind } from "./contracts";
+import type { ApprovalEffectKind, ApprovalListItem } from "./contracts";
 import { subjectStateJson } from "./subject";
 import {
   isExpired,
@@ -368,7 +368,7 @@ export async function approvalList(
       values.push(value);
     }
   }
-  const items = await binding.all<Record<string, unknown>>(
+  const items = await binding.all<ApprovalListItem>(
     parameterizedSql(
       `select r.*,v.title,v.summary,v.policy_version
        from approval_requests r

@@ -6,12 +6,13 @@ import {
   createApproval,
   decideApproval,
   getApprovalDetail,
+  listApprovals,
   retryApprovedEffect,
   reviseApproval,
 } from "./service.server";
 
 import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
-import { approvalCreateSchema } from "./contracts";
+import { approvalCreateSchema, approvalDetailSchema, approvalPageSchema } from "./contracts";
 import { createDatabase, type Database } from "@/lib/db/client";
 import { apiTokens, authUsers, userProfiles } from "@/lib/db/schema";
 
@@ -88,6 +89,9 @@ describe("approval ledger and registered effects with local D1", () => {
       action: "request_changes",
       reason: "Attach the authorization ticket",
     });
+    // The admin pages parse these answers with the same contracts.
+    expect(approvalDetailSchema.safeParse(returned).success).toBe(true);
+    expect(approvalPageSchema.safeParse(await listApprovals(db, {})).success).toBe(true);
     expect(returned.request!.status).toBe("changes_requested");
 
     const otherTarget = await user();

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { adminRoute } from "@/lib/api/route";
-import { approvalListQuerySchema } from "@/lib/approvals/contracts";
+import { approvalListQuerySchema, approvalPageSchema } from "@/lib/approvals/contracts";
 import { listApprovals } from "@/lib/approvals/service.server";
 
 export const Route = createFileRoute("/api/admin/approvals/")({
@@ -16,6 +16,7 @@ export const Route = createFileRoute("/api/admin/approvals/")({
             limit: params.get("limit") ?? 100,
           }),
           querySchema: approvalListQuerySchema,
+          response: approvalPageSchema,
         },
         ({ db, query }) => listApprovals(db, query),
       ),

@@ -5,6 +5,7 @@ import {
   AGENT_PROMPT_MARKDOWN,
   AGENT_PROMPT_META,
 } from "@/lib/agent-prompt.server";
+import { agentPromptSchema } from "@/lib/agent-prompt.contracts";
 import { listAgentResourceStatus } from "@/lib/agent-resources.server";
 import { adminRoute } from "@/lib/api/route";
 
@@ -13,7 +14,7 @@ const noStore = { "cache-control": "no-store" };
 export const Route = createFileRoute("/api/admin/agent-prompt/")({
   server: {
     handlers: {
-      GET: adminRoute({ headers: noStore }, async ({ db }) => ({
+      GET: adminRoute({ headers: noStore, response: agentPromptSchema }, async ({ db }) => ({
         bootstrap: AGENT_PROMPT_BOOTSTRAP,
         prompt: AGENT_PROMPT_MARKDOWN,
         meta: AGENT_PROMPT_META,

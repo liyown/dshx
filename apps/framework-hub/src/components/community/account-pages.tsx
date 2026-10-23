@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { z, type ZodType } from "zod";
+import { type ZodType } from "zod";
 
 import { AccountAccess, AccountLoading, AccountShell } from "./account-shell";
 import { Turnstile } from "./turnstile";
@@ -10,7 +10,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/lib/i18n/use-i18n";
-import { apiKeys, apiRequest, apiSchemas } from "@/lib/api-client";
+import { apiKeys, apiRequest } from "@/lib/api-client";
+import {
+  accountDeletionSchema,
+  appealSchema,
+  appealsPageSchema,
+  collectionDetailSchema,
+  collectionsPageSchema,
+  notificationReadResultSchema,
+  notificationsPageSchema,
+  profileSchema,
+  relationshipsSchema,
+  submissionSchema,
+  submissionsPageSchema,
+} from "@/lib/community/contracts";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,11 +68,7 @@ function randomKey(prefix: string) {
 }
 
 export function AccountOverview() {
-  const { data, error } = useAccountEndpoint<{
-    bookmarks: Array<Record<string, unknown>>;
-    pluginFollows: Array<Record<string, unknown>>;
-    publisherFollows: Array<Record<string, unknown>>;
-  }>("/api/me/relationships", apiSchemas.relationships);
+  const { data, error } = useAccountEndpoint("/api/me/relationships", relationshipsSchema);
   return (
     <AccountShell
       title="Your marketplace"
@@ -88,9 +97,9 @@ export function AccountOverview() {
 }
 
 export function NotificationsPage() {
-  const { data, error, reload } = useAccountEndpoint<{ items: Array<Record<string, unknown>> }>(
+  const { data, error, reload } = useAccountEndpoint(
     "/api/me/notifications",
-    apiSchemas.itemPage,
+    notificationsPageSchema,
   );
   const mutation = useJsonMutation();
   const [token, setToken] = useState("");
@@ -100,7 +109,7 @@ export function NotificationsPage() {
       path: `/api/me/notifications/${id}/read`,
       method: "PUT",
       json: { turnstileToken: token, idempotencyKey: randomKey("notification") },
-      schema: apiSchemas.object,
+      schema: notificationReadResultSchema,
     });
     setToken("");
     setChallenge((value) => value + 1);
@@ -155,10 +164,7 @@ export function NotificationsPage() {
 }
 
 export function SubmissionsPage() {
-  const { data, error, reload } = useAccountEndpoint<{ items: Array<Record<string, unknown>> }>(
-    "/api/me/submissions",
-    apiSchemas.itemPage,
-  );
+  const { data, error, reload } = useAccountEndpoint("/api/me/submissions", submissionsPageSchema);
   const mutation = useJsonMutation();
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [token, setToken] = useState("");
@@ -174,7 +180,7 @@ export function SubmissionsPage() {
           turnstileToken: token,
           idempotencyKey: randomKey("submission"),
         },
-        schema: apiSchemas.object,
+        schema: submissionSchema,
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Submission failed.");
@@ -228,10 +234,7 @@ export function SubmissionsPage() {
 
 export function CollectionsPage() {
   const { locale } = useI18n();
-  const { data, error, reload } = useAccountEndpoint<{ items: Array<Record<string, unknown>> }>(
-    "/api/me/collections",
-    apiSchemas.itemPage,
-  );
+  const { data, error, reload } = useAccountEndpoint("/api/me/collections", collectionsPageSchema);
   const mutation = useJsonMutation();
   const [name, setName] = useState("");
   const [token, setToken] = useState("");
@@ -248,7 +251,7 @@ export function CollectionsPage() {
           turnstileToken: token,
           idempotencyKey: randomKey("collection"),
         },
-        schema: apiSchemas.object,
+        schema: collectionDetailSchema,
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Collection could not be created.");
@@ -274,7 +277,7 @@ export function CollectionsPage() {
           turnstileToken: token,
           idempotencyKey: randomKey("collection-visibility"),
         },
-        schema: apiSchemas.object,
+        schema: collectionDetailSchema,
       });
       changed = true;
       setMessage(`Collection is now ${next}.`);
@@ -352,10 +355,7 @@ export function CollectionsPage() {
 }
 
 export function AppealsPage() {
-  const { data, error, reload } = useAccountEndpoint<{ items: Array<Record<string, unknown>> }>(
-    "/api/me/appeals",
-    apiSchemas.itemPage,
-  );
+  const { data, error, reload } = useAccountEndpoint("/api/me/appeals", appealsPageSchema);
   const mutation = useJsonMutation();
   const [actionId, setActionId] = useState("");
   const [statement, setStatement] = useState("");
@@ -371,7 +371,7 @@ export function AppealsPage() {
         turnstileToken: token,
         idempotencyKey: randomKey("appeal"),
       },
-      schema: apiSchemas.object,
+      schema: appealSchema,
     });
     setActionId("");
     setStatement("");
@@ -430,10 +430,7 @@ export function AppealsPage() {
 }
 
 export function SettingsPage() {
-  const { data, error, reload } = useAccountEndpoint<Record<string, unknown>>(
-    "/api/me/profile",
-    apiSchemas.object,
-  );
+  const { data, error, reload } = useAccountEndpoint("/api/me/profile", profileSchema);
   const mutation = useJsonMutation();
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
@@ -457,7 +454,7 @@ export function SettingsPage() {
         turnstileToken: token,
         idempotencyKey: randomKey("profile"),
       },
-      schema: apiSchemas.object,
+      schema: profileSchema,
     });
     setToken("");
     setChallenge((value) => value + 1);
@@ -472,7 +469,7 @@ export function SettingsPage() {
         turnstileToken: token,
         idempotencyKey: randomKey("account-delete"),
       },
-      schema: z.object({ deleted: z.boolean(), anonymized: z.boolean() }),
+      schema: accountDeletionSchema,
     });
     window.location.assign("/en");
   }

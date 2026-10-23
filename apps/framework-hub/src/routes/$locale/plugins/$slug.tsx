@@ -1,7 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { z } from "zod";
 import { Container, Chip, ButtonLink, SectionLabel } from "@/components/dshx/primitives";
 import { PluginCommunityActions } from "@/components/community/plugin-actions";
 import { ReplyDialog, ReportDialog } from "@/components/community/community-dialogs";
@@ -29,6 +28,7 @@ import {
   socialCardUrl,
 } from "@/lib/seo";
 import { apiKeys, apiRequest } from "@/lib/api-client";
+import { pluginReviewPageSchema, type PluginReviewView } from "@/lib/catalog/contracts";
 import { SOCIAL_CARD_REVISION } from "@/lib/social-card-data";
 
 export const Route = createFileRoute("/$locale/plugins/$slug")({
@@ -668,45 +668,7 @@ function MediaPanel({
   );
 }
 
-type ReviewItem = {
-  id: string;
-  rating: number;
-  locale: string;
-  body: string | null;
-  created_at: number;
-  user_name: string;
-  user_image: string | null;
-  replies: string | Array<{ id: string; body: string; userName: string; createdAt: number }>;
-};
-
-const reviewPageSchema = z.object({
-  items: z.array(
-    z
-      .object({
-        id: z.string(),
-        rating: z.number(),
-        locale: z.string(),
-        body: z.string().nullable(),
-        created_at: z.number(),
-        user_name: z.string(),
-        user_image: z.string().nullable(),
-        replies: z.union([
-          z.string(),
-          z.array(
-            z.object({
-              id: z.string(),
-              body: z.string(),
-              userName: z.string(),
-              createdAt: z.number(),
-            }),
-          ),
-        ]),
-      })
-      .passthrough(),
-  ),
-});
-
-function reviewReplies(value: ReviewItem["replies"]) {
+function reviewReplies(value: PluginReviewView["replies"]) {
   if (Array.isArray(value)) return value;
   try {
     const parsed = JSON.parse(value || "[]") as unknown;
@@ -724,7 +686,7 @@ function ReviewsPanel({ slug, locale }: { slug: string; locale: "en" | "zh" }) {
   const path = `/api/plugins/${encodeURIComponent(slug)}/reviews?limit=50`;
   const query = useQuery({
     queryKey: apiKeys.endpoint(path),
-    queryFn: ({ signal }) => apiRequest(path, reviewPageSchema, { signal }),
+    queryFn: ({ signal }) => apiRequest(path, pluginReviewPageSchema, { signal }),
   });
   useEffect(() => {
     const changed = (event: Event) => {

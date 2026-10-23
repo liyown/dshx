@@ -214,3 +214,77 @@ export const userRoleSchema = z.object({
 
 export type PluginListQuery = z.infer<typeof pluginListQuerySchema>;
 export type MarketplaceListQuery = z.infer<typeof marketplaceListQuerySchema>;
+
+/**
+ * What the public plugin page reads back, and what a community write answers.
+ *
+ * The review list is assembled by SQL — a review row joined to its author and
+ * its replies serialised into the `replies` column — so its contract is written
+ * here rather than derived from the table.
+ */
+
+export const pluginReviewReplyViewSchema = z.object({
+  id: z.string(),
+  locale: z.enum(["en", "zh"]),
+  body: z.string(),
+  createdAt: z.number(),
+  userName: z.string(),
+});
+
+export const pluginReviewViewSchema = z.object({
+  id: z.string(),
+  rating: z.number(),
+  locale: z.enum(["en", "zh"]),
+  body: z.string().nullable(),
+  created_at: z.number(),
+  updated_at: z.number(),
+  user_name: z.string(),
+  user_image: z.string().nullable(),
+  /** `json_group_array` hands back a string on drivers that do not parse JSON columns. */
+  replies: z.union([z.string(), z.array(pluginReviewReplyViewSchema)]),
+});
+
+export const pluginReviewPageSchema = z.object({
+  items: z.array(pluginReviewViewSchema),
+  nextCursor: z.number().nullable(),
+});
+
+/** A stored review, as the write endpoints answer it. */
+export const pluginReviewSchema = z.object({
+  id: z.string(),
+  pluginId: z.string(),
+  userId: z.string(),
+  rating: z.number(),
+  locale: z.enum(["en", "zh"]),
+  body: z.string().nullable(),
+  status: z.enum(["published", "hidden", "deleted"]),
+});
+
+export const reviewReplySchema = z.object({
+  id: z.string(),
+  reviewId: z.string(),
+  userId: z.string(),
+  locale: z.enum(["en", "zh"]),
+  body: z.string(),
+  status: z.enum(["published", "hidden", "deleted"]),
+});
+
+export const contentReportSchema = z.object({
+  id: z.string(),
+  reporterUserId: z.string(),
+  targetType: z.enum(["plugin", "review", "reply", "profile", "collection"]),
+  targetId: z.string(),
+  reason: z.enum(["spam", "abuse", "misinformation", "other"]),
+  details: z.string().nullable(),
+  status: z.enum(["open", "resolved", "dismissed"]),
+});
+
+/** A claim challenge: the claim itself, its one-time token, and the file to commit. */
+export const pluginClaimResponseSchema = z.object({
+  claim: z.looseObject({ id: z.string(), pluginId: z.string(), status: z.string() }),
+  challengeToken: z.string().nullable(),
+  file: z.object({ path: z.string(), body: z.record(z.string(), z.string()) }).optional(),
+});
+
+export type PluginReviewView = z.infer<typeof pluginReviewViewSchema>;
+export type PluginReviewPage = z.infer<typeof pluginReviewPageSchema>;

@@ -1,45 +1,18 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { z } from "zod";
-
 import { AdminHeader } from "@/components/admin/approval-ui";
 import { CopyOperationsPrompt } from "@/components/dshx/copy-operations-prompt";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  agentPromptSchema,
+  agentResourcesSchema,
+  type AgentResourceStatus,
+} from "@/lib/agent-prompt.contracts";
 import { apiRequest } from "@/lib/api-client";
 import { hasAdminAccess } from "@/lib/auth/functions";
-
-const resourceStatusSchema = z.object({
-  key: z.string(),
-  env: z.string(),
-  label: z.string(),
-  description: z.string(),
-  configured: z.boolean(),
-  updatedAt: z.string().nullable(),
-});
-
-const adminPromptSchema = z.object({
-  bootstrap: z.string(),
-  prompt: z.string(),
-  meta: z.object({
-    promptVersion: z.number(),
-    cliVersion: z.string(),
-    cliChannel: z.string(),
-    capabilitiesHash: z.string(),
-    contentSha256: z.string(),
-    sourceUrl: z.string(),
-    npxCommand: z.string(),
-  }),
-  resources: z.array(resourceStatusSchema),
-});
-
-const resourceSaveSchema = z.object({
-  resources: z.array(resourceStatusSchema),
-});
-
-type ResourceStatus = z.infer<typeof resourceStatusSchema>;
 
 export const Route = createFileRoute("/admin/agent-prompt")({
   loader: async () => {
@@ -59,14 +32,14 @@ function ResourceEditor({
   resource,
   onSaved,
 }: {
-  resource: ResourceStatus;
-  onSaved: (resources: ResourceStatus[]) => void;
+  resource: AgentResourceStatus;
+  onSaved: (resources: AgentResourceStatus[]) => void;
 }) {
   const [value, setValue] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const mutation = useMutation({
     mutationFn: (input: { key: string; value?: string; clear?: boolean }) =>
-      apiRequest("/api/admin/agent-prompt/resources", resourceSaveSchema, {
+      apiRequest("/api/admin/agent-prompt/resources", agentResourcesSchema, {
         method: "PUT",
         json: input,
       }),
@@ -156,10 +129,10 @@ function AgentPromptPage() {
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ["admin", "agent-prompt"],
-    queryFn: ({ signal }) => apiRequest("/api/admin/agent-prompt", adminPromptSchema, { signal }),
+    queryFn: ({ signal }) => apiRequest("/api/admin/agent-prompt", agentPromptSchema, { signal }),
   });
   const data = query.data;
-  const [resources, setResources] = useState<ResourceStatus[]>([]);
+  const [resources, setResources] = useState<AgentResourceStatus[]>([]);
 
   useEffect(() => {
     if (data) setResources(data.resources);
@@ -213,11 +186,11 @@ function AgentPromptPage() {
             written to a private local file.
           </p>
           <div className="mt-4 grid gap-4">
-            {resources.map((resource: ResourceStatus) => (
+            {resources.map((resource: AgentResourceStatus) => (
               <ResourceEditor
                 key={resource.key}
                 resource={resource}
-                onSaved={(next: ResourceStatus[]) => {
+                onSaved={(next: AgentResourceStatus[]) => {
                   setResources(next);
                   void queryClient.invalidateQueries({
                     queryKey: ["admin", "agent-prompt"],

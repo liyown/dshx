@@ -1,7 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { z } from "zod";
-
 import { AdminHeader } from "@/components/admin/approval-ui";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,24 +11,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiRequest } from "@/lib/api-client";
+import { blogAdminListSchema } from "@/lib/blog.contracts";
 import { hasAdminAccess } from "@/lib/auth/functions";
 import { formatDate } from "@/lib/i18n";
-
-const blogListSchema = z.object({
-  items: z.array(
-    z.object({
-      slug: z.string(),
-      status: z.enum(["draft", "published"]),
-      revision: z.number(),
-      publishedAt: z.string(),
-      updatedAt: z.string(),
-      copy: z.object({
-        en: z.object({ title: z.string(), description: z.string() }),
-        zh: z.object({ title: z.string(), description: z.string() }),
-      }),
-    }),
-  ),
-});
 
 export const Route = createFileRoute("/admin/blog/")({
   loader: async () => {
@@ -46,7 +29,7 @@ export const Route = createFileRoute("/admin/blog/")({
 function BlogAdminPage() {
   const query = useQuery({
     queryKey: ["admin", "blog"],
-    queryFn: ({ signal }) => apiRequest("/api/admin/blog", blogListSchema, { signal }),
+    queryFn: ({ signal }) => apiRequest("/api/admin/blog", blogAdminListSchema, { signal }),
   });
 
   return (

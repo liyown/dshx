@@ -7,58 +7,7 @@ import { SignInButton } from "@/components/community/auth-controls";
 import { ThemeToggle } from "@/components/dshx/theme-toggle";
 import { cn } from "@/lib/utils";
 
-export type ApprovalListItem = {
-  id: string;
-  kind: string;
-  risk: "high" | "critical";
-  status: string;
-  effect_kind: string;
-  effect_status: string;
-  subject_type: string;
-  subject_id: string;
-  title: string;
-  summary: string;
-  policy_version: string;
-  expires_at: number;
-  created_at: number;
-};
-
-export type ApprovalDetail = {
-  request: ApprovalListItem & {
-    current_version: number;
-    execution_mode: "server" | "agent";
-    run_id: string | null;
-    requester_type: string;
-    requester_id: string | null;
-    requester_token_id: string | null;
-    decided_by_user_id: string | null;
-    decided_at: number | null;
-  };
-  current: {
-    version: number;
-    title: string;
-    summary: string;
-    evidence: unknown;
-    effectInput: unknown;
-    preconditions: unknown;
-    preview: Array<{ label: string; value: string }>;
-    source_hash: string;
-    policy_version: string;
-    created_at: number;
-  };
-  effect: {
-    status: string;
-    execution_mode: string;
-    effect_kind: string;
-    attempt_count: number;
-    lease_expires_at: number | null;
-    last_error: string | null;
-  };
-  versions: Array<Record<string, unknown>>;
-  decisions: Array<Record<string, unknown>>;
-  events: Array<Record<string, unknown>>;
-  attempts: Array<Record<string, unknown>>;
-};
+export type { ApprovalDetail, ApprovalListItem, ApprovalPage } from "@/lib/approvals/contracts";
 
 const statusTone: Record<string, string> = {
   pending: "border-warn/40 bg-warn/10 text-foreground",

@@ -6,10 +6,26 @@ import {
   createAppeal,
   createCollection,
   getCollection,
+  getMe,
+  listAppeals,
+  listCollections,
+  listNotifications,
+  listRelationships,
+  listSubmissions,
   setCollectionPlugin,
+  setPluginRelationship,
   setUserBlock,
   updateCollection,
 } from "./marketplace.server";
+import {
+  appealsPageSchema,
+  collectionDetailSchema,
+  collectionsPageSchema,
+  notificationsPageSchema,
+  profileSchema,
+  relationshipsSchema,
+  submissionsPageSchema,
+} from "./contracts";
 import {
   requireReviewablePlugin,
   softDeletePluginReview,
@@ -20,6 +36,7 @@ import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
 import type { Database } from "@/lib/db/client";
 import {
   authUsers,
+  notificationEvents,
   pluginMaintainers,
   pluginReviews,
   plugins,
@@ -228,6 +245,38 @@ describe("community marketplace invariants with local D1", () => {
     await expect(setUserBlock(db, ownerId, viewerId, false)).resolves.toMatchObject({
       enabled: false,
     });
+  });
+
+  it("answers the account pages in the shapes their contracts declare", async () => {
+    const userId = await createUser("Contract Reader");
+    const pluginId = await createPlugin();
+    await setPluginRelationship(db, userId, pluginId, "bookmark", true);
+    await db.insert(notificationEvents).values({
+      id: crypto.randomUUID(),
+      userId,
+      kind: "plugin.released",
+      subjectType: "plugin",
+      subjectId: pluginId,
+    });
+    const collected = await createCollection(db, userId, {
+      name: "Reading list",
+      visibility: "public",
+    });
+
+    // The page parses these answers with the same schemas; a column that the
+    // SQL stops selecting has to fail here rather than in the browser.
+    expect(profileSchema.safeParse(await getMe(db, userId)).success).toBe(true);
+    expect(relationshipsSchema.safeParse(await listRelationships(db, userId)).success).toBe(true);
+    expect(notificationsPageSchema.safeParse(await listNotifications(db, userId)).success).toBe(
+      true,
+    );
+    expect(submissionsPageSchema.safeParse(await listSubmissions(db, userId)).success).toBe(true);
+    expect(appealsPageSchema.safeParse(await listAppeals(db, userId)).success).toBe(true);
+    expect(collectionsPageSchema.safeParse(await listCollections(db, userId)).success).toBe(true);
+    expect(
+      collectionDetailSchema.safeParse(await getCollection(db, String(collected.collection["id"])))
+        .success,
+    ).toBe(true);
   });
 
   it("revokes private access while retaining anonymized public contributions", async () => {

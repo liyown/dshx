@@ -23,7 +23,7 @@ export async function listPluginReviews(
   const rows = await listPublishedPluginReviews(db, input);
   return {
     items: rows.slice(0, input.limit),
-    nextCursor: rows.length > input.limit ? rows[input.limit - 1]?.created_at : null,
+    nextCursor: rows.length > input.limit ? (rows[input.limit - 1]?.created_at ?? null) : null,
   };
 }
 

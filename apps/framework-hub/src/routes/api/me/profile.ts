@@ -1,15 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { sessionRoute } from "@/lib/api/route";
-import { profileUpdateSchema } from "@/lib/community/contracts";
+import { profileSchema, profileUpdateSchema } from "@/lib/community/contracts";
 import { getMe, updateProfile } from "@/lib/community/marketplace.server";
 
 export const Route = createFileRoute("/api/me/profile")({
   server: {
     handlers: {
-      GET: sessionRoute({}, ({ db, session }) => getMe(db, session.user.id)),
+      GET: sessionRoute({ response: profileSchema }, ({ db, session }) =>
+        getMe(db, session.user.id),
+      ),
       PUT: sessionRoute(
-        { body: profileUpdateSchema, community: "profile.update" },
+        { body: profileUpdateSchema, community: "profile.update", response: profileSchema },
         ({ db, session, input }) => updateProfile(db, session.user.id, input),
       ),
     },

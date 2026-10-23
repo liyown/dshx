@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Bell, Flag, FolderPlus, MessageSquareReply, ShieldCheck } from "lucide-react";
 import { useState } from "react";
-import { z } from "zod";
-
 import { Turnstile } from "./turnstile";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +23,19 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth/client";
 import { useHydrated } from "@/lib/use-hydrated";
-import { apiKeys, apiRequest, apiSchemas } from "@/lib/api-client";
+import { apiKeys, apiRequest } from "@/lib/api-client";
+import {
+  contentReportSchema,
+  pluginClaimResponseSchema,
+  reviewReplySchema,
+} from "@/lib/catalog/contracts";
+import {
+  collectionDetailSchema,
+  collectionsPageSchema,
+  publisherFollowResultSchema,
+  relationshipsSchema,
+  userBlockResultSchema,
+} from "@/lib/community/contracts";
 
 type ReportTarget = "plugin" | "review" | "reply" | "profile" | "collection";
 
@@ -56,7 +66,7 @@ export function ReportDialog({
   const [message, setMessage] = useState<string | null>(null);
   const mutation = useMutation({
     mutationFn: () =>
-      apiRequest("/api/reports", apiSchemas.object, {
+      apiRequest("/api/reports", contentReportSchema, {
         method: "POST",
         json: {
           targetType,
@@ -158,7 +168,7 @@ export function ReplyDialog({
   const [message, setMessage] = useState<string | null>(null);
   const mutation = useMutation({
     mutationFn: () =>
-      apiRequest(`/api/reviews/${reviewId}/replies`, apiSchemas.object, {
+      apiRequest(`/api/reviews/${reviewId}/replies`, reviewReplySchema, {
         method: "POST",
         json: {
           locale,
@@ -232,25 +242,27 @@ export function ClaimPluginDialog({ slug }: { slug: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const mutation = useMutation({
     mutationFn: () =>
-      apiRequest(
-        `/api/plugins/${encodeURIComponent(slug)}/claims`,
-        z.object({ file: z.object({ path: z.string(), body: z.record(z.string(), z.string()) }) }),
-        {
-          method: "POST",
-          json: {
-            turnstileToken: token,
-            idempotencyKey: writeKey("claim"),
-          },
+      apiRequest(`/api/plugins/${encodeURIComponent(slug)}/claims`, pluginClaimResponseSchema, {
+        method: "POST",
+        json: {
+          turnstileToken: token,
+          idempotencyKey: writeKey("claim"),
         },
-      ),
+      }),
   });
   if (!hydrated || !session.data) return null;
 
   async function createClaim() {
     try {
       const payload = await mutation.mutateAsync();
-      setResult(payload);
-      setMessage(null);
+      // A repeated request returns the pending claim without a new challenge
+      // token, so there is no file to show; the first response already had it.
+      setResult(payload.file === undefined ? null : { file: payload.file });
+      setMessage(
+        payload.file === undefined
+          ? "This claim challenge already exists. Create a new one to get a fresh file."
+          : null,
+      );
     } catch (error) {
       setMessage(messageFrom(error, "The claim challenge could not be created."));
     }
@@ -310,23 +322,22 @@ export function AddToCollectionDialog({ pluginId }: { pluginId: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const collections = useQuery({
     queryKey: apiKeys.endpoint("/api/me/collections"),
-    queryFn: ({ signal }) =>
-      apiRequest(
-        "/api/me/collections",
-        z.object({ items: z.array(z.object({ id: z.string(), name: z.string() }).passthrough()) }),
-        { signal },
-      ),
+    queryFn: ({ signal }) => apiRequest("/api/me/collections", collectionsPageSchema, { signal }),
     enabled: open && Boolean(session.data),
   });
   const mutation = useMutation({
     mutationFn: (collectionId: string) =>
-      apiRequest(`/api/me/collections/${collectionId}/plugins/${pluginId}`, apiSchemas.object, {
-        method: "PUT",
-        json: {
-          turnstileToken: token,
-          idempotencyKey: writeKey("collection-plugin"),
+      apiRequest(
+        `/api/me/collections/${collectionId}/plugins/${pluginId}`,
+        collectionDetailSchema,
+        {
+          method: "PUT",
+          json: {
+            turnstileToken: token,
+            idempotencyKey: writeKey("collection-plugin"),
+          },
         },
-      }),
+      ),
   });
   const items = collections.data?.items ?? (collections.isError ? [] : null);
 
@@ -394,7 +405,7 @@ export function UserSafetyActions({ userId }: { userId: string }) {
   const [challenge, setChallenge] = useState(0);
   const mutation = useMutation({
     mutationFn: (nextBlocked: boolean) =>
-      apiRequest(`/api/me/blocks/${userId}`, apiSchemas.object, {
+      apiRequest(`/api/me/blocks/${userId}`, userBlockResultSchema, {
         method: nextBlocked ? "PUT" : "DELETE",
         json: {
           turnstileToken: token,
@@ -437,15 +448,14 @@ export function PublisherFollowButton({ publisherId }: { publisherId: string }) 
   const queryClient = useQueryClient();
   const relationships = useQuery({
     queryKey: apiKeys.relationships,
-    queryFn: ({ signal }) =>
-      apiRequest("/api/me/relationships", apiSchemas.relationships, { signal }),
+    queryFn: ({ signal }) => apiRequest("/api/me/relationships", relationshipsSchema, { signal }),
     enabled: Boolean(session.data),
   });
   const followed =
-    relationships.data?.publisherFollows.some((item) => item["id"] === publisherId) ?? false;
+    relationships.data?.publisherFollows.some((item) => item.id === publisherId) ?? false;
   const mutation = useMutation({
     mutationFn: (nextFollowed: boolean) =>
-      apiRequest(`/api/me/publishers/${publisherId}/follow`, apiSchemas.object, {
+      apiRequest(`/api/me/publishers/${publisherId}/follow`, publisherFollowResultSchema, {
         method: nextFollowed ? "PUT" : "DELETE",
         json: {
           turnstileToken: token,

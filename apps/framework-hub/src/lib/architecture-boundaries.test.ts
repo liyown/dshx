@@ -263,6 +263,33 @@ describe("Framework Hub architecture boundaries", () => {
     );
   });
 
+  it("keeps browser response parsing on the shared contracts", async () => {
+    // Every endpoint's answer is described once, beside the endpoint, and both
+    // the handler and the browser parse that description. A UI module that
+    // writes its own schema is guessing what the server sends.
+    const ui = (await sourceFiles()).filter(
+      ({ path }) => path.startsWith("components/") || path.startsWith("routes/"),
+    );
+    const localZodAllowed = [
+      // A route's own search params, validated by the router rather than by an endpoint.
+      "routes/admin/approvals/index.tsx",
+      // The only zod import left is the `ZodType` type its helper takes.
+      "components/community/account-pages.tsx",
+    ];
+    const importingZod = ui
+      .filter(({ path }) => !path.startsWith("routes/api/"))
+      .filter(({ text }) => /from\s+["']zod["']/u.test(text))
+      .map(({ path }) => path)
+      .filter((path) => !localZodAllowed.includes(path));
+    expect(importingZod).toEqual([]);
+    const apiCallsWithoutContract = ui
+      .filter(({ path }) => !path.startsWith("routes/api/"))
+      .filter(({ text }) => /apiRequest\(/u.test(text))
+      .filter(({ text }) => !/from\s+["']@\/lib\/[^"']*contracts["']/u.test(text))
+      .map(({ path }) => path);
+    expect(apiCallsWithoutContract).toEqual([]);
+  });
+
   it("keeps the curation quality rule in its policy module", async () => {
     const files = await sourceFiles();
     // The placeholder phrases are the tells of a copied rule. The SQL twin and

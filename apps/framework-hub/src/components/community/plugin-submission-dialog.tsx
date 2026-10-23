@@ -16,7 +16,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/lib/i18n/use-i18n";
-import { ApiError, apiRequest, apiSchemas } from "@/lib/api-client";
+import { ApiError, apiRequest } from "@/lib/api-client";
+import { submissionSchema } from "@/lib/community/contracts";
 
 export function PluginSubmissionDialog() {
   const { t } = useI18n();
@@ -32,7 +33,7 @@ export function PluginSubmissionDialog() {
       repositoryUrl: string;
       turnstileToken: string;
       idempotencyKey: string;
-    }) => apiRequest("/api/submissions", apiSchemas.object, { method: "POST", json: input }),
+    }) => apiRequest("/api/submissions", submissionSchema, { method: "POST", json: input }),
   });
 
   async function submit(event: FormEvent<HTMLFormElement>) {

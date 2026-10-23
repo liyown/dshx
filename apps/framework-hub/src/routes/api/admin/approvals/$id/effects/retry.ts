@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { adminRoute } from "@/lib/api/route";
-import { approvalRetrySchema } from "@/lib/approvals/contracts";
+import { approvalDetailSchema, approvalRetrySchema } from "@/lib/approvals/contracts";
 import { retryApprovedEffect } from "@/lib/approvals/service.server";
 import { scheduleCriticalApprovalEmail } from "@/lib/email/delivery.server";
 import { HttpError } from "@/lib/http";
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/api/admin/approvals/$id/effects/retry")({
   server: {
     handlers: {
       POST: adminRoute(
-        { body: approvalRetrySchema },
+        { body: approvalRetrySchema, response: approvalDetailSchema },
         async ({ request, context, db, params, session, input }) => {
           try {
             const result = await retryApprovedEffect(

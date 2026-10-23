@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { approvalPageSchema } from "@/lib/approvals/contracts";
 import { hasAdminAccess } from "@/lib/auth/functions";
 import { apiKeys, apiRequest } from "@/lib/api-client";
 
@@ -37,18 +38,6 @@ const searchSchema = z.object({
   kind: z.string().optional(),
   risk: z.string().optional(),
 });
-
-type ApprovalPage = {
-  items: ApprovalListItem[];
-  counts: Array<{ status: string; count: number }>;
-};
-
-const approvalPageSchema = z
-  .object({
-    items: z.array(z.looseObject({})),
-    counts: z.array(z.object({ status: z.string(), count: z.number() })),
-  })
-  .transform((value) => value as unknown as ApprovalPage);
 
 const directionContract = `<!--
 THESIS: A quiet evidence ledger where irreversible decisions feel deliberate, never casual.

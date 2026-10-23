@@ -60,19 +60,19 @@ export async function apiRequest<T>(
       payload.success ? payload.data.error?.details : undefined,
     );
   }
-  return schema.parse(body);
+  // The schema is the endpoint's declared answer, so a body that does not match
+  // it is the server drifting from its contract, not a user error. Say that
+  // rather than handing the page a raw ZodError.
+  const parsed = schema.safeParse(body);
+  if (!parsed.success)
+    throw new ApiError(
+      response.status,
+      "The server answered in a shape this page does not understand.",
+      "invalid_response",
+      parsed.error.issues,
+    );
+  return parsed.data;
 }
-
-export const apiSchemas = {
-  object: z.looseObject({}),
-  nullableObject: z.looseObject({}).nullable(),
-  itemPage: z.object({ items: z.array(z.looseObject({})) }),
-  relationships: z.object({
-    bookmarks: z.array(z.looseObject({})),
-    pluginFollows: z.array(z.looseObject({})),
-    publisherFollows: z.array(z.looseObject({})),
-  }),
-} as const;
 
 export const apiKeys = {
   endpoint: (path: string) => ["api", path] as const,

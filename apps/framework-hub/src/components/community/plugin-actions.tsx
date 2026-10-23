@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Bookmark, LoaderCircle, Star } from "lucide-react";
 import { useState } from "react";
-import { z } from "zod";
 
 import { AddToCollectionDialog, ClaimPluginDialog, ReportDialog } from "./community-dialogs";
 import { SignInButton } from "./auth-controls";
@@ -11,18 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth/client";
 import { useHydrated } from "@/lib/use-hydrated";
 import { cn } from "@/lib/utils";
-import { ApiError, apiKeys, apiRequest, apiSchemas } from "@/lib/api-client";
-
-type Relationships = {
-  bookmarks: Array<{ id: string }>;
-  pluginFollows: Array<{ id: string }>;
-};
-
-const relationshipsSchema = z.object({
-  bookmarks: z.array(z.object({ id: z.string() }).passthrough()),
-  pluginFollows: z.array(z.object({ id: z.string() }).passthrough()),
-  publisherFollows: z.array(z.looseObject({})).optional(),
-});
+import { ApiError, apiKeys, apiRequest } from "@/lib/api-client";
+import { pluginReviewSchema } from "@/lib/catalog/contracts";
+import {
+  pluginRelationshipResultSchema,
+  relationshipsSchema,
+  type Relationships,
+} from "@/lib/community/contracts";
 
 export function PluginCommunityActions({
   pluginId,
@@ -48,7 +42,7 @@ export function PluginCommunityActions({
   });
   const relationshipMutation = useMutation({
     mutationFn: (input: { kind: "bookmark" | "follow"; enabled: boolean }) =>
-      apiRequest(`/api/me/plugins/${pluginId}/${input.kind}`, apiSchemas.object, {
+      apiRequest(`/api/me/plugins/${pluginId}/${input.kind}`, pluginRelationshipResultSchema, {
         method: input.enabled ? "PUT" : "DELETE",
         json: {
           turnstileToken: token,
@@ -61,7 +55,7 @@ export function PluginCommunityActions({
   });
   const reviewMutation = useMutation({
     mutationFn: () =>
-      apiRequest(`/api/plugins/${encodeURIComponent(slug)}/review`, apiSchemas.object, {
+      apiRequest(`/api/plugins/${encodeURIComponent(slug)}/review`, pluginReviewSchema, {
         method: "PUT",
         json: {
           rating,

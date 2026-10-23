@@ -4,7 +4,19 @@ import { refreshPluginScore } from "@/lib/catalog/scores.server";
 import type { Database } from "@/lib/db/client";
 import { runDrizzleBatch } from "@/lib/db/batch";
 import { parameterizedSql } from "@/lib/db/parameterized-sql";
-import { sanitizeUserText } from "./contracts";
+import {
+  sanitizeUserText,
+  type AppealRow,
+  type CollectionPlugin,
+  type CollectionDetailRecord,
+  type CollectionRecord,
+  type CollectionSummary,
+  type NotificationRow,
+  type ProfileRow,
+  type RelationshipPlugin,
+  type RelationshipPublisher,
+  type SubmissionRow,
+} from "./contracts";
 import { HttpError, uuid } from "@/lib/http";
 
 function parseJson<T>(value: string | null, fallback: T): T {
@@ -121,7 +133,7 @@ export async function getPublicPublisher(binding: Database, login: string, local
 }
 
 export async function getCollection(binding: Database, id: string, viewerUserId?: string | null) {
-  const collection = await binding.get<Record<string, unknown>>(
+  const collection = await binding.get<CollectionDetailRecord>(
     parameterizedSql(
       `select c.*,up.github_login owner_login,coalesce(up.display_name,u.name) owner_name
        from collections c join user_profiles up on up.user_id=c.user_id join user u on u.id=c.user_id
@@ -134,7 +146,7 @@ export async function getCollection(binding: Database, id: string, viewerUserId?
     (collection["visibility"] === "private" && collection["user_id"] !== viewerUserId)
   )
     throw new HttpError(404, "Collection not found", "collection_not_found");
-  const plugins = await binding.all<Record<string, unknown>>(
+  const plugins = await binding.all<CollectionPlugin>(
     parameterizedSql(
       `select p.slug,p.name,p.description,p.package_name,p.latest_version,p.badge,cp.sort_order,cp.added_at
        from collection_plugins cp join plugins p on p.id=cp.plugin_id
@@ -146,8 +158,8 @@ export async function getCollection(binding: Database, id: string, viewerUserId?
   return { collection, plugins: plugins };
 }
 
-export async function getMe(binding: Database, userId: string) {
-  const profile = await binding.get<Record<string, unknown>>(
+export async function getMe(binding: Database, userId: string): Promise<ProfileRow> {
+  const profile = await binding.get<ProfileRow>(
     parameterizedSql(
       `select up.*,u.name,u.email,u.image,
         (select count(*) from notification_events n left join notification_reads nr on nr.notification_id=n.id and nr.user_id=n.user_id
@@ -211,7 +223,7 @@ export async function setPluginRelationship(
 
 export async function listRelationships(binding: Database, userId: string) {
   const [bookmarks, pluginFollows, publisherFollows] = await Promise.all([
-    binding.all<Record<string, unknown>>(
+    binding.all<RelationshipPlugin>(
       parameterizedSql(
         `select p.id,p.slug,p.name,p.description,p.package_name,b.created_at
          from plugin_bookmarks b join plugins p on p.id=b.plugin_id
@@ -219,7 +231,7 @@ export async function listRelationships(binding: Database, userId: string) {
         [userId],
       ),
     ),
-    binding.all<Record<string, unknown>>(
+    binding.all<RelationshipPlugin>(
       parameterizedSql(
         `select p.id,p.slug,p.name,p.description,p.package_name,f.created_at
          from plugin_follows f join plugins p on p.id=f.plugin_id
@@ -227,7 +239,7 @@ export async function listRelationships(binding: Database, userId: string) {
         [userId],
       ),
     ),
-    binding.all<Record<string, unknown>>(
+    binding.all<RelationshipPublisher>(
       parameterizedSql(
         `select p.id,p.login,p.display_name,p.avatar_url,f.created_at
          from publisher_follows f join publishers p on p.id=f.publisher_id
@@ -272,7 +284,7 @@ export async function setPublisherFollow(
 }
 
 export async function listCollections(binding: Database, userId: string) {
-  const result = await binding.all<Record<string, unknown>>(
+  const result = await binding.all<CollectionSummary>(
     parameterizedSql(
       `select c.*,count(cp.plugin_id) plugin_count from collections c
        left join collection_plugins cp on cp.collection_id=c.id
@@ -317,7 +329,7 @@ export async function createCollection(
 }
 
 async function requireOwnedCollection(binding: Database, id: string, userId: string) {
-  const collection = await binding.get<Record<string, unknown>>(
+  const collection = await binding.get<CollectionRecord>(
     parameterizedSql("select * from collections where id=? and user_id=?", [id, userId]),
   );
   if (!collection) throw new HttpError(404, "Collection not found", "collection_not_found");
@@ -394,7 +406,7 @@ export async function setCollectionPlugin(
 }
 
 export async function listNotifications(binding: Database, userId: string) {
-  const result = await binding.all<Record<string, unknown>>(
+  const result = await binding.all<NotificationRow & { payload_json: string }>(
     parameterizedSql(
       `select n.*,case when nr.notification_id is null then 0 else 1 end is_read
        from notification_events n left join notification_reads nr on nr.notification_id=n.id and nr.user_id=n.user_id
@@ -437,7 +449,7 @@ function normalizeRepositoryUrl(raw: string) {
 }
 
 export async function listSubmissions(binding: Database, userId: string) {
-  const result = await binding.all<Record<string, unknown>>(
+  const result = await binding.all<SubmissionRow>(
     parameterizedSql(
       `select id,user_id,repository_url,repository_full_name,status,source_hash,
         resolution_json,created_at,updated_at
@@ -457,7 +469,7 @@ export async function createSubmission(
     idempotencyKey: string;
   },
 ) {
-  const existing = await binding.get<Record<string, unknown>>(
+  const existing = await binding.get<SubmissionRow>(
     parameterizedSql(
       `select id,user_id,repository_url,repository_full_name,status,source_hash,
         resolution_json,created_at,updated_at
@@ -492,7 +504,7 @@ export async function createSubmission(
       ],
     ),
   );
-  return binding.get<Record<string, unknown>>(
+  return binding.get<SubmissionRow>(
     parameterizedSql(
       `select id,user_id,repository_url,repository_full_name,status,source_hash,
         resolution_json,created_at,updated_at
@@ -519,14 +531,13 @@ export async function anonymousSubmissionKey(request: Request, secret: string) {
   return `anonymous:${Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** An appeal always carries the status of the approval its decision waits on. */
+const appealSelect = `select a.*,r.status approval_status,r.effect_status
+  from moderation_appeals a left join approval_requests r on r.id=a.approval_request_id`;
+
 export async function listAppeals(binding: Database, userId: string) {
-  const result = await binding.all<Record<string, unknown>>(
-    parameterizedSql(
-      `select a.*,r.status approval_status,r.effect_status
-       from moderation_appeals a left join approval_requests r on r.id=a.approval_request_id
-       where a.user_id=? order by a.created_at desc`,
-      [userId],
-    ),
+  const result = await binding.all<AppealRow>(
+    parameterizedSql(`${appealSelect} where a.user_id=? order by a.created_at desc`, [userId]),
   );
   return { items: result };
 }
@@ -536,8 +547,8 @@ export async function createAppeal(
   userId: string,
   input: { moderationActionId: string; statement: string; idempotencyKey: string },
 ) {
-  const existing = await binding.get<Record<string, unknown>>(
-    parameterizedSql("select * from moderation_appeals where user_id=? and idempotency_key=?", [
+  const existing = await binding.get<AppealRow>(
+    parameterizedSql(`${appealSelect} where a.user_id=? and a.idempotency_key=?`, [
       userId,
       input.idempotencyKey,
     ]),
@@ -645,9 +656,11 @@ export async function createAppeal(
       ],
     ),
   );
-  return binding.get<Record<string, unknown>>(
-    parameterizedSql("select * from moderation_appeals where id=?", [appealId]),
+  const appeal = await binding.get<AppealRow>(
+    parameterizedSql(`${appealSelect} where a.id=?`, [appealId]),
   );
+  if (!appeal) throw new HttpError(500, "Appeal could not be read back", "appeal_read_failed");
+  return appeal;
 }
 
 export async function setUserBlock(

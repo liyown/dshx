@@ -48,13 +48,21 @@ export interface RouteArgs<P = RouteParams> {
   readonly params: P;
 }
 
-export interface RouteSpec<TInput = void, TQuery = void> {
+export interface RouteSpec<TInput = void, TQuery = void, TResponse = unknown> {
   /** JSON body contract. Parse failures are the endpoint's 400/422, not the handler's. */
   readonly body?: ZodType<TInput>;
   /** Reads query parameters into the shape `querySchema` validates. */
   readonly query?: (params: URLSearchParams) => unknown;
   /** Query contract, validated after `query` shapes the values. */
   readonly querySchema?: ZodType<TQuery>;
+  /**
+   * Response contract, shared with the client that reads this endpoint. Declaring
+   * it types the handler's return value: the handler cannot answer a shape the
+   * contract does not describe, and the client cannot read a shape the handler
+   * does not send. The service layer behind the handler is type-checked against
+   * it too, which is where drift would otherwise start.
+   */
+  readonly response?: ZodType<TResponse>;
   /** Which response envelope this endpoint speaks. Defaults to `api`. */
   readonly envelope?: Envelope;
   /** Success status. Defaults to 200. */
@@ -65,7 +73,11 @@ export interface RouteSpec<TInput = void, TQuery = void> {
   readonly sameOrigin?: boolean;
 }
 
-export interface SessionSpec<TInput = void, TQuery = void> extends RouteSpec<TInput, TQuery> {
+export interface SessionSpec<TInput = void, TQuery = void, TResponse = unknown> extends RouteSpec<
+  TInput,
+  TQuery,
+  TResponse
+> {
   /**
    * The community write to charge for. When set, the session, the body and the
    * community guard always run in that order, so a write cannot skip its guard.
@@ -73,7 +85,11 @@ export interface SessionSpec<TInput = void, TQuery = void> extends RouteSpec<TIn
   readonly community?: string;
 }
 
-export interface TokenSpec<TInput = void, TQuery = void> extends RouteSpec<TInput, TQuery> {
+export interface TokenSpec<TInput = void, TQuery = void, TResponse = unknown> extends RouteSpec<
+  TInput,
+  TQuery,
+  TResponse
+> {
   /**
    * Required token scope. Defaults to `catalog:write`, the scope of the
    * Operations API; `null` accepts any valid token and leaves the gate to `role`.
@@ -87,19 +103,34 @@ type SessionActor = Awaited<ReturnType<typeof requireSession>>;
 type AdminActor = Awaited<ReturnType<typeof requireAdminSession>>;
 type TokenActor = Awaited<ReturnType<typeof requireApiToken>>;
 
+/**
+ * A handler answers its contract, or a Response of its own when it needs bytes,
+ * a redirect or headers the spec cannot express.
+ */
+type Answer<TResponse> = TResponse | Response;
+
 type Run<TArgs, TResult> = (args: TArgs) => TResult | Promise<TResult>;
 
-type SessionRun<TInput, TQuery, TResult> = Run<
+type SessionRun<TInput, TQuery, TResponse> = Run<
   RouteArgs & SessionActor & { readonly input: TInput; readonly query: TQuery },
-  TResult
+  Answer<TResponse>
 >;
-type TokenRun<TInput, TQuery, TResult> = Run<
-  RouteArgs & TokenActor & { readonly db: Awaited<ReturnType<typeof requireDatabase>>; readonly input: TInput; readonly query: TQuery },
-  TResult
+type TokenRun<TInput, TQuery, TResponse> = Run<
+  RouteArgs &
+    TokenActor & {
+      readonly db: Awaited<ReturnType<typeof requireDatabase>>;
+      readonly input: TInput;
+      readonly query: TQuery;
+    },
+  Answer<TResponse>
 >;
-type PublicRun<TInput, TQuery, TResult> = Run<
-  RouteArgs & { readonly db: ReturnType<typeof requireDatabase>; readonly input: TInput; readonly query: TQuery },
-  TResult
+type PublicRun<TInput, TQuery, TResponse> = Run<
+  RouteArgs & {
+    readonly db: ReturnType<typeof requireDatabase>;
+    readonly input: TInput;
+    readonly query: TQuery;
+  },
+  Answer<TResponse>
 >;
 
 export type RouteHandler = (args: RouteArgs) => Promise<Response>;
@@ -112,7 +143,15 @@ export const localeQuery = {
 
 /** Repeated, comma-separated values of one query parameter, or undefined when none. */
 export function listQuery(params: URLSearchParams, name: string): string[] | undefined {
-  const values = [...new Set(params.getAll(name).flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean))];
+  const values = [
+    ...new Set(
+      params
+        .getAll(name)
+        .flatMap((value) => value.split(","))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
   return values.length === 0 ? undefined : values;
 }
 
@@ -142,25 +181,27 @@ export function withMeta<T>(value: T, meta: RouteMeta): T {
 const DEFAULT_SCOPE = "catalog:write";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-export function publicRoute<TInput = void, TQuery = void>(
-  spec: RouteSpec<TInput, TQuery>,
-  run: PublicRun<TInput, TQuery, unknown>,
+export function publicRoute<TInput = void, TQuery = void, TResponse = unknown>(
+  spec: RouteSpec<TInput, TQuery, TResponse>,
+  run: PublicRun<TInput, TQuery, NoInfer<TResponse>>,
 ): RouteHandler {
   return async (args) => {
     try {
       if (spec.sameOrigin === true) requireSameOrigin(args.request, args.context);
       const input = await readBody(args.request, spec);
       const query = readQuery(spec, args.request);
-      return await respond(args, spec, () => run({ ...args, db: requireDatabase(args.context), input, query }));
+      return await respond(args, spec, () =>
+        run({ ...args, db: requireDatabase(args.context), input, query }),
+      );
     } catch (error) {
       return fail(args.request, error, spec);
     }
   };
 }
 
-export function sessionRoute<TInput = void, TQuery = void>(
-  spec: SessionSpec<TInput, TQuery>,
-  run: SessionRun<TInput, TQuery, unknown>,
+export function sessionRoute<TInput = void, TQuery = void, TResponse = unknown>(
+  spec: SessionSpec<TInput, TQuery, TResponse>,
+  run: SessionRun<TInput, TQuery, NoInfer<TResponse>>,
 ): RouteHandler {
   return async (args) => {
     try {
@@ -168,7 +209,14 @@ export function sessionRoute<TInput = void, TQuery = void>(
       const actor = await requireSession(args.request, args.context);
       const input = await readBody(args.request, spec);
       if (spec.community !== undefined)
-        await requireCommunityWrite(args.request, args.context, actor.db, actor.session.user.id, spec.community, turnstileToken(input));
+        await requireCommunityWrite(
+          args.request,
+          args.context,
+          actor.db,
+          actor.session.user.id,
+          spec.community,
+          turnstileToken(input),
+        );
       const query = readQuery(spec, args.request);
       return await respond(args, spec, () => run({ ...args, ...actor, input, query }));
     } catch (error) {
@@ -177,9 +225,9 @@ export function sessionRoute<TInput = void, TQuery = void>(
   };
 }
 
-export function adminRoute<TInput = void, TQuery = void>(
-  spec: RouteSpec<TInput, TQuery>,
-  run: SessionRun<TInput, TQuery, unknown>,
+export function adminRoute<TInput = void, TQuery = void, TResponse = unknown>(
+  spec: RouteSpec<TInput, TQuery, TResponse>,
+  run: SessionRun<TInput, TQuery, NoInfer<TResponse>>,
 ): RouteHandler {
   return async (args) => {
     try {
@@ -195,15 +243,17 @@ export function adminRoute<TInput = void, TQuery = void>(
   };
 }
 
-export function tokenRoute<TInput = void, TQuery = void>(
-  spec: TokenSpec<TInput, TQuery>,
-  run: TokenRun<TInput, TQuery, unknown>,
+export function tokenRoute<TInput = void, TQuery = void, TResponse = unknown>(
+  spec: TokenSpec<TInput, TQuery, TResponse>,
+  run: TokenRun<TInput, TQuery, NoInfer<TResponse>>,
 ): RouteHandler {
   return async (args) => {
     try {
       const db = requireDatabase(args.context);
       const actor: TokenActor =
-        spec.scope === null ? await authenticateApiToken(db, args.request) : await requireApiToken(db, args.request, spec.scope ?? DEFAULT_SCOPE);
+        spec.scope === null
+          ? await authenticateApiToken(db, args.request)
+          : await requireApiToken(db, args.request, spec.scope ?? DEFAULT_SCOPE);
       requireRole(actor, spec.role);
       const input = await readBody(args.request, spec);
       const query = readQuery(spec, args.request);
@@ -216,11 +266,17 @@ export function tokenRoute<TInput = void, TQuery = void>(
 
 function requireRole(actor: TokenActor, role: TokenSpec["role"]): void {
   if (role === undefined) return;
-  if (role === "admin" && actor.profile.role !== "admin") throw new HttpError(403, "Administrator role required", "admin_required");
-  if (role === "moderator" && !["moderator", "admin"].includes(actor.profile.role)) throw new HttpError(403, "Moderator role required", "forbidden");
+  if (role === "admin" && actor.profile.role !== "admin")
+    throw new HttpError(403, "Administrator role required", "admin_required");
+  if (role === "moderator" && !["moderator", "admin"].includes(actor.profile.role))
+    throw new HttpError(403, "Moderator role required", "forbidden");
 }
 
-async function respond<TInput, TQuery>(args: RouteArgs, spec: RouteSpec<TInput, TQuery>, run: () => unknown): Promise<Response> {
+async function respond<TInput, TQuery>(
+  args: RouteArgs,
+  spec: RouteSpec<TInput, TQuery>,
+  run: () => unknown,
+): Promise<Response> {
   try {
     const value = await run();
     // A handler that needs bytes, a redirect, a 204, or headers of its own
@@ -234,7 +290,11 @@ async function respond<TInput, TQuery>(args: RouteArgs, spec: RouteSpec<TInput, 
 
 // `respond` renders failures thrown by the handler body; the route constructors
 // catch failures from authentication and input parsing before it.
-function succeed<TInput, TQuery>(request: Request, value: unknown, spec: RouteSpec<TInput, TQuery>): Response {
+function succeed<TInput, TQuery>(
+  request: Request,
+  value: unknown,
+  spec: RouteSpec<TInput, TQuery>,
+): Response {
   const decorated = isMetaResult(value) ? value : undefined;
   const data = decorated === undefined ? value : decorated.data;
   const status = decorated?.[metaKey].status ?? spec.status;
@@ -250,13 +310,21 @@ function succeed<TInput, TQuery>(request: Request, value: unknown, spec: RouteSp
   return applyHeaders(response, spec.headers);
 }
 
-function fail<TInput, TQuery>(request: Request, error: unknown, spec: RouteSpec<TInput, TQuery>): Response {
-  const response = spec.envelope === "operation" ? operationFailure(request, error, operationRequestId(request)) : jsonError(error);
+function fail<TInput, TQuery>(
+  request: Request,
+  error: unknown,
+  spec: RouteSpec<TInput, TQuery>,
+): Response {
+  const response =
+    spec.envelope === "operation"
+      ? operationFailure(request, error, operationRequestId(request))
+      : jsonError(error);
   return applyHeaders(response, spec.headers);
 }
 
 function applyHeaders(response: Response, headers: RouteSpec["headers"]): Response {
-  if (headers !== undefined) for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);
+  if (headers !== undefined)
+    for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);
   return response;
 }
 
@@ -264,9 +332,14 @@ function isMetaResult(value: unknown): value is MetaResult<unknown> {
   return typeof value === "object" && value !== null && metaKey in value;
 }
 
-async function readBody<TInput, TQuery>(request: Request, spec: RouteSpec<TInput, TQuery>): Promise<TInput> {
+async function readBody<TInput, TQuery>(
+  request: Request,
+  spec: RouteSpec<TInput, TQuery>,
+): Promise<TInput> {
   if (spec.body === undefined) return undefined as TInput;
-  return spec.envelope === "operation" ? await readOperationJson(request, spec.body) : await readJson(request, spec.body);
+  return spec.envelope === "operation"
+    ? await readOperationJson(request, spec.body)
+    : await readJson(request, spec.body);
 }
 
 function readQuery<TInput, TQuery>(spec: RouteSpec<TInput, TQuery>, request: Request): TQuery {

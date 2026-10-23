@@ -118,6 +118,43 @@ export type BlogContent = z.infer<typeof blogContentSchema>;
 export type CreateBlogPostInput = z.infer<typeof createBlogPostSchema>;
 export type UpdateBlogPostInput = z.infer<typeof updateBlogPostSchema>;
 
+/**
+ * The admin editor's article, and the admin list's summary, as
+ * `/api/admin/blog` answers them. The editor writes with `createBlogPostSchema`
+ * or `updateBlogPostSchema` and reads back the same shape it rendered.
+ */
+export const blogAdminArticleSchema = z.object({
+  slug: z.string(),
+  status: z.enum(["draft", "published"]),
+  revision: z.number(),
+  publishedAt: z.string(),
+  coverImageUrl: z.string().nullable(),
+  relatedPluginSlugs: z.array(z.string()),
+  content: blogContentSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  updatedByTokenId: z.string().nullable(),
+});
+
+export const blogAdminListSchema = z.object({
+  items: z.array(
+    z.object({
+      slug: z.string(),
+      status: z.enum(["draft", "published"]),
+      revision: z.number(),
+      publishedAt: z.string(),
+      updatedAt: z.string(),
+      coverImageUrl: z.string().nullable(),
+      copy: z.object({
+        en: z.object({ title: z.string(), description: z.string() }),
+        zh: z.object({ title: z.string(), description: z.string() }),
+      }),
+    }),
+  ),
+});
+
+export type BlogAdminArticle = z.infer<typeof blogAdminArticleSchema>;
+
 export const replaceFeaturedPicksSchema = z
   .object({
     pluginSlugs: z

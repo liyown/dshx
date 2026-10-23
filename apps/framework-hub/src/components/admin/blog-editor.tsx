@@ -1,31 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { z } from "zod";
-
 import { AdminHeader } from "@/components/admin/approval-ui";
 import { Button } from "@/components/ui/button";
 import { ApiError, apiRequest } from "@/lib/api-client";
-import { blogContentSchema, blogSlugSchema, type BlogSection } from "@/lib/blog.contracts";
+import {
+  blogAdminArticleSchema,
+  blogSlugSchema,
+  type BlogAdminArticle,
+  type BlogSection,
+} from "@/lib/blog.contracts";
 import {
   blogBodyHelp,
   parseBlogBody,
   preserveSectionIds,
   serializeBlogBody,
 } from "@/lib/blog-editor";
-
-const blogEditorSchema = z.object({
-  slug: z.string(),
-  status: z.enum(["draft", "published"]),
-  revision: z.number(),
-  publishedAt: z.string(),
-  coverImageUrl: z.string().nullable(),
-  relatedPluginSlugs: z.array(z.string()),
-  content: blogContentSchema,
-  updatedAt: z.string(),
-});
-
-type BlogEditorData = z.infer<typeof blogEditorSchema>;
 
 type LocaleDraft = { title: string; description: string; body: string };
 
@@ -68,7 +58,7 @@ export function BlogEditor({ slug }: { slug?: string }) {
   const query = useQuery({
     queryKey: ["admin", "blog", slug ?? "new"],
     queryFn: ({ signal }) =>
-      apiRequest(`/api/admin/blog/${encodeURIComponent(slug as string)}`, blogEditorSchema, {
+      apiRequest(`/api/admin/blog/${encodeURIComponent(slug as string)}`, blogAdminArticleSchema, {
         signal,
       }),
     enabled: Boolean(slug),
@@ -141,9 +131,9 @@ export function BlogEditor({ slug }: { slug?: string }) {
     };
     setSaving(true);
     try {
-      const result = await apiRequest<BlogEditorData>(
+      const result = await apiRequest<BlogAdminArticle>(
         slug ? `/api/admin/blog/${encodeURIComponent(slug)}` : "/api/admin/blog",
-        blogEditorSchema,
+        blogAdminArticleSchema,
         { method: slug ? "PUT" : "POST", json: payload },
       );
       storedSections.current = {

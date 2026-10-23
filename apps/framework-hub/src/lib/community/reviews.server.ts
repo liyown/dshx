@@ -1,5 +1,6 @@
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 
+import type { PluginReviewView } from "@/lib/catalog/contracts";
 import type { Database } from "@/lib/db/client";
 import {
   pluginMaintainers,
@@ -97,7 +98,7 @@ export async function listPublishedPluginReviews(
   db: Database,
   input: { slug: string; cursor: number; limit: number },
 ) {
-  return db.all<{ created_at: number } & Record<string, unknown>>(sql`
+  return db.all<PluginReviewView>(sql`
     select r.id, r.rating, r.locale, r.body, r.created_at, r.updated_at,
       u.name as user_name, u.image as user_image,
       (select json_group_array(json_object('id', rr.id, 'locale', rr.locale, 'body', rr.body,
