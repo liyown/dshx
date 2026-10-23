@@ -430,7 +430,7 @@ export function HomeSocialCard(input: HomeSocialCardInput) {
     <PaperFrame>
       <CardHeader
         locale={input.locale}
-        label={input.locale === "zh" ? "构建工具" : "BUILD TOOLCHAIN"}
+        label={input.locale === "zh" ? "插件框架" : "PLUGIN FRAMEWORK"}
       />
       <div
         style={{

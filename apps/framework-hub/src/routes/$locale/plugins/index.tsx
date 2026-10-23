@@ -20,6 +20,19 @@ function isCatalogSort(value: unknown): value is CatalogSort {
   return typeof value === "string" && catalogSortValues.includes(value as CatalogSort);
 }
 
+const marketplaceSteps = [
+  { title: "plugins.step.find.title", body: "plugins.step.find.body" },
+  { title: "plugins.step.compare.title", body: "plugins.step.compare.body" },
+  { title: "plugins.step.install.title", body: "plugins.step.install.body" },
+] as const;
+
+const marketplaceFaq = [
+  { question: "plugins.faq.what.q", answer: "plugins.faq.what.a" },
+  { question: "plugins.faq.install.q", answer: "plugins.faq.install.a" },
+  { question: "plugins.faq.free.q", answer: "plugins.faq.free.a" },
+  { question: "plugins.faq.review.q", answer: "plugins.faq.review.a" },
+] as const;
+
 const sortLabels = {
   featured: "plugins.featured",
   trending: "plugins.trending",
@@ -73,6 +86,7 @@ export const Route = createFileRoute("/$locale/plugins/")({
           description: t("plugins.intro"),
           url: `https://dshx.io/${params.locale}/plugins`,
           inLanguage: params.locale === "zh" ? "zh-CN" : "en",
+          isPartOf: { "@id": "https://dshx.io/#website" },
           mainEntity: { "@id": `https://dshx.io/${params.locale}/plugins#items` },
         },
         {
@@ -90,6 +104,17 @@ export const Route = createFileRoute("/$locale/plugins/")({
           { name: "DSHX", path: `/${params.locale}` },
           { name: t("plugins.title"), path: `/${params.locale}/plugins` },
         ]),
+        {
+          "@id": `https://dshx.io/${params.locale}/plugins#faq`,
+          "@type": "FAQPage",
+          inLanguage: params.locale === "zh" ? "zh-CN" : "en",
+          isPartOf: { "@id": `https://dshx.io/${params.locale}/plugins#directory` },
+          mainEntity: marketplaceFaq.map((item) => ({
+            "@type": "Question",
+            name: t(item.question),
+            acceptedAnswer: { "@type": "Answer", text: t(item.answer) },
+          })),
+        },
       ],
     });
   },
@@ -148,6 +173,12 @@ function PluginsPage() {
             <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
               {t("plugins.intro")}
             </p>
+            <p className="mt-3 font-mono text-[11.5px] text-muted-foreground">
+              {t("plugins.stats", {
+                total: catalog.total,
+                categories: catalog.categories.length,
+              })}
+            </p>
           </div>
           <PluginSubmissionDialog />
         </div>
@@ -166,7 +197,8 @@ function PluginsPage() {
           </Chip>
         </label>
 
-        <div className="mt-5 flex flex-wrap gap-1.5">
+        <div className="mt-5 flex flex-wrap items-center gap-1.5">
+          <span className="mono-label mr-1.5">{t("plugins.categories")}</span>
           <button
             type="button"
             onClick={() => updateSearch({ category: "" })}
@@ -309,6 +341,37 @@ function PluginsPage() {
             ) : null}
           </nav>
         ) : null}
+
+        <section className="mt-16">
+          <h2 className="mono-label">{t("plugins.howTitle")}</h2>
+          <ol className="mt-5 grid gap-6 border-y border-border py-6 md:grid-cols-3 md:divide-x md:divide-border">
+            {marketplaceSteps.map((step, index) => (
+              <li key={step.title} className="md:px-6 md:first:pl-0 md:last:pr-0">
+                <span className="font-mono text-[11px] text-accent">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <h3 className="mt-2 text-[14.5px] font-medium">{t(step.title)}</h3>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+                  {t(step.body)}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="mt-16">
+          <h2 className="mono-label">{t("plugins.faqTitle")}</h2>
+          <dl className="mt-5 grid gap-x-10 gap-y-6 md:grid-cols-2">
+            {marketplaceFaq.map((item) => (
+              <div key={item.question}>
+                <dt className="text-[14px] font-medium">{t(item.question)}</dt>
+                <dd className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
+                  {t(item.answer)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
 
         <div className="mt-16 rounded-xl border border-dashed border-border-strong p-6">
           <span className="mono-label">{t("plugins.publishing")}</span>

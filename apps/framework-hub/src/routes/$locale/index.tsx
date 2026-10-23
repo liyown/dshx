@@ -54,6 +54,7 @@ export const Route = createFileRoute("/$locale/")({
           "@id": "https://dshx.io/#website",
           "@type": "WebSite",
           name: "DSHX",
+          alternateName: ["DSHX Hub", "DeepSeek Harness Plugin Hub"],
           url: "https://dshx.io",
           inLanguage: locale === "zh" ? "zh-CN" : "en",
           description: t("seo.description"),
@@ -145,6 +146,9 @@ function Hero() {
           </p>
           <div className="mt-8 flex flex-wrap gap-2.5" data-motion-hero="actions">
             <CopyAgentPrompt />
+            <ButtonLink to="/plugins" variant="outline">
+              {t("home.explorePlugins")}
+            </ButtonLink>
             <ButtonLink to="/docs" variant="outline">
               {t("home.apiReference")}
             </ButtonLink>
@@ -175,6 +179,13 @@ function Hero() {
 }
 
 /* ---------------- why ---------------- */
+
+const marketplaceCapabilities = [
+  "home.marketplaceBrowse",
+  "home.marketplaceCompare",
+  "home.marketplaceInstall",
+  "home.marketplaceSubmit",
+] as const;
 
 const advantages = [
   {
@@ -253,6 +264,14 @@ function Ecosystem({ plugins }: { plugins: CatalogCard[] }) {
           <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </Link>
       </div>
+
+      <ul className="mt-6 flex flex-wrap gap-2 font-mono text-[11.5px] text-muted-foreground">
+        {marketplaceCapabilities.map((key) => (
+          <li key={key} className="rounded-md border border-border px-2.5 py-1">
+            {t(key)}
+          </li>
+        ))}
+      </ul>
 
       <article className="mt-12 overflow-hidden rounded-xl border border-border bg-surface lg:grid lg:grid-cols-[1.25fr_0.75fr]">
         <div className="p-6 md:p-8">

@@ -41,7 +41,7 @@ describe("server Markdown negotiation", () => {
     expect(response.headers.get("link")).toContain('rel="service-doc"');
     expect(response.headers.get("link")).toContain('rel="describedby"');
     expect(await response.text()).toContain(
-      "# DSHX: Build DeepSeek Harness Plugins with TypeScript & React",
+      "# DSHX: Build DeepSeek Harness Plugins with React & Vite",
     );
   });
 

@@ -5,7 +5,7 @@ export const featuredCopy = {
     description:
       "A hand-picked shelf of strong DeepSeek Harness plugins, organized by the jobs they do. Each row is curated by the Hub operators, not ranked automatically.",
     editorialNote:
-      "Editorial picks, not a compatibility or security certification. Check each plugin's detail page before installing.",
+      "Hand-picked by the Hub operators for compatibility and active maintenance — open any plugin to see its source, versions and release history.",
     browseCategory: "Browse category",
     categories: "Categories",
     jumpTo: "Jump to a featured category",
@@ -19,7 +19,8 @@ export const featuredCopy = {
     title: "精选 DeepSeek Harness 插件",
     description:
       "按用途整理的优质 DeepSeek Harness 插件人工精选清单，每一行由 Hub 运营挑选，而非自动排序。",
-    editorialNote: "编辑精选，不构成兼容性或安全认证；安装前请查看插件详情页。",
+    editorialNote:
+      "由 Hub 运营按兼容性与维护活跃度挑选；打开任意插件都能看到源码、版本和发布记录。",
     browseCategory: "浏览分类",
     categories: "类目",
     jumpTo: "跳转到精选类目",
