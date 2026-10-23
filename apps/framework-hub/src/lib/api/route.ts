@@ -1,5 +1,7 @@
 import { z, type ZodType } from "zod";
 
+import type { OperationWarning } from "@becomeopc/dshx-hub-contracts";
+
 import { requireAdminSession, requireSameOrigin, requireSession } from "@/lib/auth/auth.server";
 import { authenticateApiToken, requireApiToken } from "@/lib/auth/tokens.server";
 import {
@@ -157,7 +159,7 @@ export interface RouteMeta {
   /** Success status, when the handler decides it at runtime. */
   readonly status?: number;
   /** Operation-envelope warnings that describe a success with caveats. */
-  readonly warnings?: readonly unknown[];
+  readonly warnings?: readonly OperationWarning[];
 }
 
 const metaKey = Symbol("routeMeta");

@@ -24,11 +24,9 @@ import { parameterizedSql } from "@/lib/db/parameterized-sql";
 import { digest } from "../../digest";
 import { refreshPluginReadiness } from "../../install-readiness.server";
 import { jsonRecord, type JsonRecord } from "../../json";
-import {
-  OperationHttpError,
-  serializeOperationError,
-  type OperationErrorBody,
-} from "../../operations-v1.http";
+import type { OperationError } from "@becomeopc/dshx-hub-contracts";
+
+import { OperationHttpError, serializeOperationError } from "../../operations-v1.http";
 import { publicationRequirements } from "../../publication-readiness";
 import { refreshPluginScore } from "../../scores.server";
 import {
@@ -893,7 +891,7 @@ export async function upsertObservationBatch(
   dryRun: boolean,
 ) {
   const results: Array<
-    ObservationWriteResult | { identity: string; status: "rejected"; error: OperationErrorBody }
+    ObservationWriteResult | { identity: string; status: "rejected"; error: OperationError }
   > = [];
   for (let index = 0; index < inputs.length; index += 1) {
     const parsed = pluginObservationV1Schema.safeParse(inputs[index]);

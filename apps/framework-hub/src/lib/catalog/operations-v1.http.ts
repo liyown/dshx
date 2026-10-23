@@ -1,18 +1,10 @@
-import type { ZodType } from "zod";
-import { ZodError } from "zod";
+import { ZodError, type ZodType } from "zod";
+
+import type { OperationError, OperationWarning } from "@becomeopc/dshx-hub-contracts";
 
 import { HttpError } from "@/lib/http";
 
 import type { CursorField, CursorValues, ParsedCursor } from "./cursor";
-
-export type OperationErrorBody = {
-  code: string;
-  message: string;
-  retryable: boolean;
-  repairHint?: string;
-  path?: string;
-  details?: Record<string, unknown> | unknown[];
-};
 
 /**
  * An Operations API failure: an HttpError that also says whether a retry can
@@ -130,7 +122,7 @@ export function parseOperationInput<T>(schema: ZodType<T>, input: unknown): T {
   }
 }
 
-export function serializeOperationError(error: unknown): OperationErrorBody {
+export function serializeOperationError(error: unknown): OperationError {
   if (error instanceof OperationHttpError)
     return {
       code: error.code,
@@ -188,7 +180,7 @@ function errorStatus(error: unknown): number {
 export function operationSuccess(
   request: Request,
   data: unknown,
-  options: { status?: number; warnings?: unknown[]; requestId?: string } = {},
+  options: { status?: number; warnings?: readonly OperationWarning[]; requestId?: string } = {},
 ): Response {
   const requestId = options.requestId ?? operationRequestId(request);
   return Response.json(

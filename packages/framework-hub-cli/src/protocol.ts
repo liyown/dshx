@@ -1,35 +1,17 @@
 import { randomUUID } from "node:crypto";
 
-export type OperationError = {
-  code: string;
-  message: string;
-  retryable: boolean;
-  repairHint?: string;
-  path?: string;
-  details?: Record<string, unknown> | unknown[];
-};
+import type {
+  FailureEnvelope,
+  OperationEnvelope,
+  OperationError,
+  OperationWarning,
+  SuccessEnvelope,
+} from "@becomeopc/dshx-hub-contracts";
 
-export type OperationWarning = {
-  code: string;
-  message: string;
-  path?: string;
-  details?: Record<string, unknown>;
-};
-
-export type SuccessEnvelope<T> = {
-  ok: true;
-  data: T;
-  warnings: OperationWarning[];
-  meta: { requestId: string; requestIds?: string[] };
-};
-
-export type FailureEnvelope = {
-  ok: false;
-  error: OperationError;
-  meta: { requestId: string };
-};
-
-export type OperationEnvelope<T> = SuccessEnvelope<T> | FailureEnvelope;
+// The envelope the CLI reads is the one the Hub writes, so its shape lives in
+// the contracts package. These names stay exported here because every command
+// module already imports them from the protocol.
+export type { FailureEnvelope, OperationEnvelope, OperationError, OperationWarning, SuccessEnvelope };
 
 export function successEnvelope<T>(
   data: T,

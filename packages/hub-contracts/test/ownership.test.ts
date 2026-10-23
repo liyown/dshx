@@ -53,4 +53,14 @@ describe("the CLI is an adapter over this contract", () => {
   it("derives observation ids from the contract's input, not its own", async () => {
     expect(await violating((text) => /etag\s*\?\?\s*source\.contentHash/u.test(text))).toEqual([]);
   });
+
+  it("declares no second copy of the operations envelope", async () => {
+    expect(
+      await violating((text) =>
+        /export type (?:OperationError|OperationWarning|SuccessEnvelope|FailureEnvelope)\s*=/u.test(
+          text,
+        ),
+      ),
+    ).toEqual([]);
+  });
 });

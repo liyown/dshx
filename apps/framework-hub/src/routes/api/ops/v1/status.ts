@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import type { OperationWarning } from "@becomeopc/dshx-hub-contracts";
+
 import { publicRoute, withMeta } from "@/lib/api/route";
 import { authenticateApiToken } from "@/lib/auth/tokens.server";
 import { getOpsStatus } from "@/lib/catalog/operations";
@@ -13,7 +15,7 @@ export const Route = createFileRoute("/api/ops/v1/status")({
       // A rejected token is a warning rather than a failure so the status of the
       // deployment is still readable while the caller repairs its credentials.
       GET: publicRoute({ envelope: "operation" }, async ({ request, db }) => {
-        const warnings: unknown[] = [];
+        const warnings: OperationWarning[] = [];
         let actor: Awaited<ReturnType<typeof authenticateApiToken>> | null = null;
         if (request.headers.has("authorization"))
           try {

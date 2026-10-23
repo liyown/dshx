@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
+import { operationFailureEnvelopeSchema } from "@becomeopc/dshx-hub-contracts";
+
 import { HttpError } from "@/lib/http";
 
 const mocks = vi.hoisted(() => ({
@@ -207,6 +209,24 @@ describe("tokenRoute", () => {
     });
   });
 
+  it("answers failures in the envelope the CLI reads", async () => {
+    mocks.requireApiToken.mockRejectedValue(
+      new HttpError(401, "Token is invalid or expired", "invalid_token"),
+    );
+
+    const response = await call(
+      tokenRoute({ envelope: "operation" }, () => ({})),
+      new Request("https://dshx.io/api/ops/v1/agent-bundle", { method: "GET" }),
+    );
+
+    const parsed = operationFailureEnvelopeSchema.safeParse(await response.json());
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toMatchObject({
+      ok: false,
+      error: { code: "invalid_token", retryable: false },
+    });
+  });
+
   it("accepts any token when the endpoint declares no scope", async () => {
     mocks.requireApiToken.mockClear();
     mocks.authenticateApiToken.mockResolvedValue({ token: { id: "t1" }, profile: { role: "admin" } });
@@ -227,7 +247,12 @@ describe("endpoint response metadata", () => {
     mocks.requireApiToken.mockResolvedValue({ token: { id: "t1" }, profile: { role: "admin" } });
 
     const response = await call(
-      tokenRoute({ envelope: "operation" }, () => withMeta({ id: "report-1" }, { status: 201, warnings: ["stale token"] })),
+      tokenRoute({ envelope: "operation" }, () =>
+        withMeta(
+          { id: "report-1" },
+          { status: 201, warnings: [{ code: "stale_token", message: "stale token" }] },
+        ),
+      ),
       new Request("https://dshx.io/api/ops/v1/reports", { method: "POST" }),
     );
 
@@ -235,7 +260,7 @@ describe("endpoint response metadata", () => {
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
       data: { id: "report-1" },
-      warnings: ["stale token"],
+      warnings: [{ code: "stale_token", message: "stale token" }],
     });
   });
 
