@@ -589,6 +589,49 @@ describe('CLI commands', () => {
     streams.err.end()
   })
 
+  it('stops the dev session on the stop signal the runtime reports', async () => {
+    const streams = ttyIO()
+    const value = project()
+    const close = vi.fn(async () => undefined)
+    const fakeSession: DevSession = {
+      state: { hostBuild: 'ok', clientBuild: 'ok', hostRestartRequired: false, dshProcess: 'running' },
+      diagnostics: [],
+      on: () => () => undefined,
+      restart: async () => undefined,
+      close,
+    }
+    const signals: Array<'SIGINT' | 'SIGTERM'> = []
+    const handlers: Array<() => void> = []
+    let registered: () => void = () => undefined
+    const watching = new Promise<void>(resolve => {
+      registered = resolve
+    })
+    const codePromise = runCli(['dev'], {
+      io: streams,
+      runtime: {
+        detectInstalledDsh: () => '0.2.1-rc.2',
+        resolveConfig: async () => value,
+        checkManifest: async () => [],
+        ensureProfile: async () => profile(value),
+        onProcessSignal: (signal, handler) => {
+          signals.push(signal)
+          handlers.push(handler)
+          if (handlers.length === 2) registered()
+          return () => undefined
+        },
+        startDev: async () => fakeSession,
+      },
+    })
+    await watching
+    expect(signals).toEqual(['SIGINT', 'SIGTERM'])
+    handlers[0]?.()
+    await expect(codePromise).resolves.toBe(0)
+    expect(close).toHaveBeenCalledOnce()
+    expect(streams.stdin.setRawMode).toHaveBeenLastCalledWith(false)
+    streams.out.end()
+    streams.err.end()
+  })
+
   it('inspects runtime slots as clean JSON without linking the Profile', async () => {
     const streams = io()
     const value = project()
