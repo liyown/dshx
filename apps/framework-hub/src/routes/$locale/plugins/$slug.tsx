@@ -1,6 +1,5 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { Container, Chip, ButtonLink, SectionLabel } from "@/components/dshx/primitives";
 import { PluginCommunityActions } from "@/components/community/plugin-actions";
 import { ReplyDialog, ReportDialog } from "@/components/community/community-dialogs";
@@ -27,8 +26,7 @@ import {
   pluginApplication,
   socialCardUrl,
 } from "@/lib/seo";
-import { apiKeys, apiRequest } from "@/lib/api-client";
-import { pluginReviewPageSchema, type PluginReviewView } from "@/lib/catalog/contracts";
+import { useReviewThread } from "@/lib/community/review-thread";
 import { SOCIAL_CARD_REVISION } from "@/lib/social-card-data";
 
 export const Route = createFileRoute("/$locale/plugins/$slug")({
@@ -668,41 +666,15 @@ function MediaPanel({
   );
 }
 
-function reviewReplies(value: PluginReviewView["replies"]) {
-  if (Array.isArray(value)) return value;
-  try {
-    const parsed = JSON.parse(value || "[]") as unknown;
-    return Array.isArray(parsed)
-      ? (parsed as Array<{ id: string; body: string; userName: string; createdAt: number }>)
-      : [];
-  } catch {
-    return [];
-  }
-}
-
 function ReviewsPanel({ slug, locale }: { slug: string; locale: "en" | "zh" }) {
   const t = createTranslator(locale);
-  const queryClient = useQueryClient();
-  const path = `/api/plugins/${encodeURIComponent(slug)}/reviews?limit=50`;
-  const query = useQuery({
-    queryKey: apiKeys.endpoint(path),
-    queryFn: ({ signal }) => apiRequest(path, pluginReviewPageSchema, { signal }),
-  });
-  useEffect(() => {
-    const changed = (event: Event) => {
-      if ((event as CustomEvent<{ slug?: string }>).detail?.slug === slug)
-        void queryClient.invalidateQueries({ queryKey: apiKeys.endpoint(path) });
-    };
-    window.addEventListener("dshx:reviews-changed", changed);
-    return () => window.removeEventListener("dshx:reviews-changed", changed);
-  }, [path, queryClient, slug]);
-  const items = query.data?.items ?? (query.isError ? [] : null);
-  if (!items) return <EmptyPanel>{t("plugin.reviewsLoading")}</EmptyPanel>;
-  if (!items.length) return <EmptyPanel>{t("plugin.reviewsEmpty")}</EmptyPanel>;
+  const { entries, refresh } = useReviewThread(slug);
+  if (!entries) return <EmptyPanel>{t("plugin.reviewsLoading")}</EmptyPanel>;
+  if (!entries.length) return <EmptyPanel>{t("plugin.reviewsEmpty")}</EmptyPanel>;
   return (
     <div className="divide-y divide-border border-y border-border">
-      {items.map((review) => {
-        const replies = reviewReplies(review.replies);
+      {entries.map((review) => {
+        const replies = review.replies;
         return (
           <article key={review.id} className="py-5">
             <div className="flex items-center justify-between gap-4">
@@ -721,15 +693,7 @@ function ReviewsPanel({ slug, locale }: { slug: string; locale: "en" | "zh" }) {
               </p>
             ) : null}
             <div className="mt-3 flex flex-wrap gap-1">
-              <ReplyDialog
-                reviewId={review.id}
-                locale={locale}
-                onComplete={() =>
-                  window.dispatchEvent(
-                    new CustomEvent("dshx:reviews-changed", { detail: { slug } }),
-                  )
-                }
-              />
+              <ReplyDialog reviewId={review.id} locale={locale} onComplete={() => void refresh()} />
               <ReportDialog targetType="review" targetId={review.id} />
             </div>
             {replies.length ? (

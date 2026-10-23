@@ -286,5 +286,6 @@ export const pluginClaimResponseSchema = z.object({
   file: z.object({ path: z.string(), body: z.record(z.string(), z.string()) }).optional(),
 });
 
+export type PluginReviewReplyView = z.infer<typeof pluginReviewReplyViewSchema>;
 export type PluginReviewView = z.infer<typeof pluginReviewViewSchema>;
 export type PluginReviewPage = z.infer<typeof pluginReviewPageSchema>;

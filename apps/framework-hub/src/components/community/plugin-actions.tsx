@@ -9,6 +9,7 @@ import { useVerification, useVerifiedWrite } from "./verified-write";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth/client";
+import { useReviewThreadRefresh } from "@/lib/community/review-thread";
 import { useHydrated } from "@/lib/use-hydrated";
 import { cn } from "@/lib/utils";
 import { apiKeys, apiRequest } from "@/lib/api-client";
@@ -62,6 +63,7 @@ export function PluginCommunityActions({
       ...secrets,
     }),
   });
+  const refreshReviews = useReviewThreadRefresh(slug);
   const relationships = relationshipQuery.data ?? null;
   const pending = relationshipWrite.pendingInput?.kind ?? (reviewWrite.pending ? "review" : null);
 
@@ -99,8 +101,8 @@ export function PluginCommunityActions({
     setMessage(null);
     try {
       await reviewWrite.submit();
+      await refreshReviews();
       setMessage("Review published.");
-      window.dispatchEvent(new CustomEvent("dshx:reviews-changed", { detail: { slug } }));
     } catch (error) {
       setMessage(
         error instanceof Error
