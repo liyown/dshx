@@ -23,7 +23,7 @@ import {
   listFeaturedSections,
   replaceFeaturedPicks,
 } from "@/lib/featured.repository.server";
-import { listSitemapDatabaseRows } from "@/lib/sitemap.repository.server";
+import { listIndexablePages } from "@/lib/public-pages.server";
 import { blogInput } from "@/test/blog";
 import { Route as BlogIndexRoute } from "@/routes/api/ops/v1/blog/index";
 import { Route as BlogDetailRoute } from "@/routes/api/ops/v1/blog/$slug";
@@ -95,9 +95,7 @@ describe("blog and featured editorial data with local D1", () => {
     expect((await getBlogPost(db, input.slug, true))?.relatedPluginSlugs).toEqual([plugin.slug]);
     expect((await listBlogPosts(db)).some((post) => post.slug === input.slug)).toBe(false);
     expect(
-      (await listSitemapDatabaseRows(db)).some(
-        (row) => row.kind === "blog" && row.value === input.slug,
-      ),
+      (await listIndexablePages(db)).some((row) => row.kind === "blog" && row.value === input.slug),
     ).toBe(false);
 
     const { slug, ...fields } = input;
@@ -109,7 +107,7 @@ describe("blog and featured editorial data with local D1", () => {
     expect(published.revision).toBe(2);
     expect(await getBlogPost(db, slug)).toMatchObject({ status: "published" });
     expect(
-      (await listSitemapDatabaseRows(db))
+      (await listIndexablePages(db))
         .filter((row) => row.kind === "blog" && row.value === slug)
         .map((row) => row.locale),
     ).toEqual(["en", "zh"]);
@@ -137,7 +135,7 @@ describe("blog and featured editorial data with local D1", () => {
     });
     expect(await getBlogPost(db, slug)).toBeNull();
     expect(
-      (await listSitemapDatabaseRows(db)).some((row) => row.kind === "blog" && row.value === slug),
+      (await listIndexablePages(db)).some((row) => row.kind === "blog" && row.value === slug),
     ).toBe(false);
     await expect(createBlogPost(db, "local-operator", input)).rejects.toMatchObject({
       status: 409,

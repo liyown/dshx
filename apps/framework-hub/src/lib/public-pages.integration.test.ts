@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
 import type { Database } from "@/lib/db/client";
 import { getCatalogPlugin } from "@/lib/catalog/repository.server";
-import { listIndexableSitemapLocales } from "@/lib/sitemap.repository.server";
+import { indexableLocalesFor, listIndexablePages } from "@/lib/public-pages.server";
 
 function fixtureId(prefix: string, suffix: string): string {
   return `${prefix}-${suffix}`;
@@ -85,7 +85,9 @@ describe("sitemap dynamic indexability", () => {
       `);
     }
 
-    expect(await listIndexableSitemapLocales(db, "category", categorySlug)).toEqual(["en"]);
+    expect(await indexableLocalesFor(db, { kind: "category", value: categorySlug })).toEqual([
+      "en",
+    ]);
 
     const publisherId = fixtureId("publisher", suffix);
     const publisherLogin = fixtureId("publisher-login", suffix);
@@ -110,7 +112,9 @@ describe("sitemap dynamic indexability", () => {
     await insertPluginLocale(db, publisherPluginId, "en", "ready");
     await insertPluginLocale(db, publisherPluginId, "zh", "pending");
 
-    expect(await listIndexableSitemapLocales(db, "publisher", publisherLogin)).toEqual(["en"]);
+    expect(await indexableLocalesFor(db, { kind: "publisher", value: publisherLogin })).toEqual([
+      "en",
+    ]);
 
     const pluginId = fixtureId("quality-plugin", suffix);
     const pluginSlug = fixtureId("quality-plugin", suffix);
@@ -134,7 +138,13 @@ describe("sitemap dynamic indexability", () => {
       )
     `);
 
-    expect(await listIndexableSitemapLocales(db, "plugin", pluginSlug)).toEqual(["en"]);
+    expect(await indexableLocalesFor(db, { kind: "plugin", value: pluginSlug })).toEqual(["en"]);
+    // The listing carries the row's revision, which the sitemap renders as
+    // `lastmod`; a misspelled alias would silently lose it.
+    const listed = (await listIndexablePages(db)).find(
+      (row) => row.kind === "plugin" && row.value === pluginSlug && row.locale === "en",
+    );
+    expect(typeof listed?.updatedAt).toBe("number");
     await expect(getCatalogPlugin(db, pluginSlug, "en")).resolves.toMatchObject({
       indexable: true,
       readyLocales: ["en"],
@@ -145,7 +155,7 @@ describe("sitemap dynamic indexability", () => {
     });
 
     await db.run(sql`update plugins set lifecycle_status='unavailable' where id=${pluginId}`);
-    expect(await listIndexableSitemapLocales(db, "plugin", pluginSlug)).toEqual([]);
+    expect(await indexableLocalesFor(db, { kind: "plugin", value: pluginSlug })).toEqual([]);
     await expect(getCatalogPlugin(db, pluginSlug, "en")).resolves.toMatchObject({
       indexable: false,
       readyLocales: [],

@@ -10,7 +10,7 @@ import {
   listChangelog,
   updateChangelog,
 } from "./changelog.repository.server";
-import { listSitemapDatabaseRows } from "./sitemap.repository.server";
+import { listIndexablePages } from "./public-pages.server";
 import { changelogInput } from "@/test/changelog";
 import { Route as IndexRoute } from "@/routes/api/ops/v1/changelog/index";
 import { Route as DetailRoute } from "@/routes/api/ops/v1/changelog/$slug";
@@ -42,7 +42,7 @@ describe("changelog lifecycle with local D1", () => {
       contentJson: input.content,
     });
     expect(
-      (await listSitemapDatabaseRows(db)).some(
+      (await listIndexablePages(db)).some(
         (row) => row.kind === "changelog" && row.value === input.slug,
       ),
     ).toBe(false);
@@ -58,7 +58,7 @@ describe("changelog lifecycle with local D1", () => {
     ).toBe(2);
     expect(await getChangelog(db, slug)).toMatchObject({ status: "published" });
     expect(
-      (await listSitemapDatabaseRows(db))
+      (await listIndexablePages(db))
         .filter((row) => row.kind === "changelog" && row.value === slug)
         .map((row) => row.locale),
     ).toEqual(["en", "zh"]);
@@ -85,9 +85,7 @@ describe("changelog lifecycle with local D1", () => {
     expect(await getChangelog(db, slug)).toBeNull();
     expect((await listChangelog(db)).some((entry) => entry.slug === slug)).toBe(false);
     expect(
-      (await listSitemapDatabaseRows(db)).some(
-        (row) => row.kind === "changelog" && row.value === slug,
-      ),
+      (await listIndexablePages(db)).some((row) => row.kind === "changelog" && row.value === slug),
     ).toBe(false);
     await expect(createChangelog(db, "local-operator", input)).rejects.toMatchObject({
       status: 409,

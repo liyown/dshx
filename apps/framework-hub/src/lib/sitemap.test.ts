@@ -10,9 +10,9 @@ import {
 describe("single dynamic sitemap", () => {
   it("keeps one canonical urlset with static and dynamic entries", () => {
     const entries = createSitemapEntries("https://dshx.io/", [
-      { kind: "plugin", locale: "en", value: "hello-plugin", updated_at: 1_700_000_000_000 },
-      { kind: "plugin", locale: "en", value: "hello-plugin", updated_at: 1_700_000_000_000 },
-      { kind: "category", locale: "zh", value: "tools", updated_at: null },
+      { kind: "plugin", locale: "en", value: "hello-plugin", updatedAt: 1_700_000_000_000 },
+      { kind: "plugin", locale: "en", value: "hello-plugin", updatedAt: 1_700_000_000_000 },
+      { kind: "category", locale: "zh", value: "tools", updatedAt: null },
     ]);
     const { xml, warnings } = buildSitemapXml(entries);
 
@@ -37,8 +37,8 @@ describe("single dynamic sitemap", () => {
   it("includes changelog records supplied by D1 with their stored lastmod", () => {
     const modified = 1_700_000_000_000;
     const entries = createSitemapEntries("https://dshx.io", [
-      { kind: "changelog", locale: "en", value: "database-release", updated_at: modified },
-      { kind: "changelog", locale: "zh", value: "database-release", updated_at: modified },
+      { kind: "changelog", locale: "en", value: "database-release", updatedAt: modified },
+      { kind: "changelog", locale: "zh", value: "database-release", updatedAt: modified },
     ]);
     for (const locale of ["en", "zh"]) {
       expect(entries.some((entry) => entry.loc === `https://dshx.io/${locale}/changelog`)).toBe(
@@ -59,8 +59,8 @@ describe("single dynamic sitemap", () => {
   it("includes the localized blog and featured surfaces with database articles", () => {
     const modified = 1_700_000_000_000;
     const entries = createSitemapEntries("https://dshx.io", [
-      { kind: "blog", locale: "en", value: "database-article", updated_at: modified },
-      { kind: "blog", locale: "zh", value: "database-article", updated_at: modified },
+      { kind: "blog", locale: "en", value: "database-article", updatedAt: modified },
+      { kind: "blog", locale: "zh", value: "database-article", updatedAt: modified },
     ]);
     for (const locale of ["en", "zh"]) {
       expect(entries.some((entry) => entry.loc === `https://dshx.io/${locale}/blog`)).toBe(true);
@@ -80,8 +80,8 @@ describe("single dynamic sitemap", () => {
     const modified = 1_700_000_000_000;
     const day = "2026-10-21";
     const entries = createSitemapEntries("https://dshx.io", [
-      { kind: "operation-report", locale: "en", value: day, updated_at: modified },
-      { kind: "operation-report", locale: "zh", value: day, updated_at: modified },
+      { kind: "operation-report", locale: "en", value: day, updatedAt: modified },
+      { kind: "operation-report", locale: "zh", value: day, updatedAt: modified },
     ]);
     for (const locale of ["en", "zh"]) {
       expect(entries).toContainEqual({
@@ -99,7 +99,7 @@ describe("single dynamic sitemap", () => {
         kind: "plugin",
         locale: "en",
         value: "future-plugin",
-        updated_at: Date.now() + 86_400_000,
+        updatedAt: Date.now() + 86_400_000,
       },
     ]);
     expect(entries.find((entry) => entry.loc.endsWith("/future-plugin"))?.lastmod).toBeUndefined();

@@ -4,14 +4,8 @@ import { PluginCard } from "@/components/dshx/plugin-card";
 import { Container, SectionLabel } from "@/components/dshx/primitives";
 import { loadCatalog } from "@/lib/catalog/functions";
 import { createTranslator, parseLocale } from "@/lib/i18n";
-import {
-  breadcrumbs,
-  buildPageHead,
-  collection,
-  localePath,
-  localizedAlternatesForLocales,
-} from "@/lib/seo";
-import { loadIndexableSitemapLocales } from "@/lib/sitemap.functions";
+import { breadcrumbs, buildPageHead, collection, localePath, pageIndexation } from "@/lib/seo";
+import { loadIndexableLocales } from "@/lib/public-pages.functions";
 
 export const Route = createFileRoute("/$locale/categories/$slug")({
   loader: async ({ params }) => {
@@ -25,7 +19,7 @@ export const Route = createFileRoute("/$locale/categories/$slug")({
           limit: 50,
         },
       }),
-      loadIndexableSitemapLocales({
+      loadIndexableLocales({
         data: { kind: "category", value: params.slug },
       }),
     ]);
@@ -48,8 +42,7 @@ export const Route = createFileRoute("/$locale/categories/$slug")({
       path: localePath(locale, to),
       title: t("catalog.categoryTitle", { name }),
       description: t("catalog.categoryMeta", { name }),
-      robots: indexableLocales.includes(locale) ? "index,follow" : "noindex,follow",
-      alternates: localizedAlternatesForLocales(to, indexableLocales),
+      ...pageIndexation(to, indexableLocales, locale),
       structuredData: [
         ...collection({
           locale,

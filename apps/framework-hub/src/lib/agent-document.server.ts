@@ -4,6 +4,7 @@ import { listPublicOperationReports } from "./catalog/operation-reports.server";
 import { getPublicPublisher } from "./community/marketplace.server";
 import { createDatabase } from "./db/client";
 import type { AppRequestContext } from "./db/context";
+import { isIndexable } from "./public-pages.server";
 import { DOC_CHAPTERS, getDocsChapter, getDocsNavigation, isDocsSlug } from "./docs";
 import type { DocsBlock } from "./docs";
 import { createTranslator, isLocale, type Locale } from "./i18n";
@@ -363,7 +364,10 @@ async function dynamicDocument(
       limit: 50,
     });
     const category = page.categories.find((item) => item.slug === slug);
-    if (!category || page.items.length < 3) return null;
+    // The same inventory decides the page's robots and its place in the
+    // sitemap; a thin category is not served to an agent either.
+    if (!category || !(await isIndexable(db, { kind: "category", value: slug }, locale)))
+      return null;
     return {
       title: t("document.categoryTitle", { name: category.name }),
       description: t("document.categoryDescription", { name: category.name }),
@@ -391,12 +395,8 @@ async function dynamicDocument(
     const result = await getPublicPublisher(db, decodeURIComponent(publisherMatch[1]), locale);
     const publisher = result.publisher;
     const login = String(publisher["login"] ?? publisherMatch[1]);
-    if (
-      publisher["localization_status"] !== "ready" ||
-      result.plugins.length === 0 ||
-      login !== publisherMatch[1]
-    )
-      return null;
+    if (login !== publisherMatch[1]) return null;
+    if (!(await isIndexable(db, { kind: "publisher", value: login }, locale))) return null;
     const name = String(publisher["localized_name"] ?? login);
     const description = String(
       publisher["seo_description"] ??

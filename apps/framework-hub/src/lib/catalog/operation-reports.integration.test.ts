@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { startLocalD1, type LocalD1Proxy } from "@/test/local-d1";
 import { Route as ProtectedReportsRoute } from "@/routes/api/ops/v1/reports/index";
 import type { Database } from "@/lib/db/client";
-import { listIndexableSitemapLocales } from "@/lib/sitemap.repository.server";
+import { indexableLocalesFor } from "@/lib/public-pages.server";
 
 import {
   getOperationReportDayForRun,
@@ -358,7 +358,9 @@ describe("immutable Hub operations reports with local D1", () => {
     expect(capped?.earlier[19]?.body).toBe("s");
     // The four long bodies are older than the visible window, so they must not
     // make the day indexable.
-    expect(await listIndexableSitemapLocales(db, "operation-report", "2026-09-01")).toEqual([]);
+    expect(
+      await indexableLocalesFor(db, { kind: "operation-report", value: "2026-09-01" }),
+    ).toEqual([]);
   });
 
   it("indexes only days with substantive localized bodies", async () => {
@@ -377,11 +379,12 @@ describe("immutable Hub operations reports with local D1", () => {
     await publishOperationReport(db, "actor-token", shortBody);
     await publishOperationReport(db, "actor-token", longBody);
 
-    expect(await listIndexableSitemapLocales(db, "operation-report", "2026-08-25")).toEqual([]);
-    expect(await listIndexableSitemapLocales(db, "operation-report", "2026-08-26")).toEqual([
-      "en",
-      "zh",
-    ]);
+    expect(
+      await indexableLocalesFor(db, { kind: "operation-report", value: "2026-08-25" }),
+    ).toEqual([]);
+    expect(
+      await indexableLocalesFor(db, { kind: "operation-report", value: "2026-08-26" }),
+    ).toEqual(["en", "zh"]);
 
     // A cumulative short report hides the earlier long body on the public page,
     // so the day must drop out of the sitemap with it.
@@ -395,7 +398,9 @@ describe("immutable Hub operations reports with local D1", () => {
         body: { en: "<!-- daily-report:merged -->\nshort", zh: "<!-- daily-report:merged -->\n短" },
       }),
     );
-    expect(await listIndexableSitemapLocales(db, "operation-report", "2026-08-26")).toEqual([]);
+    expect(
+      await indexableLocalesFor(db, { kind: "operation-report", value: "2026-08-26" }),
+    ).toEqual([]);
   });
 
   it("keeps exactly the latest 1000 reports after the 1001st publish", async () => {

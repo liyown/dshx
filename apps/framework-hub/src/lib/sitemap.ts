@@ -1,4 +1,5 @@
 import { DOC_SLUGS } from "@/lib/docs";
+import type { IndexablePage } from "@/lib/public-pages.server";
 
 export type SitemapEntryKind =
   | "static"
@@ -15,13 +16,6 @@ export type SitemapEntry = {
   readonly kind: SitemapEntryKind;
   readonly locale: "en" | "zh";
   readonly lastmod?: string;
-};
-
-export type SitemapDatabaseRow = {
-  readonly kind: Exclude<SitemapEntryKind, "static" | "document">;
-  readonly locale: "en" | "zh";
-  readonly value: string;
-  readonly updated_at: number | null;
 };
 
 const SITEMAP_SOFT_URL_LIMIT = 45_000;
@@ -84,7 +78,7 @@ function staticEntries(site: string): SitemapEntry[] {
   });
 }
 
-function dynamicEntry(site: string, row: SitemapDatabaseRow): SitemapEntry {
+function dynamicEntry(site: string, row: IndexablePage): SitemapEntry {
   const prefix =
     row.kind === "changelog"
       ? "changelog"
@@ -97,7 +91,7 @@ function dynamicEntry(site: string, row: SitemapDatabaseRow): SitemapEntry {
             : row.kind === "operation-report"
               ? "operations"
               : "publishers";
-  const updatedAt = row.updated_at == null ? null : new Date(row.updated_at);
+  const updatedAt = row.updatedAt == null ? null : new Date(row.updatedAt);
   const lastmod =
     updatedAt &&
     Number.isFinite(updatedAt.getTime()) &&
@@ -115,7 +109,7 @@ function dynamicEntry(site: string, row: SitemapDatabaseRow): SitemapEntry {
 
 export function createSitemapEntries(
   siteUrl: string,
-  rows: readonly SitemapDatabaseRow[],
+  rows: readonly IndexablePage[],
 ): SitemapEntry[] {
   const site = normalizedSiteUrl(siteUrl);
   const entries = [...staticEntries(site), ...rows.map((row) => dynamicEntry(site, row))].sort(

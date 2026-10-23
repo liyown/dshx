@@ -13,11 +13,11 @@ import {
   breadcrumbs,
   buildPageHead,
   localePath,
-  localizedAlternatesForLocales,
+  pageIndexation,
   pageTitle,
   profilePage,
 } from "@/lib/seo";
-import { loadIndexableSitemapLocales } from "@/lib/sitemap.functions";
+import { loadIndexableLocales } from "@/lib/public-pages.functions";
 
 export const Route = createFileRoute("/$locale/publishers/$login")({
   loader: async ({ params }) => {
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/$locale/publishers/$login")({
       const publisher = await loadPublicPublisher({
         data: { login: params.login, locale: parseLocale(params.locale) },
       });
-      const indexableLocales = await loadIndexableSitemapLocales({
+      const indexableLocales = await loadIndexableLocales({
         data: { kind: "publisher", value: publisher.publisher.login },
       });
       data = { ...publisher, indexableLocales };
@@ -56,8 +56,7 @@ export const Route = createFileRoute("/$locale/publishers/$login")({
       path: localePath(locale, to),
       title: pageTitle(title, "DSHX Hub"),
       description,
-      robots: indexableLocales.includes(locale) ? "index,follow" : "noindex,follow",
-      alternates: localizedAlternatesForLocales(to, indexableLocales),
+      ...pageIndexation(to, indexableLocales, locale),
       structuredData: [
         ...profilePage({
           locale,

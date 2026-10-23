@@ -1,6 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
+import { indexableLocalesFor } from "@/lib/public-pages.server";
 import type { MarketplaceListQuery, PluginListQuery } from "./contracts";
 import { decodeCursor, encodeCursor } from "./cursor";
 import { installReadySql } from "./install-readiness";
@@ -328,7 +329,6 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
     capabilities,
     media,
     sourceDocuments,
-    localeStates,
     related,
   ] = await Promise.all([
     db.all<InstallTargetRow>(
@@ -359,13 +359,6 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
       where plugin_id=${row.id} and kind='readme'
       limit 1
     `),
-    db.all<{
-      locale: "en" | "zh";
-      translation_status: string;
-      overview_markdown: string;
-    }>(
-      sql`select locale, translation_status, overview_markdown from plugin_localizations where plugin_id = ${row.id}`,
-    ),
     db.all<ListRow>(
       sql`select p.id, p.slug, p.package_name, p.name, p.description, p.author_handle,
         p.latest_version, p.compatibility_range, p.category, p.badge, p.featured,
@@ -383,19 +376,9 @@ export async function getCatalogPlugin(db: Database, slug: string, locale: "en" 
        order by p.featured desc, p.updated_at desc limit 3`,
     ),
   ]);
-  const contentReady = new Set(
-    localeStates
-      .filter(
-        (state) =>
-          state.translation_status === "ready" && state.overview_markdown.trim().length > 0,
-      )
-      .map((state) => state.locale),
-  );
-  const globallyIndexable =
-    (row.lifecycle_status === "active" || row.lifecycle_status === "unmaintained") &&
-    targets.some((target) => target.is_primary === 1 && target.status === "active") &&
-    sourceDocuments.some((document) => document.availability === "available");
-  const indexableLocales = globallyIndexable ? [...contentReady] : [];
+  // Publication is the page inventory's decision, not this read's: the API
+  // reports the same answer the sitemap and the page head use.
+  const indexableLocales = await indexableLocalesFor(db, { kind: "plugin", value: canonicalSlug });
   const reviewCount = row.review_count ?? 0;
   return {
     plugin: toCard(row),

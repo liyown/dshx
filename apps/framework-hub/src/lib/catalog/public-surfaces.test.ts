@@ -68,8 +68,8 @@ describe("public catalog surfaces", () => {
       "utf8",
     );
     const sitemap = readFileSync(new URL("../sitemap.ts", import.meta.url), "utf8");
-    const sitemapRepository = readFileSync(
-      new URL("../sitemap.repository.server.ts", import.meta.url),
+    const pageInventory = readFileSync(
+      new URL("../public-pages.server.ts", import.meta.url),
       "utf8",
     );
     expect(page).toContain("operationReportExcerpt");
@@ -85,7 +85,7 @@ describe("public catalog surfaces", () => {
     expect(markdown).not.toContain("rehype-raw");
     expect(sitemap).toContain('"/operations"');
     expect(sitemap).toContain('"operation-report"');
-    expect(sitemapRepository).toContain("operationReportRows");
+    expect(pageInventory).toContain("operationReportPages");
   });
 
   it("renders changelog copy as safe Markdown with inline source links", () => {

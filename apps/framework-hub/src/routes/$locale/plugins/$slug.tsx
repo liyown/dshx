@@ -22,7 +22,7 @@ import {
   breadcrumbs,
   buildPageHead,
   localePath,
-  localizedAlternatesForLocales,
+  pageIndexation,
   pluginApplication,
   socialCardUrl,
 } from "@/lib/seo";
@@ -70,8 +70,7 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
       path: localePath(locale, to),
       title: loaderData.seoTitle,
       description: loaderData.seoDescription,
-      robots: loaderData.indexable ? "index,follow" : "noindex,follow",
-      alternates: localizedAlternatesForLocales(to, loaderData.readyLocales),
+      ...pageIndexation(to, loaderData.readyLocales, locale),
       image: {
         url: socialCardUrl(
           `/og/plugins/${locale}/${p.slug}/card.png`,

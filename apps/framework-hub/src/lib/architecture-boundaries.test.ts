@@ -357,6 +357,30 @@ describe("Framework Hub architecture boundaries", () => {
     expect(undeclaredRoutes).toEqual([]);
   });
 
+  it("derives a catalog page's robots and alternates from the page inventory", async () => {
+    // The page inventory answers which locales a page may be indexed in; the
+    // sitemap, the page head and the Markdown rendition all ask it. A detail
+    // route that spells its own robots directive has restated a publication
+    // rule, which is how the sitemap and the head could disagree.
+    const catalogPages = [
+      "routes/$locale/plugins/$slug.tsx",
+      "routes/$locale/categories/$slug.tsx",
+      "routes/$locale/publishers/$login.tsx",
+    ];
+    const files = new Map((await sourceFiles()).map((file) => [file.path, file.text]));
+    const routes = catalogPages.flatMap((path) => {
+      const text = files.get(path);
+      return text === undefined ? [] : [{ path, text }];
+    });
+    expect(routes).toHaveLength(catalogPages.length);
+    expect(
+      violations(
+        routes,
+        ({ text }) => !text.includes("pageIndexation(") || /(?:no)?index,follow/u.test(text),
+      ),
+    ).toEqual([]);
+  });
+
   it("keeps the human-verification write protocol in one module", async () => {
     // A verified write is a token, a challenge to remount, a key that survives
     // a retry, and a session check. The copies had drifted: only one kept its

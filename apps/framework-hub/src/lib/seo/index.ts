@@ -6,7 +6,13 @@
  * their identity, their copy, and their entities; they never assemble nodes.
  */
 
-export { buildPageHead, pageTitle, type PageHeadInput, type SchemaNode } from "./head";
+export {
+  buildPageHead,
+  pageIndexation,
+  pageTitle,
+  type PageHeadInput,
+  type SchemaNode,
+} from "./head";
 export {
   aboutPage,
   article,

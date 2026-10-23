@@ -2,7 +2,7 @@ import { ogLocale, otherLocale, type Locale } from "@/lib/i18n";
 
 import { schemaGraph } from "./schema";
 import type { Alternates } from "./urls";
-import { DEFAULT_SOCIAL_IMAGE, publicUrl } from "./urls";
+import { DEFAULT_SOCIAL_IMAGE, localizedAlternatesForLocales, publicUrl } from "./urls";
 
 export type SchemaNode = Readonly<Record<string, unknown>>;
 
@@ -31,6 +31,25 @@ export type PageHeadInput = {
   };
   readonly structuredData?: readonly SchemaNode[];
 };
+
+/**
+ * The head fields that follow from a page's indexable locales.
+ *
+ * A page is indexable in the locale exactly when the page inventory lists that
+ * locale, and a page only advertises alternates when every language they name
+ * is indexable. Keeping both in one function means a route cannot set the
+ * robots directive and the alternates from different answers.
+ */
+export function pageIndexation(
+  path: string,
+  indexableLocales: readonly Locale[],
+  locale: Locale,
+): { readonly robots: string; readonly alternates: false | Alternates } {
+  return {
+    robots: indexableLocales.includes(locale) ? "index,follow" : "noindex,follow",
+    alternates: localizedAlternatesForLocales(path, indexableLocales),
+  };
+}
 
 /** A page title in the site's convention: `<title> · <brand> · at most one separator`. */
 export function pageTitle(title: string, brand = "DSHX"): string {

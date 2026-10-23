@@ -2,15 +2,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireDatabase } from "@/lib/db/client";
-import { listIndexableSitemapLocales } from "@/lib/sitemap.repository.server";
+import { indexableLocalesFor } from "@/lib/public-pages.server";
 
 const sitemapResourceSchema = z.object({
   kind: z.enum(["plugin", "category", "publisher"]),
   value: z.string().min(1).max(160),
 });
 
-export const loadIndexableSitemapLocales = createServerFn({ method: "GET" })
+/** The locales in which a public page may be indexed, for its head and alternates. */
+export const loadIndexableLocales = createServerFn({ method: "GET" })
   .validator(sitemapResourceSchema)
   .handler(({ data, context }) =>
-    listIndexableSitemapLocales(requireDatabase(context), data.kind, data.value),
+    indexableLocalesFor(requireDatabase(context), { kind: data.kind, value: data.value }),
   );

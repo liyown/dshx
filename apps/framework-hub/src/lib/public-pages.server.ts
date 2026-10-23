@@ -6,12 +6,44 @@ import {
   OPERATION_REPORT_INDEX_MIN_CHARS,
 } from "@/lib/catalog/operation-report-view";
 import type { Database } from "@/lib/db/client";
-import type { SitemapDatabaseRow } from "@/lib/sitemap";
+import type { Locale } from "@/lib/i18n";
 
-function pluginRows(value?: string) {
+/**
+ * The public page inventory.
+ *
+ * Which pages the site offers, and in which locales search engines may index
+ * them, used to be answered in three places: the sitemap query, the page head
+ * of each detail route, and the Markdown rendition an agent reads. They agreed
+ * by inspection, not by construction, so a rule could hold on one surface and
+ * not on another — a URL in the sitemap whose own head says `noindex`, or a
+ * Markdown document for a page the catalog considers thin.
+ *
+ * This module is the one answer. The rules live in the queries below, in the
+ * same vocabulary the sitemap needs (a set-based listing), and the single-page
+ * questions are the same queries narrowed to one value. The sitemap, the page
+ * head and the agent document all ask this module; none of them restates a
+ * predicate.
+ */
+
+export type PublicPageKind =
+  "plugin" | "category" | "publisher" | "changelog" | "blog" | "operation-report";
+
+/** A page named the way the catalog names it, before a locale is chosen. */
+export type PublicPage = {
+  readonly kind: PublicPageKind;
+  readonly value: string;
+};
+
+/** A public page in one locale, with the last time its content changed. */
+export type IndexablePage = PublicPage & {
+  readonly locale: Locale;
+  readonly updatedAt: number | null;
+};
+
+function pluginPages(value?: string) {
   return sql`
     select 'plugin' as kind,l.locale as locale,p.slug as value,
-      max(p.updated_at,l.updated_at) as updated_at
+      max(p.updated_at,l.updated_at) as updatedAt
     from plugins p
     join plugin_localizations l on l.plugin_id=p.id
     where p.status='published'
@@ -30,9 +62,9 @@ function pluginRows(value?: string) {
   `;
 }
 
-function categoryRows(value?: string) {
+function categoryPages(value?: string) {
   return sql`
-    select 'category' as kind,cl.locale as locale,c.slug as value,c.updated_at as updated_at
+    select 'category' as kind,cl.locale as locale,c.slug as value,c.updated_at as updatedAt
     from categories c
     join category_localizations cl on cl.category_id=c.id
     where c.active=1
@@ -49,10 +81,10 @@ function categoryRows(value?: string) {
   `;
 }
 
-function publisherRows(value?: string) {
+function publisherPages(value?: string) {
   return sql`
     select 'publisher' as kind,pl.locale as locale,p.login as value,
-      max(p.updated_at,pl.updated_at) as updated_at
+      max(p.updated_at,pl.updated_at) as updatedAt
     from publishers p
     join publisher_localizations pl on pl.publisher_id=p.id
     where pl.status='ready'
@@ -68,9 +100,9 @@ function publisherRows(value?: string) {
   `;
 }
 
-function changelogRows(value?: string) {
+function changelogPages(value?: string) {
   return sql`
-    select 'changelog' as kind,l.locale as locale,c.slug as value,c.updated_at as updated_at
+    select 'changelog' as kind,l.locale as locale,c.slug as value,c.updated_at as updatedAt
     from changelog_entries c
     cross join (select 'en' as locale union all select 'zh' as locale) l
     where c.status='published' and c.published_at<=date('now')
@@ -78,9 +110,9 @@ function changelogRows(value?: string) {
   `;
 }
 
-function blogRows(value?: string) {
+function blogPages(value?: string) {
   return sql`
-    select 'blog' as kind,l.locale as locale,b.slug as value,b.updated_at as updated_at
+    select 'blog' as kind,l.locale as locale,b.slug as value,b.updated_at as updatedAt
     from blog_posts b
     cross join (select 'en' as locale union all select 'zh' as locale) l
     where b.status='published' and b.published_at<=date('now')
@@ -88,7 +120,7 @@ function blogRows(value?: string) {
   `;
 }
 
-function operationReportRows(value?: string) {
+function operationReportPages(value?: string) {
   // Mirror the public page: a cumulative report hides earlier same-day runs, so
   // only its own body decides indexability. Without the marker, the latest body
   // plus the most recent earlier bodies are visible, and their combined length
@@ -108,7 +140,7 @@ function operationReportRows(value?: string) {
     ),
     days as (
       select day,
-        max(completed_at) updated_at,
+        max(completed_at) updatedAt,
         max(case when rn=1 then body_en end) latest_en,
         max(case when rn=1 then body_zh end) latest_zh,
         sum(case when rn<=${OPERATION_REPORT_EARLIER_LIMIT + 1}
@@ -119,7 +151,7 @@ function operationReportRows(value?: string) {
       group by day
     )
     select 'operation-report' as kind,l.locale as locale,d.day as value,
-      d.updated_at as updated_at
+      d.updatedAt as updatedAt
     from days d
     cross join (select 'en' as locale union all select 'zh' as locale) l
     where (
@@ -140,7 +172,24 @@ function operationReportRows(value?: string) {
   `;
 }
 
-function compareRows(left: SitemapDatabaseRow, right: SitemapDatabaseRow) {
+function pagesOf(page: PublicPage) {
+  switch (page.kind) {
+    case "plugin":
+      return pluginPages(page.value);
+    case "category":
+      return categoryPages(page.value);
+    case "publisher":
+      return publisherPages(page.value);
+    case "changelog":
+      return changelogPages(page.value);
+    case "blog":
+      return blogPages(page.value);
+    case "operation-report":
+      return operationReportPages(page.value);
+  }
+}
+
+function comparePages(left: IndexablePage, right: IndexablePage) {
   for (const field of ["kind", "locale", "value"] as const) {
     if (left[field] < right[field]) return -1;
     if (left[field] > right[field]) return 1;
@@ -148,44 +197,38 @@ function compareRows(left: SitemapDatabaseRow, right: SitemapDatabaseRow) {
   return 0;
 }
 
-export async function listSitemapDatabaseRows(db: Database): Promise<SitemapDatabaseRow[]> {
-  // D1 rejects compound selects with too many terms, so report rows are read
+/** Every public page the site may be indexed for, in a stable order. */
+export async function listIndexablePages(db: Database): Promise<IndexablePage[]> {
+  // D1 rejects compound selects with too many terms, so report pages are read
   // separately and merged in the same kind/locale/value order.
   const [rows, reportRows] = await Promise.all([
-    db.all<SitemapDatabaseRow>(sql`
-      ${pluginRows()}
+    db.all<IndexablePage>(sql`
+      ${pluginPages()}
       union all
-      ${categoryRows()}
+      ${categoryPages()}
       union all
-      ${publisherRows()}
+      ${publisherPages()}
       union all
-      ${changelogRows()}
+      ${changelogPages()}
       union all
-      ${blogRows()}
+      ${blogPages()}
       order by kind,locale,value
     `),
-    db.all<SitemapDatabaseRow>(operationReportRows()),
+    db.all<IndexablePage>(operationReportPages()),
   ]);
-  return [...rows, ...reportRows].sort(compareRows);
+  return [...rows, ...reportRows].sort(comparePages);
 }
 
-export async function listIndexableSitemapLocales(
-  db: Database,
-  kind: SitemapDatabaseRow["kind"],
-  value: string,
-): Promise<Array<"en" | "zh">> {
-  const query =
-    kind === "changelog"
-      ? changelogRows(value)
-      : kind === "blog"
-        ? blogRows(value)
-        : kind === "operation-report"
-          ? operationReportRows(value)
-          : kind === "plugin"
-            ? pluginRows(value)
-            : kind === "category"
-              ? categoryRows(value)
-              : publisherRows(value);
-  const rows = await db.all<Pick<SitemapDatabaseRow, "locale">>(query);
+/** The locales in which this page is public and may be indexed. */
+export async function indexableLocalesFor(db: Database, page: PublicPage): Promise<Locale[]> {
+  const rows = await db.all<Pick<IndexablePage, "locale">>(pagesOf(page));
   return rows.map((row) => row.locale);
+}
+
+export async function isIndexable(
+  db: Database,
+  page: PublicPage,
+  locale: Locale,
+): Promise<boolean> {
+  return (await indexableLocalesFor(db, page)).includes(locale);
 }
