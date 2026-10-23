@@ -293,6 +293,18 @@ independently in D1; missing locale content may fall back for readers but is
 marked `noindex` and excluded from that locale's Sitemap and hreflang
 declarations.
 
+PAGE HEAD
+
+Every page's canonical URL, hreflang alternates, Open Graph and X metadata, and
+schema.org graph are assembled by `src/lib/seo`. A route supplies what it knows —
+its locale, its locale-relative path, its copy, and the entities the page is
+about — through `buildPageHead` and the named node builders (`collection`,
+`article`, `profilePage`, `pluginApplication`, `breadcrumbs`, …); it never writes
+`@type` or `@context` itself. The same vocabulary renders the HTML head and the
+markdown an agent receives, so both describe a page the same way.
+`architecture-boundaries.test.ts` fails the build when a schema literal appears
+outside that module.
+
 BRAND MOTIF — THE X
 
 Create a visual identity around the “X” in DSHX.

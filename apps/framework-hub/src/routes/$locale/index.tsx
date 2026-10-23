@@ -17,10 +17,17 @@ import { useHydratedReducedMotion } from "@/components/dshx/use-hydrated-reduced
 import { useSiteScrollMotion } from "@/components/dshx/use-site-scroll-motion";
 import { loadCatalog } from "@/lib/catalog/functions";
 import type { CatalogCard } from "@/lib/catalog/types";
-import { createTranslator, localizedPath, parseLocale, languageTag } from "@/lib/i18n";
+import { createTranslator, localizedPath, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { DSHX_VERSION, MARKETPLACE_REFERENCE_PLUGIN } from "@/lib/reference-plugin";
-import { buildSeoHead, localizedAlternates, socialCardUrl } from "@/lib/seo";
+import {
+  buildPageHead,
+  localizedAlternates,
+  organization,
+  socialCardUrl,
+  sourceCode,
+  website,
+} from "@/lib/seo";
 import { SOCIAL_CARD_REVISION } from "@/lib/social-card-data";
 
 export const Route = createFileRoute("/$locale/")({
@@ -31,7 +38,7 @@ export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
     const locale = parseLocale(params.locale);
     const t = createTranslator(locale);
-    return buildSeoHead({
+    return buildPageHead({
       locale,
       path: `/${locale}`,
       title: t("seo.title"),
@@ -50,37 +57,9 @@ export const Route = createFileRoute("/$locale/")({
         type: "image/png",
       },
       structuredData: [
-        {
-          "@id": "https://dshx.io/#website",
-          "@type": "WebSite",
-          name: "DSHX",
-          alternateName: ["DSHX Hub", "DeepSeek Harness Plugin Hub"],
-          url: "https://dshx.io",
-          inLanguage: languageTag(locale),
-          description: t("seo.description"),
-          publisher: { "@id": "https://dshx.io/#organization" },
-        },
-        {
-          "@id": "https://dshx.io/#organization",
-          "@type": "Organization",
-          name: "DSHX",
-          url: "https://dshx.io",
-          sameAs: [
-            "https://github.com/liyown/dshx",
-            "https://www.npmjs.com/package/@becomeopc/dshx",
-          ],
-        },
-        {
-          "@id": "https://dshx.io/#source",
-          "@type": "SoftwareSourceCode",
-          name: "DSHX",
-          description: t("seo.description"),
-          codeRepository: "https://github.com/liyown/dshx",
-          programmingLanguage: ["TypeScript", "JavaScript"],
-          license: "https://opensource.org/license/mit",
-          runtimePlatform: "DeepSeek Harness",
-          version: DSHX_VERSION,
-        },
+        website({ locale, description: t("seo.description") }),
+        organization(),
+        sourceCode({ description: t("seo.description"), version: DSHX_VERSION }),
       ],
     });
   },

@@ -90,6 +90,19 @@ describe("Framework Hub architecture boundaries", () => {
     ).toEqual([]);
   });
 
+  it("keeps every schema.org node and head assembly inside the page-head module", async () => {
+    const files = (await sourceFiles()).filter(({ path }) => !path.startsWith("lib/seo/"));
+    // A page says what it is; `lib/seo` says how that is rendered. When routes
+    // spelled out their own nodes, the same directory or article shape existed
+    // in thirteen places and a metadata rule could not change once.
+    expect(
+      violations(
+        files,
+        ({ text }) => /["']@type["']\s*:/.test(text) || /["']@context["']\s*:/.test(text),
+      ),
+    ).toEqual([]);
+  });
+
   it("keeps the install-target rule in the contracts package", async () => {
     const files = await sourceFiles();
     // Whether a spec is safe to hand to a shell is one decision. It lives in

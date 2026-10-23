@@ -5,13 +5,37 @@ import { PublicPageHeader } from "@/components/community/public-list";
 import { PluginCard } from "@/components/dshx/plugin-card";
 import { ButtonLink, Container } from "@/components/dshx/primitives";
 import { loadFeatured } from "@/lib/featured.functions";
-import { buildFeaturedHead } from "@/lib/featured-seo";
 import { createTranslator, parseLocale, type Translate } from "@/lib/i18n";
+import { breadcrumbs, buildPageHead, collection, localizedAlternates, pageTitle } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/$locale/featured")({
   loader: ({ params }) => loadFeatured({ data: { locale: parseLocale(params.locale) } }),
-  head: ({ params, loaderData }) => buildFeaturedHead(parseLocale(params.locale), loaderData ?? []),
+  head: ({ params, loaderData }) => {
+    const locale = parseLocale(params.locale);
+    const t = createTranslator(locale);
+    const plugins = (loaderData ?? []).flatMap((section) => section.plugins);
+    return buildPageHead({
+      locale,
+      path: `/${locale}/featured`,
+      title: pageTitle(t("featured.title")),
+      description: t("featured.description"),
+      alternates: localizedAlternates("/featured"),
+      structuredData: [
+        ...collection({
+          locale,
+          to: "/featured",
+          name: t("featured.title"),
+          description: t("featured.description"),
+          items: plugins.map((plugin) => ({
+            name: plugin.name,
+            to: `/plugins/${plugin.slug}`,
+          })),
+        }),
+        breadcrumbs(locale, [{ name: t("featured.title"), to: "/featured" }]),
+      ],
+    });
+  },
   component: FeaturedPage,
 });
 

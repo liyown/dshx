@@ -9,6 +9,7 @@ import type { DocsBlock } from "./docs";
 import { createTranslator, isLocale, type Locale } from "./i18n";
 import { aboutFacts, examples, isLegalDocument, legalDocuments } from "./public-content";
 import { buildPluginInstallCommand, selectInstallTarget } from "./catalog/install-target/public";
+import { article, collection, organization, pluginApplication, profilePage, website } from "./seo";
 import {
   estimateMarkdownTokens,
   renderAgentDocument,
@@ -86,10 +87,7 @@ function staticDocument(pathname: string, locale: Locale): AgentDocument | null 
         { label: "GitHub", url: "https://github.com/liyown/dshx" },
         { label: "npm", url: "https://www.npmjs.com/package/@becomeopc/dshx" },
       ],
-      structuredData: [
-        { "@id": `${SITE}/#website`, "@type": "WebSite", name: "DSHX", url: SITE },
-        { "@id": `${SITE}/#organization`, "@type": "Organization", name: "DSHX", url: SITE },
-      ],
+      structuredData: [website({ locale, description: t("seo.description") }), organization()],
     };
   }
   if (pathname === `/${locale}/docs`) {
@@ -129,7 +127,16 @@ function staticDocument(pathname: string, locale: Locale): AgentDocument | null 
       ],
       references: definition.references,
       structuredData: [
-        { "@type": "TechArticle", headline: chapter.title, dateModified: definition.lastVerified },
+        organization(),
+        article({
+          locale,
+          to: `/docs/${docsMatch[1]}`,
+          type: "TechArticle",
+          headline: chapter.title,
+          description: chapter.description,
+          modified: definition.lastVerified,
+          partOf: "/docs",
+        }),
       ],
     };
   }
@@ -238,7 +245,12 @@ async function dynamicDocument(
         },
       ],
       structuredData: [
-        { "@type": "CollectionPage", name: t("plugins.metaTitle"), numberOfItems: catalog.total },
+        ...collection({
+          locale,
+          to: "/plugins",
+          name: t("plugins.metaTitle"),
+          count: catalog.total,
+        }),
       ],
     };
   }
@@ -325,12 +337,17 @@ async function dynamicDocument(
           : []),
       ],
       structuredData: [
-        {
-          "@type": "SoftwareApplication",
+        pluginApplication({
+          locale,
+          to: `/plugins/${plugin.slug}`,
           name: plugin.name,
-          softwareVersion: plugin.version,
-          softwareRequirements: `DeepSeek Harness ${plugin.compat}`,
-        },
+          description: detail.seoDescription,
+          version: plugin.version,
+          compatibility: plugin.compat,
+          author: plugin.author,
+          sameAs: detail.repositoryUrl ? [detail.repositoryUrl] : [],
+          ...(detail.rating ? { rating: detail.rating } : {}),
+        }),
       ],
     };
   }
@@ -406,14 +423,16 @@ async function dynamicDocument(
         },
       ],
       structuredData: [
-        {
-          "@type": "ProfilePage",
+        ...profilePage({
+          locale,
+          to: `/publishers/${login}`,
           name,
-          mainEntity: {
-            "@type": publisher["kind"] === "organization" ? "Organization" : "Person",
+          description,
+          entity: {
+            type: publisher["kind"] === "organization" ? "Organization" : "Person",
             name,
           },
-        },
+        }),
       ],
     };
   }

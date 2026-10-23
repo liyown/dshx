@@ -8,8 +8,15 @@ import {
 import { PublisherFollowButton } from "@/components/community/community-dialogs";
 import { Container, SectionLabel } from "@/components/dshx/primitives";
 import { loadPublicPublisher } from "@/lib/community/functions";
-import { createTranslator, languageTag, parseLocale } from "@/lib/i18n";
-import { breadcrumbList, buildSeoHead, localizedAlternatesForLocales, publicUrl } from "@/lib/seo";
+import { createTranslator, parseLocale } from "@/lib/i18n";
+import {
+  breadcrumbs,
+  buildPageHead,
+  localePath,
+  localizedAlternatesForLocales,
+  pageTitle,
+  profilePage,
+} from "@/lib/seo";
 import { loadIndexableSitemapLocales } from "@/lib/sitemap.functions";
 
 export const Route = createFileRoute("/$locale/publishers/$login")({
@@ -42,38 +49,29 @@ export const Route = createFileRoute("/$locale/publishers/$login")({
     const description =
       publisher?.seo_description ?? publisher?.localized_bio ?? t("document.publisherDescription");
     const login = publisher?.login ?? params.login;
-    const path = `/${locale}/publishers/${login}`;
+    const to = `/publishers/${login}`;
     const indexableLocales = loaderData?.indexableLocales ?? [];
-    const entityType = publisher?.kind === "organization" ? "Organization" : "Person";
-    return buildSeoHead({
+    return buildPageHead({
       locale,
-      path,
-      title: `${title} · DSHX Hub`,
+      path: localePath(locale, to),
+      title: pageTitle(title, "DSHX Hub"),
       description,
       robots: indexableLocales.includes(locale) ? "index,follow" : "noindex,follow",
-      alternates: localizedAlternatesForLocales(`/publishers/${login}`, indexableLocales),
+      alternates: localizedAlternatesForLocales(to, indexableLocales),
       structuredData: [
-        {
-          "@id": `${publicUrl(path)}#profile`,
-          "@type": "ProfilePage",
+        ...profilePage({
+          locale,
+          to,
           name: title,
           description,
-          url: publicUrl(path),
-          inLanguage: languageTag(locale),
-          mainEntity: { "@id": `${publicUrl(path)}#publisher` },
-        },
-        {
-          "@id": `${publicUrl(path)}#publisher`,
-          "@type": entityType,
-          name: publisher?.localized_name ?? login,
-          description: publisher?.localized_bio ?? description,
-          url: publicUrl(path),
-          ...(publisher?.avatar_url ? { image: publisher.avatar_url } : {}),
-        },
-        breadcrumbList([
-          { name: "DSHX", path: `/${locale}` },
-          { name: publisher?.localized_name ?? login, path },
-        ]),
+          entity: {
+            type: publisher?.kind === "organization" ? "Organization" : "Person",
+            name: publisher?.localized_name ?? login,
+            description: publisher?.localized_bio ?? description,
+            ...(publisher?.avatar_url ? { image: publisher.avatar_url } : {}),
+          },
+        }),
+        breadcrumbs(locale, [{ name: publisher?.localized_name ?? login, to }]),
       ],
     });
   },

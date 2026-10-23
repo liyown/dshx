@@ -8,14 +8,23 @@ import {
   loadOperationReportDayForRun,
   loadPublicOperationReportDay,
 } from "@/lib/catalog/operation-report-functions";
-import { buildOperationReportHead } from "@/lib/catalog/operation-report-seo";
 import {
   formatOperationReportDate,
   formatOperationReportDayKey,
+  isOperationReportIndexable,
+  operationReportDescription,
 } from "@/lib/catalog/operation-report-view";
 import { createTranslator, parseLocale, type MessageKey } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
-import { buildSeoHead } from "@/lib/seo";
+import {
+  article,
+  breadcrumbs,
+  buildPageHead,
+  localePath,
+  localizedAlternates,
+  organization,
+  pageTitle,
+} from "@/lib/seo";
 import {
   operationReportDaySchema,
   operationReportRunIdSchema,
@@ -42,14 +51,48 @@ export const Route = createFileRoute("/$locale/operations/$reportKey")({
   },
   head: ({ params, loaderData }) => {
     const locale = parseLocale(params.locale);
-    if (loaderData) return buildOperationReportHead(locale, loaderData);
-    return buildSeoHead({
+    const t = createTranslator(locale);
+    if (!loaderData) {
+      return buildPageHead({
+        locale,
+        path: `/${locale}/operations/${encodeURIComponent(params.reportKey)}`,
+        title: pageTitle(t("operations.notFound")),
+        description: t("operations.notFoundDescription"),
+        robots: "noindex,follow",
+        image: false,
+      });
+    }
+    const report = loaderData;
+    const body = [report.body, ...report.earlier.map((run) => run.body)].join("\n\n");
+    const to = `/operations/${report.day}`;
+    const date = formatOperationReportDayKey(report.day, locale);
+    const title = t("operations.reportTitle", { date });
+    const description = operationReportDescription(body);
+    return buildPageHead({
       locale,
-      path: `/${locale}/operations/${encodeURIComponent(params.reportKey)}`,
-      title: `${createTranslator(locale)("operations.notFound")} · DSHX`,
-      description: createTranslator(locale)("operations.notFoundDescription"),
-      robots: "noindex,follow",
-      image: false,
+      path: localePath(locale, to),
+      title: pageTitle(title),
+      description,
+      type: "article",
+      robots: isOperationReportIndexable(body) ? "index,follow" : "noindex,follow",
+      alternates: localizedAlternates(to),
+      structuredData: [
+        organization(),
+        article({
+          locale,
+          to,
+          type: "Article",
+          headline: title,
+          description,
+          published: report.startedAt,
+          modified: report.completedAt,
+          partOf: "/operations",
+        }),
+        breadcrumbs(locale, [
+          { name: t("operations.title"), to: "/operations" },
+          { name: title, to },
+        ]),
+      ],
     });
   },
   component: OperationReportPage,

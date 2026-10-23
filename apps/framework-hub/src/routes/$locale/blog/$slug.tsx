@@ -5,11 +5,19 @@ import { PluginCard } from "@/components/dshx/plugin-card";
 import { Container } from "@/components/dshx/primitives";
 import type { BlogBlock } from "@/lib/blog.contracts";
 import { blogSlugSchema } from "@/lib/blog.contracts";
-import { buildBlogArticleHead } from "@/lib/blog-seo";
 import { loadBlogDetail } from "@/lib/blog.functions";
 import { createTranslator, formatDate, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
-import { buildSeoHead } from "@/lib/seo";
+import {
+  article,
+  breadcrumbs,
+  buildPageHead,
+  DEFAULT_SOCIAL_IMAGE,
+  localePath,
+  localizedAlternates,
+  organization,
+  pageTitle,
+} from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/blog/$slug")({
   loader: async ({ params }) => {
@@ -24,14 +32,48 @@ export const Route = createFileRoute("/$locale/blog/$slug")({
     const locale = parseLocale(params.locale);
     const t = createTranslator(locale);
     const post = loaderData?.post;
-    if (post) return buildBlogArticleHead(locale, post);
-    return buildSeoHead({
+    if (!post) {
+      return buildPageHead({
+        locale,
+        path: `/${locale}/blog/${encodeURIComponent(params.slug)}`,
+        title: pageTitle(t("blog.notFound")),
+        description: t("blog.notFoundDescription"),
+        robots: "noindex,follow",
+        image: false,
+      });
+    }
+    const copy = post.copy[locale];
+    const to = `/blog/${post.slug}`;
+    const modified = post.updatedAt;
+    return buildPageHead({
       locale,
-      path: `/${locale}/blog/${encodeURIComponent(params.slug)}`,
-      title: `${t("blog.notFound")} · DSHX`,
-      description: t("blog.notFoundDescription"),
-      robots: "noindex,follow",
-      image: false,
+      path: localePath(locale, to),
+      title: pageTitle(copy.title),
+      description: copy.description,
+      type: "article",
+      alternates: localizedAlternates(to),
+      image: post.coverImageUrl
+        ? { url: post.coverImageUrl, alt: copy.title }
+        : { url: DEFAULT_SOCIAL_IMAGE, alt: copy.title, width: 1672, height: 941 },
+      article: { published: post.publishedAt, modified, section: t("blog.title") },
+      structuredData: [
+        organization(),
+        article({
+          locale,
+          to,
+          type: "BlogPosting",
+          headline: copy.title,
+          description: copy.description,
+          published: post.publishedAt,
+          modified,
+          image: [post.coverImageUrl ?? DEFAULT_SOCIAL_IMAGE],
+          partOf: "/blog",
+        }),
+        breadcrumbs(locale, [
+          { name: t("blog.title"), to: "/blog" },
+          { name: copy.title, to },
+        ]),
+      ],
     });
   },
   component: BlogArticlePage,

@@ -5,10 +5,18 @@ import { MarkdownText } from "@/components/dshx/markdown-report";
 import { Chip, Container } from "@/components/dshx/primitives";
 import { loadChangelogDetail } from "@/lib/changelog.functions";
 import { changelogSlugSchema } from "@/lib/changelog.contracts";
-import { buildChangelogArticleHead } from "@/lib/changelog-seo";
 import { createTranslator, formatDate, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
-import { buildSeoHead } from "@/lib/seo";
+import {
+  article,
+  breadcrumbs,
+  buildPageHead,
+  DEFAULT_SOCIAL_IMAGE,
+  localePath,
+  localizedAlternates,
+  organization,
+  pageTitle,
+} from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/changelog/$slug")({
   loader: async ({ params }) => {
@@ -23,14 +31,45 @@ export const Route = createFileRoute("/$locale/changelog/$slug")({
     const locale = parseLocale(params.locale);
     const t = createTranslator(locale);
     const entry = loaderData?.entry;
-    if (entry) return buildChangelogArticleHead(locale, entry);
-    return buildSeoHead({
+    if (!entry) {
+      return buildPageHead({
+        locale,
+        path: `/${locale}/changelog/${encodeURIComponent(params.slug)}`,
+        title: pageTitle(t("changelog.notFound")),
+        description: t("changelog.notFoundDescription"),
+        robots: "noindex,follow",
+        image: false,
+      });
+    }
+    const copy = entry.copy[locale];
+    const to = `/changelog/${entry.slug}`;
+    const modified = entry.updatedAt ?? entry.publishedAt;
+    return buildPageHead({
       locale,
-      path: `/${locale}/changelog/${encodeURIComponent(params.slug)}`,
-      title: `${t("changelog.notFound")} · DSHX`,
-      description: t("changelog.notFoundDescription"),
-      robots: "noindex,follow",
-      image: false,
+      path: localePath(locale, to),
+      title: pageTitle(`${copy.title} · ${entry.product} ${entry.version}`),
+      description: copy.description,
+      type: "article",
+      alternates: localizedAlternates(to),
+      article: { published: entry.publishedAt, modified, section: t("changelog.title") },
+      structuredData: [
+        organization(),
+        article({
+          locale,
+          to,
+          type: "BlogPosting",
+          headline: copy.title,
+          description: copy.description,
+          published: entry.publishedAt,
+          modified,
+          image: [DEFAULT_SOCIAL_IMAGE],
+          partOf: "/changelog",
+        }),
+        breadcrumbs(locale, [
+          { name: t("changelog.title"), to: "/changelog" },
+          { name: copy.title, to },
+        ]),
+      ],
     });
   },
   component: ChangelogArticlePage,

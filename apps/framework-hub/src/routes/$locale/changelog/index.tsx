@@ -4,13 +4,37 @@ import { ArrowUpRight } from "lucide-react";
 import { PublicPageHeader } from "@/components/community/public-list";
 import { Chip, Container } from "@/components/dshx/primitives";
 import { loadChangelog } from "@/lib/changelog.functions";
-import { buildChangelogListHead } from "@/lib/changelog-seo";
 import { createTranslator, formatDate, parseLocale } from "@/lib/i18n";
+import { breadcrumbs, buildPageHead, collection, localizedAlternates, pageTitle } from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/changelog/")({
   loader: () => loadChangelog(),
-  head: ({ params, loaderData }) =>
-    buildChangelogListHead(parseLocale(params.locale), loaderData ?? []),
+  head: ({ params, loaderData }) => {
+    const locale = parseLocale(params.locale);
+    const t = createTranslator(locale);
+    const entries = loaderData ?? [];
+    return buildPageHead({
+      locale,
+      path: `/${locale}/changelog`,
+      title: pageTitle(t("changelog.title")),
+      description: t("changelog.description"),
+      alternates: localizedAlternates("/changelog"),
+      structuredData: [
+        ...collection({
+          locale,
+          to: "/changelog",
+          name: t("changelog.title"),
+          description: t("changelog.description"),
+          order: "descending",
+          items: entries.map((entry) => ({
+            name: entry.copy[locale].title,
+            to: `/changelog/${entry.slug}`,
+          })),
+        }),
+        breadcrumbs(locale, [{ name: t("changelog.title"), to: "/changelog" }]),
+      ],
+    });
+  },
   component: ChangelogPage,
 });
 

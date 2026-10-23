@@ -2,45 +2,37 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { PublicPageHeader } from "@/components/community/public-list";
 import { Container, SectionLabel } from "@/components/dshx/primitives";
-import { createTranslator, languageTag, parseLocale } from "@/lib/i18n";
+import { createTranslator, parseLocale } from "@/lib/i18n";
 import { aboutFacts } from "@/lib/public-content";
-import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
+import {
+  aboutPage,
+  breadcrumbs,
+  buildPageHead,
+  localizedAlternates,
+  organization,
+  pageTitle,
+} from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/about")({
   head: ({ params }) => {
     const locale = parseLocale(params.locale);
     const t = createTranslator(locale);
     const path = `/${locale}/about`;
-    return buildSeoHead({
+    return buildPageHead({
       locale,
       path,
-      title: `${t("about.title")} · DSHX`,
+      title: pageTitle(t("about.title")),
       description: t("about.description"),
       alternates: localizedAlternates("/about"),
       structuredData: [
-        {
-          "@id": "https://dshx.io/#organization",
-          "@type": "Organization",
-          name: "DSHX",
-          url: "https://dshx.io",
-          sameAs: [
-            "https://github.com/liyown/dshx",
-            "https://www.npmjs.com/package/@becomeopc/dshx",
-          ],
-        },
-        {
-          "@id": `https://dshx.io${path}#page`,
-          "@type": "AboutPage",
+        organization(),
+        aboutPage({
+          locale,
+          to: "/about",
           name: t("about.title"),
           description: t("about.description"),
-          url: `https://dshx.io${path}`,
-          inLanguage: languageTag(locale),
-          about: { "@id": "https://dshx.io/#organization" },
-        },
-        breadcrumbList([
-          { name: "DSHX", path: `/${locale}` },
-          { name: t("about.title"), path },
-        ]),
+        }),
+        breadcrumbs(locale, [{ name: t("about.title"), to: "/about" }]),
       ],
     });
   },

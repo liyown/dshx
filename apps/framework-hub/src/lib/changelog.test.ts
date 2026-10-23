@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { changelogInput, changelogSummary } from "@/test/changelog";
+import { changelogInput } from "@/test/changelog";
 import { formatDate } from "@/lib/i18n";
 import { createChangelogSchema, updateChangelogSchema } from "./changelog.contracts";
-import { buildChangelogArticleHead, buildChangelogListHead } from "./changelog-seo";
 
-describe("database changelog contracts and SEO", () => {
+describe("database changelog contracts", () => {
   it("requires complete translations, safe links, and unique section anchors", () => {
     const input = changelogInput();
     expect(createChangelogSchema.safeParse({ ...input, slug: "../entry" }).success).toBe(false);
@@ -38,44 +37,5 @@ describe("database changelog contracts and SEO", () => {
   it("formats release dates without shifting calendar days", () => {
     expect(formatDate("2026-09-05", "en", "long")).toBe("September 5, 2026");
     expect(formatDate("2026-09-05", "zh", "long")).toBe("2026年9月5日");
-  });
-  it.each(["en", "zh"] as const)(
-    "builds %s metadata from the supplied database records",
-    (locale) => {
-      const entry = changelogSummary();
-      const head = buildChangelogArticleHead(locale, entry);
-      const canonical = `https://dshx.io/${locale}/changelog/${entry.slug}`;
-      expect(head.links).toContainEqual({ rel: "canonical", href: canonical });
-      expect(head.links.filter((link) => link["rel"] === "alternate")).toHaveLength(3);
-      expect(head.meta).toContainEqual({
-        name: "description",
-        content: entry.copy[locale].description,
-      });
-      const graph = JSON.parse(head.scripts[0]!.children)["@graph"];
-      expect(
-        graph.find((node: Record<string, unknown>) => node["@type"] === "BlogPosting"),
-      ).toMatchObject({
-        headline: entry.copy[locale].title,
-        mainEntityOfPage: canonical,
-        datePublished: entry.publishedAt,
-        dateModified: entry.updatedAt,
-      });
-      const list = buildChangelogListHead(locale, [entry]);
-      expect(
-        JSON.parse(list.scripts[0]!.children)["@graph"][0].mainEntity.itemListElement[0].url,
-      ).toBe(canonical);
-      expect(
-        JSON.parse(buildChangelogListHead(locale, []).scripts[0]!.children)["@graph"][0].mainEntity
-          .numberOfItems,
-      ).toBe(0);
-    },
-  );
-  it("keeps database text from breaking out of JSON-LD scripts", () => {
-    const entry = changelogSummary();
-    const title = '</script><script>alert("untrusted")</script>';
-    const changed = { ...entry, copy: { ...entry.copy, en: { ...entry.copy.en, title } } };
-    const head = buildChangelogArticleHead("en", changed);
-    expect(head.scripts[0]!.children).not.toContain("</script>");
-    expect(JSON.parse(head.scripts[0]!.children)["@graph"][1].headline).toBe(title);
   });
 });

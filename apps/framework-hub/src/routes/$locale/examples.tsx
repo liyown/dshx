@@ -3,7 +3,7 @@ import { Container, SectionLabel, Chip } from "@/components/dshx/primitives";
 import { CodeSurface, Code } from "@/components/dshx/code";
 import { createTranslator, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
-import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
+import { breadcrumbs, buildPageHead, localizedAlternates } from "@/lib/seo";
 import { examples } from "@/lib/public-content";
 
 export const Route = createFileRoute("/$locale/examples")({
@@ -12,18 +12,13 @@ export const Route = createFileRoute("/$locale/examples")({
     const t = createTranslator(locale);
     const title = t("examples.title") + " — DSHX";
     const description = t("examples.seoDescription");
-    return buildSeoHead({
+    return buildPageHead({
       locale,
       path: `/${locale}/examples`,
       title,
       description,
       alternates: localizedAlternates("/examples"),
-      structuredData: [
-        breadcrumbList([
-          { name: "DSHX", path: `/${locale}` },
-          { name: t("examples.title"), path: `/${locale}/examples` },
-        ]),
-      ],
+      structuredData: [breadcrumbs(locale, [{ name: t("examples.title"), to: "/examples" }])],
     });
   },
   component: Examples,

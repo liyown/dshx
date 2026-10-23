@@ -21,9 +21,11 @@ import { createTranslator, localizedPath, parseLocale, intlLocale } from "@/lib/
 import type { Translate } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import {
-  breadcrumbList,
-  buildSeoHead,
+  breadcrumbs,
+  buildPageHead,
+  localePath,
   localizedAlternatesForLocales,
+  pluginApplication,
   socialCardUrl,
 } from "@/lib/seo";
 import { apiKeys, apiRequest } from "@/lib/api-client";
@@ -61,42 +63,17 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
       loaderData.repositoryUrl,
     );
     const locale = parseLocale(params.locale);
-    const path = `/${locale}/plugins/${p.slug}`;
-    const canonical = `https://dshx.io${path}`;
+    const to = `/plugins/${p.slug}`;
     const sameAs = [loaderData.repositoryUrl];
     if (primaryTarget?.kind === "npm")
       sameAs.push(`https://www.npmjs.com/package/${primaryTarget.package_name}`);
-    const title = loaderData.seoTitle;
-    const software = {
-      "@id": `${canonical}#software`,
-      "@type": "SoftwareApplication",
-      name: p.name,
-      description: loaderData.seoDescription,
-      url: canonical,
-      applicationCategory: "DeveloperApplication",
-      softwareVersion: p.version,
-      softwareRequirements: `DeepSeek Harness ${p.compat}`,
-      operatingSystem: "Cross-platform",
-      author: { "@type": "Person", name: p.author },
-      isPartOf: { "@id": `https://dshx.io/${locale}/plugins#directory` },
-      sameAs: sameAs.filter((value): value is string => Boolean(value)),
-      ...(loaderData.rating && loaderData.rating.count >= 2
-        ? {
-            aggregateRating: {
-              "@type": "AggregateRating",
-              ratingValue: loaderData.rating.average,
-              ratingCount: loaderData.rating.count,
-            },
-          }
-        : {}),
-    };
-    return buildSeoHead({
+    return buildPageHead({
       locale,
-      path,
-      title,
+      path: localePath(locale, to),
+      title: loaderData.seoTitle,
       description: loaderData.seoDescription,
       robots: loaderData.indexable ? "index,follow" : "noindex,follow",
-      alternates: localizedAlternatesForLocales(`/plugins/${p.slug}`, loaderData.readyLocales),
+      alternates: localizedAlternatesForLocales(to, loaderData.readyLocales),
       image: {
         url: socialCardUrl(
           `/og/plugins/${locale}/${p.slug}/card.png`,
@@ -111,11 +88,20 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
         type: "image/png",
       },
       structuredData: [
-        software,
-        breadcrumbList([
-          { name: "DSHX", path: `/${locale}` },
-          { name: t("nav.plugins"), path: `/${locale}/plugins` },
-          { name: p.name, path },
+        pluginApplication({
+          locale,
+          to,
+          name: p.name,
+          description: loaderData.seoDescription,
+          version: p.version,
+          compatibility: p.compat,
+          author: p.author,
+          sameAs: sameAs.filter((value): value is string => Boolean(value)),
+          ...(loaderData.rating ? { rating: loaderData.rating } : {}),
+        }),
+        breadcrumbs(locale, [
+          { name: t("nav.plugins"), to: "/plugins" },
+          { name: p.name, to },
         ]),
       ],
     });

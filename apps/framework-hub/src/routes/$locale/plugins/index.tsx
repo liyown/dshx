@@ -9,9 +9,16 @@ import { useSpringIndicator } from "@/components/dshx/use-spring-indicator";
 import { PluginSubmissionDialog } from "@/components/community/plugin-submission-dialog";
 import { catalogSortValues, type PluginListQuery } from "@/lib/catalog/contracts";
 import { loadCatalog } from "@/lib/catalog/functions";
-import { createTranslator, parseLocale, languageTag } from "@/lib/i18n";
+import { createTranslator, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
-import { breadcrumbList, buildSeoHead, localizedAlternates, publicUrl } from "@/lib/seo";
+import {
+  breadcrumbs,
+  buildPageHead,
+  collection,
+  faqPage,
+  localizedAlternates,
+  WEBSITE_ID,
+} from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
 type CatalogSort = PluginListQuery["sort"];
@@ -72,7 +79,7 @@ export const Route = createFileRoute("/$locale/plugins/")({
     const hasIndexVariant = Object.values(match.search).some(
       (value) => Boolean(value) && value !== "featured",
     );
-    return buildSeoHead({
+    return buildPageHead({
       locale,
       path: `/${params.locale}/plugins`,
       title: t("plugins.metaTitle"),
@@ -80,42 +87,27 @@ export const Route = createFileRoute("/$locale/plugins/")({
       robots: hasIndexVariant ? "noindex,follow" : "index,follow",
       alternates: localizedAlternates("/plugins"),
       structuredData: [
-        {
-          "@id": `https://dshx.io/${params.locale}/plugins#directory`,
-          "@type": "CollectionPage",
+        ...collection({
+          locale,
+          to: "/plugins",
           name: t("plugins.metaTitle"),
           description: t("plugins.intro"),
-          url: `https://dshx.io/${params.locale}/plugins`,
-          inLanguage: languageTag(locale),
-          isPartOf: { "@id": "https://dshx.io/#website" },
-          mainEntity: { "@id": `https://dshx.io/${params.locale}/plugins#items` },
-        },
-        {
-          "@id": `https://dshx.io/${params.locale}/plugins#items`,
-          "@type": "ItemList",
-          numberOfItems: loaderData?.total ?? 0,
-          itemListElement: (loaderData?.items ?? []).map((plugin, index) => ({
-            "@type": "ListItem",
-            position: index + 1,
+          items: (loaderData?.items ?? []).map((plugin) => ({
             name: plugin.name,
-            url: publicUrl(`/${params.locale}/plugins/${plugin.slug}`),
+            to: `/plugins/${plugin.slug}`,
           })),
-        },
-        breadcrumbList([
-          { name: "DSHX", path: `/${params.locale}` },
-          { name: t("plugins.title"), path: `/${params.locale}/plugins` },
-        ]),
-        {
-          "@id": `https://dshx.io/${params.locale}/plugins#faq`,
-          "@type": "FAQPage",
-          inLanguage: languageTag(locale),
-          isPartOf: { "@id": `https://dshx.io/${params.locale}/plugins#directory` },
-          mainEntity: marketplaceFaq.map((item) => ({
-            "@type": "Question",
-            name: t(item.question),
-            acceptedAnswer: { "@type": "Answer", text: t(item.answer) },
+          count: loaderData?.total ?? 0,
+          partOf: WEBSITE_ID,
+        }),
+        breadcrumbs(locale, [{ name: t("plugins.title"), to: "/plugins" }]),
+        faqPage({
+          locale,
+          to: "/plugins",
+          entries: marketplaceFaq.map((item) => ({
+            question: t(item.question),
+            answer: t(item.answer),
           })),
-        },
+        }),
       ],
     });
   },

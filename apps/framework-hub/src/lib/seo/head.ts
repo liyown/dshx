@@ -1,23 +1,18 @@
 import { ogLocale, otherLocale, type Locale } from "@/lib/i18n";
 
-export const PUBLIC_SITE_URL = "https://dshx.io";
-export const DEFAULT_SOCIAL_IMAGE = `${PUBLIC_SITE_URL}/dshx-runtime-reference.png`;
+import { schemaGraph } from "./schema";
+import type { Alternates } from "./urls";
+import { DEFAULT_SOCIAL_IMAGE, publicUrl } from "./urls";
 
-type StructuredDataNode = Readonly<Record<string, unknown>>;
+export type SchemaNode = Readonly<Record<string, unknown>>;
 
-export type SeoDocument = {
+export type PageHeadInput = {
   readonly locale: Locale;
   readonly path: string;
   readonly title: string;
   readonly description: string;
   readonly robots?: string;
-  readonly alternates?:
-    | false
-    | {
-        readonly en: string;
-        readonly zh: string;
-        readonly default?: string;
-      };
+  readonly alternates?: false | Alternates;
   readonly image?:
     | false
     | {
@@ -28,50 +23,26 @@ export type SeoDocument = {
         readonly type?: string;
       };
   readonly type?: "website" | "article";
-  readonly structuredData?: readonly StructuredDataNode[];
+  /** Open Graph article metadata, for pages of `type: "article"`. */
+  readonly article?: {
+    readonly published?: string;
+    readonly modified?: string;
+    readonly section?: string;
+  };
+  readonly structuredData?: readonly SchemaNode[];
 };
 
-export function normalizePublicPath(path: string): string {
-  const withoutQueryOrHash = path.split(/[?#]/, 1)[0] ?? "/";
-  const withLeadingSlash = withoutQueryOrHash.startsWith("/")
-    ? withoutQueryOrHash
-    : `/${withoutQueryOrHash}`;
-  if (withLeadingSlash === "/") return withLeadingSlash;
-  return withLeadingSlash.replace(/\/+$/, "");
+/** A page title in the site's convention: `<title> · <brand> · at most one separator`. */
+export function pageTitle(title: string, brand = "DSHX"): string {
+  return `${title} · ${brand}`;
 }
 
-export function publicUrl(path: string): string {
-  return `${PUBLIC_SITE_URL}${normalizePublicPath(path)}`;
-}
-
-export function socialCardUrl(path: string, ...revisionParts: readonly string[]): string {
-  let hash = 2_166_136_261;
-  for (const character of revisionParts.join("\u0000")) {
-    hash ^= character.codePointAt(0) ?? 0;
-    hash = Math.imul(hash, 16_777_619);
-  }
-  return `${publicUrl(path)}?v=${(hash >>> 0).toString(36)}`;
-}
-
-export function localizedAlternates(path: string): NonNullable<SeoDocument["alternates"]> {
-  const suffix = normalizePublicPath(path);
-  const localizedSuffix = suffix === "/" ? "" : suffix;
-  return {
-    en: `/en${localizedSuffix}`,
-    zh: `/zh${localizedSuffix}`,
-    default: `/en${localizedSuffix}`,
-  };
-}
-
-export function localizedAlternatesForLocales(
-  path: string,
-  locales: readonly Locale[],
-): NonNullable<SeoDocument["alternates"]> | false {
-  const ready = new Set(locales);
-  return ready.has("en") && ready.has("zh") ? localizedAlternates(path) : false;
-}
-
-export function buildSeoHead(document: SeoDocument) {
+/**
+ * Assembles a page's head: canonical link, reciprocal alternates, Open Graph and
+ * X metadata, and one schema.org graph. Callers supply the identity and the
+ * entities; this is the only place that knows how they are rendered.
+ */
+export function buildPageHead(document: PageHeadInput) {
   const canonical = publicUrl(document.path);
   const image =
     document.image === false
@@ -118,6 +89,15 @@ export function buildSeoHead(document: SeoDocument) {
       meta.push({ property: "og:image:height", content: String(image.height) });
   }
 
+  if (document.article) {
+    if (document.article.published)
+      meta.push({ property: "article:published_time", content: document.article.published });
+    if (document.article.modified)
+      meta.push({ property: "article:modified_time", content: document.article.modified });
+    if (document.article.section)
+      meta.push({ property: "article:section", content: document.article.section });
+  }
+
   const links: Array<Record<string, string>> = [{ rel: "canonical", href: canonical }];
   if (alternates) {
     links.push(
@@ -139,28 +119,12 @@ export function buildSeoHead(document: SeoDocument) {
         ? [
             {
               type: "application/ld+json",
-              children: JSON.stringify({
-                "@context": "https://schema.org",
-                "@graph": document.structuredData,
-              }).replaceAll("<", "\\u003c"),
+              children: JSON.stringify(schemaGraph(document.structuredData)).replaceAll(
+                "<",
+                "\\u003c",
+              ),
             },
           ]
         : [],
-  };
-}
-
-export function breadcrumbList(
-  items: readonly { readonly name: string; readonly path: string }[],
-): StructuredDataNode {
-  const pagePath = items[items.length - 1]?.path ?? "/";
-  return {
-    "@id": `${publicUrl(pagePath)}#breadcrumbs`,
-    "@type": "BreadcrumbList",
-    itemListElement: items.map((item, index) => ({
-      "@type": "ListItem",
-      position: index + 1,
-      name: item.name,
-      item: publicUrl(item.path),
-    })),
   };
 }

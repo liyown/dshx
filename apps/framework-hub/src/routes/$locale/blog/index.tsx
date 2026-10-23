@@ -3,13 +3,38 @@ import { ArrowUpRight } from "lucide-react";
 
 import { PublicPageHeader } from "@/components/community/public-list";
 import { Container } from "@/components/dshx/primitives";
-import { buildBlogListHead } from "@/lib/blog-seo";
 import { loadBlog } from "@/lib/blog.functions";
 import { createTranslator, formatDate, parseLocale } from "@/lib/i18n";
+import { breadcrumbs, buildPageHead, collection, localizedAlternates, pageTitle } from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/blog/")({
   loader: () => loadBlog(),
-  head: ({ params, loaderData }) => buildBlogListHead(parseLocale(params.locale), loaderData ?? []),
+  head: ({ params, loaderData }) => {
+    const locale = parseLocale(params.locale);
+    const t = createTranslator(locale);
+    const posts = loaderData ?? [];
+    return buildPageHead({
+      locale,
+      path: `/${locale}/blog`,
+      title: pageTitle(t("blog.title")),
+      description: t("blog.description"),
+      alternates: localizedAlternates("/blog"),
+      structuredData: [
+        ...collection({
+          locale,
+          to: "/blog",
+          name: t("blog.title"),
+          description: t("blog.description"),
+          order: "descending",
+          items: posts.map((post) => ({
+            name: post.copy[locale].title,
+            to: `/blog/${post.slug}`,
+          })),
+        }),
+        breadcrumbs(locale, [{ name: t("blog.title"), to: "/blog" }]),
+      ],
+    });
+  },
   component: BlogIndexPage,
 });
 

@@ -1,21 +1,28 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  breadcrumbList,
-  buildSeoHead,
+  buildPageHead,
+  localePath,
   localizedAlternates,
   localizedAlternatesForLocales,
   normalizePublicPath,
+  pageTitle,
   publicUrl,
   socialCardUrl,
-} from "./seo";
+} from "./index";
 
-describe("SEO document builder", () => {
+describe("public URLs", () => {
   it("normalizes canonical paths without changing the root", () => {
     expect(normalizePublicPath("/")).toBe("/");
     expect(normalizePublicPath("en/plugins/")).toBe("/en/plugins");
     expect(publicUrl("/zh/docs/")).toBe("https://dshx.io/zh/docs");
     expect(publicUrl("/en/plugins/?sort=stars#results")).toBe("https://dshx.io/en/plugins");
+  });
+
+  it("prefixes a locale-relative path with its locale exactly once", () => {
+    expect(localePath("en", "/")).toBe("/en");
+    expect(localePath("zh", "/plugins/example")).toBe("/zh/plugins/example");
+    expect(localePath("en", "/en/plugins")).toBe("/en/en/plugins");
   });
 
   it("only advertises reciprocal dynamic alternates when both locales are indexable", () => {
@@ -31,9 +38,16 @@ describe("SEO document builder", () => {
     expect(socialCardUrl("/og/home/en/card.png", "0.1.2", "Build plugins")).toBe(first);
     expect(socialCardUrl("/og/home/en/card.png", "0.1.2", "Changed copy")).not.toBe(first);
   });
+});
+
+describe("page head", () => {
+  it("builds a title in the site's convention", () => {
+    expect(pageTitle("Plugins")).toBe("Plugins · DSHX");
+    expect(pageTitle("Policy", "DSHX Hub")).toBe("Policy · DSHX Hub");
+  });
 
   it("emits one canonical and a complete reciprocal locale set", () => {
-    const head = buildSeoHead({
+    const head = buildPageHead({
       locale: "en",
       path: "/en/plugins",
       title: "Plugins",
@@ -53,7 +67,7 @@ describe("SEO document builder", () => {
   });
 
   it("wraps structured data in one schema graph", () => {
-    const head = buildSeoHead({
+    const head = buildPageHead({
       locale: "zh",
       path: "/zh",
       title: "DSHX",
@@ -66,8 +80,19 @@ describe("SEO document builder", () => {
     });
   });
 
+  it("escapes markup in the graph so a title can never close the script", () => {
+    const head = buildPageHead({
+      locale: "en",
+      path: "/en",
+      title: "DSHX",
+      description: "DSHX",
+      structuredData: [{ "@type": "Thing", name: "</script><script>" }],
+    });
+    expect(head.scripts[0]!.children).not.toContain("</script>");
+  });
+
   it("emits complete Open Graph and X image metadata", () => {
-    const head = buildSeoHead({
+    const head = buildPageHead({
       locale: "en",
       path: "/en",
       title: "DSHX",
@@ -90,12 +115,15 @@ describe("SEO document builder", () => {
     );
   });
 
-  it("gives breadcrumb graphs a stable page-scoped identifier", () => {
-    expect(
-      breadcrumbList([
-        { name: "DSHX", path: "/en" },
-        { name: "Docs", path: "/en/docs" },
-      ]),
-    ).toMatchObject({ "@id": "https://dshx.io/en/docs#breadcrumbs" });
+  it("marks a page without an image as a summary card", () => {
+    const head = buildPageHead({
+      locale: "en",
+      path: "/en/operations/unknown",
+      title: "Not found",
+      description: "Not found",
+      image: false,
+    });
+    expect(head.meta).toContainEqual({ name: "twitter:card", content: "summary" });
+    expect(head.meta.some((entry) => entry["property"] === "og:image")).toBe(false);
   });
 });

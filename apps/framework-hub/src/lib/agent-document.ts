@@ -1,4 +1,5 @@
 import { languageTag, type Locale } from "./i18n";
+import { schemaGraph } from "./seo";
 
 export type AgentDocumentBlock =
   | { readonly kind: "paragraph"; readonly text: string }
@@ -85,12 +86,7 @@ export function renderAgentDocument(document: AgentDocument): string {
     ? [
         [
           "## Structured data",
-          "```json\n" +
-            JSON.stringify({
-              "@context": "https://schema.org",
-              "@graph": document.structuredData,
-            }) +
-            "\n```",
+          "```json\n" + JSON.stringify(schemaGraph(document.structuredData)) + "\n```",
         ].join("\n\n"),
       ]
     : [];

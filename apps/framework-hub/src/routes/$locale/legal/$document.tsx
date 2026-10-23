@@ -1,9 +1,16 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { Container, SectionLabel } from "@/components/dshx/primitives";
-import { parseLocale, languageTag } from "@/lib/i18n";
+import { parseLocale } from "@/lib/i18n";
 import { isLegalDocument, legalDocuments } from "@/lib/public-content";
-import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
+import {
+  breadcrumbs,
+  buildPageHead,
+  localePath,
+  localizedAlternates,
+  pageTitle,
+  webPage,
+} from "@/lib/seo";
 
 const documents = legalDocuments;
 
@@ -16,26 +23,17 @@ export const Route = createFileRoute("/$locale/legal/$document")({
   head: ({ loaderData, params }) => {
     const locale = parseLocale(params.locale);
     const title = loaderData?.title ?? "Policy";
-    const path = `/${locale}/legal/${params.document}`;
-    return buildSeoHead({
+    const description = loaderData?.intro ?? "DSHX Hub policy";
+    const to = `/legal/${params.document}`;
+    return buildPageHead({
       locale,
-      path,
-      title: `${title} · DSHX Hub`,
-      description: loaderData?.intro ?? "DSHX Hub policy",
-      alternates: localizedAlternates(`/legal/${params.document}`),
+      path: localePath(locale, to),
+      title: pageTitle(title, "DSHX Hub"),
+      description,
+      alternates: localizedAlternates(to),
       structuredData: [
-        {
-          "@id": `https://dshx.io${path}#page`,
-          "@type": "WebPage",
-          name: title,
-          url: `https://dshx.io${path}`,
-          inLanguage: languageTag(locale),
-          dateModified: "2026-08-24",
-        },
-        breadcrumbList([
-          { name: "DSHX", path: `/${locale}` },
-          { name: title, path },
-        ]),
+        webPage({ locale, to, name: title, description, modified: "2026-08-24" }),
+        breadcrumbs(locale, [{ name: title, to }]),
       ],
     });
   },

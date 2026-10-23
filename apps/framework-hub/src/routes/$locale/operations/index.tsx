@@ -8,9 +8,9 @@ import {
   formatOperationReportDayKey,
   operationReportExcerpt,
 } from "@/lib/catalog/operation-report-view";
-import { createTranslator, parseLocale, languageTag } from "@/lib/i18n";
+import { createTranslator, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
-import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
+import { breadcrumbs, buildPageHead, collection, localizedAlternates } from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/operations/")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/$locale/operations/")({
   head: ({ params, match }) => {
     const locale = parseLocale(params.locale);
     const t = createTranslator(locale);
-    return buildSeoHead({
+    return buildPageHead({
       locale,
       path: `/${locale}/operations`,
       title: t("operations.metaTitle"),
@@ -37,18 +37,13 @@ export const Route = createFileRoute("/$locale/operations/")({
       robots: match.search.cursor ? "noindex,follow" : "index,follow",
       alternates: localizedAlternates("/operations"),
       structuredData: [
-        {
-          "@id": `https://dshx.io/${locale}/operations#collection`,
-          "@type": "CollectionPage",
+        ...collection({
+          locale,
+          to: "/operations",
           name: t("operations.metaTitle"),
           description: t("operations.intro"),
-          url: `https://dshx.io/${locale}/operations`,
-          inLanguage: languageTag(locale),
-        },
-        breadcrumbList([
-          { name: "DSHX", path: `/${locale}` },
-          { name: t("operations.title"), path: `/${locale}/operations` },
-        ]),
+        }),
+        breadcrumbs(locale, [{ name: t("operations.title"), to: "/operations" }]),
       ],
     });
   },

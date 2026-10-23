@@ -2,8 +2,15 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { DocsChapter } from "@/components/dshx/docs-content";
 import { getDocsChapter, isDocsSlug } from "@/lib/docs";
-import { createTranslator, languageTag, parseLocale } from "@/lib/i18n";
-import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
+import { createTranslator, parseLocale } from "@/lib/i18n";
+import {
+  article,
+  breadcrumbs,
+  buildPageHead,
+  localePath,
+  localizedAlternates,
+  organization,
+} from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/docs/$slug")({
   loader: ({ params }) => {
@@ -22,31 +29,29 @@ export const Route = createFileRoute("/$locale/docs/$slug")({
         : slug === "compatibility"
           ? t("docs.pageTitle.compatibility")
           : `${chapter.title} · DSHX docs`;
-    const path = `/${locale}/docs/${slug}`;
-    return buildSeoHead({
+    const to = `/docs/${slug}`;
+    return buildPageHead({
       locale,
-      path,
+      path: localePath(locale, to),
       title,
       description: chapter.description,
       type: "article",
-      alternates: localizedAlternates(`/docs/${slug}`),
+      alternates: localizedAlternates(to),
       structuredData: [
-        {
-          "@id": `https://dshx.io${path}#article`,
-          "@type": "TechArticle",
-          headline: title,
+        organization(),
+        article({
+          locale,
+          to,
+          type: "TechArticle",
+          headline: chapter.title,
           description: chapter.description,
-          url: `https://dshx.io${path}`,
-          inLanguage: languageTag(locale),
-          dateModified: definition.lastVerified,
-          author: { "@id": "https://dshx.io/#organization" },
-          publisher: { "@id": "https://dshx.io/#organization" },
+          modified: definition.lastVerified,
           citation: definition.references.map((reference) => reference.url),
-        },
-        breadcrumbList([
-          { name: "DSHX", path: `/${locale}` },
-          { name: t("nav.docs"), path: `/${locale}/docs` },
-          { name: chapter.title, path },
+          partOf: "/docs",
+        }),
+        breadcrumbs(locale, [
+          { name: t("nav.docs"), to: "/docs" },
+          { name: chapter.title, to },
         ]),
       ],
     });

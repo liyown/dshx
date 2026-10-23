@@ -3,8 +3,14 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { PluginCard } from "@/components/dshx/plugin-card";
 import { Container, SectionLabel } from "@/components/dshx/primitives";
 import { loadCatalog } from "@/lib/catalog/functions";
-import { createTranslator, languageTag, parseLocale } from "@/lib/i18n";
-import { breadcrumbList, buildSeoHead, localizedAlternatesForLocales, publicUrl } from "@/lib/seo";
+import { createTranslator, parseLocale } from "@/lib/i18n";
+import {
+  breadcrumbs,
+  buildPageHead,
+  collection,
+  localePath,
+  localizedAlternatesForLocales,
+} from "@/lib/seo";
 import { loadIndexableSitemapLocales } from "@/lib/sitemap.functions";
 
 export const Route = createFileRoute("/$locale/categories/$slug")({
@@ -31,41 +37,30 @@ export const Route = createFileRoute("/$locale/categories/$slug")({
     const locale = parseLocale(params.locale);
     const t = createTranslator(locale);
     const name = loaderData?.category.name ?? params.slug;
-    const path = `/${locale}/categories/${params.slug}`;
-    const items = loaderData?.items ?? [];
+    const to = `/categories/${params.slug}`;
+    const items = (loaderData?.items ?? []).map((plugin) => ({
+      name: plugin.name,
+      to: `/plugins/${plugin.slug}`,
+    }));
     const indexableLocales = loaderData?.indexableLocales ?? [];
-    return buildSeoHead({
+    return buildPageHead({
       locale,
-      path,
+      path: localePath(locale, to),
       title: t("catalog.categoryTitle", { name }),
       description: t("catalog.categoryMeta", { name }),
       robots: indexableLocales.includes(locale) ? "index,follow" : "noindex,follow",
-      alternates: localizedAlternatesForLocales(`/categories/${params.slug}`, indexableLocales),
+      alternates: localizedAlternatesForLocales(to, indexableLocales),
       structuredData: [
-        {
-          "@id": `${publicUrl(path)}#collection`,
-          "@type": "CollectionPage",
+        ...collection({
+          locale,
+          to,
           name,
           description: t("catalog.categoryMeta", { name }),
-          url: publicUrl(path),
-          inLanguage: languageTag(locale),
-          mainEntity: { "@id": `${publicUrl(path)}#items` },
-        },
-        {
-          "@id": `${publicUrl(path)}#items`,
-          "@type": "ItemList",
-          numberOfItems: items.length,
-          itemListElement: items.map((plugin, index) => ({
-            "@type": "ListItem",
-            position: index + 1,
-            name: plugin.name,
-            url: publicUrl(`/${locale}/plugins/${plugin.slug}`),
-          })),
-        },
-        breadcrumbList([
-          { name: "DSHX", path: `/${locale}` },
-          { name: t("nav.plugins"), path: `/${locale}/plugins` },
-          { name, path },
+          items,
+        }),
+        breadcrumbs(locale, [
+          { name: t("nav.plugins"), to: "/plugins" },
+          { name, to },
         ]),
       ],
     });
