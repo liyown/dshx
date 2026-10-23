@@ -3,7 +3,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { PluginCard } from "@/components/dshx/plugin-card";
 import { Container, SectionLabel } from "@/components/dshx/primitives";
 import { loadCatalog } from "@/lib/catalog/functions";
-import { parseLocale } from "@/lib/i18n";
+import { parseLocale, languageTag } from "@/lib/i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternatesForLocales, publicUrl } from "@/lib/seo";
 import { loadIndexableSitemapLocales } from "@/lib/sitemap.functions";
 
@@ -67,7 +67,7 @@ export const Route = createFileRoute("/$locale/categories/$slug")({
           name,
           description: copy.meta(name),
           url: publicUrl(path),
-          inLanguage: locale === "zh" ? "zh-CN" : "en",
+          inLanguage: languageTag(locale),
           mainEntity: { "@id": `${publicUrl(path)}#items` },
         },
         {

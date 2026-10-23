@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table";
 import { apiRequest } from "@/lib/api-client";
 import { hasAdminAccess } from "@/lib/auth/functions";
-import { formatBlogDate } from "@/lib/blog";
+import { formatDate } from "@/lib/i18n";
 
 const blogListSchema = z.object({
   items: z.array(
@@ -109,7 +109,7 @@ function BlogAdminPage() {
                     </span>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-[12px] text-muted-foreground">
-                    {formatBlogDate(post.publishedAt, "en")}
+                    {formatDate(post.publishedAt, "en", "long")}
                   </TableCell>
                   <TableCell className="font-mono text-[12px] text-muted-foreground">
                     {post.revision}

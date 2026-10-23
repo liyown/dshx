@@ -3,10 +3,10 @@ import { ArrowUpRight } from "lucide-react";
 
 import { PublicPageHeader } from "@/components/community/public-list";
 import { Chip, Container } from "@/components/dshx/primitives";
-import { changelogCopy, formatChangelogDate } from "@/lib/changelog";
+import { changelogCopy } from "@/lib/changelog";
 import { loadChangelog } from "@/lib/changelog.functions";
 import { buildChangelogListHead } from "@/lib/changelog-seo";
-import { parseLocale } from "@/lib/i18n";
+import { formatDate, parseLocale } from "@/lib/i18n";
 
 export const Route = createFileRoute("/$locale/changelog/")({
   loader: () => loadChangelog(),
@@ -42,7 +42,7 @@ function ChangelogPage() {
               <article className="grid gap-6 py-10 md:grid-cols-[180px_minmax(0,1fr)] md:gap-12 md:py-12">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-3 md:flex-col md:items-start">
                   <time dateTime={entry.publishedAt} className="text-[13px] text-muted-foreground">
-                    {formatChangelogDate(entry.publishedAt, locale)}
+                    {formatDate(entry.publishedAt, locale, "long")}
                   </time>
                   <span className="font-mono text-[12px]">v{entry.version}</span>
                   {index === 0 ? (

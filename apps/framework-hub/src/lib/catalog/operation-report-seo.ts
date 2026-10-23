@@ -1,5 +1,4 @@
-import type { Locale } from "@/lib/i18n";
-import { createTranslator } from "@/lib/i18n";
+import { createTranslator, languageTag, type Locale } from "@/lib/i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternates, publicUrl } from "@/lib/seo";
 
 import type { PublicOperationReportDay } from "./operation-report-detail.server";
@@ -43,7 +42,7 @@ export function buildOperationReportHead(locale: Locale, report: PublicOperation
         description,
         url: publicUrl(path),
         mainEntityOfPage: publicUrl(path),
-        inLanguage: locale === "zh" ? "zh-CN" : "en",
+        inLanguage: languageTag(locale),
         datePublished: report.startedAt,
         dateModified: report.completedAt,
         author: organization,

@@ -3,12 +3,12 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import { PluginCard } from "@/components/dshx/plugin-card";
 import { Container } from "@/components/dshx/primitives";
-import { blogCopy, formatBlogDate } from "@/lib/blog";
+import { blogCopy } from "@/lib/blog";
 import type { BlogBlock } from "@/lib/blog.contracts";
 import { blogSlugSchema } from "@/lib/blog.contracts";
 import { buildBlogArticleHead } from "@/lib/blog-seo";
 import { loadBlogDetail } from "@/lib/blog.functions";
-import { parseLocale } from "@/lib/i18n";
+import { formatDate, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { buildSeoHead } from "@/lib/seo";
 
@@ -157,7 +157,7 @@ function BlogArticlePage() {
                 <dt className="text-muted-foreground">{copy.published}</dt>
                 <dd className="mt-1.5">
                   <time dateTime={post.publishedAt}>
-                    {formatBlogDate(post.publishedAt, locale)}
+                    {formatDate(post.publishedAt, locale, "long")}
                   </time>
                 </dd>
               </div>
@@ -165,7 +165,9 @@ function BlogArticlePage() {
                 <div>
                   <dt className="text-muted-foreground">{copy.updated}</dt>
                   <dd className="mt-1.5">
-                    <time dateTime={post.updatedAt}>{formatBlogDate(post.updatedAt, locale)}</time>
+                    <time dateTime={post.updatedAt}>
+                      {formatDate(post.updatedAt, locale, "long")}
+                    </time>
                   </dd>
                 </div>
               ) : null}

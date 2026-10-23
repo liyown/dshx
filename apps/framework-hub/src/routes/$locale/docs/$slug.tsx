@@ -2,7 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { DocsChapter } from "@/components/dshx/docs-content";
 import { getDocsChapter, isDocsSlug } from "@/lib/docs";
-import { parseLocale } from "@/lib/i18n";
+import { parseLocale, languageTag } from "@/lib/i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
 
 export const Route = createFileRoute("/$locale/docs/$slug")({
@@ -40,7 +40,7 @@ export const Route = createFileRoute("/$locale/docs/$slug")({
           headline: title,
           description: chapter.description,
           url: `https://dshx.io${path}`,
-          inLanguage: locale === "zh" ? "zh-CN" : "en",
+          inLanguage: languageTag(locale),
           dateModified: definition.lastVerified,
           author: { "@id": "https://dshx.io/#organization" },
           publisher: { "@id": "https://dshx.io/#organization" },

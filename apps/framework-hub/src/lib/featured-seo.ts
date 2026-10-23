@@ -1,6 +1,6 @@
 import type { FeaturedSection } from "@/lib/featured.repository.server";
 import { featuredCopy } from "@/lib/featured";
-import type { Locale } from "@/lib/i18n";
+import { languageTag, type Locale } from "@/lib/i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternates, publicUrl } from "@/lib/seo";
 
 export function buildFeaturedHead(locale: Locale, sections: readonly FeaturedSection[]) {
@@ -20,7 +20,7 @@ export function buildFeaturedHead(locale: Locale, sections: readonly FeaturedSec
         name: copy.title,
         description: copy.description,
         url: publicUrl(path),
-        inLanguage: locale === "zh" ? "zh-CN" : "en",
+        inLanguage: languageTag(locale),
         mainEntity: {
           "@type": "ItemList",
           numberOfItems: plugins.length,

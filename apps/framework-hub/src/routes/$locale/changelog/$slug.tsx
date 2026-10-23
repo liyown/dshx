@@ -3,11 +3,11 @@ import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
 
 import { MarkdownText } from "@/components/dshx/markdown-report";
 import { Chip, Container } from "@/components/dshx/primitives";
-import { changelogCopy, formatChangelogDate } from "@/lib/changelog";
+import { changelogCopy } from "@/lib/changelog";
 import { loadChangelogDetail } from "@/lib/changelog.functions";
 import { changelogSlugSchema } from "@/lib/changelog.contracts";
 import { buildChangelogArticleHead } from "@/lib/changelog-seo";
-import { parseLocale } from "@/lib/i18n";
+import { formatDate, parseLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { buildSeoHead } from "@/lib/seo";
 
@@ -101,7 +101,7 @@ function ChangelogArticlePage() {
                 <dt className="text-muted-foreground">{copy.published}</dt>
                 <dd className="mt-1.5">
                   <time dateTime={entry.publishedAt}>
-                    {formatChangelogDate(entry.publishedAt, locale)}
+                    {formatDate(entry.publishedAt, locale, "long")}
                   </time>
                 </dd>
               </div>
@@ -114,7 +114,7 @@ function ChangelogArticlePage() {
                   <dt className="text-muted-foreground">{copy.updated}</dt>
                   <dd className="mt-1.5">
                     <time dateTime={entry.updatedAt}>
-                      {formatChangelogDate(entry.updatedAt, locale)}
+                      {formatDate(entry.updatedAt, locale, "long")}
                     </time>
                   </dd>
                 </div>

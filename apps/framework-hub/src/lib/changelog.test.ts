@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { changelogInput, changelogSummary } from "@/test/changelog";
-import { formatChangelogDate } from "./changelog";
+import { formatDate } from "@/lib/i18n";
 import { createChangelogSchema, updateChangelogSchema } from "./changelog.contracts";
 import { buildChangelogArticleHead, buildChangelogListHead } from "./changelog-seo";
 
@@ -36,8 +36,8 @@ describe("database changelog contracts and SEO", () => {
     ).toBe(false);
   });
   it("formats release dates without shifting calendar days", () => {
-    expect(formatChangelogDate("2026-09-05", "en")).toBe("September 5, 2026");
-    expect(formatChangelogDate("2026-09-05", "zh")).toBe("2026年9月5日");
+    expect(formatDate("2026-09-05", "en", "long")).toBe("September 5, 2026");
+    expect(formatDate("2026-09-05", "zh", "long")).toBe("2026年9月5日");
   });
   it.each(["en", "zh"] as const)(
     "builds %s metadata from the supplied database records",

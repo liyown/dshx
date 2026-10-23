@@ -8,7 +8,7 @@ import {
   formatOperationReportDayKey,
   operationReportExcerpt,
 } from "@/lib/catalog/operation-report-view";
-import { createTranslator, parseLocale } from "@/lib/i18n";
+import { createTranslator, parseLocale, languageTag } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
 
@@ -43,7 +43,7 @@ export const Route = createFileRoute("/$locale/operations/")({
           name: t("operations.metaTitle"),
           description: t("operations.intro"),
           url: `https://dshx.io/${locale}/operations`,
-          inLanguage: locale === "zh" ? "zh-CN" : "en",
+          inLanguage: languageTag(locale),
         },
         breadcrumbList([
           { name: "DSHX", path: `/${locale}` },

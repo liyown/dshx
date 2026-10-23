@@ -1,7 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { Container, SectionLabel } from "@/components/dshx/primitives";
-import { parseLocale } from "@/lib/i18n";
+import { parseLocale, languageTag } from "@/lib/i18n";
 import { isLegalDocument, legalDocuments } from "@/lib/public-content";
 import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
 
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/$locale/legal/$document")({
           "@type": "WebPage",
           name: title,
           url: `https://dshx.io${path}`,
-          inLanguage: locale === "zh" ? "zh-CN" : "en",
+          inLanguage: languageTag(locale),
           dateModified: "2026-08-24",
         },
         breadcrumbList([

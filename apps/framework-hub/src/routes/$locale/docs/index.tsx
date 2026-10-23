@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { DocsOverview } from "@/components/dshx/docs-content";
-import { parseLocale } from "@/lib/i18n";
+import { parseLocale, languageTag } from "@/lib/i18n";
 import { buildSeoHead, localizedAlternates } from "@/lib/seo";
 
 const headCopy = {
@@ -34,7 +34,7 @@ export const Route = createFileRoute("/$locale/docs/")({
           name: copy.title,
           description: copy.description,
           url: `https://dshx.io/${locale}/docs`,
-          inLanguage: locale === "zh" ? "zh-CN" : "en",
+          inLanguage: languageTag(locale),
         },
       ],
     });

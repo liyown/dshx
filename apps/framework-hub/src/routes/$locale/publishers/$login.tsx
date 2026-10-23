@@ -8,7 +8,7 @@ import {
 import { PublisherFollowButton } from "@/components/community/community-dialogs";
 import { Container, SectionLabel } from "@/components/dshx/primitives";
 import { loadPublicPublisher } from "@/lib/community/functions";
-import { parseLocale } from "@/lib/i18n";
+import { parseLocale, languageTag } from "@/lib/i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternatesForLocales, publicUrl } from "@/lib/seo";
 import { loadIndexableSitemapLocales } from "@/lib/sitemap.functions";
 
@@ -58,7 +58,7 @@ export const Route = createFileRoute("/$locale/publishers/$login")({
           name: title,
           description,
           url: publicUrl(path),
-          inLanguage: locale === "zh" ? "zh-CN" : "en",
+          inLanguage: languageTag(locale),
           mainEntity: { "@id": `${publicUrl(path)}#publisher` },
         },
         {

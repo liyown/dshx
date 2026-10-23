@@ -17,7 +17,7 @@ import { useHydratedReducedMotion } from "@/components/dshx/use-hydrated-reduced
 import { useSiteScrollMotion } from "@/components/dshx/use-site-scroll-motion";
 import { loadCatalog } from "@/lib/catalog/functions";
 import type { CatalogCard } from "@/lib/catalog/types";
-import { createTranslator, localizedPath, parseLocale } from "@/lib/i18n";
+import { createTranslator, localizedPath, parseLocale, languageTag } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { DSHX_VERSION, MARKETPLACE_REFERENCE_PLUGIN } from "@/lib/reference-plugin";
 import { buildSeoHead, localizedAlternates, socialCardUrl } from "@/lib/seo";
@@ -56,7 +56,7 @@ export const Route = createFileRoute("/$locale/")({
           name: "DSHX",
           alternateName: ["DSHX Hub", "DeepSeek Harness Plugin Hub"],
           url: "https://dshx.io",
-          inLanguage: locale === "zh" ? "zh-CN" : "en",
+          inLanguage: languageTag(locale),
           description: t("seo.description"),
           publisher: { "@id": "https://dshx.io/#organization" },
         },

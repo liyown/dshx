@@ -3,6 +3,7 @@ import { m, useScroll, useTransform } from "motion/react";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { intlLocale, type Locale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { useHydratedReducedMotion } from "./use-hydrated-reduced-motion";
 
@@ -46,8 +47,8 @@ function writeCachedStars(count: number) {
   }
 }
 
-function formatStars(count: number, locale: string) {
-  return new Intl.NumberFormat(locale === "zh" ? "zh-CN" : "en", {
+function formatStars(count: number, locale: Locale) {
+  return new Intl.NumberFormat(intlLocale(locale), {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(count);

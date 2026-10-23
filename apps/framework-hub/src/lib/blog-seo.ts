@@ -1,5 +1,5 @@
 import { blogCopy, type BlogPostSummary } from "@/lib/blog";
-import type { Locale } from "@/lib/i18n";
+import { languageTag, type Locale } from "@/lib/i18n";
 import {
   breadcrumbList,
   buildSeoHead,
@@ -31,7 +31,7 @@ export function buildBlogListHead(locale: Locale, posts: readonly BlogPostSummar
         name: copy.title,
         description: copy.description,
         url: publicUrl(path),
-        inLanguage: locale === "zh" ? "zh-CN" : "en",
+        inLanguage: languageTag(locale),
         mainEntity: {
           "@type": "ItemList",
           itemListOrder: "https://schema.org/ItemListOrderDescending",
@@ -76,7 +76,7 @@ export function buildBlogArticleHead(locale: Locale, post: BlogPostSummary) {
         url: publicUrl(path),
         mainEntityOfPage: publicUrl(path),
         image: [post.coverImageUrl ?? DEFAULT_SOCIAL_IMAGE],
-        inLanguage: locale === "zh" ? "zh-CN" : "en",
+        inLanguage: languageTag(locale),
         datePublished: post.publishedAt,
         dateModified: modified,
         author: organization,

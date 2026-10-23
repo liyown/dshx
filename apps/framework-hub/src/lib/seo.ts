@@ -1,4 +1,4 @@
-import type { Locale } from "@/lib/i18n";
+import { ogLocale, otherLocale, type Locale } from "@/lib/i18n";
 
 export const PUBLIC_SITE_URL = "https://dshx.io";
 export const DEFAULT_SOCIAL_IMAGE = `${PUBLIC_SITE_URL}/dshx-runtime-reference.png`;
@@ -91,7 +91,7 @@ export function buildSeoHead(document: SeoDocument) {
     { property: "og:description", content: document.description },
     { property: "og:type", content: document.type ?? "website" },
     { property: "og:url", content: canonical },
-    { property: "og:locale", content: document.locale === "zh" ? "zh_CN" : "en_US" },
+    { property: "og:locale", content: ogLocale(document.locale) },
     { name: "twitter:card", content: image ? "summary_large_image" : "summary" },
     { name: "twitter:title", content: document.title },
     { name: "twitter:description", content: document.description },
@@ -100,7 +100,7 @@ export function buildSeoHead(document: SeoDocument) {
   if (alternates) {
     meta.push({
       property: "og:locale:alternate",
-      content: document.locale === "zh" ? "en_US" : "zh_CN",
+      content: ogLocale(otherLocale(document.locale)),
     });
   }
 

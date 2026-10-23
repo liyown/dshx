@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { PublicPageHeader } from "@/components/community/public-list";
 import { Container, SectionLabel } from "@/components/dshx/primitives";
-import { parseLocale } from "@/lib/i18n";
+import { parseLocale, languageTag } from "@/lib/i18n";
 import { aboutCopy } from "@/lib/public-content";
 import { breadcrumbList, buildSeoHead, localizedAlternates } from "@/lib/seo";
 
@@ -34,7 +34,7 @@ export const Route = createFileRoute("/$locale/about")({
           name: content.title,
           description: content.description,
           url: `https://dshx.io${path}`,
-          inLanguage: locale === "zh" ? "zh-CN" : "en",
+          inLanguage: languageTag(locale),
           about: { "@id": "https://dshx.io/#organization" },
         },
         breadcrumbList([

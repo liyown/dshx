@@ -9,7 +9,7 @@ import { useSpringIndicator } from "@/components/dshx/use-spring-indicator";
 import { PluginSubmissionDialog } from "@/components/community/plugin-submission-dialog";
 import { catalogSortValues, type PluginListQuery } from "@/lib/catalog/contracts";
 import { loadCatalog } from "@/lib/catalog/functions";
-import { createTranslator, parseLocale } from "@/lib/i18n";
+import { createTranslator, parseLocale, languageTag } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import { breadcrumbList, buildSeoHead, localizedAlternates, publicUrl } from "@/lib/seo";
 import { cn } from "@/lib/utils";
@@ -67,12 +67,13 @@ export const Route = createFileRoute("/$locale/plugins/")({
       },
     }),
   head: ({ loaderData, params, match }) => {
-    const t = createTranslator(parseLocale(params.locale));
+    const locale = parseLocale(params.locale);
+    const t = createTranslator(locale);
     const hasIndexVariant = Object.values(match.search).some(
       (value) => Boolean(value) && value !== "featured",
     );
     return buildSeoHead({
-      locale: parseLocale(params.locale),
+      locale,
       path: `/${params.locale}/plugins`,
       title: t("plugins.metaTitle"),
       description: t("plugins.intro"),
@@ -85,7 +86,7 @@ export const Route = createFileRoute("/$locale/plugins/")({
           name: t("plugins.metaTitle"),
           description: t("plugins.intro"),
           url: `https://dshx.io/${params.locale}/plugins`,
-          inLanguage: params.locale === "zh" ? "zh-CN" : "en",
+          inLanguage: languageTag(locale),
           isPartOf: { "@id": "https://dshx.io/#website" },
           mainEntity: { "@id": `https://dshx.io/${params.locale}/plugins#items` },
         },
@@ -107,7 +108,7 @@ export const Route = createFileRoute("/$locale/plugins/")({
         {
           "@id": `https://dshx.io/${params.locale}/plugins#faq`,
           "@type": "FAQPage",
-          inLanguage: params.locale === "zh" ? "zh-CN" : "en",
+          inLanguage: languageTag(locale),
           isPartOf: { "@id": `https://dshx.io/${params.locale}/plugins#directory` },
           mainEntity: marketplaceFaq.map((item) => ({
             "@type": "Question",

@@ -60,10 +60,41 @@ export function createTranslator(locale: Locale): Translate {
   };
 }
 
-export function formatDate(value: string, locale: Locale): string {
-  return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+/** The locale that is not this one: the alternate page, the alternate card. */
+export function otherLocale(locale: Locale): Locale {
+  return locale === "en" ? "zh" : "en";
+}
+
+/** The BCP-47 tag schema.org, `<html lang>` and `Intl` all start from. */
+export function languageTag(locale: Locale): "zh-CN" | "en" {
+  return locale === "zh" ? "zh-CN" : "en";
+}
+
+/** Open Graph spells the same tag with an underscore. */
+export function ogLocale(locale: Locale): "zh_CN" | "en_US" {
+  return locale === "zh" ? "zh_CN" : "en_US";
+}
+
+/** The tag `Intl` wants when a formatter needs a region. */
+export function intlLocale(locale: Locale): "zh-CN" | "en-US" {
+  return locale === "zh" ? "zh-CN" : "en-US";
+}
+
+export type DateFormat = "short" | "long";
+
+/**
+ * One date format per locale and purpose.
+ *
+ * `short` is the catalog's: a three-letter month, rendered in the reader's
+ * time zone. `long` is the editorial one — a full month name with the day
+ * pinned to UTC, so a publish date cannot move by a time zone. Four modules
+ * used to spell these formatters out themselves.
+ */
+export function formatDate(value: string, locale: Locale, format: DateFormat = "short"): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     year: "numeric",
-    month: "short",
+    month: format === "long" ? "long" : "short",
     day: "numeric",
+    ...(format === "long" ? { timeZone: "UTC" } : {}),
   }).format(new Date(value));
 }

@@ -3,10 +3,10 @@ import { ArrowUpRight } from "lucide-react";
 
 import { PublicPageHeader } from "@/components/community/public-list";
 import { Container } from "@/components/dshx/primitives";
-import { blogCopy, formatBlogDate } from "@/lib/blog";
+import { blogCopy } from "@/lib/blog";
 import { buildBlogListHead } from "@/lib/blog-seo";
 import { loadBlog } from "@/lib/blog.functions";
-import { parseLocale } from "@/lib/i18n";
+import { formatDate, parseLocale } from "@/lib/i18n";
 
 export const Route = createFileRoute("/$locale/blog/")({
   loader: () => loadBlog(),
@@ -37,7 +37,7 @@ function BlogIndexPage() {
                 <article className="grid gap-6 py-10 md:grid-cols-[180px_minmax(0,1fr)] md:gap-12 md:py-12">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-3 md:flex-col md:items-start">
                     <time dateTime={post.publishedAt} className="text-[13px] text-muted-foreground">
-                      {formatBlogDate(post.publishedAt, locale)}
+                      {formatDate(post.publishedAt, locale, "long")}
                     </time>
                     {index === 0 ? (
                       <span className="text-[12px] text-accent">{copy.latest}</span>

@@ -1,5 +1,5 @@
 import { changelogCopy, type ChangelogEntry } from "@/lib/changelog";
-import type { Locale } from "@/lib/i18n";
+import { languageTag, type Locale } from "@/lib/i18n";
 import {
   breadcrumbList,
   buildSeoHead,
@@ -34,7 +34,7 @@ export function buildChangelogListHead(
         name: copy.title,
         description: copy.description,
         url: publicUrl(path),
-        inLanguage: locale === "zh" ? "zh-CN" : "en",
+        inLanguage: languageTag(locale),
         mainEntity: {
           "@type": "ItemList",
           itemListOrder: "https://schema.org/ItemListOrderDescending",
@@ -76,7 +76,7 @@ export function buildChangelogArticleHead(locale: Locale, entry: ChangelogEntry)
         url: publicUrl(path),
         mainEntityOfPage: publicUrl(path),
         image: [DEFAULT_SOCIAL_IMAGE],
-        inLanguage: locale === "zh" ? "zh-CN" : "en",
+        inLanguage: languageTag(locale),
         datePublished: entry.publishedAt,
         dateModified: modified,
         author: organization,

@@ -1,4 +1,4 @@
-import type { Locale } from "./i18n";
+import { languageTag, type Locale } from "./i18n";
 
 export type AgentDocumentBlock =
   | { readonly kind: "paragraph"; readonly text: string }
@@ -64,7 +64,7 @@ export function renderAgentDocument(document: AgentDocument): string {
     `title: ${scalar(document.title)}`,
     `description: ${scalar(document.description)}`,
     `canonical: ${scalar(document.canonical)}`,
-    `language: ${scalar(document.locale === "zh" ? "zh-CN" : "en")}`,
+    `language: ${scalar(languageTag(document.locale))}`,
     ...(document.lastVerified ? [`last_verified: ${scalar(document.lastVerified)}`] : []),
     "---",
   ];

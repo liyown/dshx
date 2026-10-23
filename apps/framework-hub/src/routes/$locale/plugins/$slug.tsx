@@ -17,7 +17,7 @@ import {
   selectPublicInstallTargets,
 } from "@/lib/catalog/install-target/public";
 import { cn } from "@/lib/utils";
-import { createTranslator, localizedPath, parseLocale } from "@/lib/i18n";
+import { createTranslator, localizedPath, parseLocale, intlLocale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/use-i18n";
 import {
   breadcrumbList,
@@ -139,7 +139,7 @@ function formatCatalogDate(value: string | number | null, locale: "en" | "zh"): 
   if (value === null) return null;
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return null;
-  return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     year: "numeric",
     month: "short",
     day: "numeric",
