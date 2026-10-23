@@ -36,8 +36,30 @@ describe("blog editor body syntax", () => {
     ]);
   });
 
+  it("maps standalone https images to image blocks", () => {
+    const sections = parseBlogBody(
+      '## Screenshot\n\n![Library panel](https://dshx.io/blog/example/library.jpg "The clip library")\n\n![Plain](https://dshx.io/blog/example/plain.png)',
+      "en",
+    );
+    expect(sections[0]?.blocks).toEqual([
+      {
+        type: "image",
+        url: "https://dshx.io/blog/example/library.jpg",
+        alt: "Library panel",
+        caption: "The clip library",
+      },
+      { type: "image", url: "https://dshx.io/blog/example/plain.png", alt: "Plain" },
+    ]);
+  });
+
+  it("keeps non-https image syntax as paragraph text", () => {
+    const sections = parseBlogBody("![Local](/tmp/local.png)", "en");
+    expect(sections[0]?.blocks).toEqual([{ type: "paragraph", text: "![Local](/tmp/local.png)" }]);
+  });
+
   it("round-trips serialized article bodies", () => {
-    const body = "## One\n\nA paragraph.\n\n- Item\n\n```ts\nconst value = 1;\n```\n\n## 中文";
+    const body =
+      '## One\n\nA paragraph.\n\n- Item\n\n```ts\nconst value = 1;\n```\n\n## 中文\n\n![Shot](https://dshx.io/shot.jpg "Caption")';
     const first = parseBlogBody(body, "en");
     expect(parseBlogBody(serializeBlogBody(first), "en")).toEqual(first);
   });

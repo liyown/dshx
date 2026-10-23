@@ -35,6 +35,16 @@ const blogBlockSchema = z.discriminatedUnion("type", [
     })
     .strict(),
   z.object({ type: z.literal("quote"), text: paragraphTextSchema }).strict(),
+  z
+    .object({
+      type: z.literal("image"),
+      url: z.url({ protocol: /^https$/ }).max(2_000),
+      alt: z.string().trim().min(1).max(300),
+      caption: z.string().trim().min(1).max(300).optional(),
+      width: z.number().int().positive().max(10_000).optional(),
+      height: z.number().int().positive().max(10_000).optional(),
+    })
+    .strict(),
 ]);
 
 const blogSectionSchema = z

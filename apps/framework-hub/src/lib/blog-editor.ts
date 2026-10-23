@@ -68,6 +68,18 @@ export function parseBlogBody(body: string, locale: "en" | "zh"): BlogSection[] 
       continue;
     }
 
+    const image = trimmed.match(/^!\[([^\]]*)\]\((https:\/\/[^\s)]+)(?:\s+"([^"]*)")?\)$/);
+    if (image) {
+      flushParagraph();
+      current.blocks.push({
+        type: "image",
+        url: image[2] ?? "",
+        alt: image[1]?.trim() || "Image",
+        ...(image[3]?.trim() ? { caption: image[3].trim() } : {}),
+      });
+      continue;
+    }
+
     if (/^#{2,3}\s+/.test(trimmed)) {
       flushSection();
       current = { title: trimmed.replace(/^#{2,3}\s+/, "").trim(), blocks: [] };
@@ -164,6 +176,8 @@ export function serializeBlogBody(sections: readonly BlogSection[]): string {
               .join("\n");
           case "code":
             return `\`\`\`${block.language ?? ""}\n${block.code}\n\`\`\``;
+          case "image":
+            return `![${block.alt}](${block.url}${block.caption ? ` "${block.caption}"` : ""})`;
         }
       });
       return [`## ${section.title}`, ...blocks].join("\n\n");
@@ -173,6 +187,6 @@ export function serializeBlogBody(sections: readonly BlogSection[]): string {
 
 export function blogBodyHelp(locale: "en" | "zh"): string {
   return locale === "zh"
-    ? "支持段落、## 小节标题、- 列表、> 引用与 ``` 代码块。正文按当前填写的语言保存。"
-    : "Supports paragraphs, ## section headings, - lists, > quotes, and ``` code fences. Body text is stored for the current language.";
+    ? "支持段落、## 小节标题、- 列表、> 引用、``` 代码块，以及 ![说明](https://… “图注”) 图片。正文按当前填写的语言保存。"
+    : 'Supports paragraphs, ## section headings, - lists, > quotes, ``` code fences, and ![alt](https://… "caption") images. Body text is stored for the current language.';
 }

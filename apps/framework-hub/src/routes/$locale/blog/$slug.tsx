@@ -99,6 +99,25 @@ function BlogBlockView({ block }: { block: BlogBlock }) {
           </pre>
         </div>
       );
+    case "image":
+      return (
+        <figure className="overflow-hidden rounded-lg border border-border bg-surface-2">
+          <img
+            src={block.url}
+            alt={block.alt}
+            width={block.width}
+            height={block.height}
+            loading="lazy"
+            decoding="async"
+            className="block h-auto w-full"
+          />
+          {block.caption ? (
+            <figcaption className="border-t border-border px-4 py-2.5 text-[12px] leading-5 text-muted-foreground">
+              {block.caption}
+            </figcaption>
+          ) : null}
+        </figure>
+      );
   }
 }
 
