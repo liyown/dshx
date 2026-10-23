@@ -114,7 +114,7 @@ export const Route = createFileRoute("/$locale/plugins/$slug")({
         software,
         breadcrumbList([
           { name: "DSHX", path: `/${locale}` },
-          { name: "Plugins", path: `/${locale}/plugins` },
+          { name: t("nav.plugins"), path: `/${locale}/plugins` },
           { name: p.name, path },
         ]),
       ],
@@ -556,7 +556,7 @@ function ReleasesPanel({
   releases: ReturnType<typeof Route.useLoaderData>["releases"];
 }) {
   const { locale, t } = useI18n();
-  if (!releases.length) return <EmptyPanel>No release records are available.</EmptyPanel>;
+  if (!releases.length) return <EmptyPanel>{t("plugin.releasesEmpty")}</EmptyPanel>;
   return (
     <div className="divide-y divide-border border-y border-border">
       {releases.map(
@@ -596,10 +596,12 @@ function ReleasesPanel({
                 rel="noreferrer"
                 className="text-sm text-accent hover:underline"
               >
-                Release notes
+                {t("plugin.releaseNotes")}
               </a>
             ) : (
-              <span className="text-xs text-muted-foreground">No notes</span>
+              <span className="text-xs text-muted-foreground">
+                {t("plugin.releaseNotesMissing")}
+              </span>
             )}
           </article>
         ),
@@ -613,12 +615,8 @@ function DependenciesPanel({
 }: {
   dependencies: ReturnType<typeof Route.useLoaderData>["dependencies"];
 }) {
-  if (!dependencies.length)
-    return (
-      <EmptyPanel>
-        No runtime, peer, or optional dependencies were declared for the latest release.
-      </EmptyPanel>
-    );
+  const { t } = useI18n();
+  if (!dependencies.length) return <EmptyPanel>{t("plugin.dependenciesEmpty")}</EmptyPanel>;
   return (
     <div className="divide-y divide-border border-y border-border">
       {dependencies.map(
@@ -648,7 +646,8 @@ function MediaPanel({
   media: ReturnType<typeof Route.useLoaderData>["media"];
   name: string;
 }) {
-  if (!media.length) return <EmptyPanel>No screenshots or artwork have been published.</EmptyPanel>;
+  const { t } = useI18n();
+  if (!media.length) return <EmptyPanel>{t("plugin.mediaEmpty")}</EmptyPanel>;
   return (
     <div className="grid gap-5 sm:grid-cols-2">
       {media.map(

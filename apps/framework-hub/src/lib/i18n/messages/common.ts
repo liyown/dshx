@@ -328,6 +328,12 @@ const en = {
     "To keep the page bounded, this view shows the first 64 KiB of the README. Use the source link above for the complete document.",
   "plugin.reviewsLoading": "Loading reviews…",
   "plugin.reviewsEmpty": "No public reviews yet.",
+  "plugin.releasesEmpty": "No release records are available.",
+  "plugin.releaseNotes": "Release notes",
+  "plugin.releaseNotesMissing": "No notes",
+  "plugin.mediaEmpty": "No screenshots or artwork have been published.",
+  "plugin.dependenciesEmpty":
+    "No runtime, peer, or optional dependencies were declared for the latest release.",
   "admin.overviewTitle": "Overview",
   "admin.blogBodyHelp":
     'Supports paragraphs, ## section headings, - lists, > quotes, ``` code fences, and ![alt](https://… "caption") images. Body text is stored for the current language.',
@@ -655,6 +661,11 @@ const zh: Record<keyof typeof en, string> = {
     "为控制页面体积，这里展示 README 的前 64 KiB；完整原文请使用上方来源链接。",
   "plugin.reviewsLoading": "正在读取评价…",
   "plugin.reviewsEmpty": "还没有公开评价。",
+  "plugin.releasesEmpty": "暂无版本记录。",
+  "plugin.releaseNotes": "版本说明",
+  "plugin.releaseNotesMissing": "暂无说明",
+  "plugin.mediaEmpty": "尚未发布截图或预览图。",
+  "plugin.dependenciesEmpty": "最新版本没有声明运行时、对等或可选依赖。",
   "admin.overviewTitle": "概述",
   "admin.blogBodyHelp":
     "支持段落、## 小节标题、- 列表、> 引用、``` 代码块，以及 ![说明](https://… “图注”) 图片。正文按当前填写的语言保存。",

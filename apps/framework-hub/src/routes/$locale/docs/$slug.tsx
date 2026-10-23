@@ -45,7 +45,7 @@ export const Route = createFileRoute("/$locale/docs/$slug")({
         },
         breadcrumbList([
           { name: "DSHX", path: `/${locale}` },
-          { name: "Docs", path: `/${locale}/docs` },
+          { name: t("nav.docs"), path: `/${locale}/docs` },
           { name: chapter.title, path },
         ]),
       ],
