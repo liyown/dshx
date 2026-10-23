@@ -1,10 +1,11 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { type ZodType } from "zod";
 
 import { AccountAccess, AccountLoading, AccountShell } from "./account-shell";
 import { Turnstile } from "./turnstile";
+import { useVerification, useVerifiedWrite } from "./verified-write";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,23 +51,6 @@ function useAccountEndpoint<T>(endpoint: string, schema: ZodType<T>) {
   };
 }
 
-type JsonMutationInput = {
-  readonly path: string;
-  readonly method: "POST" | "PUT" | "PATCH" | "DELETE";
-  readonly json: unknown;
-  readonly schema: ZodType;
-};
-
-function useJsonMutation() {
-  return useMutation<unknown, Error, JsonMutationInput>({
-    mutationFn: ({ path, method, json, schema }) => apiRequest(path, schema, { method, json }),
-  });
-}
-
-function randomKey(prefix: string) {
-  return `${prefix}:${crypto.randomUUID()}`;
-}
-
 export function AccountOverview() {
   const { data, error } = useAccountEndpoint("/api/me/relationships", relationshipsSchema);
   return (
@@ -101,18 +85,22 @@ export function NotificationsPage() {
     "/api/me/notifications",
     notificationsPageSchema,
   );
-  const mutation = useJsonMutation();
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
+  const verification = useVerification();
+  const markRead = useVerifiedWrite({
+    verification,
+    path: (id: string) => `/api/me/notifications/${id}/read`,
+    schema: notificationReadResultSchema,
+    method: "PUT",
+    keyPrefix: "notification",
+    body: (_input: string, secrets) => ({ ...secrets }),
+  });
   async function read(id: string) {
-    await mutation.mutateAsync({
-      path: `/api/me/notifications/${id}/read`,
-      method: "PUT",
-      json: { turnstileToken: token, idempotencyKey: randomKey("notification") },
-      schema: notificationReadResultSchema,
-    });
-    setToken("");
-    setChallenge((value) => value + 1);
+    try {
+      await markRead.submit(id);
+    } catch {
+      // The row stays unread and its button stays available for another try.
+      return;
+    }
     await reload();
   }
   return (
@@ -127,7 +115,7 @@ export function NotificationsPage() {
       ) : (
         <>
           <div className="mb-5">
-            <Turnstile key={challenge} onToken={setToken} />
+            <Turnstile key={verification.widgetKey} onToken={verification.receive} />
           </div>
           <div className="divide-y divide-border border-y border-border">
             {data.items.length ? (
@@ -143,7 +131,7 @@ export function NotificationsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      disabled={!token}
+                      disabled={!verification.token || markRead.pending}
                       onClick={() => void read(String(item["id"]))}
                     >
                       Mark read
@@ -165,31 +153,23 @@ export function NotificationsPage() {
 
 export function SubmissionsPage() {
   const { data, error, reload } = useAccountEndpoint("/api/me/submissions", submissionsPageSchema);
-  const mutation = useJsonMutation();
+  const verification = useVerification();
   const [repositoryUrl, setRepositoryUrl] = useState("");
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
-  async function submit() {
+  const submissionWrite = useVerifiedWrite({
+    verification,
+    path: () => "/api/me/submissions",
+    schema: submissionSchema,
+    keyPrefix: "submission",
+    body: (url: string, secrets) => ({ repositoryUrl: url, ...secrets }),
+  });
+  async function submitRepository() {
     try {
-      await mutation.mutateAsync({
-        path: "/api/me/submissions",
-        method: "POST",
-        json: {
-          repositoryUrl,
-          turnstileToken: token,
-          idempotencyKey: randomKey("submission"),
-        },
-        schema: submissionSchema,
-      });
+      await submissionWrite.submit(repositoryUrl);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Submission failed.");
-      setToken("");
-      setChallenge((value) => value + 1);
       return;
     }
-    setToken("");
-    setChallenge((value) => value + 1);
     setRepositoryUrl("");
     setMessage("Repository queued for the operations Agent.");
     await reload();
@@ -214,9 +194,12 @@ export function SubmissionsPage() {
               onChange={(event) => setRepositoryUrl(event.target.value)}
               placeholder="https://github.com/owner/repository"
             />
-            <Turnstile key={challenge} onToken={setToken} />
+            <Turnstile key={verification.widgetKey} onToken={verification.receive} />
             {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
-            <Button disabled={!repositoryUrl || !token} onClick={() => void submit()}>
+            <Button
+              disabled={!repositoryUrl || !verification.token || submissionWrite.pending}
+              onClick={() => void submitRepository()}
+            >
               Submit repository
             </Button>
           </div>
@@ -235,60 +218,48 @@ export function SubmissionsPage() {
 export function CollectionsPage() {
   const { locale } = useI18n();
   const { data, error, reload } = useAccountEndpoint("/api/me/collections", collectionsPageSchema);
-  const mutation = useJsonMutation();
+  const verification = useVerification();
   const [name, setName] = useState("");
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
+  const createCollection = useVerifiedWrite({
+    verification,
+    path: () => "/api/me/collections",
+    schema: collectionDetailSchema,
+    keyPrefix: "collection",
+    body: (nextName: string, secrets) => ({ name: nextName, visibility: "public", ...secrets }),
+  });
+  const setVisibility = useVerifiedWrite({
+    verification,
+    path: (input: { id: string; visibility: "public" | "private" }) =>
+      `/api/me/collections/${input.id}`,
+    schema: collectionDetailSchema,
+    method: "PATCH",
+    keyPrefix: "collection-visibility",
+    body: (input, secrets) => ({ visibility: input.visibility, ...secrets }),
+  });
   async function create() {
     try {
-      await mutation.mutateAsync({
-        path: "/api/me/collections",
-        method: "POST",
-        json: {
-          name,
-          visibility: "public",
-          turnstileToken: token,
-          idempotencyKey: randomKey("collection"),
-        },
-        schema: collectionDetailSchema,
-      });
+      await createCollection.submit(name);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Collection could not be created.");
-      setToken("");
-      setChallenge((value) => value + 1);
       return;
     }
     setName("");
-    setToken("");
-    setChallenge((value) => value + 1);
     setMessage("Public collection created.");
     await reload();
   }
   async function toggleVisibility(item: Record<string, unknown>) {
-    const next = item["visibility"] === "public" ? "private" : "public";
-    let changed = false;
+    const visibility = item["visibility"] === "public" ? "private" : "public";
     try {
-      await mutation.mutateAsync({
-        path: `/api/me/collections/${String(item["id"])}`,
-        method: "PATCH",
-        json: {
-          visibility: next,
-          turnstileToken: token,
-          idempotencyKey: randomKey("collection-visibility"),
-        },
-        schema: collectionDetailSchema,
-      });
-      changed = true;
-      setMessage(`Collection is now ${next}.`);
+      await setVisibility.submit({ id: String(item["id"]), visibility });
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Collection privacy could not be changed.",
       );
+      return;
     }
-    setToken("");
-    setChallenge((value) => value + 1);
-    if (changed) await reload();
+    setMessage(`Collection is now ${visibility}.`);
+    await reload();
   }
   return (
     <AccountShell
@@ -309,9 +280,12 @@ export function CollectionsPage() {
               onChange={(event) => setName(event.target.value)}
               maxLength={100}
             />
-            <Turnstile key={challenge} onToken={setToken} />
+            <Turnstile key={verification.widgetKey} onToken={verification.receive} />
             {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
-            <Button disabled={!name.trim() || !token} onClick={() => void create()}>
+            <Button
+              disabled={!name.trim() || !verification.token || createCollection.pending}
+              onClick={() => void create()}
+            >
               Create public collection
             </Button>
           </div>
@@ -337,7 +311,7 @@ export function CollectionsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!token}
+                    disabled={!verification.token || setVisibility.pending}
                     onClick={() => void toggleVisibility(item)}
                   >
                     Make {item["visibility"] === "public" ? "private" : "public"}
@@ -356,27 +330,24 @@ export function CollectionsPage() {
 
 export function AppealsPage() {
   const { data, error, reload } = useAccountEndpoint("/api/me/appeals", appealsPageSchema);
-  const mutation = useJsonMutation();
+  const verification = useVerification();
   const [actionId, setActionId] = useState("");
   const [statement, setStatement] = useState("");
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
+  const appeal = useVerifiedWrite({
+    verification,
+    path: () => "/api/me/appeals",
+    schema: appealSchema,
+    keyPrefix: "appeal",
+    body: (input: { actionId: string; statement: string }, secrets) => ({
+      moderationActionId: input.actionId,
+      statement: input.statement,
+      ...secrets,
+    }),
+  });
   async function submit() {
-    await mutation.mutateAsync({
-      path: "/api/me/appeals",
-      method: "POST",
-      json: {
-        moderationActionId: actionId,
-        statement,
-        turnstileToken: token,
-        idempotencyKey: randomKey("appeal"),
-      },
-      schema: appealSchema,
-    });
+    await appeal.submit({ actionId, statement });
     setActionId("");
     setStatement("");
-    setToken("");
-    setChallenge((value) => value + 1);
     await reload();
   }
   return (
@@ -409,9 +380,9 @@ export function AppealsPage() {
                 maxLength={4000}
               />
             </div>
-            <Turnstile key={challenge} onToken={setToken} />
+            <Turnstile key={verification.widgetKey} onToken={verification.receive} />
             <Button
-              disabled={!actionId || statement.length < 20 || !token}
+              disabled={!actionId || statement.length < 20 || !verification.token || appeal.pending}
               onClick={() => void submit()}
             >
               Submit appeal
@@ -431,12 +402,29 @@ export function AppealsPage() {
 
 export function SettingsPage() {
   const { data, error, reload } = useAccountEndpoint("/api/me/profile", profileSchema);
-  const mutation = useJsonMutation();
+  const verification = useVerification();
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
   const [confirmation, setConfirmation] = useState("");
+  const saveProfile = useVerifiedWrite({
+    verification,
+    path: () => "/api/me/profile",
+    schema: profileSchema,
+    method: "PUT",
+    keyPrefix: "profile",
+    body: (input: { displayName: string; bio: string; preferredLocale: "en" | "zh" }, secrets) => ({
+      ...input,
+      ...secrets,
+    }),
+  });
+  const deleteAccount = useVerifiedWrite({
+    verification,
+    path: () => "/api/me/account",
+    schema: accountDeletionSchema,
+    method: "DELETE",
+    keyPrefix: "account-delete",
+    body: (_input: void, secrets) => ({ confirmation: "DELETE", ...secrets }),
+  });
   useEffect(() => {
     if (data) {
       setName(String(data["display_name"] ?? data["name"] ?? ""));
@@ -444,33 +432,15 @@ export function SettingsPage() {
     }
   }, [data]);
   async function save() {
-    await mutation.mutateAsync({
-      path: "/api/me/profile",
-      method: "PUT",
-      json: {
-        displayName: name,
-        bio,
-        preferredLocale: data?.["preferred_locale"] === "zh" ? "zh" : "en",
-        turnstileToken: token,
-        idempotencyKey: randomKey("profile"),
-      },
-      schema: profileSchema,
+    await saveProfile.submit({
+      displayName: name,
+      bio,
+      preferredLocale: data?.["preferred_locale"] === "zh" ? "zh" : "en",
     });
-    setToken("");
-    setChallenge((value) => value + 1);
     await reload();
   }
   async function removeAccount() {
-    await mutation.mutateAsync({
-      path: "/api/me/account",
-      method: "DELETE",
-      json: {
-        confirmation: "DELETE",
-        turnstileToken: token,
-        idempotencyKey: randomKey("account-delete"),
-      },
-      schema: accountDeletionSchema,
-    });
+    await deleteAccount.submit();
     window.location.assign("/en");
   }
   return (
@@ -502,8 +472,11 @@ export function SettingsPage() {
                 maxLength={500}
               />
             </div>
-            <Turnstile key={challenge} onToken={setToken} />
-            <Button disabled={!name.trim() || !token} onClick={() => void save()}>
+            <Turnstile key={verification.widgetKey} onToken={verification.receive} />
+            <Button
+              disabled={!name.trim() || !verification.token || saveProfile.pending}
+              onClick={() => void save()}
+            >
               Save profile
             </Button>
           </div>
@@ -527,7 +500,9 @@ export function SettingsPage() {
                 <Button
                   variant="destructive"
                   className="mt-4"
-                  disabled={confirmation !== "DELETE" || !token}
+                  disabled={
+                    confirmation !== "DELETE" || !verification.token || deleteAccount.pending
+                  }
                 >
                   Delete account
                 </Button>

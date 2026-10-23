@@ -1,8 +1,8 @@
-import { useMutation } from "@tanstack/react-query";
 import { PackagePlus } from "lucide-react";
-import { FormEvent, useCallback, useRef, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import { Turnstile } from "./turnstile";
+import { useVerifiedWrite } from "./verified-write";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,39 +16,28 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/lib/i18n/use-i18n";
-import { ApiError, apiRequest } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-client";
 import { submissionSchema } from "@/lib/community/contracts";
 
 export function PluginSubmissionDialog() {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [repositoryUrl, setRepositoryUrl] = useState("");
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
-  const idempotencyKey = useRef<string | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const receiveToken = useCallback((nextToken: string) => setToken(nextToken), []);
-  const submission = useMutation({
-    mutationFn: (input: {
-      repositoryUrl: string;
-      turnstileToken: string;
-      idempotencyKey: string;
-    }) => apiRequest("/api/submissions", submissionSchema, { method: "POST", json: input }),
+  const write = useVerifiedWrite({
+    path: () => "/api/submissions",
+    schema: submissionSchema,
+    keyPrefix: "submission",
+    body: (url: string, secrets) => ({ repositoryUrl: url, ...secrets }),
   });
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!repositoryUrl.trim() || !token || submission.isPending) return;
+    if (!repositoryUrl.trim() || !write.token || write.pending) return;
     setMessage(null);
     try {
-      idempotencyKey.current ??= `submission:${crypto.randomUUID()}`;
-      await submission.mutateAsync({
-        repositoryUrl: repositoryUrl.trim(),
-        turnstileToken: token,
-        idempotencyKey: idempotencyKey.current,
-      });
+      await write.submit(repositoryUrl.trim());
       setRepositoryUrl("");
-      idempotencyKey.current = null;
       setMessage({ tone: "success", text: t("plugins.submissionQueued") });
     } catch (error) {
       if (error instanceof ApiError) {
@@ -64,9 +53,6 @@ export function PluginSubmissionDialog() {
       } else {
         setMessage({ tone: "error", text: t("plugins.submissionFailed") });
       }
-    } finally {
-      setToken("");
-      setChallenge((value) => value + 1);
     }
   }
 
@@ -106,7 +92,7 @@ export function PluginSubmissionDialog() {
               className="mt-2"
             />
           </div>
-          <Turnstile key={challenge} mode="direct" onToken={receiveToken} />
+          <Turnstile key={write.widgetKey} mode="direct" onToken={write.receive} />
           {message ? (
             <p
               className={message.tone === "error" ? "text-sm text-destructive" : "text-sm text-ok"}
@@ -119,11 +105,8 @@ export function PluginSubmissionDialog() {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               {t("plugins.submissionCancel")}
             </Button>
-            <Button
-              type="submit"
-              disabled={!repositoryUrl.trim() || !token || submission.isPending}
-            >
-              {submission.isPending ? t("plugins.submitting") : t("plugins.submit")}
+            <Button type="submit" disabled={!repositoryUrl.trim() || !write.token || write.pending}>
+              {write.pending ? t("plugins.submitting") : t("plugins.submit")}
             </Button>
           </DialogFooter>
         </form>

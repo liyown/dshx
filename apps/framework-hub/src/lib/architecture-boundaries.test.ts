@@ -230,7 +230,8 @@ describe("Framework Hub architecture boundaries", () => {
     expect(
       violations(
         files,
-        ({ path, text }) => path !== "lib/catalog/operation-report-day.ts" && /\+8 hours/u.test(text),
+        ({ path, text }) =>
+          path !== "lib/catalog/operation-report-day.ts" && /\+8 hours/u.test(text),
       ),
     ).toEqual([]);
   });
@@ -285,7 +286,12 @@ describe("Framework Hub architecture boundaries", () => {
       "routes/admin/approvals/index.tsx",
       // The only zod import left is the `ZodType` type its helper takes.
       "components/community/account-pages.tsx",
+      // Likewise: the write protocol takes the endpoint's schema as an option.
+      "components/community/verified-write.ts",
     ];
+    // A module that receives the schema from its callers names no endpoint, so
+    // it has no contract to import; its callers are held to the rule below.
+    const schemaFromCaller = ["components/community/verified-write.ts"];
     const importingZod = ui
       .filter(({ path }) => !path.startsWith("routes/api/"))
       .filter(({ text }) => /from\s+["']zod["']/u.test(text))
@@ -293,11 +299,25 @@ describe("Framework Hub architecture boundaries", () => {
       .filter((path) => !localZodAllowed.includes(path));
     expect(importingZod).toEqual([]);
     const apiCallsWithoutContract = ui
-      .filter(({ path }) => !path.startsWith("routes/api/"))
+      .filter(({ path }) => !path.startsWith("routes/api/") && !schemaFromCaller.includes(path))
       .filter(({ text }) => /apiRequest\(/u.test(text))
       .filter(({ text }) => !/from\s+["']@\/lib\/[^"']*contracts["']/u.test(text))
       .map(({ path }) => path);
     expect(apiCallsWithoutContract).toEqual([]);
+  });
+
+  it("keeps the human-verification write protocol in one module", async () => {
+    // A verified write is a token, a challenge to remount, a key that survives
+    // a retry, and a session check. The copies had drifted: only one kept its
+    // key across a retry. Only the protocol module may name the key.
+    const components = (await sourceFiles()).filter(({ path }) => path.startsWith("components/"));
+    expect(
+      violations(
+        components,
+        ({ path, text }) =>
+          path !== "components/community/verified-write.ts" && /\bidempotencyKey\b/u.test(text),
+      ),
+    ).toEqual([]);
   });
 
   it("keeps the curation quality rule in its policy module", async () => {

@@ -1,16 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Bookmark, LoaderCircle, Star } from "lucide-react";
 import { useState } from "react";
 
 import { AddToCollectionDialog, ClaimPluginDialog, ReportDialog } from "./community-dialogs";
 import { SignInButton } from "./auth-controls";
 import { Turnstile } from "./turnstile";
+import { useVerification, useVerifiedWrite } from "./verified-write";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth/client";
 import { useHydrated } from "@/lib/use-hydrated";
 import { cn } from "@/lib/utils";
-import { ApiError, apiKeys, apiRequest } from "@/lib/api-client";
+import { apiKeys, apiRequest } from "@/lib/api-client";
 import { pluginReviewSchema } from "@/lib/catalog/contracts";
 import {
   pluginRelationshipResultSchema,
@@ -30,8 +31,7 @@ export function PluginCommunityActions({
   const session = authClient.useSession();
   const hydrated = useHydrated();
   const queryClient = useQueryClient();
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
+  const verification = useVerification();
   const [rating, setRating] = useState(5);
   const [body, setBody] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -40,38 +40,30 @@ export function PluginCommunityActions({
     queryFn: ({ signal }) => apiRequest("/api/me/relationships", relationshipsSchema, { signal }),
     enabled: Boolean(session.data),
   });
-  const relationshipMutation = useMutation({
-    mutationFn: (input: { kind: "bookmark" | "follow"; enabled: boolean }) =>
-      apiRequest(`/api/me/plugins/${pluginId}/${input.kind}`, pluginRelationshipResultSchema, {
-        method: input.enabled ? "PUT" : "DELETE",
-        json: {
-          turnstileToken: token,
-          idempotencyKey: `${input.kind}:${crypto.randomUUID()}`,
-        },
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: apiKeys.relationships });
-    },
+  const relationshipWrite = useVerifiedWrite({
+    verification,
+    path: (input: { kind: "bookmark" | "follow"; enabled: boolean }) =>
+      `/api/me/plugins/${pluginId}/${input.kind}`,
+    schema: pluginRelationshipResultSchema,
+    method: (input) => (input.enabled ? "PUT" : "DELETE"),
+    keyPrefix: "plugin-relationship",
+    body: (_input, secrets) => ({ ...secrets }),
   });
-  const reviewMutation = useMutation({
-    mutationFn: () =>
-      apiRequest(`/api/plugins/${encodeURIComponent(slug)}/review`, pluginReviewSchema, {
-        method: "PUT",
-        json: {
-          rating,
-          body: body.trim() || null,
-          locale,
-          turnstileToken: token,
-          idempotencyKey: `review:${crypto.randomUUID()}`,
-        },
-      }),
+  const reviewWrite = useVerifiedWrite({
+    verification,
+    path: () => `/api/plugins/${encodeURIComponent(slug)}/review`,
+    schema: pluginReviewSchema,
+    method: "PUT",
+    keyPrefix: "review",
+    body: (_input: void, secrets) => ({
+      rating,
+      body: body.trim() || null,
+      locale,
+      ...secrets,
+    }),
   });
   const relationships = relationshipQuery.data ?? null;
-  const pending = relationshipMutation.isPending
-    ? relationshipMutation.variables.kind
-    : reviewMutation.isPending
-      ? "review"
-      : null;
+  const pending = relationshipWrite.pendingInput?.kind ?? (reviewWrite.pending ? "review" : null);
 
   if (!hydrated || session.isPending) return null;
   if (!session.data)
@@ -87,22 +79,13 @@ export function PluginCommunityActions({
   const bookmarked = relationships?.bookmarks.some((plugin) => plugin.id === pluginId) ?? false;
   const followed = relationships?.pluginFollows.some((plugin) => plugin.id === pluginId) ?? false;
 
-  function resetChallenge() {
-    setToken("");
-    setChallenge((value) => value + 1);
-  }
-
-  function handleVerificationFailure(error: unknown) {
-    if (error instanceof ApiError && error.code === "turnstile_failed") resetChallenge();
-  }
-
   async function relationship(kind: "bookmark" | "follow", enabled: boolean) {
     if (pending) return;
     setMessage(null);
     try {
-      await relationshipMutation.mutateAsync({ kind, enabled });
+      await relationshipWrite.submit({ kind, enabled });
+      await queryClient.invalidateQueries({ queryKey: apiKeys.relationships });
     } catch (error) {
-      handleVerificationFailure(error);
       setMessage(
         error instanceof Error
           ? error.message
@@ -115,11 +98,10 @@ export function PluginCommunityActions({
     if (pending) return;
     setMessage(null);
     try {
-      await reviewMutation.mutateAsync();
+      await reviewWrite.submit();
       setMessage("Review published.");
       window.dispatchEvent(new CustomEvent("dshx:reviews-changed", { detail: { slug } }));
     } catch (error) {
-      handleVerificationFailure(error);
       setMessage(
         error instanceof Error
           ? error.message
@@ -130,12 +112,12 @@ export function PluginCommunityActions({
 
   return (
     <section className="space-y-4 border-t border-border pt-5">
-      <Turnstile key={challenge} onToken={setToken} />
+      <Turnstile key={verification.widgetKey} onToken={verification.receive} />
       <div className="flex gap-2">
         <Button
           variant={bookmarked ? "secondary" : "outline"}
           size="sm"
-          disabled={!token || pending !== null}
+          disabled={!verification.token || pending !== null}
           aria-busy={pending === "bookmark"}
           onClick={() => void relationship("bookmark", !bookmarked)}
         >
@@ -149,7 +131,7 @@ export function PluginCommunityActions({
         <Button
           variant={followed ? "secondary" : "outline"}
           size="sm"
-          disabled={!token || pending !== null}
+          disabled={!verification.token || pending !== null}
           aria-busy={pending === "follow"}
           onClick={() => void relationship("follow", !followed)}
         >
@@ -192,7 +174,7 @@ export function PluginCommunityActions({
         <Button
           size="sm"
           className="mt-3"
-          disabled={!token || pending !== null}
+          disabled={!verification.token || pending !== null}
           aria-busy={pending === "review"}
           onClick={() => void review()}
         >

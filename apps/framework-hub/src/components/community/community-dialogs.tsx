@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Bell, Flag, FolderPlus, MessageSquareReply, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { Turnstile } from "./turnstile";
+import { useVerifiedViewer, useVerifiedWrite } from "./verified-write";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,8 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { authClient } from "@/lib/auth/client";
-import { useHydrated } from "@/lib/use-hydrated";
 import { apiKeys, apiRequest } from "@/lib/api-client";
 import {
   contentReportSchema,
@@ -39,10 +38,6 @@ import {
 
 type ReportTarget = "plugin" | "review" | "reply" | "profile" | "collection";
 
-function writeKey(prefix: string) {
-  return `${prefix}:${crypto.randomUUID()}`;
-}
-
 function messageFrom(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
@@ -56,42 +51,35 @@ export function ReportDialog({
   targetId: string;
   label?: string;
 }) {
-  const session = authClient.useSession();
-  const hydrated = useHydrated();
+  const viewer = useVerifiedViewer();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("spam");
   const [details, setDetails] = useState("");
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: () =>
-      apiRequest("/api/reports", contentReportSchema, {
-        method: "POST",
-        json: {
-          targetType,
-          targetId,
-          reason,
-          details: details.trim() || null,
-          turnstileToken: token,
-          idempotencyKey: writeKey("report"),
-        },
-      }),
+  const write = useVerifiedWrite({
+    path: () => "/api/reports",
+    schema: contentReportSchema,
+    keyPrefix: "report",
+    body: (_input: void, secrets) => ({
+      targetType,
+      targetId,
+      reason,
+      details: details.trim() || null,
+      ...secrets,
+    }),
   });
 
-  if (!hydrated || !session.data) return null;
+  if (!viewer) return null;
 
   async function submit() {
     setMessage(null);
     try {
-      await mutation.mutateAsync();
+      await write.submit();
       setMessage("Report submitted for policy review.");
       setDetails("");
     } catch (error) {
       setMessage(messageFrom(error, "The report could not be submitted."));
     }
-    setToken("");
-    setChallenge((value) => value + 1);
   }
 
   return (
@@ -134,14 +122,14 @@ export function ReportDialog({
               className="mt-2 min-h-24"
             />
           </div>
-          <Turnstile key={challenge} onToken={setToken} />
+          <Turnstile key={write.widgetKey} onToken={write.receive} />
           {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Close
           </Button>
-          <Button disabled={!token} onClick={() => void submit()}>
+          <Button disabled={!write.token || write.pending} onClick={() => void submit()}>
             Submit report
           </Button>
         </DialogFooter>
@@ -159,38 +147,31 @@ export function ReplyDialog({
   locale: "en" | "zh";
   onComplete: () => void;
 }) {
-  const session = authClient.useSession();
-  const hydrated = useHydrated();
+  const viewer = useVerifiedViewer();
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState("");
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: () =>
-      apiRequest(`/api/reviews/${reviewId}/replies`, reviewReplySchema, {
-        method: "POST",
-        json: {
-          locale,
-          body,
-          turnstileToken: token,
-          idempotencyKey: writeKey("reply"),
-        },
-      }),
+  const write = useVerifiedWrite({
+    path: () => `/api/reviews/${reviewId}/replies`,
+    schema: reviewReplySchema,
+    keyPrefix: "reply",
+    body: (_input: void, secrets) => ({
+      locale,
+      body,
+      ...secrets,
+    }),
   });
-  if (!hydrated || !session.data) return null;
+  if (!viewer) return null;
 
   async function submit() {
     try {
-      await mutation.mutateAsync();
+      await write.submit();
       setBody("");
       setOpen(false);
       onComplete();
     } catch (error) {
       setMessage(messageFrom(error, "The reply could not be published."));
     }
-    setToken("");
-    setChallenge((value) => value + 1);
   }
 
   return (
@@ -215,13 +196,16 @@ export function ReplyDialog({
           className="min-h-28"
           placeholder="Write a useful, specific reply."
         />
-        <Turnstile key={challenge} onToken={setToken} />
+        <Turnstile key={write.widgetKey} onToken={write.receive} />
         {message ? <p className="text-sm text-destructive">{message}</p> : null}
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button disabled={!body.trim() || !token} onClick={() => void submit()}>
+          <Button
+            disabled={!body.trim() || !write.token || write.pending}
+            onClick={() => void submit()}
+          >
             Publish reply
           </Button>
         </DialogFooter>
@@ -231,30 +215,23 @@ export function ReplyDialog({
 }
 
 export function ClaimPluginDialog({ slug }: { slug: string }) {
-  const session = authClient.useSession();
-  const hydrated = useHydrated();
+  const viewer = useVerifiedViewer();
   const [open, setOpen] = useState(false);
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
   const [result, setResult] = useState<{
     file: { path: string; body: Record<string, string> };
   } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: () =>
-      apiRequest(`/api/plugins/${encodeURIComponent(slug)}/claims`, pluginClaimResponseSchema, {
-        method: "POST",
-        json: {
-          turnstileToken: token,
-          idempotencyKey: writeKey("claim"),
-        },
-      }),
+  const write = useVerifiedWrite({
+    path: () => `/api/plugins/${encodeURIComponent(slug)}/claims`,
+    schema: pluginClaimResponseSchema,
+    keyPrefix: "claim",
+    body: (_input: void, secrets) => ({ ...secrets }),
   });
-  if (!hydrated || !session.data) return null;
+  if (!viewer) return null;
 
   async function createClaim() {
     try {
-      const payload = await mutation.mutateAsync();
+      const payload = await write.submit();
       // A repeated request returns the pending claim without a new challenge
       // token, so there is no file to show; the first response already had it.
       setResult(payload.file === undefined ? null : { file: payload.file });
@@ -266,8 +243,6 @@ export function ClaimPluginDialog({ slug }: { slug: string }) {
     } catch (error) {
       setMessage(messageFrom(error, "The claim challenge could not be created."));
     }
-    setToken("");
-    setChallenge((value) => value + 1);
   }
 
   return (
@@ -295,7 +270,7 @@ export function ClaimPluginDialog({ slug }: { slug: string }) {
             </pre>
           </div>
         ) : (
-          <Turnstile key={challenge} onToken={setToken} />
+          <Turnstile key={write.widgetKey} onToken={write.receive} />
         )}
         {message ? <p className="text-sm text-destructive">{message}</p> : null}
         <DialogFooter>
@@ -303,7 +278,7 @@ export function ClaimPluginDialog({ slug }: { slug: string }) {
             Close
           </Button>
           {!result ? (
-            <Button disabled={!token} onClick={() => void createClaim()}>
+            <Button disabled={!write.token || write.pending} onClick={() => void createClaim()}>
               Create challenge
             </Button>
           ) : null}
@@ -314,44 +289,32 @@ export function ClaimPluginDialog({ slug }: { slug: string }) {
 }
 
 export function AddToCollectionDialog({ pluginId }: { pluginId: string }) {
-  const session = authClient.useSession();
-  const hydrated = useHydrated();
+  const viewer = useVerifiedViewer();
   const [open, setOpen] = useState(false);
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const collections = useQuery({
     queryKey: apiKeys.endpoint("/api/me/collections"),
     queryFn: ({ signal }) => apiRequest("/api/me/collections", collectionsPageSchema, { signal }),
-    enabled: open && Boolean(session.data),
+    enabled: open && Boolean(viewer),
   });
-  const mutation = useMutation({
-    mutationFn: (collectionId: string) =>
-      apiRequest(
-        `/api/me/collections/${collectionId}/plugins/${pluginId}`,
-        collectionDetailSchema,
-        {
-          method: "PUT",
-          json: {
-            turnstileToken: token,
-            idempotencyKey: writeKey("collection-plugin"),
-          },
-        },
-      ),
+  const write = useVerifiedWrite({
+    path: (collectionId: string) => `/api/me/collections/${collectionId}/plugins/${pluginId}`,
+    schema: collectionDetailSchema,
+    method: "PUT",
+    keyPrefix: "collection-plugin",
+    body: (_input: string, secrets) => ({ ...secrets }),
   });
   const items = collections.data?.items ?? (collections.isError ? [] : null);
 
-  if (!hydrated || !session.data) return null;
+  if (!viewer) return null;
 
   async function add(collectionId: string) {
     try {
-      await mutation.mutateAsync(collectionId);
+      await write.submit(collectionId);
       setMessage("Plugin added to the collection.");
     } catch (error) {
       setMessage(messageFrom(error, "Could not add plugin."));
     }
-    setToken("");
-    setChallenge((value) => value + 1);
   }
 
   return (
@@ -369,7 +332,7 @@ export function AddToCollectionDialog({ pluginId }: { pluginId: string }) {
             in your account.
           </DialogDescription>
         </DialogHeader>
-        <Turnstile key={challenge} onToken={setToken} />
+        <Turnstile key={write.widgetKey} onToken={write.receive} />
         <div className="divide-y divide-border border-y border-border">
           {items?.length ? (
             items.map((item) => (
@@ -378,7 +341,7 @@ export function AddToCollectionDialog({ pluginId }: { pluginId: string }) {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={!token}
+                  disabled={!write.token || write.pending}
                   onClick={() => void add(item.id)}
                 >
                   Add
@@ -398,98 +361,85 @@ export function AddToCollectionDialog({ pluginId }: { pluginId: string }) {
 }
 
 export function UserSafetyActions({ userId }: { userId: string }) {
-  const session = authClient.useSession();
-  const hydrated = useHydrated();
+  const viewer = useVerifiedViewer();
   const [blocked, setBlocked] = useState(false);
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
-  const mutation = useMutation({
-    mutationFn: (nextBlocked: boolean) =>
-      apiRequest(`/api/me/blocks/${userId}`, userBlockResultSchema, {
-        method: nextBlocked ? "PUT" : "DELETE",
-        json: {
-          turnstileToken: token,
-          idempotencyKey: writeKey("user-block"),
-        },
-      }),
+  const write = useVerifiedWrite({
+    path: () => `/api/me/blocks/${userId}`,
+    schema: userBlockResultSchema,
+    method: (nextBlocked: boolean) => (nextBlocked ? "PUT" : "DELETE"),
+    keyPrefix: "user-block",
+    body: (_input: boolean, secrets) => ({ ...secrets }),
   });
-  if (!hydrated || !session.data || session.data.user.id === userId) return null;
+  if (!viewer || viewer.user.id === userId) return null;
 
   async function toggleBlock() {
     const nextBlocked = !blocked;
     try {
-      await mutation.mutateAsync(nextBlocked);
+      await write.submit(nextBlocked);
       setBlocked(nextBlocked);
     } catch {
       // Existing UI intentionally provides no additional block error surface.
     }
-    setToken("");
-    setChallenge((value) => value + 1);
   }
 
   return (
     <div className="mt-6 flex flex-wrap items-start gap-2">
-      <Button variant="outline" size="sm" disabled={!token} onClick={() => void toggleBlock()}>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={!write.token || write.pending}
+        onClick={() => void toggleBlock()}
+      >
         <Ban data-icon="inline-start" /> {blocked ? "Unblock" : "Block"}
       </Button>
       <ReportDialog targetType="profile" targetId={userId} label="Report profile" />
       <div className="basis-full">
-        <Turnstile key={challenge} onToken={setToken} />
+        <Turnstile key={write.widgetKey} onToken={write.receive} />
       </div>
     </div>
   );
 }
 
 export function PublisherFollowButton({ publisherId }: { publisherId: string }) {
-  const session = authClient.useSession();
-  const hydrated = useHydrated();
-  const [token, setToken] = useState("");
-  const [challenge, setChallenge] = useState(0);
+  const viewer = useVerifiedViewer();
   const queryClient = useQueryClient();
   const relationships = useQuery({
     queryKey: apiKeys.relationships,
     queryFn: ({ signal }) => apiRequest("/api/me/relationships", relationshipsSchema, { signal }),
-    enabled: Boolean(session.data),
+    enabled: Boolean(viewer),
   });
   const followed =
     relationships.data?.publisherFollows.some((item) => item.id === publisherId) ?? false;
-  const mutation = useMutation({
-    mutationFn: (nextFollowed: boolean) =>
-      apiRequest(`/api/me/publishers/${publisherId}/follow`, publisherFollowResultSchema, {
-        method: nextFollowed ? "PUT" : "DELETE",
-        json: {
-          turnstileToken: token,
-          idempotencyKey: writeKey("publisher-follow"),
-        },
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: apiKeys.relationships });
-    },
+  const write = useVerifiedWrite({
+    path: () => `/api/me/publishers/${publisherId}/follow`,
+    schema: publisherFollowResultSchema,
+    method: (nextFollowed: boolean) => (nextFollowed ? "PUT" : "DELETE"),
+    keyPrefix: "publisher-follow",
+    body: (_input: boolean, secrets) => ({ ...secrets }),
   });
 
-  if (!hydrated || !session.data) return null;
+  if (!viewer) return null;
 
   async function toggle() {
     try {
-      await mutation.mutateAsync(!followed);
+      await write.submit(!followed);
+      await queryClient.invalidateQueries({ queryKey: apiKeys.relationships });
     } catch {
       // Existing UI intentionally provides no additional follow error surface.
     }
-    setToken("");
-    setChallenge((value) => value + 1);
   }
 
   return (
     <div className="mt-6">
       <Button
         variant={followed ? "secondary" : "outline"}
-        disabled={!token}
+        disabled={!write.token || write.pending}
         onClick={() => void toggle()}
       >
         <Bell data-icon="inline-start" /> {followed ? "Following publisher" : "Follow publisher"}
       </Button>
       <div className="mt-3">
-        <Turnstile key={challenge} onToken={setToken} />
+        <Turnstile key={write.widgetKey} onToken={write.receive} />
       </div>
     </div>
   );
